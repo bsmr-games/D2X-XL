@@ -78,7 +78,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Stop Delete-{whatever} from hanging you!
  * 
  * Revision 1.179  1994/10/03  23:39:37  mike
- * Adapt to newer, better, FuelCenActivate function.
+ * Adapt to newer, better, fuelcen_activate function.
  * 
  * Revision 1.178  1994/09/30  00:38:05  mike
  * Shorten diagnostic message erase -- was erasing outside canvas.
@@ -93,7 +93,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Cleaned up game sequencing.
  * 
  * Revision 1.174  1994/08/16  18:11:04  yuan
- * Maded C place you in the center of a tSegment.
+ * Maded C place you in the center of a segment.
  * 
  * Revision 1.173  1994/08/10  19:55:05  john
  * Changed font stuff.
@@ -106,7 +106,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Fixed problem I said I fixed last time
  * 
  * Revision 1.170  1994/08/04  00:27:57  matt
- * When viewing a tWall, update the gameData.objs.objects nSegment if moved out of the tSegment
+ * When viewing a wall, update the gameData.objs.objects segnum if moved out of the segment
  * 
  * Revision 1.169  1994/08/02  14:18:12  mike
  * Clean up dialog boxes.
@@ -130,10 +130,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Fixed #include problem
  * 
  * Revision 1.162  1994/07/21  18:02:09  matt
- * Don't re-init tPlayer stats when going from editor -> game
+ * Don't re-init player stats when going from editor -> game
  * 
  * Revision 1.161  1994/07/21  12:47:53  mike
- * Add tilde key functionality for tObject movement.
+ * Add tilde key functionality for object movement.
  * 
  * Revision 1.160  1994/07/18  10:44:55  mike
  * One-click access to keypads.
@@ -158,7 +158,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Init stats when you go to game from editor
  * 
  * Revision 1.153  1994/06/21  12:57:14  yuan
- * Remove center from tSegment function added to menu.
+ * Remove center from segment function added to menu.
  * 
  */
 
@@ -176,6 +176,11 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef __MSDOS__
+#include <process.h>
+#endif
+
 
 //#define INCLUDE_XLISP
 
@@ -225,7 +230,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "centers.h"
 
 #include "fuelcen.h"
-#include "loadgame.h"
+#include "gameseq.h"
 #include "newmenu.h"
 
 //#define _MARK_ON 1
@@ -238,25 +243,25 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 int initializing;
 
 //these are instances of canvases, pointed to by variables below
-gsrCanvas _canv_editor_game;		//the game on the editor screen
+grs_canvas _canv_editor_game;		//the game on the editor screen
 
 //these are pointers to our canvases
-gsrCanvas *Canv_editor;			//the editor screen
-gsrCanvas *Canv_editor_game=&_canv_editor_game; //the game on the editor screen
+grs_canvas *Canv_editor;			//the editor screen
+grs_canvas *Canv_editor_game=&_canv_editor_game; //the game on the editor screen
 
-gsrCanvas *canv_offscreen;		//for off-screen rendering
-gsrCanvas *Pad_text_canvas;		// Keypad text
+grs_canvas *canv_offscreen;		//for off-screen rendering
+grs_canvas *Pad_text_canvas;		// Keypad text
 
-grsFont *editor_font=NULL;
+grs_font *editor_font=NULL;
 
 //where the editor is looking
-vmsVector EdView_target={0,0,0};
+vms_vector Ed_view_target={0,0,0};
 
 int gamestate_not_restored = 0;
 
 UI_WINDOW * EditorWindow;
 
-int	LargeView_index = -1;
+int	Large_view_index = -1;
 
 UI_GADGET_USERBOX * GameViewBox;
 UI_GADGET_USERBOX * LargeViewBox;
@@ -278,7 +283,7 @@ UI_GADGET_ICON * LockIcon;
 
 UI_EVENT * DemoBuffer = NULL;
 
-//gsrCanvas * BigCanvas[2];
+//grs_canvas * BigCanvas[2];
 //int CurrentBigCanvas = 0;
 //int BigCanvasFirstTime = 1;
 
@@ -313,7 +318,7 @@ void print_diagnostic( char message[DIAGNOSTIC_MESSAGE_MAX] ) {
 
 static char status_line[DIAGNOSTIC_MESSAGE_MAX];
 
-struct tm	Editor_status_lastTime;
+struct tm	Editor_status_last_time;
 
 void editor_status( const char *format, ... )
 {
@@ -325,7 +330,7 @@ void editor_status( const char *format, ... )
 
 	print_status_bar(status_line);
 
-	Editor_status_lastTime = EditorTime_of_day;
+	Editor_status_last_time = Editor_time_of_day;
 
 }
 
@@ -341,10 +346,10 @@ void editor_status( const char *format, ... )
 
 void clear_editor_status(void)
 {
-	int curTime = EditorTime_of_day.tm_hour * 3600 + EditorTime_of_day.tm_min*60 + EditorTime_of_day.tm_sec;
-	int eraseTime = Editor_status_lastTime.tm_hour * 3600 + Editor_status_lastTime.tm_min*60 + Editor_status_lastTime.tm_sec + EDITOR_STATUS_MESSAGE_DURATION;
+	int cur_time = Editor_time_of_day.tm_hour * 3600 + Editor_time_of_day.tm_min*60 + Editor_time_of_day.tm_sec;
+	int erase_time = Editor_status_last_time.tm_hour * 3600 + Editor_status_last_time.tm_min*60 + Editor_status_last_time.tm_sec + EDITOR_STATUS_MESSAGE_DURATION;
 
-	if (curTime > eraseTime) {
+	if (cur_time > erase_time) {
 		int	i;
 		char	message[DIAGNOSTIC_MESSAGE_MAX];
 
@@ -353,7 +358,7 @@ void clear_editor_status(void)
 
 		message[i] = 0;
 		print_status_bar(message);
-		Editor_status_lastTime.tm_hour = 99;
+		Editor_status_last_time.tm_hour = 99;
 	}
 }
 
@@ -422,20 +427,20 @@ int	GotoGameCommon(int mode) {
 
 //@@	init_player_stats();
 //@@
-//@@	gameData.multiplayer.playerInit.position.vPos = Player->position.vPos;
-//@@	gameData.multiplayer.playerInit.position.mOrient = Player->position.mOrient;
-//@@	gameData.multiplayer.playerInit.nSegment = Player->nSegment;
-
+//@@	gameData.multi.playerInit.pos = Player->pos;
+//@@	gameData.multi.playerInit.orient = Player->orient;
+//@@	gameData.multi.playerInit.segnum = Player->segnum;	
+	
 // -- must always save gamesave.sav because the restore-gameData.objs.objects code relies on it
 // -- that code could be made smarter and use the original file, if appropriate.
 //	if (mine_changed) 
 	if (gamestate_not_restored == 0) {
 		gamestate_not_restored = 1;
-		SaveLevel("GAMESAVE.LVL");
+		save_level("GAMESAVE.LVL");
 		editor_status("Gamestate saved.\n");
 	}
 
-	AIResetAllPaths();
+	ai_reset_all_paths();
 
 	StartTime();
 
@@ -461,7 +466,7 @@ void ReadLispMacro( FILE * file, char * buffer )
 //	int pcount = 0;
 //	char text[100];
 //	int i=0;
-
+	
 	fscanf( file, " { %s } ", buffer );
 
 /*
@@ -481,7 +486,7 @@ void ReadLispMacro( FILE * file, char * buffer )
 
 static int (*KeyFunction[2048])();
 
-void medKeyInit()
+void medkey_init()
 {
 	FILE * keyfile;
 	char keypress[100];
@@ -512,7 +517,7 @@ void medKeyInit()
 		}
 		fclose(keyfile);
 	}
-	D2_FREE( LispCommand );
+	d_free( LispCommand );
 }
 
 void init_editor()
@@ -527,20 +532,20 @@ void init_editor()
 	ui_pad_read( 1, "segsize.pad" );
 	ui_pad_read( 2, "curve.pad" );
 	ui_pad_read( 3, "texture.pad" );
-	ui_pad_read( 4, "tObject.pad" );
+	ui_pad_read( 4, "object.pad" );
 	ui_pad_read( 5, "objmov.pad" );
 	ui_pad_read( 6, "group.pad" );
 	ui_pad_read( 7, "lighting.pad" );
 	ui_pad_read( 8, "test.pad" );
 
-	medKeyInit();
+	medkey_init();
 
-	editor_font = GrInitFont( "pc8x16.fnt" );
-
+	editor_font = gr_init_font( "pc8x16.fnt" );
+	
 	menubar_init( "MED.MNU" );
 
 	canv_offscreen = GrCreateCanvas(LVIEW_W,LVIEW_H);
-
+	
 	Draw_all_segments = 1;						// Say draw all segments, not just connected ones
 
 	init_autosave();
@@ -558,19 +563,19 @@ int ShowAbout()
 	return 0;
 }
 
-void MovePlayerToSegment(tSegment *seg,int tSide);
+void MovePlayerToSegment(segment *seg,int side);
 
 int SetPlayerFromCurseg()
 {
 	MovePlayerToSegment(Cursegp,Curside);
-	UpdateFlags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
+	Update_flags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
 	return 1;
 }
 
 int fuelcen_create_from_curseg()
 {
 	Cursegp->special = SEGMENT_IS_FUELCEN;
-	FuelCenActivate( Cursegp, Cursegp->special);
+	fuelcen_activate( Cursegp, Cursegp->special);
 	return 1;
 }
 
@@ -578,100 +583,100 @@ int repaircen_create_from_curseg()
 {
 	Int3();	//	-- no longer supported!
 //	Cursegp->special = SEGMENT_IS_REPAIRCEN;
-//	FuelCenActivate( Cursegp, Cursegp->special);
+//	fuelcen_activate( Cursegp, Cursegp->special);
 	return 1;
 }
 
 int controlcen_create_from_curseg()
 {
 	Cursegp->special = SEGMENT_IS_CONTROLCEN;
-	FuelCenActivate( Cursegp, Cursegp->special);
+	fuelcen_activate( Cursegp, Cursegp->special);
 	return 1;
 }
 
 int robotmaker_create_from_curseg()
 {
 	Cursegp->special = SEGMENT_IS_ROBOTMAKER;
-	FuelCenActivate( Cursegp, Cursegp->special);
+	fuelcen_activate( Cursegp, Cursegp->special);
 	return 1;
 }
 
 int fuelcen_reset_all()	{
-	FuelCenReset();
+	fuelcen_reset();
 	return 1;
 }
 
 int fuelcen_delete_from_curseg() {
-	FuelCenDelete( Cursegp );
+	fuelcen_delete( Cursegp );
 	return 1;
 }
 
 
-//@@//this routine places the viewer in the center of the tSide opposite to curside,
+//@@//this routine places the viewer in the center of the side opposite to curside,
 //@@//with the view toward the center of curside
 //@@int SetPlayerFromCursegMinusOne()
 //@@{
-//@@	vmsVector vp;
+//@@	vms_vector vp;
 //@@
 //@@//	int newseg,newside;
-//@@//	get_previous_segment(SEG_IDX(Cursegp),Curside,&newseg,&newside);
+//@@//	get_previous_segment(SEG_PTR_2_NUM(Cursegp),Curside,&newseg,&newside);
 //@@//	MovePlayerToSegment(&gameData.segs.segments[newseg],newside);
 //@@
-//@@	med_compute_center_point_on_side(&Player->tObjPosition,Cursegp,sideOpposite[Curside]);
+//@@	med_compute_center_point_on_side(&Player->obj_position,Cursegp,sideOpposite[Curside]);
 //@@	med_compute_center_point_on_side(&vp,Cursegp,Curside);
-//@@	VmVecDec(&vp,&Player->position.vPosition);
-//@@	VmVector2Matrix(&Player->position.mOrient,&vp,NULL,NULL);
+//@@	VmVecDec(&vp,&Player->position);
+//@@	VmVector2Matrix(&Player->orient,&vp,NULL,NULL);
 //@@
-//@@	Player->seg = SEG_IDX(Cursegp);
+//@@	Player->seg = SEG_PTR_2_NUM(Cursegp);
 //@@
-//@@	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+//@@	Update_flags |= UF_GAME_VIEW_CHANGED;
 //@@	return 1;
 //@@}
 
 //this constant determines how much of the window will be occupied by the
-//viewed tSide when SetPlayerFromCursegMinusOne() is called.  It actually
+//viewed side when SetPlayerFromCursegMinusOne() is called.  It actually
 //determine how from from the center of the window the farthest point will be
 #define SIDE_VIEW_FRAC (f1_0*8/10)	//80%
 
 
-void move_player_2_segment_and_rotate(tSegment *seg,int tSide)
+void move_player_2_segment_and_rotate(segment *seg,int side)
 {
-	vmsVector vp;
-	vmsVector	upvec;
+	vms_vector vp;
+	vms_vector	upvec;
         static int edgenum=0;
 
-	COMPUTE_SEGMENT_CENTER(&gameData.objs.console->position.vPos,seg);
-	COMPUTE_SIDE_CENTER(&vp,seg,tSide);
-	VmVecDec(&vp,&gameData.objs.console->position.vPos);
+	COMPUTE_SEGMENT_CENTER(&gameData.objs.console->pos,seg);
+	COMPUTE_SIDE_CENTER(&vp,seg,side);
+	VmVecDec(&vp,&gameData.objs.console->pos);
 
 	VmVecSub(&upvec, &gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][edgenum%4]]], &gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][(edgenum+3)%4]]]);
 	edgenum++;
 
-	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,&upvec,NULL);
-//	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,NULL,NULL);
+	VmVector2Matrix(&gameData.objs.console->orient,&vp,&upvec,NULL);
+//	VmVector2Matrix(&gameData.objs.console->orient,&vp,NULL,NULL);
 
-	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_IDX(seg) );
-
+	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(seg) );
+	
 }
 
 int SetPlayerFromCursegAndRotate()
 {
 	move_player_2_segment_and_rotate(Cursegp,Curside);
-	UpdateFlags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
+	Update_flags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
 	return 1;
 }
 
 
-//sets the tPlayer facing curseg/curside, normal to face0 of curside, and
+//sets the player facing curseg/curside, normal to face0 of curside, and
 //far enough away to see all of curside
 int SetPlayerFromCursegMinusOne()
 {
-	vmsVector view_vec,view_vec2,side_center;
-	vmsVector corner_v[4];
-	vmsVector	upvec;
-	g3sPoint corner_p[4];
+	vms_vector view_vec,view_vec2,side_center;
+	vms_vector corner_v[4];
+	vms_vector	upvec;
+	g3s_point corner_p[4];
 	int i;
-	fix max,viewDist=f1_0*10;
+	fix max,view_dist=f1_0*10;
         static int edgenum=0;
 	int newseg;
 
@@ -679,37 +684,37 @@ int SetPlayerFromCursegMinusOne()
 	VmVecNegate(&view_vec);
 
 	COMPUTE_SIDE_CENTER(&side_center,Cursegp,Curside);
-	VmVecCopyScale(&view_vec2,&view_vec,viewDist);
-	VmVecSub(&gameData.objs.console->position.vPos,&side_center,&view_vec2);
+	VmVecCopyScale(&view_vec2,&view_vec,view_dist);
+	VmVecSub(&gameData.objs.console->pos,&side_center,&view_vec2);
 
 	VmVecSub(&upvec, &gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][edgenum%4]]], &gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][(edgenum+3)%4]]]);
 	edgenum++;
 
-	VmVector2Matrix(&gameData.objs.console->position.mOrient,&view_vec,&upvec,NULL);
+	VmVector2Matrix(&gameData.objs.console->orient,&view_vec,&upvec,NULL);
 
 	GrSetCurrentCanvas(Canv_editor_game);
 	G3StartFrame();
-	G3SetViewMatrix(&gameData.objs.console->position.vPos,&gameData.objs.console->position.mOrient,gameStates.render.xZoom, 1);
+	G3SetViewMatrix(&gameData.objs.console->pos,&gameData.objs.console->orient,nRenderZoom);
 
 	for (i=max=0;i<4;i++) {
 		corner_v[i] = gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][i]]];
-		G3TransformAndEncodePoint(&corner_p[i],&corner_v[i]);
-		if (labs(corner_p[i].p3_vec[X]) > max) max = labs(corner_p[i].p3_vec[X]);
-		if (labs(corner_p[i].p3_vec[Y]) > max) max = labs(corner_p[i].p3_vec[Y]);
+		G3RotatePoint(&corner_p[i],&corner_v[i]);
+		if (labs(corner_p[i].p3_x) > max) max = labs(corner_p[i].p3_x);
+		if (labs(corner_p[i].p3_y) > max) max = labs(corner_p[i].p3_y);
 	}
 
-	viewDist = FixMul(viewDist,FixDiv(FixDiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_vec[Z]);
-	VmVecCopyScale(&view_vec2,&view_vec,viewDist);
-	VmVecSub(&gameData.objs.console->position.vPos,&side_center,&view_vec2);
+	view_dist = fixmul(view_dist,fixdiv(fixdiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_z);
+	VmVecCopyScale(&view_vec2,&view_vec,view_dist);
+	VmVecSub(&gameData.objs.console->pos,&side_center,&view_vec2);
 
-	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_IDX(Cursegp) );
+	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(Cursegp) );
 	//UpdateObjectSeg(gameData.objs.console);		//might have backed right out of curseg
 
-	newseg = FindSegByPoint(&gameData.objs.console->position.vPos, SEG_IDX(Cursegp), 1, 0);
+	newseg = FindSegByPoint(&gameData.objs.console->pos,SEG_PTR_2_NUM(Cursegp) );
 	if (newseg != -1)
 		RelinkObject(OBJ_IDX (gameData.objs.console),newseg);
 
-	UpdateFlags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
+	Update_flags |= UF_ED_STATE_CHANGED | UF_GAME_VIEW_CHANGED;
 	return 1;
 }
 
@@ -722,7 +727,7 @@ int ToggleLighting(void)
 	if (gameStates.render.nLighting >= 2)
 		gameStates.render.nLighting = 0;
 
-	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+	Update_flags |= UF_GAME_VIEW_CHANGED;
 
 	if (last_keypress == KEY_L + KEY_SHIFTED)
 		chindex = 0;
@@ -755,7 +760,7 @@ int FindConcaveSegs()
 {
 	find_concave_segs();
 
-	UpdateFlags |= UF_ED_STATE_CHANGED;		//list may have changed
+	Update_flags |= UF_ED_STATE_CHANGED;		//list may have changed
 
 	return 1;
 }
@@ -763,31 +768,31 @@ int FindConcaveSegs()
 int DosShell()
 {
 	int ok, w, h;
-	grsBitmap * save_bitmap;
+	grs_bitmap * save_bitmap;
 
 	// Save the current graphics state.
 
-	w = grdCurScreen->scCanvas.cvBitmap.bmProps.w;
-	h = grdCurScreen->scCanvas.cvBitmap.bmProps.h;
+	w = grdCurScreen->sc_canvas.cv_bitmap.bm_props.w;
+	h = grdCurScreen->sc_canvas.cv_bitmap.bm_props.h;
 
 	save_bitmap = GrCreateBitmap( w, h );
-	GrBmUBitBlt(w, h, 0, 0, 0, 0, &(grdCurScreen->scCanvas.cvBitmap), save_bitmap );
+	GrBmUBitBlt(w, h, 0, 0, 0, 0, &(grdCurScreen->sc_canvas.cv_bitmap), save_bitmap );
 
 	GrSetMode( SM_ORIGINAL );
 
 	//printf( "\n\nType EXIT to return to Inferno" );
 	//fflush(stdout);
 
-	KeyClose();
+	key_close();
 #ifndef __LINUX__
 	ok = spawnl(P_WAIT,getenv("COMSPEC"), NULL );
 #else
         system("");
 #endif
-	KeyInit();
+	key_init();
 
-	GrSetMode(grdCurScreen->scMode);
-	GrBmUBitBlt(w, h, 0, 0, 0, 0, save_bitmap, &(grdCurScreen->scCanvas.cvBitmap);
+	GrSetMode(grdCurScreen->sc_mode);
+	GrBmUBitBlt(w, h, 0, 0, 0, 0, save_bitmap, &(grdCurScreen->sc_canvas.cv_bitmap);
 	GrFreeBitmap( save_bitmap );
 	//gr_pal_setblock( 0, 256, grdCurScreen->pal );
 	//GrUsePaletteTable();
@@ -816,7 +821,7 @@ int ToggleOutlineMode()
 			diagnostic_message("Outline Mode OFF.");
          }
 
-	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+	Update_flags |= UF_GAME_VIEW_CHANGED;
 	return mode;
 }
 
@@ -824,7 +829,7 @@ int ToggleOutlineMode()
 //@@{
 //@@	slew_reset_orient(SlewObj);
 //@@
-//@@	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+//@@	Update_flags |= UF_GAME_VIEW_CHANGED;
 //@@
 //@@	* (ubyte *) 0x417 &= ~0x20;
 //@@
@@ -833,15 +838,15 @@ int ToggleOutlineMode()
 
 int GameZoomOut()
 {
-	gameStates.render.xZoom = FixMul(gameStates.render.xZoom,68985);
-	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+	nRenderZoom = fixmul(nRenderZoom,68985);
+	Update_flags |= UF_GAME_VIEW_CHANGED;
 	return 1;
 }
 
-int GameZoostd::min()
+int GameZoomIn()
 {
-	gameStates.render.xZoom = FixMul(gameStates.render.xZoom,62259);
-	UpdateFlags |= UF_GAME_VIEW_CHANGED;
+	nRenderZoom = fixmul(nRenderZoom,62259);
+	Update_flags |= UF_GAME_VIEW_CHANGED;
 	return 1;
 }
 
@@ -864,19 +869,19 @@ int editor_screen_open = 0;
 //setup the editors windows, canvases, gadgets, etc.
 //called whenever the editor screen is selected
 void init_editor_screen()
-{
-//	grsBitmap * bmp;
+{	
+//	grs_bitmap * bmp;
 
 	if (editor_screen_open) return;
 
-	grdCurScreen->scCanvas.cvFont = editor_font;
-
+	grdCurScreen->sc_canvas.cv_font = editor_font;
+	
 	//create canvas for game on the editor screen
 	initializing = 1;
 	GrSetCurrentCanvas(Canv_editor);
-	Canv_editor->cvFont = editor_font;
+	Canv_editor->cv_font = editor_font;
 	GrInitSubCanvas(Canv_editor_game,Canv_editor,GAMEVIEW_X,GAMEVIEW_Y,GAMEVIEW_W,GAMEVIEW_H);
-
+	
 	//Editor renders into full (320x200) game screen 
 
 	init_info = 1;
@@ -919,7 +924,7 @@ void init_editor_screen()
 	OutlineIcon = ui_add_gadget_icon( EditorWindow, "Out\nline", 	680,25+530,  	40, 22,	KEY_O,			ToggleOutlineMode );
 	LockIcon	= ui_add_gadget_icon( EditorWindow, "Lock\nstep", 725,25+530, 	40, 22,	KEY_L,			ToggleLockstep );
 
-	meddraw_initViews(LargeViewBox->canvas);
+	meddraw_init_views(LargeViewBox->canvas);
 
 	//ui_add_gadget_button( EditorWindow, 460, 510, 50, 25, "Quit", ExitEditor );
 	//ui_add_gadget_button( EditorWindow, 520, 510, 50, 25, "Lisp", CallLisp );
@@ -955,9 +960,9 @@ void init_editor_screen()
 
 	EditorWindow->keyboard_focus_gadget = (UI_GADGET *)LargeViewBox;
 
-	canv_offscreen->cvFont = grdCurScreen->scCanvas.cvFont;
-//	BigCanvas[0]->cvFont = grdCurScreen->scCanvas.cvFont; 
-//	BigCanvas[1]->cvFont = grdCurScreen->scCanvas.cvFont; 
+	canv_offscreen->cv_font = grdCurScreen->sc_canvas.cv_font;
+//	BigCanvas[0]->cv_font = grdCurScreen->sc_canvas.cv_font; 
+//	BigCanvas[1]->cv_font = grdCurScreen->sc_canvas.cv_font; 
 //	BigCanvasFirstTime = 1;
 
 	// Draw status box
@@ -972,7 +977,7 @@ void init_editor_screen()
 	//  GrSetColor( CGREY);
 	//  GrRect( 530, 2, 799, 20);
 
-	UpdateFlags = UF_ALL;
+	Update_flags = UF_ALL;
 	initializing = 0;
 	editor_screen_open = 1;
 }
@@ -1000,7 +1005,7 @@ void close_editor_screen()
 
 void med_show_warning(char *s)
 {
-	gsrCanvas *save_canv=grdCurCanv;
+	grs_canvas *save_canv=grdCurCanv;
 
 	//gr_pal_fade_in(grdCurScreen->pal);	//in case palette is blacked
 
@@ -1014,9 +1019,9 @@ void med_show_warning(char *s)
 int SafetyCheck()
 {
 	int x;
-		
+			
 	if (mine_changed) {
-		StopTime();			
+		StopTime();				
 		x = ExecMessageBox( "Warning!", 2, "Cancel", "OK", "You are about to lose work." );
 		if (x<1) {
 			StartTime();
@@ -1033,8 +1038,8 @@ void close_editor() {
 	close_autosave();
 
 	menubar_close();
-
-	GrCloseFont(editor_font);
+	
+	gr_close_font(editor_font);
 
 	GrFreeCanvas(canv_offscreen); canv_offscreen = NULL;
 
@@ -1082,29 +1087,29 @@ void add_found_segments_to_selected_list(void) {
 
 void gamestate_restore_check() {
 	char Message[DIAGNOSTIC_MESSAGE_MAX];
-	tObjPosition Save_position;
+	obj_position Save_position;
 
 	if (gamestate_not_restored) {
 		sprintf( Message, "Do you wish to restore game state?\n");
-
+	
 		if (MessageBox( -2, -2, 2, Message, "Yes", "No" )==1) {
 
 			// Save current position
-			Save_position.position.vPos = gameData.objs.console->position.vPos;
-			Save_position.position.mOrient = gameData.objs.console->position.mOrient;
-			Save_position.nSegment = gameData.objs.console->nSegment;
+			Save_position.pos = gameData.objs.console->pos;
+			Save_position.orient = gameData.objs.console->orient;
+			Save_position.segnum = gameData.objs.console->segnum;
 
 			LoadLevelSub("GAMESAVE.LVL");
 
 			// Restore current position
-			if (Save_position.nSegment <= gameData.segs.nLastSegment) {
-				gameData.objs.console->position.vPos = Save_position.position.vPos;
-				gameData.objs.console->position.mOrient = Save_position.position.mOrient;
-				RelinkObject(OBJ_IDX (gameData.objs.console),Save_position.nSegment);
+			if (Save_position.segnum <= gameData.segs.nLastSegment) {
+				gameData.objs.console->pos = Save_position.pos;
+				gameData.objs.console->orient = Save_position.orient;
+				RelinkObject(OBJ_IDX (gameData.objs.console),Save_position.segnum);
 			}
 
 			gamestate_not_restored = 0;
-			UpdateFlags |= UF_WORLD_CHANGED;
+			Update_flags |= UF_WORLD_CHANGED;	
 			}
 		else
 			gamestate_not_restored = 1;
@@ -1117,7 +1122,7 @@ int RestoreGameState() {
 
 	editor_status("Gamestate restored.\n");
 
-	UpdateFlags |= UF_WORLD_CHANGED;
+	Update_flags |= UF_WORLD_CHANGED;
 	return 0;
 }
 
@@ -1129,10 +1134,10 @@ extern void check_wall_validity(void);
 void editor(void)
 {
 	int w,h;
-	grsBitmap * savedbitmap;
-	editorView *new_cv;
+	grs_bitmap * savedbitmap;
+	editor_view *new_cv;
         static int padnum=0;
-	vmsMatrix	MouseRotMat,tempm;
+	vms_matrix	MouseRotMat,tempm;
 	//@@short camera_objnum;			//a camera for viewing
 
 	init_editor();
@@ -1154,19 +1159,28 @@ void editor(void)
 
 	SetWarnFunc(med_show_warning);
 
-	gameStates.input.keys.bRepeat = 1;		// Allow repeat in editor
+	keyd_repeat = 1;		// Allow repeat in editor
 
 //	_MARK_("start of editor");//Nuked to compile -KRB
 
 	ui_mouse_hide();
-	ui_reset_idleSeconds();
+
+	ui_reset_idle_seconds();
+
+//@@	//create a camera for viewing in the editor. copy position from gameData.objs.console
+//@@	camera_objnum = CreateObject(OBJ_CAMERA,0,gameData.objs.console->segnum,&gameData.objs.console->pos,&gameData.objs.console->orient,0);
+//@@	gameData.objs.viewer = &gameData.objs.objects[camera_objnum];
+//@@	slew_init(gameData.objs.viewer);		//camera is slewing
+
 	gameData.objs.viewer = gameData.objs.console;
 	slew_init(gameData.objs.console);
-	UpdateFlags = UF_ALL;
+
+	Update_flags = UF_ALL;
+
 	medlisp_update_screen();
 
 	//set the wire-frame window to be the current view
-	currentView = &LargeView;
+	current_view = &LargeView;
 
 	if (faded_in==0)
 	{
@@ -1174,19 +1188,19 @@ void editor(void)
 		//gr_pal_fade_in( grdCurScreen->pal );
 	}
 
-	w = GameViewBox->canvas->cvBitmap.bmProps.w;
-	h = GameViewBox->canvas->cvBitmap.bmProps.h;
-
+	w = GameViewBox->canvas->cv_bitmap.bm_props.w;
+	h = GameViewBox->canvas->cv_bitmap.bm_props.h;
+	
 	savedbitmap = GrCreateBitmap(w, h );
 
-	GrBmUBitBlt( w, h, 0, 0, 0, 0, &GameViewBox->canvas->cvBitmap, savedbitmap );
+	GrBmUBitBlt( w, h, 0, 0, 0, 0, &GameViewBox->canvas->cv_bitmap, savedbitmap );
 
 	GrSetCurrentCanvas( GameViewBox->canvas );
 	GrSetCurFont(editor_font);
 	//GrSetColor( CBLACK );
 	//gr_deaccent_canvas();
 	//gr_grey_canvas();
-
+	
 	ui_mouse_show();
 
 	GrSetCurFont(editor_font);
@@ -1205,16 +1219,16 @@ void editor(void)
 
 		// Only update if there is no key waiting and we're not in
 		// fast play mode.
-		if (!KeyPeekKey()) //-- && (MacroStatus != UI_STATUS_FASTPLAY))
+		if (!key_peekkey()) //-- && (MacroStatus != UI_STATUS_FASTPLAY))
 			medlisp_update_screen();
 
 		//do editor stuff
 		GrSetCurFont(editor_font);
 		ui_mega_process();
-		last_keypress &= ~KEYDBGGED;		//	mask off delete key bit which has no function in editor.
+		last_keypress &= ~KEY_DEBUGGED;		//	mask off delete key bit which has no function in editor.
 		ui_window_do_gadgets(EditorWindow);
-		doRobot_window();
-		doObject_window();
+		do_robot_window();
+		do_object_window();
 		do_wall_window();
 		do_trigger_window();
 		do_hostage_window();
@@ -1223,7 +1237,7 @@ void editor(void)
 		Assert(gameData.walls.nWalls>=0);
 
 		if (Gameview_lockstep) {
-			static tSegment *old_cursegp=NULL;
+			static segment *old_cursegp=NULL;
 			static int old_curside=-1;
 
 			if (old_cursegp!=Cursegp || old_curside!=Curside) {
@@ -1233,10 +1247,10 @@ void editor(void)
 			}
 		}
 
-		if ( ui_get_idleSeconds() > COMPRESS_INTERVAL ) 
+		if ( ui_get_idle_seconds() > COMPRESS_INTERVAL ) 
 			{
 			med_compress_mine();
-			ui_reset_idleSeconds();
+			ui_reset_idle_seconds();
 			}
   
 //	Commented out because it occupies about 25% of time in twirling the mine.
@@ -1244,9 +1258,9 @@ void editor(void)
 //		med_check_all_vertices();
 		clear_editor_status();		// if enough time elapsed, clear editor status message
 		TimedAutosave(mine_filename);
-		set_editorTime_of_day();
+		set_editor_time_of_day();
 		GrSetCurrentCanvas( GameViewBox->canvas );
-	
+		
 		// Remove keys used for slew
 		switch(last_keypress)
 		{
@@ -1298,8 +1312,8 @@ void editor(void)
 			break;
 		case KEY_F1:
 			render_3d_in_big_window = !render_3d_in_big_window;
-			UpdateFlags |= UF_ALL;
-			break;		
+			Update_flags |= UF_ALL;
+			break;			
 		default:
 			{
 			char kdesc[100];
@@ -1322,7 +1336,7 @@ void editor(void)
 		{
 			ui_mouse_hide();
 			gameStates.app.nFunctionMode = FMODE_GAME;
-			GrBmUBitBlt( w, h, 0, 0, 0, 0, savedbitmap, &GameViewBox->canvas->cvBitmap);
+			GrBmUBitBlt( w, h, 0, 0, 0, 0, savedbitmap, &GameViewBox->canvas->cv_bitmap);
 			GrFreeBitmap( savedbitmap );
 			break;
 		}
@@ -1337,10 +1351,10 @@ void editor(void)
 			break;
 		}
 
-//		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)GameViewBox) currentView=NULL;
-//		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)GroupViewBox) currentView=NULL;
+//		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)GameViewBox) current_view=NULL;
+//		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)GroupViewBox) current_view=NULL;
 
-		new_cv = currentView ;
+		new_cv = current_view ;
 
 #if ORTHO_VIEWS
 		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)LargeViewBox) new_cv=&LargeView;
@@ -1348,19 +1362,19 @@ void editor(void)
 		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)FrontViewBox) new_cv=&FrontView;
 		if (CurWindow->keyboard_focus_gadget == (UI_GADGET *)RightViewBox) new_cv=&RightView;
 #endif
-		if (new_cv != currentView ) {
-			currentView->ev_changed = 1;
+		if (new_cv != current_view ) {
+			current_view->ev_changed = 1;
 			new_cv->ev_changed = 1;
-			currentView = new_cv;
+			current_view = new_cv;
 		}
 
 		CalcFrameTime();
 		if (slew_frame(0)) {		//do movement and check keys
-			UpdateFlags |= UF_GAME_VIEW_CHANGED;
+			Update_flags |= UF_GAME_VIEW_CHANGED;
 			if (Gameview_lockstep) {
-				Cursegp = &gameData.segs.segments[gameData.objs.console->nSegment];
+				Cursegp = &gameData.segs.segments[gameData.objs.console->segnum];
 				med_create_new_segment_from_cursegp();
-				UpdateFlags |= UF_ED_STATE_CHANGED;
+				Update_flags |= UF_ED_STATE_CHANGED;
 			}
 		}
 
@@ -1378,23 +1392,23 @@ void editor(void)
 
 			find_segments(xcrd,ycrd,LargeViewBox->canvas,&LargeView,Cursegp,Big_depth);	// Sets globals N_found_segs, Found_segs
 
-			// If shift is down, then add tSegment to found list
-			if (gameStates.input.keys.pressed[ KEY_LSHIFT ] || gameStates.input.keys.pressed[ KEY_RSHIFT ])
+			// If shift is down, then add segment to found list
+			if (keyd_pressed[ KEY_LSHIFT ] || keyd_pressed[ KEY_RSHIFT ])
 				subtract_found_segments_from_selected_list();
 			else
 				add_found_segments_to_selected_list();
 
-  			Found_seg_index = 0;
-	
+  			Found_seg_index = 0;	
+		
 			if (N_found_segs > 0) {
-				sort_seg_list(N_found_segs,Found_segs,&gameData.objs.console->position.vPos);
+				sort_seg_list(N_found_segs,Found_segs,&gameData.objs.console->pos);
 				Cursegp = &gameData.segs.segments[Found_segs[0]];
 				med_create_new_segment_from_cursegp();
-				if (LockView_to_cursegp)
-					setView_target_from_segment(Cursegp);
+				if (Lock_view_to_cursegp)
+					set_view_target_from_segment(Cursegp);
 			}
 
-			UpdateFlags |= UF_ED_STATE_CHANGED | UF_VIEWPOINT_MOVED;
+			Update_flags |= UF_ED_STATE_CHANGED | UF_VIEWPOINT_MOVED;
 		}
 
 		if (GameViewBox->mouse_onme && GameViewBox->b1_dragging) {
@@ -1409,15 +1423,15 @@ void editor(void)
 			ui_mouse_show();
 
 		}
-	
-		// Set current tSegment and tSide by clicking on a polygon in game window.
-		//	If ctrl pressed, also assign current texture map to that tSide.
+		
+		// Set current segment and side by clicking on a polygon in game window.
+		//	If ctrl pressed, also assign current texture map to that side.
 		//if (GameViewBox->mouse_onme && (GameViewBox->b1_done_dragging || GameViewBox->b1_clicked)) {
 		if ((GameViewBox->mouse_onme && GameViewBox->b1_clicked && !render_3d_in_big_window) ||
 			(LargeViewBox->mouse_onme && LargeViewBox->b1_clicked && render_3d_in_big_window)) {
 
 			int	xcrd,ycrd;
-			int seg,tSide,face,poly,tmap;
+			int seg,side,face,poly,tmap;
 
 			if (render_3d_in_big_window) {
 				xcrd = LargeViewBox->b1_drag_x1;
@@ -1427,44 +1441,44 @@ void editor(void)
 				xcrd = GameViewBox->b1_drag_x1;
 				ycrd = GameViewBox->b1_drag_y1;
 			}
-
+	
 			//Int3();
 
-			if (FindSegSideFace(xcrd,ycrd,&seg,&tSide,&face,&poly)) {
+			if (find_seg_side_face(xcrd,ycrd,&seg,&side,&face,&poly)) {
 
 
-				if (seg<0) {							//found an tObject
+				if (seg<0) {							//found an object
 
-					CurObject_index = -seg-1;
-					editor_status("Object %d selected.",CurObject_index);
+					Cur_object_index = -seg-1;
+					editor_status("Object %d selected.",Cur_object_index);
 
-					UpdateFlags |= UF_ED_STATE_CHANGED;
+					Update_flags |= UF_ED_STATE_CHANGED;
 				}
 				else {
 
 					//	See if either shift key is down and, if so, assign texture map
-					if (gameStates.input.keys.pressed[KEY_LSHIFT] || gameStates.input.keys.pressed[KEY_RSHIFT]) {
+					if (keyd_pressed[KEY_LSHIFT] || keyd_pressed[KEY_RSHIFT]) {
 						Cursegp = &gameData.segs.segments[seg];
-						Curside = tSide;
+						Curside = side;
 						AssignTexture();
 						med_create_new_segment_from_cursegp();
 						editor_status("Texture assigned");
-					} else if (gameStates.input.keys.pressed[KEY_G])	{
-						tmap = gameData.segs.segments[seg].sides[tSide].nBaseTex;
+					} else if (keyd_pressed[KEY_G])	{
+						tmap = gameData.segs.segments[seg].sides[side].tmap_num;
 						texpage_grab_current(tmap);
 						editor_status( "Texture grabbed." );
-					} else if (gameStates.input.keys.pressed[ KEY_LAPOSTRO] ) {
+					} else if (keyd_pressed[ KEY_LAPOSTRO] ) {
 						ui_mouse_hide();
-						moveObject_to_mouse_click();
+						move_object_to_mouse_click();
 					} else {
 						Cursegp = &gameData.segs.segments[seg];
-						Curside = tSide;
+						Curside = side;
 						med_create_new_segment_from_cursegp();
 						editor_status("Curseg and curside selected");
 					}
 				}
 
-				UpdateFlags |= UF_ED_STATE_CHANGED;
+				Update_flags |= UF_ED_STATE_CHANGED;
 			}
 			else 
 				editor_status("Click on non-texture ingored");
@@ -1472,24 +1486,24 @@ void editor(void)
 		}
 
 		// Allow specification of LargeView using mouse
-		if (gameStates.input.keys.pressed[ KEY_LCTRL ] || gameStates.input.keys.pressed[ KEY_RCTRL ]) {
+		if (keyd_pressed[ KEY_LCTRL ] || keyd_pressed[ KEY_RCTRL ]) {
 			ui_mouse_hide();
 			if ( (Mouse.dx!=0) && (Mouse.dy!=0) ) {
 				GetMouseRotation( Mouse.dx, Mouse.dy, &MouseRotMat );
 				VmMatMul(&tempm,&LargeView.ev_matrix,&MouseRotMat);
 				LargeView.ev_matrix = tempm;
 				LargeView.ev_changed = 1;
-				LargeView_index = -1;			// say not one of the orthogonal views
+				Large_view_index = -1;			// say not one of the orthogonal views
 			}
 		} else  {
 			ui_mouse_show();
 		}
 
-		if ( gameStates.input.keys.pressed[ KEY_Z ] ) {
+		if ( keyd_pressed[ KEY_Z ] ) {
 			ui_mouse_hide();
 			if ( Mouse.dy!=0 ) {
-				currentView->evDist += Mouse.dy*10000;
-				currentView->ev_changed = 1;
+				current_view->ev_dist += Mouse.dy*10000;
+				current_view->ev_changed = 1;
 			}
 		} else {
 			ui_mouse_show();
@@ -1499,9 +1513,9 @@ void editor(void)
 
 //	_MARK_("end of editor");//Nuked to compile -KRB
 
-	ClearWarnFunc(med_show_warning);
+	clear_warn_func(med_show_warning);
 
-	//kill our camera tObject
+	//kill our camera object
 
 	gameData.objs.viewer = gameData.objs.console;					//reset viewer
 	//@@ReleaseObject(camera_objnum);
@@ -1580,7 +1594,7 @@ void dump_stuff(void)
 int MarkStart(void)
 {
 	char mystr[30];
-	sprintf(mystr,"mark %i start",MarkCount);
+	sprintf(mystr,"mark %i start",Mark_count);
 //	_MARK_(mystr);//Nuked to compile -KRB
 
 	return 1;
@@ -1589,8 +1603,8 @@ int MarkStart(void)
 int MarkEnd(void)
 {
 	char mystr[30];
-	sprintf(mystr,"mark %i end",MarkCount);
-	MarkCount++;
+	sprintf(mystr,"mark %i end",Mark_count);
+	Mark_count++;
 //	_MARK_(mystr);//Nuked to compile -KRB
 
 	return 1;

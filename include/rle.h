@@ -43,20 +43,18 @@ void gr_rle_decode( ubyte * src, ubyte * dest );
 int gr_rle_encode( int org_size, ubyte *src, ubyte *dest );
 int gr_rle_getsize( int org_size, ubyte *src );
 ubyte * r_rle_find_xth_pixel( ubyte *src, int x,int * count, ubyte color );
-int gr_bitmap_rle_compress( CBitmap * bmp );
+int gr_bitmap_rle_compress( grs_bitmap * bmp );
 void gr_rle_expand_scanline_masked( ubyte *dest, ubyte *src, int x1, int x2  );
 void gr_rle_expand_scanline( ubyte *dest, ubyte *src, int x1, int x2  );
 
-CBitmap * rle_expand_texture( CBitmap * bmP );
+grs_bitmap * rle_expand_texture( grs_bitmap * bmP );
 
 void RLECacheFlush();
 
-void rle_swap_0_255(CBitmap *bmP);
+void rle_swap_0_255(grs_bitmap *bmP);
 
-int rle_remap (CBitmap *bmP, ubyte *colorMap, int maxLen);
+int rle_remap (grs_bitmap *bmP, ubyte *colorMap, int maxLen);
 
-int rle_expand (CBitmap *bmP, ubyte *colorMap, int bSwap0255);
-
-void _CDECL_ RLECacheClose (void);
+int rle_expand (grs_bitmap *bmP, ubyte *colorMap, int bSwap0255);
 
 #endif

@@ -72,19 +72,19 @@ extern "C" {
 		int VChars;			//! The number of visible characters in one console line (autocalculated)
 		char* Prompt;			//! Prompt displayed in command line
 		char Command[CON_CHARS_PER_LINE];	//! current command in command line = lcommand + rcommand
-		char RCommand[CON_CHARS_PER_LINE];	//! left hand tSide of cursor
-		char LCommand[CON_CHARS_PER_LINE];	//! right hand tSide of cursor
+		char RCommand[CON_CHARS_PER_LINE];	//! left hand side of cursor
+		char LCommand[CON_CHARS_PER_LINE];	//! right hand side of cursor
 		char VCommand[CON_CHARS_PER_LINE];	//! current visible command line
 		int CursorPos;			//! Current cursor position in CurrentCommand
 		int Offset;			//! CommandOffset (first visible char of command) - if command is too long to fit into console
 		int InsMode;			//! Insert or Overwrite characters?
-		CCanvas 	*ConsoleSurface;	//! Canvas of the console
-		CScreen 	*OutputScreen;	//! This is the screen to draw the console to
-		CBitmap *BackgroundImage;	//! Background image for the console
-		CBitmap *InputBackground;	//! Dirty rectangle to draw over behind the users background
+		grs_canvas *ConsoleSurface;	//! Canvas of the console
+		grs_screen *OutputScreen;	//! This is the screen to draw the console to
+		grs_bitmap *BackgroundImage;	//! Background image for the console
+		grs_bitmap *InputBackground;	//! Dirty rectangle to draw over behind the users background
 		int DispX, DispY;		//! The top left x and y coords of the console on the display screen
 #if 0
-		ubyte ConsoleAlpha;	//! The consoles alpha level
+		unsigned char ConsoleAlpha;	//! The consoles alpha level
 #endif
 		int CommandScrollBack;		//! How much the users scrolled back in the command lines
 		void(*CmdFunction)(struct console_information_td *console, char* command);	//! The Function that is executed if you press <Return> in the console
@@ -107,7 +107,7 @@ extern "C" {
 	/*! Draws the console to the screen if it isVisible()*/
 	void CON_DrawConsole(ConsoleInformation *console);
 	/*! Initializes a new console */
-	ConsoleInformation *CON_Init(CFont *Font, CScreen *DisplayScreen, int lines, int x, int y, int w, int h);
+	ConsoleInformation *CON_Init(grs_font *Font, grs_screen *DisplayScreen, int lines, int x, int y, int w, int h);
 	/*! Calls CON_Free */
 	void CON_Destroy(ConsoleInformation *console);
 	/*! Frees all the memory loaded by the console */
@@ -117,22 +117,22 @@ extern "C" {
 #if 0
 	/*! Sets the alpha channel of an SDL_Surface to the specified value (0 - transparend,
 		255 - opaque). Use this function also for OpenGL. */
-	void CON_Alpha(ConsoleInformation *console, ubyte alpha);
+	void CON_Alpha(ConsoleInformation *console, unsigned char alpha);
 	/*! Internal: Sets the alpha channel of an SDL_Surface to the specified value.
 		Preconditions: the surface in question is RGBA. 0 <= a <= 255, where 0 is transparent and 255 opaque */
 	void CON_AlphaGL(SDL_Surface *s, int alpha);
 	/*! Sets a background image for the console */
 #endif
-	int CON_Background(ConsoleInformation *console, CBitmap *image);
+	int CON_Background(ConsoleInformation *console, grs_bitmap *image);
 	/*! Sets font info for the console */
-	void CON_Font(ConsoleInformation *console, CFont *font, uint fg, uint bg);
+	void CON_Font(ConsoleInformation *console, grs_font *font, unsigned int fg, unsigned int bg);
 	/*! Changes current position of the console */
 	void CON_Position(ConsoleInformation *console, int x, int y);
 	/*! Changes the size of the console */
 	int CON_Resize(ConsoleInformation *console, int x, int y, int w, int h);
 	/*! Beams a console to another screen surface. Needed if you want to make a Video restart in your program. This
 		function first changes the OutputScreen Pointer then calls CON_Resize to adjust the new size. */
-	int CON_Transfer(ConsoleInformation* console, CScreen* new_outputscreen, int x, int y, int w, int h);
+	int CON_Transfer(ConsoleInformation* console, grs_screen* new_outputscreen, int x, int y, int w, int h);
 	/*! Give focus to a console. Make it the "topmost" console. This console will receive events
 		sent with CON_Events() */
 	void CON_Topmost(ConsoleInformation *console);
@@ -183,7 +183,7 @@ extern "C" {
 	void Cursor_Del(ConsoleInformation *console);
 	/*! Internal: Called if you press BACKSPACE (deletes character left of cursor) */
 	void Cursor_BSpace(ConsoleInformation *console);
-	/*! Internal: Called if you nType in a character (add the char to the command) */
+	/*! Internal: Called if you type in a character (add the char to the command) */
 	void Cursor_Add(ConsoleInformation *console, int event);
 
 	/*! Internal: Called if you press Ctrl-C (deletes the commandline) */
@@ -201,3 +201,5 @@ extern "C" {
 #endif
 
 #endif
+
+

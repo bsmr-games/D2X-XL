@@ -1,3 +1,4 @@
+/* $Id: iff.h,v 1.3 2003/10/04 03:14:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -11,87 +12,98 @@ AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
 COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
+/*
+ *
+ * Header for IFF routines
+ *
+ * Old Log:
+ * Revision 1.2  1995/05/05  16:33:22  allender
+ * changed types.h to dtypes.h
+ *
+ * Revision 1.1  1995/05/05  08:59:45  allender
+ * Initial revision
+ *
+ * Revision 1.12  1994/11/07  21:26:53  matt
+ * Added new function iff_read_into_bitmap()
+ *
+ * Revision 1.11  1994/05/06  19:37:38  matt
+ * Improved error handling and checking
+ *
+ * Revision 1.10  1994/04/16  20:12:54  matt
+ * Made masked (stenciled) bitmaps work
+ *
+ * Revision 1.9  1994/04/13  23:46:00  matt
+ * Added function, iff_errormsg(), which returns ptr to error message.
+ *
+ * Revision 1.8  1994/04/13  23:27:10  matt
+ * Put in support for anim brushes (.abm files)
+ *
+ * Revision 1.7  1994/04/06  23:08:02  matt
+ * Cleaned up code; added prototype (but no new code) for anim brush read
+ *
+ * Revision 1.6  1994/01/22  14:40:59  john
+ * Fixed bug with declareations.
+ *
+ * Revision 1.5  1994/01/22  14:23:13  john
+ * Added global vars to check transparency
+ *
+ * Revision 1.4  1993/10/27  12:47:42  john
+ * Extended the comments
+ *
+ * Revision 1.3  1993/09/22  19:17:20  matt
+ * Fixed handling of pad byte in ILBM/PPB body - was writing pad byte to
+ * destination buffer.
+ *
+ * Revision 1.2  1993/09/08  19:23:25  matt
+ * Added additional return code, IFF_BAD_BM_TYPE
+ *
+ * Revision 1.1  1993/09/08  14:24:21  matt
+ * Initial revision
+ *
+ *
+ */
+
 #ifndef _IFF_H
 #define _IFF_H
 
 #include "pstypes.h"
 #include "gr.h"
 
-//Palette entry structure
-typedef struct tPalEntry {
-	sbyte r, g, b;
-} tPalEntry;
+//Prototypes for IFF library functions
 
-//structure of the header in the file
-typedef struct tIFFBitmapHeader {
-	short w, h;						//width and height of this bitmap
-	short x, y;						//generally unused
-	short nType;						//see types above
-	short transparentcolor;		//which color is transparent (if any)
-	short pagewidth, pageheight; //width & height of source screen
-	sbyte nplanes;              //number of planes (8 for 256 color image)
-	sbyte masking, compression;  //see constants above
-	sbyte xaspect, yaspect;      //aspect ratio (usually 5/6)
-	tPalEntry palette[256];		//the palette for this bitmap
-	ubyte *raw_data;				//ptr to array of data
-	short row_size;				//offset to next row
-} tIFFBitmapHeader;
+int iff_read_bitmap(char *ifilename,grs_bitmap *bm,int bitmap_type);
+	//reads an IFF file into a grs_bitmap structure. fills in palette if not null
+	//returns error codes - see IFF.H.  see GR.H for bitmap_type
+	//MEM DETAILS:  This routines assumes that you already have the grs_bitmap
+	//structure allocated, but that you don't have the data for this bitmap
+	//allocated. In other words, do this:
+	//   grs_bitmap * MyPicture;
+	//   MALLOC( MyPicture, grs_bitmap, 1);
+	//   iff_read_bitmap( filename, MyPicture, BM_LINEAR, NULL );
+	//   ...do whatever with your bitmap ...
+	//   GrFreeBitmap( MyPicture );
+	//   exit(0)
 
-typedef struct tMemoryFile {
-	ubyte *data;
-	int	position;
-	int	length;
-} tMemoryFile;
+//like iff_read_bitmap(), but reads into a bitmap that already exists,
+//without allocating memory for the bitmap.
+int iff_read_into_bitmap(char *ifilename,grs_bitmap *bm);
 
-class CIFF {
-	private:
-		tMemoryFile	m_file;
-		ubyte m_transparentColor;
-		ubyte m_hasTransparency;	// 0=no transparency, 1=iff_transparent_color is valid
+//read in animator brush (.abm) file
+//fills in array of pointers, and n_bitmaps.
+//returns iff error codes. max_bitmaps is size of array.
+int iff_read_animbrush(char *ifilename,grs_bitmap **bm,int max_bitmaps,int *n_bitmaps);
 
-public:
-		CIFF () { memset (&m_file, 0, sizeof (m_file)); }
-		~CIFF () { Close (); }
-		int Open (const char *cfname);
-		void Close ();
-		int GetSig ();
-		char GetByte ();
-		int GetWord ();
-		int GetLong ();
+// After a read
+extern ubyte iff_transparent_color;
+extern ubyte iff_has_transparency;	// 0=no transparency, 1=iff_transparent_color is valid
 
-		int ReadBitmap (const char *cfname, CBitmap *bmP, int bitmapType);
-		int ReplaceBitmap (const char *cfname, CBitmap *bmP);
-		int ReadAnimBrush (const char *cfname, CBitmap **bm_list, int max_bitmaps, int *n_bitmaps);
+int iff_write_bitmap(char *ofilename,grs_bitmap *bm, ubyte *palette);
+	//writes an IFF file from a grs_bitmap structure. writes palette if not null
+	//returns error codes - see IFF.H.
 
-		int ParseBitmap (CBitmap *bmP, int bitmapType, CBitmap *prevBmP);
-		int Parse (int formType, tIFFBitmapHeader *bmheader, int form_len, CBitmap *prevBmP);
-		int ParseHeader (int len, tIFFBitmapHeader *bmheader);
-		int ParseBody (int len, tIFFBitmapHeader *bmheader);
-		int ParseDelta (int len, tIFFBitmapHeader *bmheader);
-		void SkipChunk (int len);
-		int ConvertToPBM (tIFFBitmapHeader *bmheader);
-		int ConvertRgb15 (CBitmap *bmP, tIFFBitmapHeader *bmheader);
-		void CopyIffToGrs (CBitmap *bmP, tIFFBitmapHeader *bmheader);
+//function to return pointer to error message
+char *iff_errormsg(int error_number);
 
-		int WriteBitmap (const char *cfname, CBitmap *bmP, ubyte *palette);
-		int WriteHeader (FILE *fp, tIFFBitmapHeader *bitmap_header);
-		int WritePalette (FILE *fp, tIFFBitmapHeader *bitmap_header);
-		int WriteBody (FILE *fp, tIFFBitmapHeader *bitmap_header, int bCompression);
-		int WritePbm (FILE *fp, tIFFBitmapHeader *bitmap_header, int bCompression);
-		int RLESpan (ubyte *dest, ubyte *src, int len);
-
-		inline ubyte*& Data () { return m_file.data; }
-		inline int Pos () { return m_file.position; }
-		inline int Len () { return m_file.length; }
-		inline void SetPos (int position) { m_file.position = position; }
-		inline void SetLen (int length) { m_file.length = length; }
-		inline int NextPos () { return (Pos () < Len ()) ? m_file.position++ : m_file.position; }
-
-		inline ubyte HasTransparency (void) { return m_hasTransparency; }
-		inline ubyte TransparentColor (void) { return m_transparentColor; }
-
-		const char *ErrorMsg (int nError);
-};
 
 //Error codes for read & write routines
 
@@ -100,12 +112,12 @@ public:
 #define IFF_UNKNOWN_FORM    2   //IFF file, but not a bitmap
 #define IFF_NOT_IFF         3   //this isn't even an IFF file
 #define IFF_NO_FILE         4   //cannot find or open file
-#define IFF_BAD_BM_TYPE     5   //tried to save invalid nType, like BM_RGB15
+#define IFF_BAD_BM_TYPE     5   //tried to save invalid type, like BM_RGB15
 #define IFF_CORRUPT         6   //bad data in file
 #define IFF_FORM_ANIM       7   //this is an anim, with non-anim load rtn
 #define IFF_FORM_BITMAP     8   //this is not an anim, with anim load rtn
 #define IFF_TOO_MANY_BMS    9   //anim read had more bitmaps than room for
-#define IFF_UNKNOWN_MASK    10  //unknown masking nType
+#define IFF_UNKNOWN_MASK    10  //unknown masking type
 #define IFF_READ_ERROR      11  //error reading from file
 #define IFF_BM_MISMATCH     12  //bm being loaded doesn't match bm loaded into
 

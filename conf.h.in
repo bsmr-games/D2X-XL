@@ -121,7 +121,7 @@
 /* define to not use the SDL_Joystick routines. */
 #undef USE_LINUX_JOY
 
-/* Define to enable MIDI playback using SDL_mixer */
+/* Define if you have the SDL_mixer library */
 #undef USE_SDL_MIXER
 
 /* Version number of package */

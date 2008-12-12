@@ -3,20 +3,18 @@
 
 #ifdef _WIN32
 
-#include <windows.h>
-
 // Empty file
 typedef struct FILEFINDSTRUCT {
 	unsigned long size;
 	char name[256];
 } FILEFINDSTRUCT;
 
-int FileFindFirst(const char *search_str, FILEFINDSTRUCT *ffstruct, int bFindDirs);
+int FileFindFirst(char *search_str, FILEFINDSTRUCT *ffstruct, int bFindDirs);
 int FileFindNext(FILEFINDSTRUCT *ffstruct, int bFindDirs);
 int FileFindClose(void);
 
 typedef struct FILETIMESTRUCT {
-	ushort date,time;
+	unsigned short date,time;
 } FILETIMESTRUCT;
 
 #else //!defined (_WIN32)
@@ -29,7 +27,7 @@ typedef struct FILETIMESTRUCT {
 typedef struct FILEFINDSTRUCT {
 	char 		name [256];
 	char		szDir [256];
-	char 		nType;
+	char 		type;
 	DIR		*dirP;
 	regex_t	filter;
 } FILEFINDSTRUCT;
@@ -38,7 +36,7 @@ typedef struct FILEFINDSTRUCT {
 #define	FF_DIRECTORY	1
 
 int FileFindNext (FILEFINDSTRUCT *ffsP, int nFlags);
-int FileFindFirst (const char *pszFilter, FILEFINDSTRUCT *ffsP, int nFlags);
+int FileFindFirst (char *pszFilter, FILEFINDSTRUCT *ffsP, int nFlags);
 void FileFindClose(FILEFINDSTRUCT *ffsP);
 
 #endif //_WIN32

@@ -58,7 +58,7 @@ int GroupSegment();
 int Degroup();
 int RotateGroup();
 
-// In tSegment.c
+// In segment.c
 void ToggleBottom();
 void make_curside_bottom_side();
 int select_segment_by_number();
@@ -69,7 +69,7 @@ int UndoCommand();
 
 // In kview.c
 int ZoomOut();
-int Zoomin();
+int ZoomIn();
 int MoveAway();
 int MoveCloser();
 int ToggleChaseMode();
@@ -197,7 +197,7 @@ int	TexStretchUp();
 int	TexChangeAll();
 int	TexChangeAll2();
 
-//	CObject.c
+//	object.c
 int	ObjectPlaceObject();
 int	ObjectMakeCoop();
 int	ObjectPlaceObjectTmap();
@@ -264,20 +264,20 @@ int SelectNextFoundSeg();
 int SelectPreviousFoundSeg(void);
 int do_reset_orient();
 int GameZoomOut();
-int GameZoomin();
+int GameZoomIn();
 
 // John's temp page stuff
 int medtmp_set_page();
 
 // In objpage.c
-int objpage_goto_nextObject();
+int objpage_goto_next_object();
 
 // In medsel.c
 extern int SortSelectedList(void);
 extern int SelectNextFoundSeg(void);
 extern int SelectPreviousFoundSeg(void);
 
-// In tWall.c
+// In wall.c
 extern int wall_add_blastable(void);
 extern int wall_add_door(void);
 extern int wall_add_closed_wall(void);
@@ -313,7 +313,7 @@ extern int do_centers_dialog(void);
 //extern int trigger_add_repair(void);
 //extern int trigger_control(void);
 //extern int trigger_remove(void);
-//extern int trigger_add_if_control_centerDead(void);
+//extern int trigger_add_if_control_center_dead(void);
 extern int bind_wall_to_control_trigger(void);
 
 // In med.c
@@ -328,8 +328,8 @@ extern int goal_blue_create_from_curseg();
 extern int goal_red_create_from_curseg();
 
 // In editor\robot.c
-extern int doRobot_dialog();
-extern int doObject_dialog();
+extern int do_robot_dialog();
+extern int do_object_dialog();
 
 // In editor\hostage.c
 extern int do_hostage_dialog();
