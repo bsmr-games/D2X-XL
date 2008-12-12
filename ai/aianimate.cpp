@@ -37,7 +37,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void AIIdleAnimation (CObject *objP)
+void AIIdleAnimation (tObject *objP)
 {
 #if DBG
 if (OBJ_IDX (objP) == nDbgObj)
@@ -45,19 +45,19 @@ if (OBJ_IDX (objP) == nDbgObj)
 #endif
 if (gameOpts->gameplay.bIdleAnims) {
 		int			h, i, j;
-		CSegment		*segP = gameData.segs.segments + objP->info.nSegment;
-		CFixVector	*vVertex, vVecToGoal, vGoal = gameData.objs.vRobotGoals [OBJ_IDX (objP)];
+		tSegment		*segP = gameData.segs.segments + objP->info.nSegment;
+		vmsVector	*vVertex, vVecToGoal, vGoal = gameData.objs.vRobotGoals [OBJ_IDX (objP)];
 
 	for (i = 0; i < 8; i++) {
 		vVertex = gameData.segs.vertices + segP->verts [i];
 		if ((vGoal[X] == (*vVertex)[X]) && (vGoal[Y] == (*vVertex)[Y]) && (vGoal[Z] == (*vVertex)[Z]))
 			break;
 		}
-	vVecToGoal = vGoal - objP->info.position.vPos; CFixVector::Normalize(vVecToGoal);
+	vVecToGoal = vGoal - objP->info.position.vPos; vmsVector::Normalize(vVecToGoal);
 	if (i == 8)
 		h = 1;
 	else if (AITurnTowardsVector (&vVecToGoal, objP, ROBOTINFO (objP->info.nId).turnTime [2]) < F1_0 - F1_0 / 5) {
-		if (CFixVector::Dot(vVecToGoal, objP->info.position.mOrient[FVEC]) > F1_0 - F1_0 / 5)
+		if (vmsVector::Dot(vVecToGoal, objP->info.position.mOrient[FVEC]) > F1_0 - F1_0 / 5)
 			h = rand () % 2 == 0;
 		else
 			h = 0;
@@ -84,7 +84,7 @@ int     nFlinchScale = 4;
 int     nAttackScale = 24;
 sbyte   xlatAnimation [] = {AS_REST, AS_REST, AS_ALERT, AS_ALERT, AS_FLINCH, AS_FIRE, AS_RECOIL, AS_REST};
 
-int DoSillyAnimation (CObject *objP)
+int DoSillyAnimation (tObject *objP)
 {
 	int				nObject = OBJ_IDX (objP);
 	tJointPos 		*jp_list;
@@ -213,11 +213,11 @@ int DoSillyAnimation (CObject *objP)
 }
 
 //	------------------------------------------------------------------------------------------
-//	Move all sub-OBJECTS in an CObject towards their goals.
-//	Current orientation of CObject is at:	polyObjInfo.animAngles
-//	Goal orientation of CObject is at:		aiInfo.goalAngles
-//	Delta orientation of CObject is at:		aiInfo.deltaAngles
-void AIFrameAnimation (CObject *objP)
+//	Move all sub-OBJECTS in an tObject towards their goals.
+//	Current orientation of tObject is at:	polyObjInfo.animAngles
+//	Goal orientation of tObject is at:		aiInfo.goalAngles
+//	Delta orientation of tObject is at:		aiInfo.deltaAngles
+void AIFrameAnimation (tObject *objP)
 {
 	int	nObject = OBJ_IDX (objP);
 	int	nJoint;
@@ -276,13 +276,13 @@ void AIFrameAnimation (CObject *objP)
 
 //	----------------------------------------------------------------------
 //	General purpose robot-dies-with-death-roll-and-groan code.
-//	Return true if CObject just died.
+//	Return true if tObject just died.
 //	scale: F1_0*4 for boss, much smaller for much smaller guys
-int DoRobotDyingFrame (CObject *objP, fix StartTime, fix xRollDuration, sbyte *bDyingSoundPlaying, short deathSound, fix xExplScale, fix xSoundScale)
+int DoRobotDyingFrame (tObject *objP, fix StartTime, fix xRollDuration, sbyte *bDyingSoundPlaying, short deathSound, fix xExplScale, fix xSoundScale)
 {
 	fix	xRollVal, temp;
 	fix	xSoundDuration;
-	CDigiSound *soundP;
+	tDigiSound *soundP;
 
 if (!xRollDuration)
 	xRollDuration = F1_0/4;
@@ -299,7 +299,7 @@ objP->mType.physInfo.rotVel[Y] = temp / 5;
 objP->mType.physInfo.rotVel[Z] = temp / 7;
 
 if (gameOpts->sound.digiSampleRate) {
-	soundP = gameData.pig.sound.soundP + DigiXlatSound (deathSound);
+	soundP = gameData.pig.sound.pSounds + DigiXlatSound (deathSound);
 	xSoundDuration = FixDiv (soundP->nLength [soundP->bHires], gameOpts->sound.digiSampleRate);
 	}
 else
@@ -324,7 +324,7 @@ return (StartTime + xRollDuration < gameData.time.xGame);
 
 //	----------------------------------------------------------------------
 
-void StartRobotDeathSequence (CObject *objP)
+void StartRobotDeathSequence (tObject *objP)
 {
 objP->cType.aiInfo.xDyingStartTime = gameData.time.xGame;
 objP->cType.aiInfo.bDyingSoundPlaying = 0;
@@ -334,7 +334,7 @@ objP->cType.aiInfo.SKIP_AI_COUNT = 0;
 
 //	----------------------------------------------------------------------
 
-int DoAnyRobotDyingFrame (CObject *objP)
+int DoAnyRobotDyingFrame (tObject *objP)
 {
 if (objP->cType.aiInfo.xDyingStartTime) {
 	int bDeathRoll = ROBOTINFO (objP->info.nId).bDeathRoll;

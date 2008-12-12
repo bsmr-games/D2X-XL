@@ -174,14 +174,14 @@ else
 			if (_bClient) \
 				glClientActiveTexture (_tmu); \
 			if (_bmP) {\
-				if ((_bmP)->Bind (1, 3)) \
+				if (OglBindBmTex (_bmP, 1, 3)) \
 					return 1; \
-				(_bmP) = (_bmP)->CurFrame (-1); \
-				(_bmP)->Texture ()->Wrap (GL_REPEAT); \
+				(_bmP) = BmCurFrame (_bmP, -1); \
+				OglTexWrap ((_bmP)->glTexture, GL_REPEAT); \
 				} \
 			else { \
 				OGL_BINDTEX ((_lmP)->handle); \
-				CTexture::Wrap (GL_CLAMP); \
+				OglTexWrap (NULL, GL_CLAMP); \
 				}
 
 #define	INIT_TMU(_initTMU,_tmu,_bmP,_lmP,_bClient,bLightmaps) \

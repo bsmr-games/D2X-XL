@@ -22,8 +22,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include <math.h>
 
-#include "carray.h"
-
 #include "irrstuff.h"
 
 #ifdef _DEBUG
@@ -203,7 +201,7 @@ typedef struct tColorOptions {
 typedef struct tCockpitOptions {
 	int bHUD;
 	int bHUDMsgs;
-	int bSplitHUDMsgs;	//split CPlayerData and other message displays
+	int bSplitHUDMsgs;	//split tPlayer and other message displays
 	int bReticle;
 	int bMouseIndicator;
 	int bTextGauges;
@@ -228,7 +226,7 @@ typedef struct tTextureOptions {
 
 //------------------------------------------------------------------------------
 
-typedef struct tParticleOptions {
+typedef struct tSmokeOptions {
 	int nDens [5];
 	int nSize [5];
 	int nLife [5];
@@ -240,17 +238,13 @@ typedef struct tParticleOptions {
 	int bPlasmaTrails;
 	int bDebris;
 	int bStatic;
-	int bBubbles;
-	int bWobbleBubbles;
-	int bWiggleBubbles;
 	int bCollisions;
 	int bDisperse;
 	int bRotate;
 	int bSort;
-	int bDecreaseLag;	//only render if CPlayerData is moving forward
+	int bDecreaseLag;	//only render if tPlayer is moving forward
 	int bAuxViews;
-	int bMonitors;
-} tParticleOptions;
+} tSmokeOptions;
 
 //------------------------------------------------------------------------------
 
@@ -266,7 +260,6 @@ typedef struct tLightningOptions {
 	int bOmega;
 	int bRobotOmega;
 	int bAuxViews;
-	int bMonitors;
 } tLightningOptions;
 
 //------------------------------------------------------------------------------
@@ -297,7 +290,7 @@ typedef struct tAutomapOptions {
 	int bTextured;
 	int bBright;
 	int bCoronas;
-	int bParticles;
+	int bSmoke;
 	int bSparks;
 	int bLightnings;
 	int bGrayOut;
@@ -376,7 +369,7 @@ typedef struct tRenderOptions {
 	tCockpitOptions cockpit;
 	tTextureOptions textures;
 	tWeaponIconOptions weaponIcons;
-	tParticleOptions particles;
+	tSmokeOptions smoke;
 	tLightningOptions lightnings;
 	tShadowOptions shadows;
 	tPowerupOptions powerups;
@@ -570,8 +563,6 @@ typedef struct tGameOptions {
 } tGameOptions;
 
 //------------------------------------------------------------------------------
-// states
-//------------------------------------------------------------------------------
 
 typedef struct tSeismicStates {
 	fix	nMagnitude;
@@ -614,7 +605,7 @@ typedef struct tGameplayStates {
 	fix xLastAfterburnerCharge;
 	fix nPlayerSpeed;
 	fix xStartingShields;
-	CFixVector vTgtDir;
+	vmsVector vTgtDir;
 	int nDirSteps;
 	tSeismicStates seismic;
 	tSlowMotionStates slowmo [2];
@@ -626,13 +617,13 @@ typedef struct tGameplayStates {
 
 
 typedef struct tKeyStates {
-	ubyte 	nBufferType;		// 0=No buffer, 1=buffer ASCII, 2=buffer scans
-	ubyte 	bRepeat;
-	ubyte 	bEditorMode;
-	ubyte 	nLastPressed;
-	ubyte 	nLastReleased;
-	ubyte		pressed [256];
-	int		xLastPressTime;
+	unsigned char 	nBufferType;		// 0=No buffer, 1=buffer ASCII, 2=buffer scans
+	unsigned char 	bRepeat;
+	unsigned char 	bEditorMode;
+	unsigned char 	nLastPressed;
+	unsigned char 	nLastReleased;
+	unsigned char	pressed [256];
+	volatile int	xLastPressTime;
 	} tKeyStates;
 
 typedef struct tInputStates {
@@ -718,6 +709,7 @@ typedef struct tOglStates {
 	int bUseTransform;
 	int bGlTexMerge;
 	int bBrightness;
+	int bDoPalStep;
 	int nColorBits;
 	GLint nDepthBits;
 	GLint nStencilBits;
@@ -773,6 +765,9 @@ typedef struct tOglStates {
 #ifdef GL_SGIS_multitexture
 	int bSgisMultiTexture;
 #endif
+	tRgbColorb bright;
+	tRgbColorf fBright;
+	tRgbColors palAdd;
 	float fAlpha;
 	float fLightRange;
 	GLuint hDepthBuffer; 
@@ -817,11 +812,11 @@ typedef struct tCockpitStates {
 //------------------------------------------------------------------------------
 
 typedef struct tVRBuffers {
-	CCanvas		*offscreen;			// The offscreen data buffer
-	CCanvas		render [2];			//  Two offscreen buffers for left/right eyes.
-	CCanvas		subRender [2];		//  Two sub buffers for left/right eyes.
-	CCanvas		screenPages [2];	//  Two pages of VRAM if paging is available
-	CCanvas		editorCanvas;		//  The canvas that the editor writes to.
+	gsrCanvas  *offscreen;			// The offscreen data buffer
+	gsrCanvas	render [2];			//  Two offscreen buffers for left/right eyes.
+	gsrCanvas	subRender [2];		//  Two sub buffers for left/right eyes.
+	gsrCanvas	screenPages [2];	//  Two pages of VRAM if paging is available
+	gsrCanvas	editorCanvas;		//  The canvas that the editor writes to.
 } tVRBuffers;
 
 typedef struct tVRStates {
@@ -878,11 +873,11 @@ typedef struct tAutomapStates {
 	} tAutomapStates;
 
 typedef struct tRenderHistory {
-	CBitmap		*bmBot;
-	CBitmap		*bmTop;
-	CBitmap		*bmMask;
-	ubyte			bSuperTransp;
-	ubyte			bShaderMerge;
+	grsBitmap	*bmBot;
+	grsBitmap	*bmTop;
+	grsBitmap	*bmMask;
+	ubyte		bSuperTransp;
+	ubyte		bShaderMerge;
 	int			bOverlay;
 	int			bColored;
 	int			nShader;
@@ -1186,26 +1181,37 @@ extern tGameStates	gameStates;
 extern tGameOptions	*gameOpts;
 
 //------------------------------------------------------------------------------
-// data
-//------------------------------------------------------------------------------
 
+#define MAX_PATH_POINTS		20
+
+typedef struct tPathPoint {
+	vmsVector			vPos;
+	vmsVector			vOrgPos;
+	vmsMatrix			mOrient;
+} tPathPoint;
+
+typedef struct tFlightPath {
+	tPathPoint			path [MAX_PATH_POINTS];
+	tPathPoint			*pPos;
+	int					nSize;
+	int					nStart;
+	int					nEnd;
+	time_t				tRefresh;
+	time_t				tUpdate;
+} tFlightPath;
 
 //------------------------------------------------------------------------------
 
 #include "cameras.h"
 
-class CShadowLightInfo {
-	public:
-		CFloatVector	vPosf;
-		short				nMap;
-		ubyte				nFrame;	//set per frame when scene as seen from a light source has been rendered
+typedef struct tShadowLightInfo {
+	fVector		vPosf;
+	short			nMap;
+	ubyte			nFrame;	//set per frame when scene as seen from a light source has been rendered
 #if DBG
-		vmsMatrix	orient;
+	vmsMatrix	orient;
 #endif
-	public:
-		CShadowLightInfo () { Init (); }
-		void Init (void) { memset (this, 0, sizeof (*this)); }
-};
+} tShadowLightInfo;
 
 #define MAX_SHADOW_MAPS	20
 #define MAX_SHADOW_LIGHTS 8
@@ -1218,36 +1224,37 @@ typedef struct tLightRef {
 
 //------------------------------------------------------------------------------
 
-class CColorData {
-	public:
-		CArray<tFaceColor>	lights;
-		CArray<tFaceColor>	sides;
-		CArray<tFaceColor>	segments;
-		CArray<tFaceColor>	vertices;
-		CArray<float>			vertBright;
-		CArray<tFaceColor>	ambient;	//static light values
-		CArray<tFaceColor>	textures; // [MAX_WALL_TEXTURES];
-		CArray<tFaceColor>	defaultTextures [2]; //[MAX_WALL_TEXTURES];
-		CArray<tLightRef>		visibleLights;
-		int						nVisibleLights;
-		tRgbColorf				flagTag;
-	public:
-		CColorData ();
-		void Create (void);
-		void Destroy (void);
-};
+typedef struct tColorData {
+	tFaceColor	*lights;
+	tFaceColor	*sides;
+	tFaceColor	*segments;
+	tFaceColor	*vertices;
+	float			*vertBright;
+	tFaceColor	*ambient;	//static light values
+	tFaceColor	textures [MAX_WALL_TEXTURES];
+	tFaceColor	defaultTextures [2][MAX_WALL_TEXTURES];
+	tLightRef	*visibleLights;
+	int			nVisibleLights;
+	tRgbColorf	flagTag;
+} tColorData;
 
 //------------------------------------------------------------------------------
 
-class CPulseData {
-	public:
-		float			fScale;
-		float			fMin;
-		float			fDir;
-		float			fSpeed;
-	public:
-		CPulseData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tPulseData {
+	float			fScale;
+	float			fMin;
+	float			fDir;
+	float			fSpeed;
+} tPulseData;
+
+typedef struct tSphereData {
+	tOOF_vector	*pSphere;
+	int			nTessDepth;
+	int			nFaces;
+	int			nFaceNodes;
+	tPulseData	pulse;
+	tPulseData	*pPulse;
+} tSphereData;
 
 //------------------------------------------------------------------------------
 
@@ -1255,100 +1262,82 @@ class CPulseData {
 #define MAX_OGL_LIGHTS  (64 * 64) //MUST be a power of 2!
 #define MAX_SHADER_LIGHTS	1000
 
-class CDynLightInfo {
-	public:
-		tFace*			faceP;
-		CFixVector		vPos;
-		CFloatVector	vDirf;
-		tRgbaColorf		color;
-		float				fBrightness;
-		float				fBoost;
-		float				fRange;
-		float				fRad;
-		float				fSpotAngle;
-		float				fSpotExponent;
-		short				nSegment;
-		short				nSide;
-		short				nObject;
-		ubyte				nPlayer;
-		ubyte				nType;
-		ubyte				bState;
-		ubyte				bOn;
-		ubyte				bSpot;
-		ubyte				bVariable;
-		ubyte				bPowerup;
-	public:
-		CDynLightInfo () { Init (); }
-		void Init (void) { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tDynLightInfo {
+	grsFace		*faceP;
+	vmsVector	vPos;
+	fVector		vDirf;
+	tRgbaColorf	color;
+	float			fBrightness;
+	float			fBoost;
+	float			fRange;
+	float			fRad;
+	float			fSpotAngle;
+	float			fSpotExponent;
+	short			nSegment;
+	short			nSide;
+	short			nObject;
+	ubyte			nPlayer;
+	ubyte			nType;
+	ubyte			bState;
+	ubyte			bOn;
+	ubyte			bSpot;
+	ubyte			bVariable;
+	ubyte			bPowerup;
+	} tDynLightInfo;
 
-class CDynLight {
-	public:
-		CFixVector			vDir;
-		CFloatVector		color;
+typedef struct tDynLight {
+	vmsVector	vDir;
+	fVector		color;
 #if USE_OGL_LIGHTS
-		unsigned				handle;
-		CFloatVector		fAttenuation;	// constant, linear quadratic
-		CFloatVector		fAmbient;
-		CFloatVector		fDiffuse;
+	unsigned		handle;
+	fVector		fAttenuation;	// constant, linear quadratic
+	fVector		fAmbient;
+	fVector		fDiffuse;
 #endif
-		CFloatVector		fSpecular;
-		CFloatVector		fEmissive;
-		ubyte					bTransform;
-		CDynLightInfo		info;
-		CShadowLightInfo	shadow;
-
-	public:
-		CDynLight ();
-		void Init (void);
-};
+	fVector		fSpecular;
+	fVector		fEmissive;
+	ubyte			bTransform;
+	tDynLightInfo info;
+	tShadowLightInfo	shadow;
+} tDynLight;
 
 //------------------------------------------------------------------------------
 
-class COglMaterial {
-	public:
+typedef struct tOglMaterial {
 #if 0 //using global default values instead
-		CFloatVector	diffuse;
-		CFloatVector	ambient;
+	fVector		diffuse;
+	fVector		ambient;
 #endif
-		CFloatVector	specular;
-		CFloatVector	emissive;
-		ubyte				shininess;
-		ubyte				bValid;
-		short				nLight;
-	public:
-		COglMaterial () { Init (); }
-		void Init (void);
-};
+	fVector		specular;
+	fVector		emissive;
+	ubyte			shininess;
+	ubyte			bValid;
+	short			nLight;
+} tOglMaterial;
 
 //------------------------------------------------------------------------------
 
 struct tActiveShaderLight;
 
-class CShaderLight {
-	public:
-		CFloatVector	vPosf [2];
-		fix				xDistance;
-		short				nVerts [4];
-		int				nTarget;	//lit segment/face
-		int				nFrame;
-		ubyte				bShadow;
-		ubyte				bLightning;
-		ubyte				bExclusive;
-		ubyte				bUsed [MAX_THREADS];
-		CDynLightInfo	info;
-		struct tActiveShaderLight* activeLightsP [MAX_THREADS];
-
-	public:
-		CShaderLight ();
-
-};
+typedef struct tShaderLight {
+	fVector		vPosf [2];
+	fix			xDistance;
+	short			nVerts [4];
+	int			nTarget;	//lit segment/face
+	int			nFrame;
+	ubyte			bShadow;
+	ubyte			bLightning;
+	ubyte			bExclusive;
+	ubyte			bUsed [MAX_THREADS];
+	struct tActiveShaderLight *activeLightsP [MAX_THREADS];
+	tDynLightInfo info;
+} tShaderLight;
 
 //------------------------------------------------------------------------------
 
 typedef struct tActiveShaderLight {
 	short				nType;
-	CShaderLight	*psl;
+	tShaderLight	*psl;
 } tActiveShaderLight;
 
 typedef struct tShaderLightIndex {
@@ -1359,56 +1348,44 @@ typedef struct tShaderLightIndex {
 	short	iStatic;
 	} tShaderLightIndex;
 
-class CShaderLightData {
-	public:
-		CShaderLight			lights [MAX_OGL_LIGHTS];
-		int						nLights;
-		tActiveShaderLight	activeLights [MAX_THREADS][MAX_OGL_LIGHTS];
-		tShaderLightIndex		index [2][MAX_THREADS];
-		GLuint					nTexHandle;
-	public:
-		CShaderLightData () { Init (); }
-		void Init (void);
-};
+typedef struct tShaderLightData {
+	tShaderLight			lights [MAX_OGL_LIGHTS];
+	int						nLights;
+	tActiveShaderLight	activeLights [MAX_THREADS][MAX_OGL_LIGHTS];
+	tShaderLightIndex		index [2][MAX_THREADS];
+	GLuint					nTexHandle;
+} tShaderLightData;
 
 //------------------------------------------------------------------------------
 
 #define MAX_NEAREST_LIGHTS 32
 
-class CHeadlightData {
-	public:
-		CDynLight*			pl [MAX_PLAYERS];
-		CShaderLight*		psl [MAX_PLAYERS];
-		CFloatVector		pos [MAX_PLAYERS];
-		fVector3				dir [MAX_PLAYERS];
-		float					brightness [MAX_PLAYERS];
-		int					nLights;
-	public:
-		CHeadlightData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tHeadlightData {
+	tDynLight			*pl [MAX_PLAYERS];
+	tShaderLight		*psl [MAX_PLAYERS];
+	fVector				pos [MAX_PLAYERS];
+	fVector3				dir [MAX_PLAYERS];
+	float					brightness [MAX_PLAYERS];
+	int					nLights;
+} tHeadlightData;
 
-class CDynLightData {
-	public:
-		CDynLight			lights [MAX_OGL_LIGHTS];
-		CArray<short>		nearestSegLights;		//the 8 nearest static lights for every CSegment
-		CArray<short>		nearestVertLights;		//the 8 nearest static lights for every CSegment
-		CArray<ubyte>		variableVertLights;	//the 8 nearest static lights for every CSegment
-		CArray<short>		owners;
-		short					nLights;
-		short					nVariable;
-		short					nDynLights;
-		short					nVertLights;
-		short					nHeadlights [MAX_PLAYERS];
-		short					nSegment;
-		CShaderLightData	shader;
-		CHeadlightData		headlights;
-		COglMaterial		material;
-		CFBO					fbo;
-	public:
-		CDynLightData ();
-		void Create (void);
-		void Init (void);
-};
+typedef struct tDynLightData {
+	tDynLight			lights [MAX_OGL_LIGHTS];
+	short					*nNearestSegLights;		//the 8 nearest static lights for every tSegment
+	short					*nNearestVertLights;		//the 8 nearest static lights for every tSegment
+	ubyte					*nVariableVertLights;	//the 8 nearest static lights for every tSegment
+	short					*owners;
+	short					nLights;
+	short					nVariable;
+	short					nDynLights;
+	short					nVertLights;
+	short					nHeadlights [MAX_PLAYERS];
+	short					nSegment;
+	tShaderLightData	shader;
+	tHeadlightData		headlights;
+	tOglMaterial		material;
+	tFrameBuffer		fb;
+} tDynLightData;
 
 extern int nMaxNearestLights [21];
 
@@ -1418,113 +1395,110 @@ extern int nMaxNearestLights [21];
 typedef struct tVariableLight {
 	short				nSegment;
 	short				nSide;
-	uint	mask;     // determines flicker pattern
+	unsigned int	mask;     // determines flicker pattern
 	fix				timer;    // time until next change
 	fix				delay;    // time between changes
 } tVariableLight;
 
 #define MAX_FLICKERING_LIGHTS 1000
 
-class CFlickerLightData {
-	public:
-		tVariableLight	lights [MAX_FLICKERING_LIGHTS];
-		int				nLights;
-	public:
-		CFlickerLightData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tFlickerLightData {
+	tVariableLight	lights [MAX_FLICKERING_LIGHTS];
+	int					nLights;
+} tFlickerLightData;
 
 //------------------------------------------------------------------------------
 
-class CLightData {
-	public:
-		int								nStatic;
-		int								nCoronas;
-		CArray<fix>						segDeltas;
-		CArray<tLightDeltaIndex>	deltaIndices;
-		CArray<tLightDelta>			deltas;
-		CArray<ubyte>					subtracted;
-		CDynLightData					dynamic;
-		CFlickerLightData				flicker;
-		CArray<fix>						dynamicLight;
-		CArray<tRgbColorf>			dynamicColor;
-		CArray<ubyte>					bGotDynColor;
-		ubyte								bGotGlobalDynColor;
-		ubyte								bStartDynColoring;
-		ubyte								bInitDynColoring;
-		tRgbColorf						globalDynColor;
-		CArray<short>					vertices;
-		CArray<sbyte>					vertexFlags;
-		CArray<sbyte>					newObjects;
-		CArray<sbyte>					objects;
-		CArray<GLuint>					coronaQueries;
-		CArray<GLuint>					coronaSamples;
-	public:
-		CLightData ();
-		void Create (void);
-};
-
-inline int operator- (tLightDeltaIndex* o, CArray<tLightDeltaIndex>& a) { return a.Index (o); }
-inline int operator- (tLightDelta* o, CArray<tLightDelta>& a) { return a.Index (o); }
+typedef struct tLightData {
+	int					nStatic;
+	int					nCoronas;
+	fix					*segDeltas;
+	tLightDeltaIndex	*deltaIndices;
+	tLightDelta			*deltas;
+	ubyte					*subtracted;
+	tDynLightData		dynamic;
+	tFlickerLightData	flicker;
+	fix					*dynamicLight;
+	tRgbColorf			*dynamicColor;
+	char					*bGotDynColor;
+	char					bGotGlobalDynColor;
+	char					bStartDynColoring;
+	char					bInitDynColoring;
+	tRgbColorf			globalDynColor;
+	short					*vertices;
+	sbyte					*vertexFlags;
+	sbyte					*newObjects;
+	sbyte					*objects;
+	GLuint				*coronaQueries;
+	GLuint				*coronaSamples;
+} tLightData;
 
 //------------------------------------------------------------------------------
 
-class CShadowData {
-	public:
-		short						nLight;
-		short						nLights;
-		CShaderLight*			lights;
-		short						nShadowMaps;
-		CCamera					shadowMaps [MAX_SHADOW_MAPS];
-		CObject					lightSource;
-		tOOF_vector				vLightPos;
-		CFixVector				vLightDir [MAX_SHADOW_LIGHTS];
-		CArray<short>			objLights;
-		ubyte						nFrame;	//flipflop for testing whether a light source's view has been rendered the current frame
-	public:
-		CShadowData ();
-		void Create (void);
-};
+typedef struct tShadowData {
+	short				nLight;
+	short				nLights;
+	tShaderLight	*pLight;
+	short				nShadowMaps;
+	tCamera			shadowMaps [MAX_SHADOW_MAPS];
+	tObject			lightSource;
+	tOOF_vector		vLightPos;
+	vmsVector		vLightDir [MAX_SHADOW_LIGHTS];
+	short				*objLights;
+	ubyte				nFrame;	//flipflop for testing whether a light source's view has been rendered the current frame
+} tShadowData;
 
 //------------------------------------------------------------------------------
 
 #include "morph.h"
 
-class CMorphData {
-	public:
-		tMorphInfo	objects [MAX_MORPH_OBJECTS];
-		fix			xRate;
-	public:
-		CMorphData ();
-};
+typedef struct tMorphData {
+	tMorphInfo	objects [MAX_MORPH_OBJECTS];
+	fix			xRate;
+} tMorphData;
+
+//------------------------------------------------------------------------------
+
+#define	MAX_COMPUTED_COLORS	64
+
+typedef struct {
+	ubyte		r,g,b,nColor;
+} color_record;
+
+typedef struct tPaletteList {
+	tPalette					palette;
+	color_record			computedColors [MAX_COMPUTED_COLORS];
+	short						nComputedColors;
+	struct tPaletteList	*pNextPal;
+} tPaletteList;
+
+typedef struct tPaletteData {
+	struct tPaletteList	*palettes;
+	int						nPalettes;
+	ubyte						*pCurPal;
+} tPaletteData;
 
 //------------------------------------------------------------------------------
 
 #define OGLTEXBUFSIZE (2048*2048*4)
 
-typedef struct tScreenScale {
-	float x, y;
-} tScreenScale;
-
-class COglData {
-	public:
-		GLubyte			buffer [OGLTEXBUFSIZE];
-		CPalette*		palette;
-		GLenum			nSrcBlend;
-		GLenum			nDestBlend;
-		float				zNear;
-		float				zFar;
-		fVector3			depthScale;
-		tScreenScale	screenScale;
-		CFBO				drawBuffer;
-		CFBO				glowBuffer;
-		int				nPerPixelLights [8];
-		float				lightRads [8];
-		CFloatVector	lightPos [8];
-		int				bLightmaps;
-		int				nHeadlights;
-	public:
-		COglData ();
-};
+typedef struct tOglData {
+	GLubyte					texBuf [OGLTEXBUFSIZE];
+	ubyte						*palette;
+	GLenum					nSrcBlend;
+	GLenum					nDestBlend;
+	float						zNear;
+	float						zFar;
+	fVector3					depthScale;
+	struct {float x, y;}	screenScale;
+	tFrameBuffer			drawBuffer;
+	tFrameBuffer			glowBuffer;
+	int						nPerPixelLights [8];
+	float						lightRads [8];
+	fVector					lightPos [8];
+	int						bLightmaps;
+	int						nHeadlights;
+} tOglData;
 
 //------------------------------------------------------------------------------
 
@@ -1532,36 +1506,28 @@ class COglData {
 #define TERRAIN_GRID_SCALE      I2X (2*20)
 #define TERRAIN_HEIGHT_SCALE    f1_0
 
-class CTerrainRenderData {
-	public:
-		CArray<ubyte>			heightmap;
-		CArray<fix>				lightmap;
-		CArray<CFixVector>	points;
-		CBitmap					*bmP;
-		g3sPoint					saveRow [TERRAIN_GRID_MAX_SIZE];
-		CFixVector				vStartPoint;
-		tUVL						uvlList [2][3];
-		int						bOutline;
-		int						nGridW, nGridH;
-		int						orgI, orgJ;
-		int						nMineTilesDrawn;    //flags to tell if all 4 tiles under mine have drawn
-	public:
-		CTerrainRenderData ();
-};
+typedef struct tTerrainRenderData {
+	ubyte			*pHeightmap;
+	fix			*pLightmap;
+	vmsVector	*pPoints;
+	grsBitmap	*bmP;
+	g3sPoint	saveRow [TERRAIN_GRID_MAX_SIZE];
+	vmsVector	vStartPoint;
+	tUVL			uvlList [2][3];
+	int			bOutline;
+	int			nGridW, nGridH;
+	int			orgI, orgJ;
+	int			nMineTilesDrawn;    //flags to tell if all 4 tiles under mine have drawn
+} tTerrainRenderData;
 
 //------------------------------------------------------------------------------
 
-#include "flightpath.h"
-
-class CThrusterData {
-	public:
-		CFlightPath		path;
-		float				fSpeed;
-		short				nPulse;
-		time_t			tPulse;
-	public:
-		CThrusterData ();
-};
+typedef struct tThrusterData {
+	tFlightPath				path;
+	float						fSpeed;
+	short						nPulse;
+	time_t					tPulse;
+} tThrusterData;
 
 //------------------------------------------------------------------------------
 
@@ -1580,138 +1546,119 @@ typedef struct tObjRenderList {
 	int						nUsed;
 } tObjRenderList;
 
-class CMineRenderData {
-	public:
-		CFixVector				viewerEye;
-		short 					nSegRenderList [MAX_SEGMENTS_D2X];
-		tFace*					pFaceRenderList [MAX_SEGMENTS_D2X * 6];
-		tObjRenderList			renderObjs;
-		int						nRenderSegs;
-		ubyte 					bVisited [MAX_SEGMENTS_D2X];
-		ubyte 					bVisible [MAX_SEGMENTS_D2X];
-		ubyte 					bProcessed [MAX_SEGMENTS_D2X];		//whether each entry has been nProcessed
-		ubyte 					nVisited;
-		ubyte						nProcessed;
-		ubyte						nVisible;
-		short 					nSegDepth [MAX_SEGMENTS_D2X];		//depth for each seg in nRenderList
-		int						lCntSave;
-		int						sCntSave;
-		ubyte						bObjectRendered [MAX_OBJECTS_D2X];
-		ubyte						bRenderSegment [MAX_SEGMENTS_D2X];
-		short						nRenderObjList [MAX_SEGMENTS_D2X+N_EXTRA_OBJ_LISTS][OBJS_PER_SEG];
-		short						nRenderPos [MAX_SEGMENTS_D2X];
-		int						nRotatedLast [MAX_VERTICES_D2X];
-		ubyte						bCalcVertexColor [MAX_VERTICES_D2X];
-		ushort					bAutomapVisited [MAX_SEGMENTS_D2X];
-		ushort					bAutomapVisible [MAX_SEGMENTS_D2X];
-		ushort					bRadarVisited [MAX_SEGMENTS_D2X];
-		ubyte						bSetAutomapVisited;
-
-	public:
-		CMineRenderData ();
-};
+typedef struct tMineRenderData {
+	vmsVector				viewerEye;
+	short 					nSegRenderList [MAX_SEGMENTS_D2X];
+	grsFace					*pFaceRenderList [MAX_SEGMENTS_D2X * 6];
+	tObjRenderList			renderObjs;
+	int						nRenderSegs;
+	ubyte 					bVisited [MAX_SEGMENTS_D2X];
+	ubyte 					bVisible [MAX_SEGMENTS_D2X];
+	ubyte 					bProcessed [MAX_SEGMENTS_D2X];		//whether each entry has been nProcessed
+	ubyte 					nVisited;
+	ubyte						nProcessed;
+	ubyte						nVisible;
+	short 					nSegDepth [MAX_SEGMENTS_D2X];		//depth for each seg in nRenderList
+	int						lCntSave;
+	int						sCntSave;
+	ubyte						bObjectRendered [MAX_OBJECTS_D2X];
+	ubyte						bRenderSegment [MAX_SEGMENTS_D2X];
+	short						nRenderObjList [MAX_SEGMENTS_D2X+N_EXTRA_OBJ_LISTS][OBJS_PER_SEG];
+	short						nRenderPos [MAX_SEGMENTS_D2X];
+	int						nRotatedLast [MAX_VERTICES_D2X];
+	ubyte						bCalcVertexColor [MAX_VERTICES_D2X];
+	ushort					bAutomapVisited [MAX_SEGMENTS_D2X];
+	ushort					bAutomapVisible [MAX_SEGMENTS_D2X];
+	ushort					bRadarVisited [MAX_SEGMENTS_D2X];
+	ubyte						bSetAutomapVisited;
+} tMineRenderData;
 
 //------------------------------------------------------------------------------
 
-class CGameWindowData {
-	public:
-		int	x, y;
-		int	w, h;
-		int	wMax, hMax;
-	public:
-		CGameWindowData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tGameWindowData {
+	int						x, y;
+	int						w, h;
+	int						wMax, hMax;
+} tGameWindowData;
 
 //------------------------------------------------------------------------------
 
-class CVertColorData {
-	public:
-		int				bExclusive;
-		int				bNoShadow;
-		int				bDarkness;
-		int				bMatEmissive;
-		int				bMatSpecular;
-		int				nMatLight;
-		CFloatVector	matAmbient;
-		CFloatVector	matDiffuse;
-		CFloatVector	matSpecular;
-		CFloatVector	colorSum;
-		fVector3			vertNorm;
-		fVector3			vertPos;
-		fVector3*		vertPosP;
-		float				fMatShininess;
-	public:
-		CVertColorData () { memset (this, 0, sizeof (*this)); }
-	};
+typedef struct tVertColorData {
+	int		bExclusive;
+	int		bNoShadow;
+	int		bDarkness;
+	int		bMatEmissive;
+	int		bMatSpecular;
+	int		nMatLight;
+	fVector	matAmbient;
+	fVector	matDiffuse;
+	fVector	matSpecular;
+	fVector	colorSum;
+	fVector3	vertNorm;
+	fVector3	vertPos;
+	fVector3	*pVertPos;
+	float		fMatShininess;
+	} tVertColorData;
 
 typedef struct tFaceListItem {
-	tFace					*faceP;
-	short					nNextItem;
+	grsFace					*faceP;
+	short						nNextItem;
 } tFaceListItem;
 
-class CFaceListIndex {
-	public:
-		CShortArray				roots; // [MAX_WALL_TEXTURES * 3];
-		CShortArray				tails; // [MAX_WALL_TEXTURES * 3];
-		CShortArray				usedKeys; // [MAX_WALL_TEXTURES * 3];
-		short						nUsedFaces;
-		short						nUsedKeys;
-	public:
-		CFaceListIndex () { nUsedFaces = nUsedKeys = 0; }
-	};
+typedef struct tFaceListIndex {
+	short						roots [MAX_WALL_TEXTURES * 3];
+	short						tails [MAX_WALL_TEXTURES * 3];
+	short						usedKeys [MAX_WALL_TEXTURES * 3];
+	short						nUsedFaces;
+	short						nUsedKeys;
+	} tFaceListIndex;
 
-#include "sphere.h"
-
-class CRenderData {
-	public:
-		CColorData					color;
-		int							transpColor;
-		CFaceListIndex				faceIndex [2];
-		CVertColorData				vertColor;
-		CSphere						shield;
-		CSphere						monsterball;
-		CArray<tFaceListItem>	faceList;
-		fix							xFlashEffect;
-		fix							xTimeFlashLastPlayed;
-		CFloatVector*				vertP;
-		CFloatVector*				vertexList;
-		CLightData					lights;
-		CMorphData					morph;
-		CShadowData					shadows;
-		COglData						ogl;
-		CTerrainRenderData		terrain;
-		CThrusterData				thrusters [MAX_PLAYERS];
-		CMineRenderData			mine;
-		CGameWindowData			window;
-		fix							zMin;
-		fix							zMax;
-		double						dAspect;
-		CFBO							glareBuffer;
-		int							nTotalFaces;
-		int							nTotalObjects;
-		int							nTotalSprites;
-		int							nTotalLights;
-		int							nMaxLights;
-		int							nColoredFaces;
-		int							nStateChanges;
-		int							nShaderChanges;
-		float							fAttScale;
-		ubyte							nPowerupFilter;
-
-	public:
-		CRenderData ();
-		void Create (void);
-};
+typedef struct tRenderData {
+	tColorData				color;
+	int						transpColor;
+	tFaceListIndex			faceIndex [2];
+	tVertColorData			vertColor;
+	tSphereData				shield;
+	tSphereData				monsterball;
+	tFaceListItem			*faceList;
+	int						nPaletteGamma;
+	int						nComputedColors;
+	fix						xFlashEffect;
+	fix						xTimeFlashLastPlayed;
+	fVector					*pVerts;
+	fVector					*vertexList;
+	tLightData				lights;
+	tMorphData				morph;
+	tShadowData				shadows;
+	tPaletteData			pal;
+	tOglData					ogl;
+	tTerrainRenderData	terrain;
+	tThrusterData			thrusters [MAX_PLAYERS];
+	tMineRenderData		mine;
+	tGameWindowData		window;
+	fix						zMin;
+	fix						zMax;
+	double					dAspect;
+	tFrameBuffer			glareBuffer;
+	int						nTotalFaces;
+	int						nTotalObjects;
+	int						nTotalSprites;
+	int						nTotalLights;
+	int						nMaxLights;
+	int						nColoredFaces;
+	int						nStateChanges;
+	int						nShaderChanges;
+	float						fAttScale;
+	ubyte						nPowerupFilter;
+} tRenderData;
 
 //------------------------------------------------------------------------------
 
-class CSecretData {
-	public:
-		int			nReturnSegment;
-		vmsMatrix	returnOrient;
-	public:
-		CSecretData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tSecretData {
+	int			nReturnSegment;
+	vmsMatrix	returnOrient;
+
+} tSecretData;
 
 //------------------------------------------------------------------------------
 
@@ -1740,177 +1687,148 @@ typedef struct tFaceRenderVertex {
 	tTexCoord2f			lMapTexCoord;
 	} tFaceRenderVertex;
 
-class CFaceData {
-	public:
-		CArray<tFace>			faces;
-		CArray<grsTriangle>	tris;
-		CArray<fVector3>		vertices;
-		CArray<fVector3>		normals;
-		CArray<tTexCoord2f>	texCoord;
-		CArray<tTexCoord2f>	ovlTexCoord;
-		CArray<tTexCoord2f>	lMapTexCoord;
-		CArray<tRgbaColorf>	color;
-		CArray<ushort>			faceVerts;
-		tFace*					slidingFaces;
+typedef struct tFaceData {
+	grsFace				*faces;
+	grsTriangle			*tris;
+	fVector3				*vertices;
+	fVector3				*normals;
+	tTexCoord2f			*texCoord;
+	tTexCoord2f			*ovlTexCoord;
+	tTexCoord2f			*lMapTexCoord;
+	tRgbaColorf			*color;
+	ushort				*faceVerts;
+	grsFace				*slidingFaces;
 #if USE_RANGE_ELEMENTS
-		CArray<GLuint>			vertIndex;
+	GLuint				*vertIndex;
 #endif
-		GLuint					vboDataHandle;
-		GLuint					vboIndexHandle;
-		ubyte						*vertexP;
-		ushort					*indexP;
-		int						nVertices;
-		int						iVertices;
-		int						iNormals;
-		int						iColor;
-		int						iTexCoord;
-		int						iOvlTexCoord;
-		int						iLMapTexCoord;
-	public:
-		CFaceData ();
-		void Create (void);
-};
-
-inline int operator- (grsTriangle* o, CArray<grsTriangle>& a) { return a.Index (o); }
-inline int operator- (fVector3* o, CArray<fVector3>& a) { return a.Index (o); }
-inline int operator- (tTexCoord2f* o, CArray<tTexCoord2f>& a) { return a.Index (o); }
+	GLuint				vboDataHandle;
+	GLuint				vboIndexHandle;
+	ubyte					*vertexP;
+	ushort				*indexP;
+	int					nVertices;
+	int					iVertices;
+	int					iNormals;
+	int					iColor;
+	int					iTexCoord;
+	int					iOvlTexCoord;
+	int					iLMapTexCoord;
+	} tFaceData;
 
 typedef struct tSegList {
 	int					nSegments;
-	CArray<short>		segments;
+	short					*segments;
 } tSegList;
 
 typedef struct tSegExtent {
-	CFixVector			vMin;
-	CFixVector			vMax;
+	vmsVector			vMin;
+	vmsVector			vMax;
 	} tSegExtent;
 
-
-class CSkyBox : public CStack< short > {
-	public:
-		void Destroy (void);
-		int CountSegments (void);
-};
-
-class CSegmentData {
-	public:
-		int						nMaxSegments;
-		CArray<CFixVector>	vertices;
-		CArray<CFloatVector>	fVertices;
-		CArray<CSegment>		segments;
-		CArray<tSegment2>		segment2s;
-		CArray<xsegment>		xSegments;
-		CArray<tSegFaces>		segFaces;
-		CArray<g3sPoint>		points;
-		CSkyBox					skybox;
+typedef struct tSegmentData {
+	int					nMaxSegments;
+	vmsVector			*vertices;
+	fVector				*fVertices;
+	tSegment				*segments;
+	tSegment2			*segment2s;
+	xsegment				*xSegments;
+	tSegFaces			*segFaces;
+	g3sPoint				*points;
+	short					*objects;
+	tSegList				skybox;
 #if CALC_SEGRADS
-		CArray<fix>				segRads [2];
-		CArray<tSegExtent>	extent;
+	fix					*segRads [2];
+	tSegExtent			*extent;
 #endif
-		CFixVector				vMin;
-		CFixVector				vMax;
-		float						fRad;
-		CArray<CFixVector>	segCenters [2];
-		CArray<CFixVector>	sideCenters;
-		CArray<ubyte>			bVertVis;
-		CArray<ubyte>			bSegVis;
-		int						nVertices;
-		int						nFaceVerts;
-		int						nLastVertex;
-		int						nSegments;
-		int						nLastSegment;
-		int						nFaces;
-		int						nTris;
-		int						nLevelVersion;
-		char						szLevelFilename [FILENAME_LEN];
-		CSecretData				secret;
-		CArray<tSlideSegs>	slideSegs;
-		short						nSlideSegs;
-		int						bHaveSlideSegs;
-		CFaceData				faces;
-	public:
-		CSegmentData ();
-		void Create (void);
-};
+	vmsVector			vMin;
+	vmsVector			vMax;
+	float					fRad;
+	vmsVector			*segCenters [2];
+	vmsVector			*sideCenters;
+	ubyte					*bVertVis;
+	ubyte					*bSegVis;
+	int					nVertices;
+	int					nFaceVerts;
+	int					nLastVertex;
+	int					nSegments;
+	int					nLastSegment;
+	int					nFaces;
+	int					nTris;
+	int					nLevelVersion;
+	char					szLevelFilename [FILENAME_LEN];
+	tSecretData			secret;
+	tSlideSegs			*slideSegs;
+	short					nSlideSegs;
+	int					bHaveSlideSegs;
+	tFaceData			faces;
+} tSegmentData;
 
 //------------------------------------------------------------------------------
 
-class CWallData {
-	public:
-		CArray<tWall>				walls ; //[MAX_WALLS];
-		CArray<tExplWall>			explWalls ; //[MAX_EXPLODING_WALLS];
-		CArray<tActiveDoor>		activeDoors ; //[MAX_DOORS];
-		CArray<tCloakingWall>	cloaking ; //[MAX_CLOAKING_WALLS];
-		CArray<tWallClip>			anims [2]; //[MAX_WALL_ANIMS];
-		CArray<int>					bitmaps ; //[MAX_WALL_ANIMS];
-		int							nWalls;
-		int							nOpenDoors; 
-		int							nCloaking;
-		int							nAnims [2];
-		CArray<tWallClip>			animP;
-
-	public:
-		CWallData ();
-};
+typedef struct tWallData {
+	tWall				walls [MAX_WALLS];
+	tExplWall			explWalls [MAX_EXPLODING_WALLS];
+	tActiveDoor			activeDoors [MAX_DOORS];
+	tCloakingWall		cloaking [MAX_CLOAKING_WALLS];
+	tWallClip			anims [2][MAX_WALL_ANIMS];
+	int					bitmaps [MAX_WALL_ANIMS];
+	int					nWalls;
+	int					nOpenDoors; 
+	int					nCloaking;
+	int					nAnims [2];
+	tWallClip			*pAnims;
+} tWallData;
 
 //------------------------------------------------------------------------------
 
-class CTriggerData {
-	public:
-		CArray<tTrigger>			triggers; // [MAX_TRIGGERS];
-		CArray<tTrigger>			objTriggers; // [MAX_TRIGGERS];
-		CArray<tObjTriggerRef>	objTriggerRefs; // [MAX_OBJ_TRIGGERS];
-		CArray<short>				firstObjTrigger; // [MAX_OBJECTS_D2X];
-		CArray<int>					delay; // [MAX_TRIGGERS];
-		int							nTriggers;
-		int							nObjTriggers;
-	public:
-		CTriggerData ();
-};
+typedef struct tTriggerData {
+	tTrigger			triggers [MAX_TRIGGERS];
+	tTrigger			objTriggers [MAX_TRIGGERS];
+	tObjTriggerRef		objTriggerRefs [MAX_OBJ_TRIGGERS];
+	short				firstObjTrigger [MAX_OBJECTS_D2X];
+	int					delay [MAX_TRIGGERS];
+	int					nTriggers;
+	int					nObjTriggers;
+} tTriggerData;
 
 //------------------------------------------------------------------------------
 
-class CPowerupData {
-	public:
-		tPowerupTypeInfo		info [MAX_POWERUP_TYPES];
-		int						nTypes;
-
-	public:
-		CPowerupData () { memset (this, 0, sizeof (*this)); }
-} ;
+typedef struct tPowerupData {
+	tPowerupTypeInfo info [MAX_POWERUP_TYPES];
+	int					nTypes;
+} tPowerupData;
 
 //------------------------------------------------------------------------------
 
 typedef struct tObjTypeData {
-	int						nTypes;
-	sbyte						nType [MAX_OBJTYPE];
-	sbyte						nId [MAX_OBJTYPE];  
-	fix						nStrength [MAX_OBJTYPE];   
+	int					nTypes;
+	sbyte					nType [MAX_OBJTYPE];
+	sbyte					nId [MAX_OBJTYPE];  
+	fix					nStrength [MAX_OBJTYPE];   
 } tObjTypeData;
 
 //------------------------------------------------------------------------------
 
 typedef struct tSpeedBoostData {
-	int						bBoosted;
-	CFixVector				vVel;
-	CFixVector				vMinVel;
-	CFixVector				vMaxVel;
-	CFixVector				vSrc;
-	CFixVector				vDest;
+	int					bBoosted;
+	vmsVector			vVel;
+	vmsVector			vMinVel;
+	vmsVector			vMaxVel;
+	vmsVector			vSrc;
+	vmsVector			vDest;
 } tSpeedBoostData;
 
 //------------------------------------------------------------------------------
 
 typedef struct tQuad {
-	CFixVector			v [4];	//corner vertices
-	CFixVector			n [2];	//normal, transformed normal
+	vmsVector			v [4];	//corner vertices
+	vmsVector			n [2];	//normal, transformed normal
 #if DBG
 	time_t				t;
 #endif
 } tQuad;
 
 typedef struct tBox {
-	CFixVector			vertices [8];
+	vmsVector			vertices [8];
 	tQuad					faces [6];
 #if 0
 	tQuad					rotFaces [6];	//transformed faces
@@ -1919,14 +1837,37 @@ typedef struct tBox {
 	} tBox;
 
 typedef struct tHitbox {
-	CFixVector			vMin;
-	CFixVector			vMax;
-	CFixVector			vSize;
-	CFixVector			vOffset;
+	vmsVector			vMin;
+	vmsVector			vMax;
+	vmsVector			vSize;
+	vmsVector			vOffset;
 	tBox					box;
 	vmsAngVec			angles;			//rotation angles
 	short					nParent;			//parent hitbox
 } tHitbox;
+
+//------------------------------------------------------------------------------
+
+typedef struct tShrapnel {
+	vmsVector	vPos, vStartPos;
+	vmsVector	vDir;
+	vmsVector	vOffs;
+	fix			xSpeed;
+	fix			xBaseSpeed;
+	fix			xLife;
+	fix			xTTL;
+	int			nSmoke;
+	int			nTurn;
+	int			nParts;
+	int			d;
+	double		fScale;
+	time_t		tUpdate;
+} tShrapnel;
+
+typedef struct tShrapnelData {
+	int			nShrapnels;
+	tShrapnel	*shrapnels;
+} tShrapnelData;
 
 //------------------------------------------------------------------------------
 
@@ -1938,14 +1879,24 @@ typedef struct tObjectViewData {
 } tObjectViewData;
 
 typedef struct tLightObjId {
-	short					nObject;
-	int					nSignature;
+	short				nObject;
+	int				nSignature;
 } tLightObjId;
 
+typedef struct tShotInfo {
+	short					nObject;
+	int					nSignature;
+} tShotInfo;
+
 typedef struct tGuidedMissileInfo {
-	CObject				*objP;
+	tObject				*objP;
 	int					nSignature;
 } tGuidedMissileInfo;
+
+typedef struct tObjListRef {
+	tObject	*head, *tail;
+	short		nObjects;
+} tObjListRef;
 
 typedef struct tObjLists {
 	tObjListRef				all;
@@ -1959,59 +1910,61 @@ typedef struct tObjLists {
 	tObjListRef				statics;
 } tObjLists;
 
-class CObjectData {
-	public:
-		CArray<tObjTypeData>		types;
-		CArray<CObject>			objects;
-		tObjLists					lists;
-		CArray<short>				freeList;
-		CArray<short>				parentObjs;
-		CArray<tObjectRef>		childObjs;
-		CArray<short>				firstChild;
-		CArray<tLightObjId>		lightObjs;
-		CArray<CObject>			init;
-		CArray<tObjDropInfo>		dropInfo;
-		CArray<tSpeedBoostData>	speedBoost;
-		CArray<CFixVector>		vRobotGoals;
-		CArray<fix>					xLastAfterburnerTime;
-		CArray<fix>					xLight;
-		CArray<int>					nLightSig;
-		tFaceColor					color;
-		short							nFirstDropped;
-		short							nLastDropped;
-		short							nFreeDropped;
-		short							nDropped;
-		tGuidedMissileInfo		guidedMissile [MAX_PLAYERS];
-		CObject*						consoleP;
-		CObject*						viewerP;
-		CObject*						trackGoals [2];
-		CObject*						missileViewerP;
-		CObject*						deadPlayerCamera;
-		CObject*						endLevelCamera;
-		int							nObjects;
-		int							nLastObject [2];
-		int							nObjectLimit;
-		int							nMaxUsedObjects;
-		int							nNextSignature;
-		int							nChildFreeList;
-		int							nDrops;
-		int							nDeadControlCenter;
-		int							nVertigoBotFlags;
-		CArray<short>				nHitObjects;
-		CPowerupData				pwrUp;
-		ubyte							collisionResult [MAX_OBJECT_TYPES][MAX_OBJECT_TYPES];
-		CArray<tObjectViewData>	viewData;
-		ubyte							bIsMissile [MAX_WEAPONS];
-		ubyte							bIsWeapon [MAX_WEAPONS];
-		ubyte							bIsSlowWeapon [MAX_WEAPONS];
-		short							idToOOF [MAX_WEAPONS];
-		ubyte							bWantEffect [MAX_OBJECTS_D2X];
-		int							nFrameCount;
-
-	public:
-		CObjectData ();
-		void Create (void);
-};
+typedef struct tObjectData {
+	tObjTypeData			types;
+	tObject					*objects;
+	tObjLists				lists;
+	short						*freeList;
+	short						*parentObjs;
+	tObjectRef				*childObjs;
+	short						*firstChild;
+	tLightObjId				*lightObjs;
+	tShotInfo				*shots;
+	tObject					*init;
+	tObjDropInfo			*dropInfo;
+	tSpeedBoostData		*speedBoost;
+	vmsVector				*vRobotGoals;
+	vmsVector				*vStartVel;
+	fix						*xLastAfterburnerTime;
+	fix						*xCreationTime;
+	fix						*xTimeLastHit;
+	fix						*xLight;
+	int						*nLightSig;
+	ubyte						*nTracers;
+	tFaceColor				color;
+	short						nFirstDropped;
+	short						nLastDropped;
+	short						nFreeDropped;
+	short						nDropped;
+	ushort					*cameraRef;
+	tGuidedMissileInfo	guidedMissile [MAX_PLAYERS];
+	tObject					*consoleP;
+	tObject					*viewerP;
+	tObject					*trackGoals [2];
+	tObject					*missileViewerP;
+	tObject					*deadPlayerCamera;
+	tObject					*endLevelCamera;
+	int						nObjects;
+	int						nLastObject [2];
+	int						nObjectLimit;
+	int						nMaxUsedObjects;
+	int						nNextSignature;
+	int						nChildFreeList;
+	int						nDrops;
+	int						nDeadControlCenter;
+	int						nVertigoBotFlags;
+	short						*nHitObjects;
+	tShrapnelData			*shrapnels;
+	tPowerupData			pwrUp;
+	ubyte						collisionResult [MAX_OBJECT_TYPES][MAX_OBJECT_TYPES];
+	tObjectViewData		*viewData;
+	ubyte						bIsMissile [MAX_WEAPONS];
+	ubyte						bIsWeapon [MAX_WEAPONS];
+	ubyte						bIsSlowWeapon [MAX_WEAPONS];
+	short						idToOOF [MAX_WEAPONS];
+	ubyte						bWantEffect [MAX_OBJECTS_D2X];
+	int						nFrameCount;
+} tObjectData;
 
 #define PLAYER_LIGHTNINGS	1
 #define ROBOT_LIGHTNINGS	2
@@ -2023,41 +1976,32 @@ class CObjectData {
 
 //------------------------------------------------------------------------------
 
-class CFVISideData {
-	public:
-		int					bCache;
-		int					vertices [6];
-		int					nFaces;
-		short					nSegment;
-		short					nSide;
-		short					nType;
+typedef struct tFVISideData {
+	int					bCache;
+	int					vertices [6];
+	int					nFaces;
+	short					nSegment;
+	short					nSide;
+	short					nType;
+} tFVISideData;
 
-	public:
-		CFVISideData ();
-};
-
-class CPhysicsData {
-	public:
-		CArray<short>		ignoreObjs;
-		CFVISideData		side;
-		fix					xTime;
-		fix					xAfterburnerCharge;
-		fix					xBossInvulDot;
-		CFixVector			playerThrust;
-
-	public:
-		CPhysicsData ();
-		void Create (void);
-};
+typedef struct tPhysicsData {
+	short					*ignoreObjs;
+	tFVISideData		side;
+	fix					xTime;
+	fix					xAfterburnerCharge;
+	fix					xBossInvulDot;
+	vmsVector			playerThrust;
+} tPhysicsData;
 
 //------------------------------------------------------------------------------
 
 typedef struct tPOF_face {
 	short					nVerts;
-	short*				verts;
-	CFixVector			vCenter;
-	CFixVector			vNorm;
-	CFixVector			vRotNorm;
+	short					*pVerts;
+	vmsVector			vCenter;
+	vmsVector			vNorm;
+	vmsVector			vRotNorm;
 	tOOF_vector			vNormf;
 	tOOF_vector			vCenterf;
 	float					fClipDist;
@@ -2069,59 +2013,55 @@ typedef struct tPOF_face {
 	short					nAdjFaces;
 } tPOF_face;
 
-inline int operator- (tPOF_face* f, CArray<tPOF_face>& a) { return a.Index (f); }
-
 typedef struct tPOF_faceList {
 	short					nFaces;
-	CArray<tPOF_face>	faces;
+	tPOF_face			*pFaces;
 } tPOF_faceList;
 
 typedef struct tPOF_faceRef {
-	short			nFaces;
-	tPOF_face*	*faces;
+	short					nFaces;
+	tPOF_face			**pFaces;
 } tPOF_faceRef;
 
 typedef struct tPOFSubObject {
 	tPOF_faceList		faces;
 	tPOF_faceRef		litFaces;	//submodel faces facing the current light source
-	CFixVector			vPos;
+	vmsVector			vPos;
 	vmsAngVec			vAngles;
 	float					fClipDist;
 	short					nParent;
-	CArray<short>		adjFaces;
+	short					*pAdjFaces;
 	short					nRenderFlipFlop;
 	short					bCalcClipDist;
 } tPOFSubObject;
 
-inline int operator- (tPOFSubObject* o, CArray<tPOFSubObject>& a) { return a.Index (o); }
-
 typedef struct tPOF_subObjList {
-	short							nSubObjs;
-	CArray<tPOFSubObject>	subObjs;
+	short					nSubObjs;
+	tPOFSubObject		*pSubObjs;
 } tPOF_subObjList;
 
 typedef struct tPOFObject {
-	tPOF_subObjList		subObjs;
-	short						nVerts;
-	CArray<CFixVector>		verts;
-	CArray<tOOF_vector>	vertsf;
-	CArray<float>			fClipDist;
-	CArray<ubyte>			vertFlags;
-	CArray<g3sNormal>		vertNorms;
-	CFixVector				vCenter;
-	CArray<CFixVector>		rotVerts;
-	tPOF_faceList			faces;
-	CStack<tPOF_face*>	litFaces;
-	short						nAdjFaces;
-	CArray<short>			adjFaces;
-	CArray<short>			faceVerts;
-	CArray<short>			vertMap;
-	short						iSubObj;
-	short						iVert;
-	short						iFace;
-	short						iFaceVert;
-	char						nState;
-	ubyte						nVertFlag;
+	tPOF_subObjList	subObjs;
+	short					nVerts;
+	vmsVector			*pvVerts;
+	tOOF_vector			*pvVertsf;
+	float					*pfClipDist;
+	ubyte					*pVertFlags;
+	g3sNormal			*pVertNorms;
+	vmsVector			vCenter;
+	vmsVector			*pvRotVerts;
+	tPOF_faceList		faces;
+	tPOF_faceRef		litFaces;
+	short					nAdjFaces;
+	short					*pAdjFaces;
+	short					*pFaceVerts;
+	short					*pVertMap;
+	short					iSubObj;
+	short					iVert;
+	short					iFace;
+	short					iFaceVert;
+	char					nState;
+	ubyte					nVertFlag;
 } tPOFObject;
 
 //	-----------------------------------------------------------------------------
@@ -2145,10 +2085,8 @@ typedef struct tG3ModelVertex {
 	char						bTextured;
 } tG3ModelVertex;
 
-inline int operator- (tG3ModelVertex* f, CArray<tG3ModelVertex>& a) { return a.Index (f); }
-
 typedef struct tG3ModelFace {
-	CFixVector				vNormal;
+	vmsVector				vNormal;
 	short						nVerts;
 	short						nBitmap;
 	short						nIndex;
@@ -2158,17 +2096,15 @@ typedef struct tG3ModelFace {
 	ubyte						bThruster :1;
 } tG3ModelFace;
 
-inline int operator- (tG3ModelFace* f, CArray<tG3ModelFace>& a) { return a.Index (f); }
-
 typedef struct tG3SubModel {
 #if DBG
 	char						szName [256];
 #endif
-	CFixVector				vOffset;
-	CFixVector				vCenter;
+	vmsVector				vOffset;
+	vmsVector				vCenter;
 	fVector3					vMin;
 	fVector3					vMax;
-	tG3ModelFace*			faces;
+	tG3ModelFace			*pFaces;
 	short						nParent;
 	short						nFaces;
 	short						nIndex;
@@ -2192,75 +2128,68 @@ typedef struct tG3SubModel {
 	time_t					tFrame;
 } tG3SubModel;
 
-inline int operator- (tG3SubModel* f, CArray<tG3SubModel>& a) { return a.Index (f); }
-
-
 typedef struct tG3VertNorm {
 	fVector3					vNormal;
 	ubyte						nVerts;
 } tG3VertNorm;
 
 typedef struct tG3Model {
-	CArray<CBitmap>			textures;
-	int							teamTextures [8];
-	CArray<fVector3>			verts;
-	CArray<fVector3>			vertNorms;
-	CArray<tFaceColor>		color;
-	CArray<tG3ModelVertex>	faceVerts;
-	CArray<tG3ModelVertex>	sortedVerts;
-	CArray<ubyte>				vbData;
-	CArray<tTexCoord2f>		vbTexCoord;
-	CArray<tRgbaColorf>		vbColor;
-	CArray<fVector3>			vbVerts;
-	CArray<fVector3>			vbNormals;
-	CArray<tG3SubModel>		subModels;
-	CArray<tG3ModelFace>		faces;
-	CArray<tG3RenderVertex>	vertBuf [2];
-	CArray<short>				index [2];
-	short							nGunSubModels [MAX_GUNS];
-	float							fScale;
-	short							nType; //-1: custom mode, 0: default model, 1: alternative model, 2: hires model
-	short							nFaces;
-	short							iFace;
-	short							nVerts;
-	short							nFaceVerts;
-	short							iFaceVert;
-	short							nSubModels;
-	short							nTextures;
-	short							iSubModel;
-	short							bHasTransparency;
-	short							bValid;
-	short							bRendered;
-	short							bBullets;
-	CFixVector					vBullets;
-	GLuint						vboDataHandle;
-	GLuint						vboIndexHandle;
+	grsBitmap				*pTextures;
+	int						teamTextures [8];
+	fVector3					*pVerts;
+	fVector3					*pVertNorms;
+	tFaceColor				*pColor;
+	tG3ModelVertex			*pFaceVerts;
+	tG3ModelVertex			*pSortedVerts;
+	char						*pVBData;
+	tTexCoord2f				*pVBTexCoord;
+	tRgbaColorf				*pVBColor;
+	fVector3					*pVBVerts;
+	fVector3					*pVBNormals;
+	tG3SubModel				*pSubModels;
+	tG3ModelFace			*pFaces;
+	tG3RenderVertex		*pVertBuf [2];
+	short						*pIndex [2];
+	short						nGunSubModels [MAX_GUNS];
+	float						fScale;
+	short						nType; //-1: custom mode, 0: default model, 1: alternative model, 2: hires model
+	short						nFaces;
+	short						iFace;
+	short						nVerts;
+	short						nFaceVerts;
+	short						iFaceVert;
+	short						nSubModels;
+	short						nTextures;
+	short						iSubModel;
+	short						bHasTransparency;
+	short						bValid;
+	short						bRendered;
+	short						bBullets;
+	vmsVector				vBullets;
+	GLuint					vboDataHandle;
+	GLuint					vboIndexHandle;
 } tG3Model;
 
 //------------------------------------------------------------------------------
 
 #define MAX_POLYGON_VERTS 1000
 
-class CRobotData {
-	public:
-		char*						robotNames [MAX_ROBOT_TYPES][ROBOT_NAME_LENGTH];
-		CArray<tRobotInfo>	info [2]; //[MAX_ROBOT_TYPES];
-		CArray<tRobotInfo>	defaultInfo ; //[MAX_ROBOT_TYPES];
-		CArray<tJointPos>		joints ; //[MAX_ROBOT_JOINTS];
-		CArray<tJointPos>		defaultJoints ; //[MAX_ROBOT_JOINTS];
-		int						nJoints;
-		int						nDefaultJoints;
-		int						nCamBotId;
-		int						nCamBotModel;
-		int						nTypes [2];
-		int						nDefaultTypes;
-		int						bReplacementsLoaded;
-		CArray<tRobotInfo>	infoP;
-		CArray<tPOFObject>	pofData;
-	public:
-		CRobotData ();
-		~CRobotData () {}
-};
+typedef struct tRobotData {
+	char					*robotNames [MAX_ROBOT_TYPES][ROBOT_NAME_LENGTH];
+	tRobotInfo			info [2][MAX_ROBOT_TYPES];
+	tRobotInfo			defaultInfo [MAX_ROBOT_TYPES];
+	tJointPos			joints [MAX_ROBOT_JOINTS];
+	tJointPos			defaultJoints [MAX_ROBOT_JOINTS];
+	int					nJoints;
+	int					nDefaultJoints;
+	int					nCamBotId;
+	int					nCamBotModel;
+	int					nTypes [2];
+	int					nDefaultTypes;
+	int					bReplacementsLoaded;
+	tRobotInfo			*pInfo;
+	tPOFObject			*pPofData;
+} tRobotData;
 
 #define D1ROBOT(_id)		(gameStates.app.bD1Mission && ((_id) < gameData.bots.nTypes [1]))
 #define ROBOTINFO(_id)	gameData.bots.info [D1ROBOT (_id)][_id]
@@ -2276,91 +2205,69 @@ typedef struct tOpenALData {
 
 #endif
 
-class CSoundData {
-	public:
-		CArray<ubyte>			data [2];
-		CArray<CDigiSound>	sounds [2]; //[MAX_SOUND_FILES];
-		int						nSoundFiles [2];
-		CArray<CDigiSound>	soundP;
+typedef struct tSoundData {
+	ubyte					*data [2];
+	tDigiSound			sounds [2][MAX_SOUND_FILES];
+	int					nSoundFiles [2];
+	tDigiSound			*pSounds;
 #if USE_OPENAL
-		tOpenALData				openAL;
+	tOpenALData			openAL;
 #endif
-			
-	public:
-		CSoundData ();
-		~CSoundData () {}
-};
+} tSoundData;
 
 //------------------------------------------------------------------------------
 
 #define N_COCKPIT_BITMAPS 6
 #define D1_N_COCKPIT_BITMAPS 4
 
-class CTextureData {
-	public:
-		CArray<tBitmapFile>		bitmapFiles [2]; //[MAX_BITMAP_FILES];
-		CArray<sbyte>				bitmapFlags [2]; //[MAX_BITMAP_FILES];
-		CArray<CBitmap>			bitmaps [2]; //[MAX_BITMAP_FILES];
-		CArray<CBitmap>			altBitmaps [2]; //[MAX_BITMAP_FILES];
-		CArray<CBitmap>			addonBitmaps ; //[MAX_ADDON_BITMAP_FILES];
-		CArray<ushort>				bitmapXlat ; //[MAX_BITMAP_FILES];
-		CArray<alias>				aliases ; //[MAX_ALIASES];
-		CArray<tBitmapIndex>		bmIndex [2]; //[MAX_TEXTURES];
-		CArray<tBitmapIndex>		objBmIndex ; //[MAX_OBJ_BITMAPS];
-		CArray<short>				textureIndex [2]; //[MAX_BITMAP_FILES];
-		CArray<ushort>				objBmIndexP ; //[MAX_OBJ_BITMAPS];
-		CArray<tBitmapIndex>		cockpitBmIndex; //[N_COCKPIT_BITMAPS];
-		CArray<tRgbColorf>		bitmapColors ; //[MAX_BITMAP_FILES];
-		int							nBitmaps [2];
-		int							nObjBitmaps;
-		int							bPageFlushed;
-		CArray<tTexMapInfo>		tMapInfo [2] ; //[MAX_TEXTURES];
-		int							nExtraBitmaps;
-		int							nAliases;
-		int							nHamFileVersion;
-		int							nTextures [2];
-		int							nFirstMultiBitmap;
-		CArray<tBitmapFile>		bitmapFileP;
-		CArray<CBitmap>			bitmapP;
-		CArray<CBitmap>			altBitmapP;
-		CArray<tBitmapIndex>		bmIndexP;
-		CArray<tTexMapInfo>		tMapInfoP;
-		CArray<ubyte>				rleBuffer;
-		CArray<int>					brightness; // [MAX_WALL_TEXTURES];
-		CArray<int>					defaultBrightness [2]; //[MAX_WALL_TEXTURES];
-
-	public:
-		CTextureData ();
-		~CTextureData () {}
-};
+typedef struct tTextureData {
+	tBitmapFile			bitmapFiles [2][MAX_BITMAP_FILES];
+	sbyte					bitmapFlags [2][MAX_BITMAP_FILES];
+	grsBitmap			bitmaps [2][MAX_BITMAP_FILES];
+	grsBitmap			altBitmaps [2][MAX_BITMAP_FILES];
+	grsBitmap			addonBitmaps [MAX_ADDON_BITMAP_FILES];
+	ushort				bitmapXlat [MAX_BITMAP_FILES];
+	alias					aliases [MAX_ALIASES];
+	tBitmapIndex		bmIndex [2][MAX_TEXTURES];
+	tBitmapIndex		objBmIndex [MAX_OBJ_BITMAPS];
+	short					textureIndex [2][MAX_BITMAP_FILES];
+	ushort				pObjBmIndex [MAX_OBJ_BITMAPS];
+	tBitmapIndex		cockpitBmIndex [N_COCKPIT_BITMAPS];
+	tRgbColorf			bitmapColors [MAX_BITMAP_FILES];
+	int					nBitmaps [2];
+	int					nObjBitmaps;
+	int					bPageFlushed;
+	tTexMapInfo      	tMapInfo [2][MAX_TEXTURES];
+	int					nExtraBitmaps;
+	int					nAliases;
+	int					nHamFileVersion;
+	int					nTextures [2];
+	int					nFirstMultiBitmap;
+	tBitmapFile			*pBitmapFiles;
+	grsBitmap			*pBitmaps;
+	grsBitmap			*pAltBitmaps;
+	tBitmapIndex		*pBmIndex;
+	tTexMapInfo			*pTMapInfo;
+	ubyte					*rleBuffer;
+	int					brightness [MAX_WALL_TEXTURES];
+	int					defaultBrightness [2][MAX_WALL_TEXTURES];
+} tTextureData;
 
 //------------------------------------------------------------------------------
 
-class CEffectData {
-	public:
-		CArray<tEffectClip>	effects [2]; //[MAX_EFFECTS];
-		CArray<tVideoClip>	vClips [2]; //[VCLIP_MAXNUM];
-		int						nEffects [2];
-		int 						nClips [2];
-		CArray<tEffectClip>	effectP;
-		CArray<tVideoClip>	vClipP;
+typedef struct tEffectData {
+	tEffectClip			effects [2][MAX_EFFECTS];
+	tVideoClip 			vClips [2][VCLIP_MAXNUM];
+	int					nEffects [2];
+	int 					nClips [2];
+	tEffectClip			*pEffects;
+	tVideoClip			*pVClips;
+} tEffectData;
 
-	public:
-		CEffectData ();
-		~CEffectData () {}
-};
-
-inline int operator- (tEffectClip* o, CArray<tEffectClip>& a) { return a.Index (o); }
-inline int operator- (tVideoClip* o, CArray<tVideoClip>& a) { return a.Index (o); }
-
-class CShipData {
-	public:
-		CPlayerShip		only;
-		CPlayerShip		*player;
-
-	public:
-		 CShipData ();
-};
+typedef struct tShipData {
+	tPlayerShip			only;
+	tPlayerShip			*player;
+} tShipData;
 
 //------------------------------------------------------------------------------
 
@@ -2368,32 +2275,26 @@ typedef struct tFlagData {
 	tBitmapIndex		bmi;
 	tVideoClip			*vcP;
 	tVClipInfo			vci;
-	CFlightPath			path;
+	tFlightPath			path;
 } tFlagData;
 
 //------------------------------------------------------------------------------
 
-class CPigData {
-	public:
-		CTextureData		tex;
-		CSoundData			sound;
-		CShipData			ship;
-		tFlagData			flags [2];
-
-	public:
-		CPigData () {}
-		~CPigData () {}
-};
+typedef struct tPigData {
+	tTextureData		tex;
+	tSoundData			sound;
+	tShipData			ship;
+	tFlagData			flags [2];
+} tPigData;
 
 //------------------------------------------------------------------------------
 
 #include "laser.h"
 
-class CMuzzleData {
-	public:
-		int				queueIndex;
-		tMuzzleInfo		info [MUZZLE_QUEUE_MAX];
-};
+typedef struct tMuzzleData {
+	int				queueIndex;
+	tMuzzleInfo		info [MUZZLE_QUEUE_MAX];
+} tMuzzleData;
 
 #include "weapon.h"
 
@@ -2407,23 +2308,18 @@ typedef struct tFiringData {
 	int					bSpeedUp;
 	} tFiringData;
 
-class CWeaponData {
-	public:
-		sbyte						nPrimary;
-		sbyte						nSecondary;
-		sbyte						nOverridden;
-		sbyte						bTripleFusion;
-		tFiringData				firing [2];
-		int						nTypes [2];
-		tWeaponInfo				info [MAX_WEAPON_TYPES];
-		tD1WeaponInfo			infoD1 [D1_MAX_WEAPON_TYPES];
-		CArray<tRgbaColorf>	color;
-		ubyte						bLastWasSuper [2][MAX_PRIMARY_WEAPONS];
-
-	public:
-		CWeaponData () { memset (this, 0, sizeof (*this)); }
-		void Create (void);
-};
+typedef struct tWeaponData {
+	sbyte					nPrimary;
+	sbyte					nSecondary;
+	sbyte					nOverridden;
+	sbyte					bTripleFusion;
+	tFiringData			firing [2];
+	int					nTypes [2];
+	tWeaponInfo			info [MAX_WEAPON_TYPES];
+	tD1WeaponInfo		infoD1 [D1_MAX_WEAPON_TYPES];
+	tRgbaColorf			*color;
+	ubyte					bLastWasSuper [2][MAX_PRIMARY_WEAPONS];
+} tWeaponData;
 
 #define bLastPrimaryWasSuper (gameData.weapons.bLastWasSuper [0])
 #define bLastSecondaryWasSuper (gameData.weapons.bLastWasSuper [1])
@@ -2441,21 +2337,21 @@ typedef struct tModelHitboxes {
 	ubyte					nHitboxes;
 	tHitbox				hitboxes [MAX_HITBOXES + 1];
 #if DBG
-	CFixVector			vHit;
+	vmsVector			vHit;
 	time_t				tHit;
 #endif
 } tModelHitboxes;
 
 typedef struct tModelThrusters {
-	CFixVector			vPos [2];
-	CFixVector			vDir [2];
+	vmsVector			vPos [2];
+	vmsVector			vDir [2];
 	float					fSize;
 	ushort				nCount;
 	} tModelThrusters;
 
 typedef struct tGunInfo {
 	int					nGuns;
-	CFixVector			vGunPoints [MAX_GUNS];
+	vmsVector			vGunPoints [MAX_GUNS];
 	} tGunInfo;
 
 typedef struct tModelSphere {
@@ -2463,201 +2359,160 @@ typedef struct tModelSphere {
 	short					nFaces;
 	short					nFaceVerts;
 	fix					xRads [3];
-	CFixVector			vOffsets [3];
+	vmsVector			vOffsets [3];
 } tModelSphere;
 
-class CModelData {
-	public:
-		int					nLoresModels;
-		int					nHiresModels;
-		tASEModel			aseModels [2][MAX_POLYGON_MODELS];
-		tOOFObject			oofModels [2][MAX_POLYGON_MODELS];
-		tPOFObject			pofData [2][2][MAX_POLYGON_MODELS];
-		ubyte					bHaveHiresModel [MAX_POLYGON_MODELS];
-		tPolyModel			polyModels [MAX_POLYGON_MODELS];
-		tPolyModel			defPolyModels [MAX_POLYGON_MODELS];
-		tPolyModel			altPolyModels [MAX_POLYGON_MODELS];
-		tOOFObject*			modelToOOF [2][MAX_POLYGON_MODELS];
-		tASEModel*			modelToASE [2][MAX_POLYGON_MODELS];
-		tPolyModel*			modelToPOL [MAX_POLYGON_MODELS];
-		int					nPolyModels;
-		int					nDefPolyModels;
-		g3sPoint				polyModelPoints [MAX_POLYGON_VERTS];
-		CFloatVector		fPolyModelVerts [MAX_POLYGON_VERTS];
-		CBitmap*				textures [MAX_POLYOBJ_TEXTURES];
-		tBitmapIndex		textureIndex [MAX_POLYOBJ_TEXTURES];
-		int					nSimpleModelThresholdScale;
-		int					nMarkerModel;
-		int					nCockpits;
-		int					nDyingModels [MAX_POLYGON_MODELS];
-		int					nDeadModels [MAX_POLYGON_MODELS];
-		tModelHitboxes		hitboxes [MAX_POLYGON_MODELS];
-		tModelThrusters	thrusters [MAX_POLYGON_MODELS];
-		tG3Model				g3Models [2][MAX_POLYGON_MODELS];
-		CFixVector			offsets [MAX_POLYGON_MODELS];
-		tGunInfo				gunInfo [MAX_POLYGON_MODELS];
-		tModelSphere		spheres [MAX_POLYGON_MODELS];
-		CFixVector			vScale;
-		int					nLightScale;
-	public:
-		CModelData ();
-};
+typedef struct tModelData {
+	int					nLoresModels;
+	int					nHiresModels;
+	tASEModel			aseModels [2][MAX_POLYGON_MODELS];
+	tOOFObject			oofModels [2][MAX_POLYGON_MODELS];
+	tPOFObject			pofData [2][2][MAX_POLYGON_MODELS];
+	ubyte					bHaveHiresModel [MAX_POLYGON_MODELS];
+	tPolyModel			polyModels [MAX_POLYGON_MODELS];
+	tPolyModel			defPolyModels [MAX_POLYGON_MODELS];
+	tPolyModel			altPolyModels [MAX_POLYGON_MODELS];
+	tOOFObject			*modelToOOF [2][MAX_POLYGON_MODELS];
+	tASEModel			*modelToASE [2][MAX_POLYGON_MODELS];
+	tPolyModel			*modelToPOL [MAX_POLYGON_MODELS];
+	int					nPolyModels;
+	int					nDefPolyModels;
+	g3sPoint				polyModelPoints [MAX_POLYGON_VERTS];
+	fVector				fPolyModelVerts [MAX_POLYGON_VERTS];
+	grsBitmap			*textures [MAX_POLYOBJ_TEXTURES];
+	tBitmapIndex		textureIndex [MAX_POLYOBJ_TEXTURES];
+	int					nSimpleModelThresholdScale;
+	int					nMarkerModel;
+	int					nCockpits;
+	int					nDyingModels [MAX_POLYGON_MODELS];
+	int					nDeadModels [MAX_POLYGON_MODELS];
+	tModelHitboxes		hitboxes [MAX_POLYGON_MODELS];
+	tModelThrusters	thrusters [MAX_POLYGON_MODELS];
+	tG3Model				g3Models [2][MAX_POLYGON_MODELS];
+	vmsVector			offsets [MAX_POLYGON_MODELS];
+	tGunInfo				gunInfo [MAX_POLYGON_MODELS];
+	tModelSphere		spheres [MAX_POLYGON_MODELS];
+	vmsVector			vScale;
+	int					nLightScale;
+} tModelData;
 
 //------------------------------------------------------------------------------
 
-class CAutoNetGame {
-	public:
-		char					szPlayer [9];		//CPlayerData profile name
-		char					szFile [FILENAME_LEN];
-		char					szMission [13];
-		char					szName [81];		//game name
-		int					nLevel;
-		ubyte					ipAddr [4];
-		int					nPort;
-		ubyte					uConnect;
-		ubyte					uType;
-		ubyte					bHost;
-		ubyte					bTeam;				// team game?
-		ubyte					bValid;
-
-	public:
-		CAutoNetGame () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tAutoNetGame {
+	char					szPlayer [9];		//tPlayer profile name
+	char					szFile [FILENAME_LEN];
+	char					szMission [13];
+	char					szName [81];		//game name
+	int					nLevel;
+	ubyte					ipAddr [4];
+	int					nPort;
+	ubyte					uConnect;
+	ubyte					uType;
+	ubyte					bHost;
+	ubyte					bTeam;				// team game?
+	ubyte					bValid;
+} tAutoNetGame;
 
 typedef struct tLeftoverPowerup {
-	CObject				*spitterP;
+	tObject				*spitterP;
 	ubyte					nCount;
 	ubyte					nType;
 } tLeftoverPowerup;
 
-class CWeaponState {
-	public:
-		char						nMissiles;
-		char						nPrimary;
-		char						nSecondary;
-		char						bQuadLasers;
-		tFiringData				firing [2];
-		char						nLaserLevel;
-		char						bTripleFusion;
-		char						nMslLaunchPos;
-		fix						xMslFireTime;
+typedef struct tWeaponState {
+	char						nMissiles;
+	char						nPrimary;
+	char						nSecondary;
+	char						bQuadLasers;
+	tFiringData				firing [2];
+	char						nLaserLevel;
+	char						bTripleFusion;
+	char						nMslLaunchPos;
+	fix						xMslFireTime;
+	} tWeaponState;
 
-	public:
-		CWeaponState () { memset (this, 0, sizeof (*this)); }
-	};
-
-class CMultiplayerData {
-	public:
-		int 								nPlayers;				
-		int								nMaxPlayers;
-		int 								nLocalPlayer;				
-		int								nPlayerPositions;
-		int								bMoving;
-		CPlayerData						players [MAX_PLAYERS + 4];  
-		tObjPosition					playerInit [MAX_PLAYERS];
-		short								nVirusCapacity [MAX_PLAYERS];
-		int								nLastHitTime [MAX_PLAYERS];
-		CWeaponState					weaponStates [MAX_PLAYERS];
-		char								bWasHit [MAX_PLAYERS];
-		int								bulletEmitters [MAX_PLAYERS];
-		int								gatlingSmoke [MAX_PLAYERS];
-		CPulseData						spherePulse [MAX_PLAYERS];
-		ubyte								powerupsInMine [MAX_POWERUP_TYPES];
-		ubyte								powerupsOnShip [MAX_POWERUP_TYPES];
-		ubyte								maxPowerupsAllowed [MAX_POWERUP_TYPES];
-		CArray<tLeftoverPowerup>	leftoverPowerups;
-		CAutoNetGame					autoNG;
-		fix								xStartAbortMenuTime;
-
-	public:
-		CMultiplayerData ();
-		void Create (void);
-};
+typedef struct tMultiplayerData {
+	int 						nPlayers;				
+	int						nMaxPlayers;
+	int 						nLocalPlayer;				
+	int						nPlayerPositions;
+	int						bMoving;
+	tPlayer					players [MAX_PLAYERS + 4];  
+	tObjPosition			playerInit [MAX_PLAYERS];
+	short						nVirusCapacity [MAX_PLAYERS];
+	int						nLastHitTime [MAX_PLAYERS];
+	tWeaponState			weaponStates [MAX_PLAYERS];
+	char						bWasHit [MAX_PLAYERS];
+	int						bulletEmitters [MAX_PLAYERS];
+	int						gatlingSmoke [MAX_PLAYERS];
+	tPulseData				spherePulse [MAX_PLAYERS];
+	ubyte						powerupsInMine [MAX_POWERUP_TYPES];
+	ubyte						powerupsOnShip [MAX_POWERUP_TYPES];
+	ubyte						maxPowerupsAllowed [MAX_POWERUP_TYPES];
+	tLeftoverPowerup		*leftoverPowerups;
+	tAutoNetGame			autoNG;
+	fix						xStartAbortMenuTime;
+} tMultiplayerData;
 
 #include "multi.h"
 
 //------------------------------------------------------------------------------
 
-class CMultiCreateData {
-	public:
-		int					nObjNums [MAX_NET_CREATE_OBJECTS];
-		int					nLoc;
+typedef struct tMultiCreateData {
+	int					nObjNums [MAX_NET_CREATE_OBJECTS];
+	int					nLoc;
+} tMultiCreateData;
 
-	public:
-		CMultiCreateData () { memset (this, 0, sizeof (*this)); }
-};
-
-class CMultiLaserData {
-	public:
-		int					bFired;
-		int					nGun;
-		int					nFlags;
-		int					nLevel;
-		short					nTrack;
-
-	public:
-		CMultiLaserData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tMultiLaserData {
+	int					bFired;
+	int					nGun;
+	int					nFlags;
+	int					nLevel;
+	short					nTrack;
+} tMultiLaserData;
 
 
-class CMultiMsgData {
-	public:
-		char					bSending;
-		char					bDefining;
-		int					nIndex;
-		char					szMsg [MAX_MESSAGE_LEN];
-		char					szMacro [4][MAX_MESSAGE_LEN];
-		char					buf [MAX_MULTI_MESSAGE_LEN+4];            // This is where multiplayer message are built
-		int					nReceiver;
+typedef struct tMultiMsgData {
+	char					bSending;
+	char					bDefining;
+	int					nIndex;
+	char					szMsg [MAX_MESSAGE_LEN];
+	char					szMacro [4][MAX_MESSAGE_LEN];
+	char					buf [MAX_MULTI_MESSAGE_LEN+4];            // This is where multiplayer message are built
+	int					nReceiver;
+} tMultiMsgData;
 
-	public:
-		CMultiMsgData () { memset (this, 0, sizeof (*this)); }
-};
+typedef struct tMultiMenuData {
+	char					bInvoked;
+	char					bLeave;
+} tMultiMenuData;
 
-class CMultiMenuData {
-	public:
-		char					bInvoked;
-		char					bLeave;
+typedef struct tMultiKillData {
+	char					pFlags [MAX_NUM_NET_PLAYERS];
+	int					nSorted [MAX_NUM_NET_PLAYERS];
+	short					matrix [MAX_NUM_NET_PLAYERS][MAX_NUM_NET_PLAYERS];
+	short					nTeam [2];
+	char					bShowList;
+	fix					xShowListTimer;
+} tMultiKillData;
 
-	public:
-		CMultiMenuData () { memset (this, 0, sizeof (*this)); }
-};
-
-class CMultiKillData {
-	public:
-		char					pFlags [MAX_NUM_NET_PLAYERS];
-		int					nSorted [MAX_NUM_NET_PLAYERS];
-		short					matrix [MAX_NUM_NET_PLAYERS][MAX_NUM_NET_PLAYERS];
-		short					nTeam [2];
-		char					bShowList;
-		fix					xShowListTimer;
-
-	public:
-		CMultiKillData () { memset (this, 0, sizeof (*this)); }
-};
-
-class CMultiGameData {
-	public:
-		int					nWhoKilledCtrlcen;
-		char					bShowReticleName;
-		char					bIsGuided;
-		char					bQuitGame;
-		CMultiCreateData	create;
-		CMultiLaserData	laser;
-		CMultiMsgData		msg;
-		CMultiMenuData		menu;
-		CMultiKillData		kills;
-		tMultiRobotData	robots;
-		CArray<short>		remoteToLocal;  // Remote CObject number for each local CObject
-		CArray<short>		localToRemote;
-		CArray<sbyte>		nObjOwner;   // Who created each CObject in my universe, -1 = loaded at start
-		int					bGotoSecret;
-		int					nTypingTimeout;
-
-	public:
-		CMultiGameData ();
-		void Create (void);
-};
+typedef struct tMultiGameData {
+	int					nWhoKilledCtrlcen;
+	char					bShowReticleName;
+	char					bIsGuided;
+	char					bQuitGame;
+	tMultiCreateData	create;
+	tMultiLaserData	laser;
+	tMultiMsgData		msg;
+	tMultiMenuData		menu;
+	tMultiKillData		kills;
+	tMultiRobotData	robots;
+	short					*remoteToLocal;  // Remote tObject number for each local tObject
+	short					*localToRemote;
+	sbyte					*nObjOwner;   // Who created each tObject in my universe, -1 = loaded at start
+	int					bGotoSecret;
+	int					nTypingTimeout;
+} tMultiGameData;
 
 //------------------------------------------------------------------------------
 
@@ -2665,51 +2520,43 @@ class CMultiGameData {
 
 #include "mission.h"
 
-class CMissionData {
-	public:
-		char					szCurrentLevel [LEVEL_NAME_LEN];
-		int					nSecretLevels;
-		int					nLastLevel;
-		int					nCurrentLevel;
-		int					nNextLevel;
-		int					nLastSecretLevel;
-		int					nLastMission;
-		int					nEnteredFromLevel;
-		int					nEnhancedMission;
-		int					nCurrentMission;
-		int					nBuiltinMission;
-		int					nD1BuiltinMission;
-		int					nBuiltinHogSize;
-		int					nD1BuiltinHogSize;
-		char					szBuiltinMissionFilename [9];
-		char					szD1BuiltinMissionFilename [9];
-		char					szBriefingFilename [13];
-		char					szEndingFilename [13];
-		tMsnListEntry		list [MAX_MISSIONS + 1];
-		char					szLevelNames [MAX_LEVELS_PER_MISSION][FILENAME_LEN];
-		char					szSecretLevelNames [MAX_SECRET_LEVELS_PER_MISSION][FILENAME_LEN];
-		int					secretLevelTable [MAX_SECRET_LEVELS_PER_MISSION];
-		char					szSongNames [MAX_LEVELS_PER_MISSION][FILENAME_LEN];
-
-	public:
-		CMissionData ();
-};
+typedef struct tMissionData {
+	char					szCurrentLevel [LEVEL_NAME_LEN];
+	int					nSecretLevels;
+	int					nLastLevel;
+	int					nCurrentLevel;
+	int					nNextLevel;
+	int					nLastSecretLevel;
+	int					nLastMission;
+	int					nEnteredFromLevel;
+	int					nEnhancedMission;
+	int					nCurrentMission;
+	int					nBuiltinMission;
+	int					nD1BuiltinMission;
+	int					nBuiltinHogSize;
+	int					nD1BuiltinHogSize;
+	char					szBuiltinMissionFilename [9];
+	char					szD1BuiltinMissionFilename [9];
+	char					szBriefingFilename [13];
+	char					szEndingFilename [13];
+	tMsnListEntry		list [MAX_MISSIONS + 1];
+	char					szLevelNames [MAX_LEVELS_PER_MISSION][FILENAME_LEN];
+	char					szSecretLevelNames [MAX_SECRET_LEVELS_PER_MISSION][FILENAME_LEN];
+	int					secretLevelTable [MAX_SECRET_LEVELS_PER_MISSION];
+	char					szSongNames [MAX_LEVELS_PER_MISSION][FILENAME_LEN];
+} tMissionData;
 
 //------------------------------------------------------------------------------
 
 #define N_MAX_ROOMS	128
 
-class CEntropyData {
-	public:
-		char	nRoomOwners [N_MAX_ROOMS];
-		char	nTeamRooms [3];
-		int   nTotalRooms;
+typedef struct tEntropyData {
+	char	nRoomOwners [N_MAX_ROOMS];
+	char	nTeamRooms [3];
+	int   nTotalRooms;
+} tEntropyData;
 
-	public:
-		CEntropyData () { memset (this, 0, sizeof (*this)); }
-};
-
-extern CEntropyData entropyData;
+extern tEntropyData entropyData;
 
 typedef struct tCountdownData {
 	fix					nTimer;
@@ -2722,44 +2569,36 @@ typedef struct tCountdownData {
 #define NUM_MARKERS         16
 #define MARKER_MESSAGE_LEN  40
 
-class CMarkerData {
-	public:
-		CFixVector			point [NUM_MARKERS];		//these are only used in multi.c, and I'd get rid of them there, but when I tried to do that once, I caused some horrible bug. -MT
-		char					szMessage [NUM_MARKERS][MARKER_MESSAGE_LEN];
-		char					nOwner [NUM_MARKERS][CALLSIGN_LEN+1];
-		short					objects [NUM_MARKERS];
-		short					viewers [2];
-		int					nHighlight;
-		float					fScale;
-		ubyte					nDefiningMsg;
-		char					szInput [40];
-		int					nIndex;
-		int					nCurrent;
-		int					nLast;
-
-	public:
-		CMarkerData ();
-};
+typedef struct tMarkerData {
+	vmsVector			point [NUM_MARKERS];		//these are only used in multi.c, and I'd get rid of them there, but when I tried to do that once, I caused some horrible bug. -MT
+	char					szMessage [NUM_MARKERS][MARKER_MESSAGE_LEN];
+	char					nOwner [NUM_MARKERS][CALLSIGN_LEN+1];
+	short					objects [NUM_MARKERS];
+	short					viewers [2];
+	int					nHighlight;
+	float					fScale;
+	ubyte					nDefiningMsg;
+	char					szInput [40];
+	int					nIndex;
+	int					nCurrent;
+	int					nLast;
+} tMarkerData;
 
 //------------------------------------------------------------------------------
 
-class CTimeData {
-	public:
-		fix					xFrame;	//  since last frame, in seconds
-		fix					xRealFrame;
-		fix					xGame;	//	 in game, in seconds
-		fix					xLast;
-		int					tLast;
-		fix					xSlack;
-		fix					xStarted;
-		fix					xStopped;
-		int					nPaused;
-		int					nStarts;
-		int					nStops;
-
-	public:
-		CTimeData ();
-};
+typedef struct tTimeData {
+	fix					xFrame;	//  since last frame, in seconds
+	fix					xRealFrame;
+	fix					xGame;	//	 in game, in seconds
+	fix					xLast;
+	int					tLast;
+	fix					xSlack;
+	fix					xStarted;
+	fix					xStopped;
+	int					nPaused;
+	int					nStarts;
+	int					nStops;
+} tTimeData;
 
 //------------------------------------------------------------------------------
 
@@ -2776,20 +2615,16 @@ typedef enum {
 	rtLightmap
 } tRenderTask;
 
-class CApplicationData {
-	public:
-		int					nFrameCount;
-		int					nMineRenderCount;
-		int					nGameMode;
-		int					bGamePaused;
-		uint					nStateGameId;
-		uint					semaphores [4];
-		int					nLifetimeChecksum;
-		int					bUseMultiThreading [rtTaskCount];
-
-	public:
-		CApplicationData ();
-};
+typedef struct tApplicationData {
+	int					nFrameCount;
+	int					nMineRenderCount;
+	int					nGameMode;
+	int					bGamePaused;
+	uint					nStateGameId;
+	uint					semaphores [4];
+	int					nLifetimeChecksum;
+	int					bUseMultiThreading [rtTaskCount];
+} tApplicationData;
 
 //------------------------------------------------------------------------------
 
@@ -2841,34 +2676,30 @@ typedef struct tProfilerData {
 #define BOSS_CLOAK_DURATION		(F1_0*7)
 #define BOSS_DEATH_DURATION		(F1_0*6)
 
-class CBossData {
-	public:
-		short					nTeleportSegs;
-		short					teleportSegs [MAX_BOSS_TELEPORT_SEGS];
-		short					nGateSegs;
-		short					gateSegs [MAX_BOSS_TELEPORT_SEGS];
-		fix					nDyingStartTime;
-		fix					nHitTime;
-		fix					nCloakStartTime;
-		fix					nCloakEndTime;
-		fix					nCloakDuration;
-		fix					nCloakInterval;
-		fix					nLastTeleportTime;
-		fix					nTeleportInterval;
-		fix					nLastGateTime;
-		fix					nGateInterval;
-	#if DBG
-		fix					xPrevShields;
-	#endif
-		int					bHitThisFrame;
-		int					bHasBeenHit;
-		int					nObject;
-		short					nDying;
-		sbyte					bDyingSoundPlaying;
-
-	public:
-		CBossData ();
-};
+typedef struct tBossData {
+	short					nTeleportSegs;
+	short					teleportSegs [MAX_BOSS_TELEPORT_SEGS];
+	short					nGateSegs;
+	short					gateSegs [MAX_BOSS_TELEPORT_SEGS];
+	fix					nDyingStartTime;
+	fix					nHitTime;
+	fix					nCloakStartTime;
+	fix					nCloakEndTime;
+	fix					nCloakDuration;
+	fix					nCloakInterval;
+	fix					nLastTeleportTime;
+	fix					nTeleportInterval;
+	fix					nLastGateTime;
+	fix					nGateInterval;
+#if DBG
+	fix					xPrevShields;
+#endif
+	int					bHitThisFrame;
+	int					bHasBeenHit;
+	int					nObject;
+	short					nDying;
+	sbyte					bDyingSoundPlaying;
+} tBossData;
 
 //------------------------------------------------------------------------------
 
@@ -2882,110 +2713,95 @@ typedef struct tReactorStates {
 	int					nDeadObj;
 	int					nStrength;
 	fix					xLastVisCheckTime;
-	CFixVector			vGunPos [MAX_CONTROLCEN_GUNS];
-	CFixVector			vGunDir [MAX_CONTROLCEN_GUNS];
+	vmsVector			vGunPos [MAX_CONTROLCEN_GUNS];
+	vmsVector			vGunDir [MAX_CONTROLCEN_GUNS];
 } tReactorStates;
 
-class CReactorData {
-	public:
-		tReactorProps		props [MAX_REACTORS];
-		tReactorTriggers	triggers;
-		tReactorStates		states [MAX_BOSS_COUNT];
-		tCountdownData		countdown;
-		int					nReactors;
-		int					nStrength;
-		int					bPresent;
-		int					bDisabled;
-		int					bDestroyed;
-
-	public:
-		CReactorData ();
-};
+typedef struct tReactorData {
+	tReactorProps		props [MAX_REACTORS];
+	tReactorTriggers	triggers;
+	tReactorStates		states [MAX_BOSS_COUNT];
+	tCountdownData		countdown;
+	int					nReactors;
+	int					nStrength;
+	int					bPresent;
+	int					bDisabled;
+	int					bDestroyed;
+} tReactorData;
 
 //------------------------------------------------------------------------------
 
 #include "ai.h"
 
-class CAIData {
-	public:
-		int							bInitialized;
-		int							nOverallAgitation;
-		int							bEvaded;
-		int							bEnableAnimation;
-		int							bInfoEnabled;
-		CFixVector					vHitPos;
-		int							nHitType;
-		int							nHitSeg;
-		tFVIData						hitData;
-		short							nBelievedPlayerSeg;
-		CFixVector					vBelievedPlayerPos;
-		CFixVector					vLastPlayerPosFiredAt;
-		fix							nDistToLastPlayerPosFiredAt;
-		CArray<tAILocalInfo>		localInfo;
-		CArray<tAICloakInfo>		cloakInfo; // [MAX_AI_CLOAK_INFO];
-		CArray<tPointSeg>			pointSegs; // [MAX_POINT_SEGS];
-		tPointSeg*					freePointSegs;
-		int							nAwarenessEvents;
-		int							nMaxAwareness;
-		fix							xDistToPlayer;
-		CFixVector					vVecToPlayer;
-		CFixVector					vGunPoint;
-		int							nPlayerVisibility;
-		int							bObjAnimates;
-		int							nLastMissileCamera;
-		CArray<tAwarenessEvent>	awarenessEvents ; //[MAX_AWARENESS_EVENTS];
-
-	public:
-		CAIData ();
-		void Create (void);
-};
-
-inline int operator- (tAILocalInfo* o, CArray<tAILocalInfo>& a) { return a.Index (o); }
-inline int operator- (tAICloakInfo* o, CArray<tAICloakInfo>& a) { return a.Index (o); }
-inline int operator- (tPointSeg* o, CArray<tPointSeg>& a) { return a.Index (o); }
+typedef struct tAIData {
+	int					bInitialized;
+	int					nOverallAgitation;
+	int					bEvaded;
+	int					bEnableAnimation;
+	int					bInfoEnabled;
+	vmsVector			vHitPos;
+	int					nHitType;
+	int					nHitSeg;
+	tFVIData				hitData;
+	short					nBelievedPlayerSeg;
+	vmsVector			vBelievedPlayerPos;
+	vmsVector			vLastPlayerPosFiredAt;
+	fix					nDistToLastPlayerPosFiredAt;
+	tAILocalInfo				*localInfo;
+	tAICloakInfo		cloakInfo [MAX_AI_CLOAK_INFO];
+	tPointSeg			pointSegs [MAX_POINT_SEGS];
+	tPointSeg			*freePointSegs;
+	int					nAwarenessEvents;
+	int					nMaxAwareness;
+	fix					xDistToPlayer;
+	vmsVector			vVecToPlayer;
+	vmsVector			vGunPoint;
+	int					nPlayerVisibility;
+	int					bObjAnimates;
+	int					nLastMissileCamera;
+	tAwarenessEvent	awarenessEvents [MAX_AWARENESS_EVENTS];
+} tAIData;
 
 //------------------------------------------------------------------------------
 
 typedef struct tSatelliteData {
-	CBitmap			bmInstance;
-	CBitmap			*bmP;
-	CFixVector		vPos;
-	CFixVector		vUp;
+	grsBitmap			bmInstance;
+	grsBitmap			*bmP;
+	vmsVector			vPos;
+	vmsVector			vUp;
 } tSatelliteData;
 
 typedef struct tStationData {
-	CBitmap			*bmP;
-	CBitmap			**bmList [1];
-	CFixVector		vPos;
-	int				nModel;
+	grsBitmap			*bmP;
+	grsBitmap			**bmList [1];
+	vmsVector			vPos;
+	int					nModel;
 } tStationData;
 
-class CTerrainData {
-	public:
-		CBitmap			bmInstance;
-		CBitmap			*bmP;
-};
+typedef struct tTerrainData {
+	grsBitmap			bmInstance;
+	grsBitmap			*bmP;
+} tTerrainData;
 
 typedef struct tExitData {
 	int					nModel;
 	int					nDestroyedModel;
-	CFixVector			vMineExit;
-	CFixVector			vGroundExit;
-	CFixVector			vSideExit;
+	vmsVector			vMineExit;
+	vmsVector			vGroundExit;
+	vmsVector			vSideExit;
 	vmsMatrix			mOrient;
 	short					nSegNum;
 	short					nTransitSegNum;
 } tExitData;
 
-class CEndLevelData {
-	public:
-		tSatelliteData		satellite;
-		tStationData		station;
-		CTerrainData		terrain;
-		tExitData			exit;
-		fix					xCurFlightSpeed;
-		fix					xDesiredFlightSpeed;
-};
+typedef struct tEndLevelData {
+	tSatelliteData		satellite;
+	tStationData		station;
+	tTerrainData		terrain;
+	tExitData			exit;
+	fix					xCurFlightSpeed;
+	fix					xDesiredFlightSpeed;
+} tEndLevelData;
 
 //------------------------------------------------------------------------------
 
@@ -2995,7 +2811,7 @@ typedef struct tUserMusicData {
 	int					nLevelSongs;
 	int					nCurrentSong;
 	int					bMP3;
-	CArray<char*>		pszLevelSongs;
+	char					**pszLevelSongs;
 	char					szIntroSong [FILENAME_LEN];
 	char					szBriefingSong [FILENAME_LEN];
 	char					szCreditsSong [FILENAME_LEN];
@@ -3004,39 +2820,34 @@ typedef struct tUserMusicData {
 
 //------------------------------------------------------------------------------
 
-class CSongData {
-	public:
-		tSongInfo			info [MAX_NUM_SONGS];
-		int					bInitialized;
-		int					nTotalSongs;
-		int					nSongs [2];
-		int					nFirstLevelSong [2];
-		int					nLevelSongs [2];
-		int					nD1EndLevelSong;
-		int					bPlaying;
-		time_t				tStart;
-		time_t				tSlowDown;
-		time_t				tPos;
-		tUserMusicData		user;
-};
+typedef struct tSongData {
+	tSongInfo			info [MAX_NUM_SONGS];
+	int					bInitialized;
+	int					nTotalSongs;
+	int					nSongs [2];
+	int					nFirstLevelSong [2];
+	int					nLevelSongs [2];
+	int					nD1EndLevelSong;
+	int					bPlaying;
+	time_t				tStart;
+	time_t				tSlowDown;
+	time_t				tPos;
+	tUserMusicData		user;
+} tSongData;
 
 //------------------------------------------------------------------------------
 
-class CMenuData {
-	public:
-		int		bValid;
-		uint		tinyColors [2][2];
-		uint		warnColor;
-		uint		keyColor;
-		uint		tabbedColor;
-		uint		helpColor;
-		uint		colorOverride;
-		int		nLineWidth;
-		ubyte		alpha;
-
-	public:
-		CMenuData ();
-};
+typedef struct tMenuData {
+	int					bValid;
+	unsigned int		tinyColors [2][2];
+	unsigned int		warnColor;
+	unsigned int		keyColor;
+	unsigned int		tabbedColor;
+	unsigned int		helpColor;
+	unsigned int		colorOverride;
+	int					nLineWidth;
+	ubyte					alpha;
+} tMenuData;
 
 //------------------------------------------------------------------------------
 
@@ -3053,8 +2864,8 @@ typedef struct tEnergySpark {
 	fix				xSize;
 	time_t			tRender;
 	time_t			tCreate;
-	CFixVector		vPos;
-	CFixVector		vDir;
+	vmsVector		vPos;
+	vmsVector		vDir;
 	} tEnergySpark;
 
 typedef struct tSegmentSparks {
@@ -3063,108 +2874,210 @@ typedef struct tSegmentSparks {
 	short				bUpdate;
 	} tSegmentSparks;
 
-class CMatCenData {
-	public:
-		fix				xFuelRefillSpeed;
-		fix				xFuelGiveAmount;
-		fix				xFuelMaxAmount;
-		tFuelCenInfo	fuelCenters [MAX_FUEL_CENTERS];
-		tMatCenInfo		botGens [MAX_ROBOT_CENTERS];
-		tMatCenInfo		equipGens [MAX_EQUIP_CENTERS];
-		int				nFuelCenters;
-		int				nBotCenters;
-		int				nEquipCenters;
-		int				nRepairCenters;
-		fix				xEnergyToCreateOneRobot;
-		int				origStationTypes [MAX_FUEL_CENTERS];
-		tSegmentSparks	sparks [2][MAX_FUEL_CENTERS];	//0: repair, 1: fuel center
-		short				sparkSegs [2 * MAX_FUEL_CENTERS];
-		short				nSparkSegs;
-		CSegment*		playerSegP;
-
-	public:
-		CMatCenData ();
-};
+typedef struct tMatCenData {
+	fix				xFuelRefillSpeed;
+	fix				xFuelGiveAmount;
+	fix				xFuelMaxAmount;
+	tFuelCenInfo	fuelCenters [MAX_FUEL_CENTERS];
+	tMatCenInfo		botGens [MAX_ROBOT_CENTERS];
+	tMatCenInfo		equipGens [MAX_EQUIP_CENTERS];
+	int				nFuelCenters;
+	int				nBotCenters;
+	int				nEquipCenters;
+	int				nRepairCenters;
+	fix				xEnergyToCreateOneRobot;
+	int				origStationTypes [MAX_FUEL_CENTERS];
+	tSegmentSparks	sparks [2][MAX_FUEL_CENTERS];	//0: repair, 1: fuel center
+	short				sparkSegs [2 * MAX_FUEL_CENTERS];
+	short				nSparkSegs;
+	tSegment			*playerSegP;
+} tMatCenData;
 
 //------------------------------------------------------------------------------
 
-class CDemoData {
-	public:
-		int				bAuto;
-		char				fnAuto [FILENAME_LEN];
-		CArray<sbyte>	bWasRecorded;
-		CArray<sbyte>	bViewWasRecorded;
-		sbyte				bRenderingWasRecorded [32];
-		char				callSignSave [CALLSIGN_LEN+1];
-		int				nVersion;
-		int				nState;
-		int				nVcrState;
-		int				nStartFrame;
-		uint				nSize;
-		uint				nWritten;
-		int				nGameMode;
-		int				nOldCockpit;
-		sbyte				bNoSpace;
-		sbyte				bEof;
-		sbyte				bInterpolate;
-		sbyte				bPlayersCloaked;
-		sbyte				bWarningGiven;
-		sbyte				bCtrlcenDestroyed;
-		int				nFrameCount;
-		short				nFrameBytesWritten;
-		fix				xStartTime;
-		fix				xPlaybackTotal;
-		fix				xRecordedTotal;
-		fix				xRecordedTime;
-		sbyte				nPlaybackStyle;
-		sbyte				bFirstTimePlayback;
-		fix				xJasonPlaybackTotal;
-		int				bUseShortPos;
-		int				bFlyingGuided;
+typedef struct tDemoData {
+	int				bAuto;
+	char				fnAuto [FILENAME_LEN];
 
-	public:
-		CDemoData () {memset (this, 0, sizeof (*this)); }
-		void Create (void);
-};
+	sbyte				*bWasRecorded;
+	sbyte				*bViewWasRecorded;
+	sbyte				bRenderingWasRecorded [32];
+
+	char				callSignSave [CALLSIGN_LEN+1];
+	int				nVersion;
+	int				nState;
+	int				nVcrState;
+	int				nStartFrame;
+	unsigned int	nSize;
+	unsigned int	nWritten;
+	int				nGameMode;
+	int				nOldCockpit;
+	sbyte				bNoSpace;
+	sbyte				bEof;
+	sbyte				bInterpolate;
+	sbyte				bPlayersCloaked;
+	sbyte				bWarningGiven;
+	sbyte				bCtrlcenDestroyed;
+	int				nFrameCount;
+	short				nFrameBytesWritten;
+	fix				xStartTime;
+	fix				xPlaybackTotal;
+	fix				xRecordedTotal;
+	fix				xRecordedTime;
+	sbyte				nPlaybackStyle;
+	sbyte				bFirstTimePlayback;
+	fix				xJasonPlaybackTotal;
+	int				bUseShortPos;
+	int				bFlyingGuided;
+} tDemoData;
+
+//------------------------------------------------------------------------------
+
+#include "particles.h"
+
+typedef struct tPartList {
+	struct tPartList	*pNextPart;
+	tParticle			*pParticle;
+	float					fBrightness;
+} tPartList;
+
+typedef struct tPartDepthBuf {
+	tPartList		**pDepthBuffer;
+	tPartList		*pPartList;
+	int				nParts;
+	int				nFreeParts;
+	int				zMin;
+	int				zMax;
+} tPartDepthBuf;
+
+typedef struct tSmokeData {
+	tSmoke			buffer [MAX_SMOKE];
+	short				*objects;
+	time_t			*objExplTime;
+	int				iFree;
+	int				iUsed;
+	int				nLastType;
+	int				bAnimate;
+	int				bStencil;
+	tPartDepthBuf	depthBuf;
+} tSmokeData;
+
+//------------------------------------------------------------------------------
+
+#define MAX_LIGHTNINGS	1000
+#define MAX_LIGHTNING_NODES	1000
+
+typedef struct tLightningNode {
+	struct tLightning	*pChild;
+	vmsVector			vPos;
+	vmsVector			vNewPos;
+	vmsVector			vOffs;
+	vmsVector			vBase;
+	vmsVector			vDelta [2];
+	int					nDelta [2];
+} tLightningNode;
+
+typedef struct tLightning {
+	struct tLightning *pParent;
+	vmsVector			vBase;
+	vmsVector			vPos;
+	vmsVector			vEnd;
+	vmsVector			vDir;
+	vmsVector			vRefEnd;
+	vmsVector			vDelta;
+	tLightningNode		*pNodes;
+	tRgbaColorf			color;
+	int					nIndex;
+	int					nNext;
+	int					nLife;
+	int					nTTL;
+	int					nDelay;
+	int					nLength;
+	int					nOffset;
+	int					nAmplitude;
+	short					nSmoothe;
+	short					nSteps;
+	short					iStep;
+	short					nNodes;
+	short					nChildren;
+	short					nObject;
+	short					nSegment;
+	short					nNode;
+	char					nStyle;
+	char					nAngle;
+	char					nDepth;
+	char					bClamp;
+	char					bPlasma;
+	char					bRandom;
+	char					bLight;
+	char					bInPlane;
+} tLightning;
+
+typedef struct tLightningBundle {
+	int				nNext;
+	tLightning		*pl;
+	int				nLightnings;
+	short				nObject;
+	int				nKey [2];
+	time_t			tUpdate;
+	int				nSound;
+	char				bSound;
+	char				bForcefield;
+	char				bDestroy;
+} tLightningBundle;
+
+typedef struct tLightningLight {
+	vmsVector		vPos;
+	tRgbaColorf		color;
+	int				nNext;
+	int				nLights;
+	int				nBrightness;
+	int				nDynLight;
+	short				nSegment;
+	int				nFrame;
+} tLightningLight;
+
+typedef struct tLightningData {
+	short					*objects;
+	tLightningLight	*lights;
+	tLightningBundle	buffer [MAX_LIGHTNINGS];
+	int					iFree;
+	int					iUsed;
+	int					nNext;
+	int					bDestroy;
+	int					nFirstLight;
+} tLightningData;
 
 //------------------------------------------------------------------------------
 
 #define GUIDEBOT_NAME_LEN 9
 
-class CEscortData {
-	public:
-		int				nMaxLength;
-		int				nObjNum;
-		int				bSearchingMarker;
-		int				nLastKey;
-		int				nKillObject;
-		int				nGoalObject;
-		int				nSpecialGoal;
-		int				nGoalIndex;
-		int				bMayTalk;
-		int				bMsgsSuppressed;
-		fix				xSorryTime;
-		fix				xLastMsgTime;
-		fix				xLastPathCreated;
-		char				szName [GUIDEBOT_NAME_LEN + 1];
-		char				szRealName [GUIDEBOT_NAME_LEN + 1];
-
-	public:
-		CEscortData ();
-};
+typedef struct tEscortData {
+	int				nMaxLength;
+	int				nObjNum;
+	int				bSearchingMarker;
+	int				nLastKey;
+	int				nKillObject;
+	int				nGoalObject;
+	int				nSpecialGoal;
+	int				nGoalIndex;
+	int				bMayTalk;
+	int				bMsgsSuppressed;
+	fix				xSorryTime;
+	fix				xLastMsgTime;
+	fix				xLastPathCreated;
+	char				szName [GUIDEBOT_NAME_LEN + 1];
+	char				szRealName [GUIDEBOT_NAME_LEN + 1];
+} tEscortData;
 
 //------------------------------------------------------------------------------
 
-class CThiefData {
-	public:
-		ubyte				stolenItems [MAX_STOLEN_ITEMS];
-		int				nStolenItem;
-		fix				xReInitTime;
-		fix				xWaitTimes [NDL];
-
-	public:
-		CThiefData ();
-};
+typedef struct tThiefData {
+	ubyte				stolenItems [MAX_STOLEN_ITEMS];
+	int				nStolenItem;
+	fix				xReInitTime;
+	fix				xWaitTimes [NDL];
+} tThiefData;
 
 //------------------------------------------------------------------------------
 
@@ -3175,50 +3088,41 @@ typedef struct tHoardItem {
 	int			nSize;
 	int			nFrames;
 	int			nClip;
-	CBitmap	bm;
-	CPalette		*palette;
+	grsBitmap	bm;
+	ubyte			*palette;
 } tHoardItem;
 
-class CHoardData {
-	public:
-		int			bInitialized;
-		int			nBitmaps;
-		tHoardItem	orb;
-		tHoardItem	icon [2];
-		tHoardItem	goal;
-		tHoardItem	monsterball;
-		short			nMonsterballSeg;
-		CFixVector	vMonsterballPos;
-		CObject		*monsterballP;
-		short			nLastHitter;
-};
+typedef struct tHoardData {
+	int			bInitialized;
+	int			nBitmaps;
+	tHoardItem	orb;
+	tHoardItem	icon [2];
+	tHoardItem	goal;
+	tHoardItem	monsterball;
+	short			nMonsterballSeg;
+	vmsVector	vMonsterballPos;
+	tObject		*monsterballP;
+	short			nLastHitter;
+} tHoardData;
 
 //------------------------------------------------------------------------------
 
 #include "hudmsg.h"
 
-class CHUDMessage {
-	public:
-		int					nFirst;
-		int					nLast;
-		int					nMessages;
-		fix					xTimer;
-		uint					nColor;
-		char					szMsgs [HUD_MAX_MSGS][HUD_MESSAGE_LENGTH + 5];
-		int					nMsgIds [HUD_MAX_MSGS];
+typedef struct tHUDMessage {
+	int					nFirst;
+	int					nLast;
+	int					nMessages;
+	fix					xTimer;
+	unsigned int		nColor;
+	char					szMsgs [HUD_MAX_MSGS][HUD_MESSAGE_LENGTH + 5];
+	int					nMsgIds [HUD_MAX_MSGS];
+} tHUDMessage;
 
-	public:
-		CHUDMessage ();
-};
-
-class CHUDData {
-	public:	
-		CHUDMessage			msgs [2];
-		int					bPlayerMessage;
-
-	public:
-		CHUDData ();
-};
+typedef struct tHUDData {
+	tHUDMessage			msgs [2];
+	int					bPlayerMessage;
+} tHUDData;
 
 //------------------------------------------------------------------------------
 
@@ -3229,13 +3133,12 @@ typedef struct {
 
 #define	MAX_FCD_CACHE	64
 
-class CFCDData {
-	public:	
-		int				nIndex;
-		tFCDCacheData	cache [MAX_FCD_CACHE];
-		fix				xLastFlushTime;
-		int				nConnSegDist;
-};
+typedef struct tFCDData {
+	int				nIndex;
+	tFCDCacheData	cache [MAX_FCD_CACHE];
+	fix				xLastFlushTime;
+	int				nConnSegDist;
+} tFCDData;
 
 //------------------------------------------------------------------------------
 
@@ -3243,11 +3146,11 @@ typedef struct tVertColorThreadData {
 #if MULTI_THREADED_LIGHTS
 	tThreadInfo		info [2];
 #endif
-	CVertColorData	data;
+	tVertColorData	data;
 	} tVertColorThreadData;
 
 typedef struct tClipDistData {
-	CObject			*objP;
+	tObject			*objP;
 	tPOFObject		*po;
 	tPOFSubObject	*pso;
 	float				fClipDist [2];
@@ -3260,68 +3163,79 @@ typedef struct tClipDistThreadData {
 	tClipDistData	data;
 	} tClipDistThreadData;
 
-class CThreadData {
-	public:
-		tVertColorThreadData		vertColor;
-		tClipDistThreadData		clipDist;
-	};
+typedef struct tThreadData {
+	tVertColorThreadData		vertColor;
+	tClipDistThreadData		clipDist;
+	} tThreadData;
 
 //------------------------------------------------------------------------------
 
 #if DBG
-class CSpeedtestData {
-	public:
-		int		bOn;
-		int		nMarks;
-		int		nStartTime;
-		int		nSegment;
-		int		nSide;
-		int		nFrameStart;
-		int		nCount;
-	};
+typedef struct tSpeedtestData {
+	int		bOn;
+	int		nMarks;
+	int		nStartTime;
+	int		nSegment;
+	int		nSide;
+	int		nFrameStart;
+	int		nCount;
+	} tSpeedtestData;
 #endif
 
 //------------------------------------------------------------------------------
 
-class CLaserData {
-	public:
-		fix		xLastFiredTime;
-		fix		xNextFireTime;
-		int		nGlobalFiringCount;
-		int		nMissileGun;
-		int		nOffset;
-};
+typedef struct tLaserData {
+	fix		xLastFiredTime;
+	fix		xNextFireTime;
+	int		nGlobalFiringCount;
+	int		nMissileGun;
+	int		nOffset;
+} tLaserData;
 
 //------------------------------------------------------------------------------
 
-class CFusionData {
-	public:
-		fix	xAutoFireTime;
-		fix	xCharge;
-		fix	xNextSoundTime;
-		fix	xLastSoundTime;
-};
+typedef struct tFusionData {
+	fix	xAutoFireTime;
+	fix	xCharge;
+	fix	xNextSoundTime;
+	fix	xLastSoundTime;
+} tFusionData;
 
 //------------------------------------------------------------------------------
 
-class COmegaData {
-	public:
-		fix		xCharge [2];
-		fix		xMaxCharge;
-		int		nLastFireFrame;
+typedef struct tOmegaLightningHandles {
+	int		nLightning;
+	short		nParentObj;
+	short		nTargetObj;
+} tOmegaLightningHandles;
 
-	public:
-		COmegaData ();
-};
+typedef struct tOmegaLightningData {
+	tOmegaLightningHandles	handles [MAX_OBJECTS_D2X];
+	int							nHandles;
+} tOmegaLightningData;
+
+typedef struct tOmegaData {
+	fix		xCharge [2];
+	fix		xMaxCharge;
+	int		nLastFireFrame;
+	tOmegaLightningData	lightnings;
+} tOmegaData;
 
 //------------------------------------------------------------------------------
 
-class CMissileData {
-	public:
-		fix		xLastFiredTime;
-		fix		xNextFireTime;
-		int		nGlobalFiringCount;
-};
+typedef struct tMissileData {
+	fix		xLastFiredTime;
+	fix		xNextFireTime;
+	int		nGlobalFiringCount;
+} tMissileData;
+
+//------------------------------------------------------------------------------
+
+typedef struct tCameraData {
+	short		nCameras;
+	tCamera	cameras [MAX_CAMERAS];
+	char		*nSides;
+} tCameraData;
 
 //------------------------------------------------------------------------------
 
@@ -3331,42 +3245,35 @@ typedef struct tPlayerStats {
 	int	nMisses [2];
 	} tPlayerStats;
 
-class CStatsData {
-	public:
-		tPlayerStats	player [2];	//per level/per session
-		int				nDisplayMode;
-	};
+typedef struct tStatsData {
+	tPlayerStats	player [2];	//per level/per session
+	int				nDisplayMode;
+	} tStatsData;
 
 //------------------------------------------------------------------------------
 
-class CCollisionData {
-	public:
-		int			nSegsVisited;
-		short			segsVisited [MAX_SEGS_VISITED];
-		tFVIHitInfo hitData;
-};
+typedef struct tCollisionData {
+	int			nSegsVisited;
+	short			segsVisited [MAX_SEGS_VISITED];
+	tFVIHitInfo hitData;
+} tCollisionData;
 
 //------------------------------------------------------------------------------
 
-class CTrackIRData {
-	public:
-		int	x, y;
-};
+typedef struct tTrackIRData {
+	int	x, y;
+} tTrackIRData;
 
 
 //------------------------------------------------------------------------------
 
-class CScoreData {
-	public:
-		int nKillsChanged;
-		int bNoMovieMessage;
-		int nPhallicLimit;
-		int nPhallicMan;
-		int bWaitingForOthers;
-
-	public:
-		CScoreData ();
-};
+typedef struct tScoreData {
+	int nKillsChanged;
+	int bNoMovieMessage;
+	int nPhallicLimit;
+	int nPhallicMan;
+	int bWaitingForOthers;
+} tScoreData;
 
 //------------------------------------------------------------------------------
 
@@ -3376,90 +3283,84 @@ typedef struct tTextIndex {
 	char	*pszText;
 } tTextIndex;
 
-class CTextData {
-	public:
-		char*			textBuffer;
-		tTextIndex*	index;
-		tTextIndex*	currentMsg;
-		int			nMessages;
-		int			nStartTime;
-		int			nEndTime;
-		CBitmap*		bmP;
-};
+typedef struct tTextData {
+	char			*textBuffer;
+	tTextIndex	*index;
+	tTextIndex	*currentMsg;
+	int			nMessages;
+	int			nStartTime;
+	int			nEndTime;
+	grsBitmap	*bmP;
+} tTextData;
 
 //------------------------------------------------------------------------------
 
 #define MAX_GAUGE_BMS 100   // increased from 56 to 80 by a very unhappy MK on 10/24/94.
 #define D1_MAX_GAUGE_BMS 80   // increased from 56 to 80 by a very unhappy MK on 10/24/94.
 
-class CCockpitData {
-	public:
-		CArray<tBitmapIndex>	gauges [2]; //[MAX_GAUGE_BMS];
-	public:
-		CCockpitData ();
-	};
+typedef struct tCockpitData {
+	tBitmapIndex		gauges [2][MAX_GAUGE_BMS];
+} tCockpitData;
 
-class CGameData {
-	public:
-		CSegmentData		segs;
-		CWallData			walls;
-		CTriggerData		trigs;
-		CObjectData			objs;
-		CRobotData			bots;
-		CRenderData			render;
-		CEffectData			eff;
-		CPigData				pig;
-		CModelData			models;
-		CMultiplayerData	multiplayer;
-		CMultiGameData		multigame;
-		CMuzzleData			muzzle;
-		CWeaponData			weapons;
-		CMissionData		missions;
-		CEntropyData		entropy;
-		CReactorData		reactor;
-		CMarkerData			marker;
-		CBossData			boss [MAX_BOSS_COUNT];
-		CAIData				ai;
-		CSongData			songs;
-		CEndLevelData		endLevel;
-		CMenuData			menu;
-		CMatCenData			matCens;
-		CDemoData			demo;
-		CEscortData			escort;
-		CThiefData			thief;
-		CHoardData			hoard;
-		CHUDData				hud;
-		CTerrainData		terrain;
-		CTimeData			time;
-		CFCDData				fcd;
-		CVertColorData		vertColor;
-		CThreadData			threads;
-	#if DBG
-		CSpeedtestData		speedtest;
-	#endif
-		CPhysicsData		physics;
-		CLaserData			laser;
-		CFusionData			fusion;
-		COmegaData			omega;
-		CMissileData		missiles;
-		CCockpitData		cockpit;
-		CCollisionData		collisions;
-		CScoreData			score;
-		CTrackIRData		trackIR;
-		CStatsData			stats;
-		CTextData			messages [2];
-		CTextData			sounds;
-		CApplicationData	app;
-#if PROFILING
-		tProfilerData		profiler;
+typedef struct tGameData {
+	tSegmentData		segs;
+	tWallData			walls;
+	tTriggerData		trigs;
+	tObjectData			objs;
+	tRobotData			bots;
+	tRenderData			render;
+	tEffectData			eff;
+	tPigData				pig;
+	tModelData			models;
+	tMultiplayerData	multiplayer;
+	tMultiGameData		multigame;
+	tMuzzleData			muzzle;
+	tWeaponData			weapons;
+	tMissionData		missions;
+	tEntropyData		entropy;
+	tReactorData		reactor;
+	tMarkerData			marker;
+	tBossData			boss [MAX_BOSS_COUNT];
+	tAIData				ai;
+	tSongData			songs;
+	tEndLevelData		endLevel;
+	tMenuData			menu;
+	tMatCenData			matCens;
+	tDemoData			demo;
+	tSmokeData			smoke;
+	tLightningData		lightnings;
+	tEscortData			escort;
+	tThiefData			thief;
+	tHoardData			hoard;
+	tHUDData				hud;
+	tTerrainData		terrain;
+	tTimeData			time;
+	tFCDData				fcd;
+	tVertColorData		vertColor;
+	tThreadData			threads;
+#if DBG
+	tSpeedtestData		speedtest;
 #endif
+	tPhysicsData		physics;
+	tLaserData			laser;
+	tFusionData			fusion;
+	tOmegaData			omega;
+	tMissileData		missiles;
+	tCameraData			cameras;
+	tCockpitData		cockpit;
+	tCollisionData		collisions;
+	tScoreData			score;
+	tTrackIRData		trackIR;
+	tStatsData			stats;
+	tTextData			messages [2];
+	tTextData			sounds;
+	tApplicationData	app;
+#if PROFILING
+	tProfilerData		profiler;
+#endif
+} tGameData;
 
-	public:
-		void Init (void);
-		void Create (void);
-};
-
-extern CGameData gameData;
+extern tGameData gameData;
 
 typedef struct tBossProps {
 	ubyte		bTeleports;
@@ -3482,7 +3383,7 @@ extern char szAutoMission [255];
 extern char szAutoHogFile [255];
 
 static inline ushort WallNumS (tSide *sideP) { return (sideP)->nWall; }
-static inline ushort WallNumP (CSegment *segP, short nSide) { return WallNumS ((segP)->sides + (nSide)); }
+static inline ushort WallNumP (tSegment *segP, short nSide) { return WallNumS ((segP)->sides + (nSide)); }
 static inline ushort WallNumI (short nSegment, short nSide) { return WallNumP(gameData.segs.segments + (nSegment), nSide); }
 
 //-----------------------------------------------------------------------------
@@ -3510,9 +3411,13 @@ static inline fix SegmentVolume (short nSegment)
 
 //	-----------------------------------------------------------------------------------------------------------
 
-static inline short ObjIdx (CObject *objP)
+static inline short ObjIdx (tObject *objP)
 {
-return gameData.objs.objects.Index (objP);
+	size_t	i = (char *) objP - (char *) gameData.objs.objects;
+
+if ((i < 0) || (i > gameData.objs.nLastObject [0] * sizeof (tObject)) || (i % sizeof (tObject)))
+	return -1;
+return (short) (i / sizeof (tObject));
 }
 
 //	-----------------------------------------------------------------------------------------------------------
@@ -3531,8 +3436,8 @@ return gameData.objs.objects.Index (objP);
 
 static inline void PIGGY_PAGE_IN (int bmi, int bD1) 
 {
-CBitmap *bmP = gameData.pig.tex.bitmaps [bD1] + bmi;
-if (!bmP->Buffer () || (bmP->Flags () & BM_FLAG_PAGED_OUT))
+grsBitmap *bmP = gameData.pig.tex.bitmaps [bD1] + bmi;
+if (!bmP->bmTexBuf || (bmP->bmProps.flags & BM_FLAG_PAGED_OUT))
 	PiggyBitmapPageIn (bmi, bD1);
 }
 
@@ -3558,16 +3463,16 @@ static inline void OglVertex3f (g3sPoint *p)
 if (p->p3_index < 0)
 	OglVertex3x (p->p3_vec[X], p->p3_vec[Y], p->p3_vec[Z]);
 else
-	glVertex3fv (reinterpret_cast<GLfloat *> (gameData.render.vertP + p->p3_index));
+	glVertex3fv ((GLfloat *) (gameData.render.pVerts + p->p3_index));
 }
 
 //	-----------------------------------------------------------------------------------------------------------
 
 static inline float GrAlpha (void)
 {
-if (gameStates.render.grAlpha >= (float) FADE_LEVELS)
+if (gameStates.render.grAlpha >= (float) GR_ACTUAL_FADE_LEVELS)
 	return 1.0f;
-return 1.0f - gameStates.render.grAlpha / (float) FADE_LEVELS;
+return 1.0f - gameStates.render.grAlpha / (float) GR_ACTUAL_FADE_LEVELS;
 }
 
 //	-----------------------------------------------------------------------------------------------------------
@@ -3592,8 +3497,6 @@ extern fix nDebrisLife [];
 
 #define sizeofa(_a)	(sizeof (_a) / sizeof ((_a) [0]))	//number of array elements
 
-#define CLEAR(_v)		memset (_v, 0, sizeof (_v))
-
 #define SEGMENTS	gameData.segs.segments
 #define SEGMENT2S	gameData.segs.segment2s
 #define SEGFACES	gameData.segs.segFaces
@@ -3613,9 +3516,9 @@ extern fix nDebrisLife [];
 
 //	-----------------------------------------------------------------------------
 
-static inline CFixVector *PolyObjPos (CObject *objP, CFixVector *vPosP)
+static inline vmsVector *PolyObjPos (tObject *objP, vmsVector *vPosP)
 {
-CFixVector vPos = OBJPOS (objP)->vPos;
+vmsVector vPos = OBJPOS (objP)->vPos;
 if (objP->info.renderType == RT_POLYOBJ) {
 	*vPosP = *ObjectView (objP) * gameData.models.offsets [objP->rType.polyObjInfo.nModel];
 	*vPosP += vPos;
@@ -3627,7 +3530,7 @@ return vPosP;
 
 //	-----------------------------------------------------------------------------
 
-static inline void RequestEffects (CObject *objP, ubyte nEffects)
+static inline void RequestEffects (tObject *objP, ubyte nEffects)
 {
 gameData.objs.bWantEffect [OBJ_IDX (objP)] |= nEffects;
 }
@@ -3650,10 +3553,10 @@ typedef struct fVector3D {
 	float	x, y, z;
 } fVector3D;
 
-typedef struct tTransRotInfo {
+typedef struct tTranspRInfo {
 	fVector3D	fvRot;
 	fVector3D	fvTrans;
-	} tTransRotInfo;
+	} tTranspRInfo;
 
 #ifndef WIN32
 #	define WINAPI
@@ -3666,7 +3569,7 @@ typedef int (WINAPI *tpfnTIRExit) (void);
 typedef int (WINAPI *tpfnTIRStart) (void);
 typedef int (WINAPI *tpfnTIRStop) (void);
 typedef int (WINAPI *tpfnTIRCenter) (void);
-typedef int (WINAPI *tpfnTIRQuery) (tTransRotInfo *);
+typedef int (WINAPI *tpfnTIRQuery) (tTranspRInfo *);
 
 extern tpfnTIRInit	pfnTIRInit;
 extern tpfnTIRExit	pfnTIRExit;
@@ -3767,8 +3670,6 @@ if (gameData.app.semaphores [sem])
 #ifndef max
 #	define max(_a,_b)	((_a) >= (_b) ? (_a) : (_b))
 #endif
-
-void CheckEndian (void);
 
 //	-----------------------------------------------------------------------------------------------------------
 

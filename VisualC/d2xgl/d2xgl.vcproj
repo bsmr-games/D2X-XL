@@ -609,10 +609,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\crypt.h"
-						>
-					</File>
-					<File
 						RelativePath="..\..\include\error.h"
 						>
 					</File>
@@ -638,26 +634,6 @@
 					>
 					<File
 						RelativePath="..\..\console\CON_console.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\crypt.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -838,10 +814,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\main\gameargs.h"
-						>
-					</File>
-					<File
 						RelativePath="..\..\include\gamecntl.h"
 						>
 					</File>
@@ -994,6 +966,26 @@
 						</FileConfiguration>
 					</File>
 					<File
+						RelativePath="..\..\main\config.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
 						RelativePath="..\..\main\console.cpp"
 						>
 						<FileConfiguration
@@ -1035,6 +1027,26 @@
 					</File>
 					<File
 						RelativePath="..\..\main\credits.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\main\crypt.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -1174,10 +1186,6 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\main\gameargs.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\main\gamecntl.cpp"
 						>
 						<FileConfiguration
@@ -1198,16 +1206,24 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\main\gamedata.cpp"
+						RelativePath="..\..\main\gamefont.cpp"
 						>
-					</File>
-					<File
-						RelativePath="..\..\main\gamefolders.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\main\gameoptions.cpp"
-						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\main\gameseg.cpp"
@@ -1228,10 +1244,6 @@
 								ObjectFile="$(IntDir)/$(InputName)1.obj"
 							/>
 						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\gamestates.cpp"
-						>
 					</File>
 					<File
 						RelativePath="..\..\main\highscores.cpp"
@@ -2510,10 +2522,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\objrender.h"
-						>
-					</File>
-					<File
 						RelativePath="..\..\include\polyobj.h"
 						>
 					</File>
@@ -2575,10 +2583,6 @@
 					</File>
 					<File
 						RelativePath="..\..\effects\perlin.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\effects\shrapnel.cpp"
 						>
 					</File>
 					<File
@@ -2675,26 +2679,6 @@
 					>
 					<File
 						RelativePath="..\..\gameio\bm.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\config.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -2975,10 +2959,6 @@
 					</File>
 					<File
 						RelativePath="..\..\include\playsave.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\state.h"
 						>
 					</File>
 					<File
@@ -4141,10 +4121,6 @@
 						RelativePath="..\..\io\win32\findfile.cpp"
 						>
 					</File>
-					<File
-						RelativePath="..\..\io\hogfile.cpp"
-						>
-					</File>
 				</Filter>
 				<Filter
 					Name="Header Files"
@@ -4161,10 +4137,6 @@
 						RelativePath="..\..\include\d_io.h"
 						>
 					</File>
-					<File
-						RelativePath="..\..\include\hogfile.h"
-						>
-					</File>
 				</Filter>
 			</Filter>
 			<Filter
@@ -4174,19 +4146,7 @@
 					Name="Header Files"
 					>
 					<File
-						RelativePath="..\..\include\bitmap.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\canvas.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\color.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\font.h"
+						RelativePath="..\..\2d\bitmap.h"
 						>
 					</File>
 					<File
@@ -4574,10 +4534,6 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\2d\string.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\2d\tmerge.cpp"
 						>
 						<FileConfiguration
@@ -4617,11 +4573,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\descent.ico"
+				RelativePath="..\..\descent.ico"
 				>
 			</File>
 			<File
-				RelativePath="..\..\descent.ico"
+				RelativePath=".\descent.ico"
 				>
 			</File>
 			<File
@@ -4641,23 +4597,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\include\carray.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\cdatapool.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\include\checker.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\include\compbit.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\cstack.h"
 				>
 			</File>
 			<File
@@ -4678,10 +4622,6 @@
 			</File>
 			<File
 				RelativePath="..\..\include\glext.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\globvars.h"
 				>
 			</File>
 			<File

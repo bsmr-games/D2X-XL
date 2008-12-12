@@ -75,8 +75,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define MULTI_SAVE_GAME					33
 #define MULTI_RESTORE_GAME				34
 
-#define MULTI_REQ_PLAYER				35  // Someone requests my CPlayerData structure
-#define MULTI_SEND_PLAYER				36  // Sending someone my CPlayerData structure
+#define MULTI_REQ_PLAYER				35  // Someone requests my tPlayer structure
+#define MULTI_SEND_PLAYER				36  // Sending someone my tPlayer structure
 #define MULTI_MARKER						37
 #define MULTI_DROP_WEAPON				38
 #define MULTI_GUIDED						39
@@ -162,12 +162,12 @@ void MultiSendRemObj (int nObject);
 void MultiSendQuit (int why);
 void MultiSendDoorOpen (int nSegment, int tSide,ubyte flag);
 void MultiSendCreateExplosion (int nPlayer);
-void MultiSendCtrlcenFire (CFixVector *to_target, int nGun, int nObject);
+void MultiSendCtrlcenFire (vmsVector *to_target, int nGun, int nObject);
 void MultiSendInvul (void);
 void MultiSendDeInvul (void);
 void MultiSendCloak (void);
 void MultiSendDeCloak (void);
-void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, CFixVector *pos);
+void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, vmsVector *pos);
 void MultiSendPlaySound (int nSound, fix volume);
 void MultiSendAudioTaunt (int taunt_num);
 void MultiSendScore (void);
@@ -176,8 +176,8 @@ void MultiSendObjTrigger (int tTrigger);
 void MultiSendHostageDoorStatus (int wallnum);
 void MultiSendNetPlayerStatsRequest (ubyte nPlayer);
 void MultiSendDropWeapon (int nObject,int seed);
-void MultiSendDropMarker (int nPlayer,CFixVector position,char messagenum,char text[]);
-void MultiSendGuidedInfo (CObject *miss,char);
+void MultiSendDropMarker (int nPlayer,vmsVector position,char messagenum,char text[]);
+void MultiSendGuidedInfo (tObject *miss,char);
 void MultiSendReturnFlagHome (short nObject);
 void MultiSendCaptureBonus (char pnum);
 void MultiSendShields (void);
@@ -440,6 +440,10 @@ void ChangeSegmentTexture (int nSegment, int oldOwner);
 #define MISSILE_ADJUST  100
 #define FLARE_ADJUST    127
 
+int FindPlayerInBanList (char *szPlayer);
+int LoadBanList (void);
+int SaveBanList (void);
+void FreeBanList (void);
 int PingPlayer (int n);
 int MultiProtectGame (void);
 void SwitchTeam (int nPlayer, int bForce);
@@ -461,7 +465,7 @@ void MultiSendDoorOpenSpecific (int nPlayer, int nSegment, int tSide, ubyte flag
 void MultiSendWallStatusSpecific (int nPlayer, int wallnum, ubyte nType, ubyte flags, ubyte state);
 void MultiSendLightSpecific (int nPlayer, int nSegment, ubyte val);
 void MultiSendTriggerSpecific (char nPlayer, ubyte trig);
-void MultiResetObjectTexture (CObject *objP);
+void MultiResetObjectTexture (tObject *objP);
 void MultiSendSeismic (fix start, fix end);
 
 void InitDefaultPlayerShip (void);

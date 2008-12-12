@@ -42,9 +42,9 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 //-------------------------------------------------------------------------------------------
 
-fix AITurnTowardsVector (CFixVector *vGoal, CObject *objP, fix rate)
+fix AITurnTowardsVector (vmsVector *vGoal, tObject *objP, fix rate)
 {
-	CFixVector	new_fvec;
+	vmsVector	new_fvec;
 	fix			dot;
 
 	//	Not all robots can turn, eg, SPECIAL_REACTOR_ROBOT
@@ -52,10 +52,10 @@ if (rate == 0)
 	return 0;
 if ((objP->info.nId == BABY_SPIDER_ID) && (objP->info.nType == OBJ_ROBOT)) {
 	PhysicsTurnTowardsVector (vGoal, objP, rate);
-	return CFixVector::Dot(*vGoal, objP->info.position.mOrient[FVEC]);
+	return vmsVector::Dot(*vGoal, objP->info.position.mOrient[FVEC]);
 	}
 new_fvec = *vGoal;
-dot = CFixVector::Dot(*vGoal, objP->info.position.mOrient[FVEC]);
+dot = vmsVector::Dot(*vGoal, objP->info.position.mOrient[FVEC]);
 if (!IsMultiGame)
 	dot = (fix) (dot / gameStates.gameplay.slowmo [0].fSpeed);
 if (dot < (F1_0 - gameData.time.xFrame/2)) {
@@ -64,7 +64,7 @@ if (dot < (F1_0 - gameData.time.xFrame/2)) {
 		new_scale = (fix) (new_scale / gameStates.gameplay.slowmo [0].fSpeed);
 	new_fvec *= new_scale;
 	new_fvec += objP->info.position.mOrient[FVEC];
-	mag = CFixVector::Normalize(new_fvec);
+	mag = vmsVector::Normalize(new_fvec);
 	if (mag < F1_0/256) {
 #if TRACE
 		con_printf (1, "Degenerate vector in AITurnTowardsVector (mag = %7.3f)\n", X2F (mag));
@@ -73,9 +73,9 @@ if (dot < (F1_0 - gameData.time.xFrame/2)) {
 		}
 	}
 if (gameStates.gameplay.seismic.nMagnitude) {
-	CFixVector	rand_vec;
+	vmsVector	rand_vec;
 	fix			scale;
-	rand_vec = CFixVector::Random();
+	rand_vec = vmsVector::Random();
 	scale = FixDiv (2*gameStates.gameplay.seismic.nMagnitude, ROBOTINFO (objP->info.nId).mass);
 	new_fvec += rand_vec * scale;
 	}
@@ -86,19 +86,19 @@ return dot;
 // --------------------------------------------------------------------------------------------------------------------
 //	vGoalVec must be normalized, or close to it.
 //	if bDotBased set, then speed is based on direction of movement relative to heading
-void MoveTowardsVector (CObject *objP, CFixVector *vGoalVec, int bDotBased)
+void MoveTowardsVector (tObject *objP, vmsVector *vGoalVec, int bDotBased)
 {
 	tPhysicsInfo	*pptr = &objP->mType.physInfo;
 	fix				speed, dot, xMaxSpeed, t, d;
 	tRobotInfo		*botInfoP = &ROBOTINFO (objP->info.nId);
-	CFixVector		vel;
+	vmsVector		vel;
 
 	//	Trying to move towards player.  If forward vector much different than velocity vector,
-	//	bash velocity vector twice as much towards CPlayerData as usual.
+	//	bash velocity vector twice as much towards tPlayer as usual.
 
 vel = pptr->velocity;
-CFixVector::Normalize(vel);
-dot = CFixVector::Dot(vel, objP->info.position.mOrient[FVEC]);
+vmsVector::Normalize(vel);
+dot = vmsVector::Dot(vel, objP->info.position.mOrient[FVEC]);
 
 if (botInfoP->thief)
 	dot = (F1_0+dot)/2;
@@ -132,13 +132,13 @@ if (speed > xMaxSpeed) {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void MoveAwayFromOtherRobots (CObject *objP, CFixVector& vVecToPlayer)
+void MoveAwayFromOtherRobots (tObject *objP, vmsVector& vVecToPlayer)
 {
-	CFixVector		vPos, vAvoidPos, vNewPos;
+	vmsVector		vPos, vAvoidPos, vNewPos;
 	fix				xDist, xAvoidRad;
 	short				nStartSeg, nDestSeg, nObject, nSide, nAvoidObjs;
-	CObject			*avoidObjP;
-	CSegment			*segP;
+	tObject			*avoidObjP;
+	tSegment			*segP;
 	tFVIQuery		fq;
 	tFVIData			hitData;
 	int				hitType;
@@ -150,11 +150,11 @@ nStartSeg = objP->info.nSegment;
 vPos = objP->info.position.vPos;
 if ((objP->info.nType == OBJ_ROBOT) && !ROBOTINFO (objP->info.nId).companion) {
 	// move out from all other robots in same segment that are too close
-	for (nObject = SEGMENTS [nStartSeg].objects; nObject != -1; nObject = avoidObjP->info.nNextInSeg) {
+	for (nObject = gameData.segs.objects [nStartSeg]; nObject != -1; nObject = avoidObjP->info.nNextInSeg) {
 		avoidObjP = OBJECTS + nObject;
 		if ((avoidObjP->info.nType != OBJ_ROBOT) || (avoidObjP->info.nSignature >= objP->info.nSignature))
 			continue;	// comparing the sigs ensures that only one of two bots tested against each other will move, keeping them from bouncing around
-		xDist = CFixVector::Dist (vPos, avoidObjP->info.position.vPos);
+		xDist = vmsVector::Dist (vPos, avoidObjP->info.position.vPos);
 		if (xDist >= (objP->info.xSize + avoidObjP->info.xSize))
 			continue;
 		xAvoidRad += (objP->info.xSize + avoidObjP->info.xSize);
@@ -166,7 +166,7 @@ if ((objP->info.nType == OBJ_ROBOT) && !ROBOTINFO (objP->info.nId).companion) {
 		vAvoidPos /= nAvoidObjs * F1_0;
 		segP = SEGMENTS + nStartSeg;
 		for (nAvoidObjs = 5; nAvoidObjs; nAvoidObjs--) {
-			vNewPos = CFixVector::Random ();
+			vNewPos = vmsVector::Random ();
 			vNewPos *= objP->info.xSize;
 			vNewPos += vAvoidPos;
 			if (0 > (nDestSeg = FindSegByPos (vNewPos, nStartSeg, 0, 0)))
@@ -189,7 +189,7 @@ if ((objP->info.nType == OBJ_ROBOT) && !ROBOTINFO (objP->info.nId).companion) {
 					continue;
 				}
 			vVecToPlayer = vNewPos - vAvoidPos;
-			CFixVector::Normalize (vVecToPlayer); //CFixVector::Avg (vVecToPlayer, vNewPos);
+			vmsVector::Normalize (vVecToPlayer); //vmsVector::Avg (vVecToPlayer, vNewPos);
 			break;
 			}
 		}
@@ -198,7 +198,7 @@ if ((objP->info.nType == OBJ_ROBOT) && !ROBOTINFO (objP->info.nId).companion) {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void MoveTowardsPlayer (CObject *objP, CFixVector *vVecToPlayer)
+void MoveTowardsPlayer (tObject *objP, vmsVector *vVecToPlayer)
 //	gameData.ai.vVecToPlayer must be normalized, or close to it.
 {
 MoveAwayFromOtherRobots (objP, *vVecToPlayer);
@@ -207,7 +207,7 @@ MoveTowardsVector (objP, vVecToPlayer, 1);
 
 // --------------------------------------------------------------------------------------------------------------------
 //	I am ashamed of this: fastFlag == -1 means Normal slide about.  fastFlag = 0 means no evasion.
-void MoveAroundPlayer (CObject *objP, CFixVector *vVecToPlayer, int fastFlag)
+void MoveAroundPlayer (tObject *objP, vmsVector *vVecToPlayer, int fastFlag)
 {
 	tPhysicsInfo	*pptr = &objP->mType.physInfo;
 	fix				speed;
@@ -216,7 +216,7 @@ void MoveAroundPlayer (CObject *objP, CFixVector *vVecToPlayer, int fastFlag)
 	int				dir;
 	int				dir_change;
 	fix				ft;
-	CFixVector		vEvade;
+	vmsVector		vEvade;
 	int				count=0;
 
 	if (fastFlag == 0)
@@ -271,7 +271,7 @@ void MoveAroundPlayer (CObject *objP, CFixVector *vVecToPlayer, int fastFlag)
 		//	Only take evasive action if looking at player.
 		//	Evasion speed is scaled by percentage of shields left so wounded robots evade less effectively.
 
-		dot = CFixVector::Dot(gameData.ai.vVecToPlayer, objP->info.position.mOrient[FVEC]);
+		dot = vmsVector::Dot(gameData.ai.vVecToPlayer, objP->info.position.mOrient[FVEC]);
 		if ((dot > botInfoP->fieldOfView [gameStates.app.nDifficultyLevel]) &&
 			 !(gameData.objs.consoleP->info.nFlags & PLAYER_FLAGS_CLOAKED)) {
 			fix	damage_scale;
@@ -302,7 +302,7 @@ void MoveAroundPlayer (CObject *objP, CFixVector *vVecToPlayer, int fastFlag)
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-void MoveAwayFromPlayer (CObject *objP, CFixVector *vVecToPlayer, int attackType)
+void MoveAwayFromPlayer (tObject *objP, vmsVector *vVecToPlayer, int attackType)
 {
 	fix				speed;
 	tPhysicsInfo	*pptr = &objP->mType.physInfo;
@@ -349,11 +349,11 @@ void MoveAwayFromPlayer (CObject *objP, CFixVector *vVecToPlayer, int attackType
 //	Move towards, away_from or around player.
 //	Also deals with evasion.
 //	If the flag bEvadeOnly is set, then only allowed to evade, not allowed to move otherwise (must have mode == AIM_IDLING).
-void AIMoveRelativeToPlayer (CObject *objP, tAILocalInfo *ailP, fix xDistToPlayer,
-									  CFixVector *vVecToPlayer, fix circleDistance, int bEvadeOnly,
+void AIMoveRelativeToPlayer (tObject *objP, tAILocalInfo *ailP, fix xDistToPlayer,
+									  vmsVector *vVecToPlayer, fix circleDistance, int bEvadeOnly,
 									  int nPlayerVisibility)
 {
-	CObject		*dObjP;
+	tObject		*dObjP;
 	tRobotInfo	*botInfoP = &ROBOTINFO (objP->info.nId);
 
 	Assert (gameData.ai.nPlayerVisibility != -1);
@@ -366,16 +366,16 @@ if (objP->cType.aiInfo.nDangerLaser != -1) {
 
 	if ((dObjP->info.nType == OBJ_WEAPON) && (dObjP->info.nSignature == objP->cType.aiInfo.nDangerLaserSig)) {
 		fix			dot, xDistToLaser, fieldOfView;
-		CFixVector	vVecToLaser, fVecLaser;
+		vmsVector	vVecToLaser, fVecLaser;
 
 		fieldOfView = ROBOTINFO (objP->info.nId).fieldOfView [gameStates.app.nDifficultyLevel];
 		vVecToLaser = dObjP->info.position.vPos - objP->info.position.vPos;
-		xDistToLaser = CFixVector::Normalize(vVecToLaser);
-		dot = CFixVector::Dot(vVecToLaser, objP->info.position.mOrient[FVEC]);
+		xDistToLaser = vmsVector::Normalize(vVecToLaser);
+		dot = vmsVector::Dot(vVecToLaser, objP->info.position.mOrient[FVEC]);
 
 		if ((dot > fieldOfView) || (botInfoP->companion)) {
 			fix			dotLaserRobot;
-			CFixVector	vLaserToRobot;
+			vmsVector	vLaserToRobot;
 
 			//	The laser is seen by the robot, see if it might hit the robot.
 			//	Get the laser's direction.  If it's a polyobjP, it can be gotten cheaply from the orientation matrix.
@@ -383,11 +383,11 @@ if (objP->cType.aiInfo.nDangerLaser != -1) {
 				fVecLaser = dObjP->info.position.mOrient[FVEC];
 			else {		//	Not a polyobjP, get velocity and Normalize.
 				fVecLaser = dObjP->mType.physInfo.velocity;	//dObjP->info.position.mOrient[FVEC];
-				CFixVector::Normalize(fVecLaser);
+				vmsVector::Normalize(fVecLaser);
 				}
 			vLaserToRobot = objP->info.position.vPos - dObjP->info.position.vPos;
-			CFixVector::Normalize(vLaserToRobot);
-			dotLaserRobot = CFixVector::Dot(fVecLaser, vLaserToRobot);
+			vmsVector::Normalize(vLaserToRobot);
+			dotLaserRobot = vmsVector::Dot(fVecLaser, vLaserToRobot);
 
 			if ((dotLaserRobot > F1_0*7/8) && (xDistToLaser < F1_0*80)) {
 				int evadeSpeed = ROBOTINFO (objP->info.nId).evadeSpeed [gameStates.app.nDifficultyLevel];
@@ -403,7 +403,7 @@ if (objP->cType.aiInfo.nDangerLaser != -1) {
 //	Hmm, perhaps brilliant insight.  If want claw-nType guys to keep coming, don't return here after evasion.
 if (!(botInfoP->attackType || botInfoP->thief) && bEvadeOnly)
 	return;
-//	If we fall out of above, then no CObject to be avoided.
+//	If we fall out of above, then no tObject to be avoided.
 objP->cType.aiInfo.nDangerLaser = -1;
 //	Green guy selects move around/towards/away based on firing time, not distance.
 if (botInfoP->attackType == 1) {
@@ -411,7 +411,7 @@ if (botInfoP->attackType == 1) {
 		 ((ailP->nextPrimaryFire <= botInfoP->primaryFiringWait [gameStates.app.nDifficultyLevel]/4) ||
 		  (gameData.ai.xDistToPlayer >= F1_0 * 30)))
 		MoveTowardsPlayer (objP, &gameData.ai.vVecToPlayer);
-		//	1/4 of time, move around CPlayerData, 3/4 of time, move away from CPlayerData
+		//	1/4 of time, move around tPlayer, 3/4 of time, move away from tPlayer
 	else if (d_rand () < 8192)
 		MoveAroundPlayer (objP, &gameData.ai.vVecToPlayer, -1);
 	else
@@ -443,26 +443,26 @@ else {
 
 // --------------------------------------------------------------------------------------------------------------------
 
-fix MoveObjectToLegalPoint (CObject *objP, CFixVector *vGoal)
+fix MoveObjectToLegalPoint (tObject *objP, vmsVector *vGoal)
 {
-	CFixVector	vGoalDir;
+	vmsVector	vGoalDir;
 	fix			xDistToGoal;
 
 vGoalDir = *vGoal - objP->info.position.vPos;
-xDistToGoal = CFixVector::Normalize(vGoalDir);
+xDistToGoal = vmsVector::Normalize(vGoalDir);
 vGoalDir *= (objP->info.xSize / 2);
 objP->info.position.vPos += vGoalDir;
 return xDistToGoal;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-//	Move the CObject objP to a spot in which it doesn't intersect a tWall.
-//	It might mean moving it outside its current CSegment.
-void MoveObjectToLegalSpot (CObject *objP, int bMoveToCenter)
+//	Move the tObject objP to a spot in which it doesn't intersect a tWall.
+//	It might mean moving it outside its current tSegment.
+void MoveObjectToLegalSpot (tObject *objP, int bMoveToCenter)
 {
-	CFixVector	vSegCenter, vOrigPos = objP->info.position.vPos;
+	vmsVector	vSegCenter, vOrigPos = objP->info.position.vPos;
 	int			i;
-	CSegment		*segP = gameData.segs.segments + objP->info.nSegment;
+	tSegment		*segP = gameData.segs.segments + objP->info.nSegment;
 
 if (bMoveToCenter) {
 	COMPUTE_SEGMENT_CENTER_I (&vSegCenter, objP->info.nSegment);
@@ -479,7 +479,7 @@ else {
 			else {
 				int nNewSeg = FindSegByPos (objP->info.position.vPos, objP->info.nSegment, 1, 0);
 				if (nNewSeg != -1) {
-					objP->RelinkToSeg (nNewSeg);
+					RelinkObjToSeg (OBJ_IDX (objP), nNewSeg);
 					return;
 					}
 				}
@@ -500,19 +500,19 @@ if (ROBOTINFO (objP->info.nId).bossFlag) {
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-//	Move CObject one CObject radii from current position towards CSegment center.
-//	If CSegment center is nearer than 2 radii, move it to center.
-fix MoveTowardsPoint (CObject *objP, CFixVector *vGoal, fix xMinDist)
+//	Move tObject one tObject radii from current position towards tSegment center.
+//	If tSegment center is nearer than 2 radii, move it to center.
+fix MoveTowardsPoint (tObject *objP, vmsVector *vGoal, fix xMinDist)
 {
 	fix			xDistToGoal;
-	CFixVector	vGoalDir;
+	vmsVector	vGoalDir;
 
 #if DBG
 if ((nDbgSeg >= 0) && (objP->info.nSegment == nDbgSeg))
 	nDbgSeg = nDbgSeg;
 #endif
 vGoalDir = *vGoal - objP->info.position.vPos;
-xDistToGoal = CFixVector::Normalize(vGoalDir);
+xDistToGoal = vmsVector::Normalize(vGoalDir);
 if (xDistToGoal - objP->info.xSize <= xMinDist) {
 	//	Center is nearer than the distance we want to move, so move to center.
 	if (!xMinDist) {
@@ -543,11 +543,11 @@ return xDistToGoal;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-//	Move CObject one CObject radii from current position towards CSegment center.
-//	If CSegment center is nearer than 2 radii, move it to center.
-fix MoveTowardsSegmentCenter (CObject *objP)
+//	Move tObject one tObject radii from current position towards tSegment center.
+//	If tSegment center is nearer than 2 radii, move it to center.
+fix MoveTowardsSegmentCenter (tObject *objP)
 {
-	CFixVector	vSegCenter;
+	vmsVector	vSegCenter;
 
 COMPUTE_SEGMENT_CENTER_I (&vSegCenter, objP->info.nSegment);
 return MoveTowardsPoint (objP, &vSegCenter, 0);

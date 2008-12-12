@@ -1879,14 +1879,15 @@ void LoadGameTexts(void);
 #define TXT_QUICKLOAD					GT(1087)
 #define TXT_HELP_QUICKSAVE				GT(1088)
 #define TXT_HELP_QUICKLOAD				GT(1089)
-#define TXT_SMOKE_BUBBLES				GT(1090)
-#define TXT_WIGGLE_BUBBLES				GT(1091)
-#define TXT_WOBBLE_BUBBLES				GT(1092)
-#define TXT_SMOKE_MONITORS				GT(1093)
-#define TXT_LIGHTNING_MONITORS		GT(1094)
 
 #if 0
 
+#define TXT_					GT(1089)
+#define TXT_					GT(1090)
+#define TXT_					GT(1091)
+#define TXT_					GT(1092)
+#define TXT_					GT(1093)
+#define TXT_					GT(1094)
 #define TXT_					GT(1095)
 #define TXT_					GT(1096)
 #define TXT_					GT(1097)
@@ -2391,14 +2392,14 @@ void LoadGameTexts(void);
 #define HTX_AI_AGGRESSIVITY			HT(377)			
 #define HTX_FADE_MUSIC					HT(378)			
 #define HTX_HIRES_CAMERAS				HT(379)			
-#define HTX_SMOKE_BUBBLES				HT(380)			
-#define HTX_WIGGLE_BUBBLES				HT(381)			
-#define HTX_WOBBLE_BUBBLES				HT(382)			
-#define HTX_SMOKE_MONITORS				HT(383)			
-#define HTX_LIGHTNING_MONITORS		HT(384)			
 
 #if 0
 
+#define HTX_						HT(380)			
+#define HTX_						HT(381)			
+#define HTX_						HT(382)			
+#define HTX_						HT(383)			
+#define HTX_						HT(384)			
 #define HTX_						HT(385)			
 #define HTX_						HT(386)			
 #define HTX_						HT(387)			

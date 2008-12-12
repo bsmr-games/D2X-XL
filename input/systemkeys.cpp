@@ -430,7 +430,7 @@ switch (key) {
 			}
 		else {
 			gameData.objs.viewerP->info.position = gameStates.app.playerPos;
-			gameData.objs.viewerP->RelinkToSeg (gameStates.app.nPlayerSegment);
+			RelinkObjToSeg (OBJ_IDX (gameData.objs.viewerP), gameStates.app.nPlayerSegment);
 			}
 		break;
 
@@ -449,14 +449,13 @@ switch (key) {
 			int bScanlineSave = bScanlineDouble;
 
 			if (!IsMultiGame) {
-				paletteManager.SaveEffect(); 
-				paletteManager.ResetEffect (); 
-				saveGameHandler.Save (0, 0, 0, NULL);
-				paletteManager.LoadEffect (); 
+				PaletteSave(); 
+				ResetPaletteAdd(); 
+				GrPaletteStepLoad (NULL); 
 				}
 			ConfigMenu();
 			if (!IsMultiGame) 
-				paletteManager.LoadEffect ();
+				PaletteRestore();
 			if (bScanlineSave != bScanlineDouble)   
 				InitCockpit();	// reset the cockpit after changing...
 			break;
@@ -471,9 +470,9 @@ switch (key) {
 		break;
 
 	case KEY_F7+KEY_SHIFTED: 
-		paletteManager.SaveEffect(); 
+		PaletteSave(); 
 		JoyDefsCalibrate(); 
-		paletteManager.LoadEffect (); 
+		PaletteRestore(); 
 		break;
 
 	case KEY_SHIFTED+KEY_MINUS:
@@ -489,11 +488,11 @@ switch (key) {
 		break;
 		
 	case KEY_CTRLED+KEY_F5:
-		saveGameHandler.Save (0, 0, 1, 0);
+		StateSaveAll (0, 0, 1, 0);
 		break;
 
 	case KEY_CTRLED+KEY_F9:
-		saveGameHandler.Load (0, 0, 1, 0);
+		StateRestoreAll (0, 0, 1, 0);
 		break;
 
 #if 1//ndef _DEBUG
@@ -549,7 +548,7 @@ switch (key) {
 		if (!IsMultiGame || IsCoopGame || EGI_FLAG (bEnableCheats, 0, 0, 0))
 #endif		
 			gameStates.render.bExternalView = !gameStates.render.bExternalView;
-		externalView.Reset (-1, -1);
+		ResetFlightPath (&externalView, -1, -1);
 		break;
 
 	case KEY_SHIFTED + KEY_F9:
@@ -562,17 +561,24 @@ switch (key) {
 
 	case KEY_ALTED+KEY_F2:
 		if (!gameStates.app.bPlayerIsDead && !(IsMultiGame && !IsCoopGame)) {
-			paletteManager.SaveEffectAndReset ();
-			paletteManager.SetEffect (); // get only the effect color back
-			saveGameHandler.Save (0, 0, 0, NULL);
-			paletteManager.LoadEffect ();
+			int     rsave, gsave, bsave;
+			rsave = gameStates.ogl.palAdd.red;
+			gsave = gameStates.ogl.palAdd.green;
+			bsave = gameStates.ogl.palAdd.blue;
+
+			FullPaletteSave();
+			gameStates.ogl.palAdd.red = rsave;
+			gameStates.ogl.palAdd.green = gsave;
+			gameStates.ogl.palAdd.blue = bsave;
+			StateSaveAll( 0, 0, 0, NULL );
+			PaletteRestore();
 		}
 		break;  // 0 means not between levels.
 
 	case KEY_ALTED+KEY_F3:
 		if (!gameStates.app.bPlayerIsDead && (!IsMultiGame || IsCoopGame)) {
-			paletteManager.SaveEffectAndReset ();
-			saveGameHandler.Load (1, 0, 0, NULL);
+			FullPaletteSave ();
+			StateRestoreAll (1, 0, 0, NULL);
 			if (gameData.app.bGamePaused)
 				DoGamePause();
 		}
@@ -988,7 +994,7 @@ void HandleTestKey(int key)
 			SetScreenMode(SCREEN_GAME);
 			ResetCockpit();
 			memcpy(grPalette, pal_save, 768);
-			paletteManager.LoadEffect  ();
+			GrPaletteStepLoad (NULL);
 			break;
 		}
 		case KEY_C + KEY_SHIFTED + KEYDBGGED:
@@ -1048,8 +1054,8 @@ void HandleTestKey(int key)
 
 		case KEYDBGGED +KEY_F4: {
 			//tFVIData hit_data;
-			//CFixVector p0 = {-0x1d99a7, -0x1b20000, 0x186ab7f};
-			//CFixVector p1 = {-0x217865, -0x1b20000, 0x187de3e};
+			//vmsVector p0 = {-0x1d99a7, -0x1b20000, 0x186ab7f};
+			//vmsVector p1 = {-0x217865, -0x1b20000, 0x187de3e};
 			//FindVectorIntersection(&hit_data, &p0, 0x1b9, &p1, 0x40000, 0x0, NULL, -1);
 			break;
 		}
@@ -1066,9 +1072,9 @@ void HandleTestKey(int key)
 			break;
 
 		case KEYDBGGED + KEY_C:
-			paletteManager.SaveEffectAndReset();
+			FullPaletteSave();
 			DoCheatMenu();
-			paletteManager.LoadEffect ();
+			PaletteRestore();
 			break;
 
 		case KEYDBGGED + KEY_SHIFTED + KEY_A:
@@ -1098,7 +1104,7 @@ void HandleTestKey(int key)
 				FlyInit(gameData.objs.consoleP);
 				gameStates.app.bGameSuspended &= ~SUSP_ROBOTS;	//robots move
 			} else {
-				slew_init(gameData.objs.consoleP);			//start CPlayerData slewing
+				slew_init(gameData.objs.consoleP);			//start tPlayer slewing
 				gameStates.app.bGameSuspended |= SUSP_ROBOTS;	//robots don't move
 			}
 			break;
@@ -1193,7 +1199,7 @@ if (!gameStates.app.bEndLevelSequence && !gameStates.app.bPlayerIsDead) {
 	}
 if (gameStates.app.bPlayerExploded) { //gameStates.app.bPlayerIsDead && (gameData.objs.consoleP->flags & OF_EXPLODING) ) {
 	if (!explodingFlag)  {
-		explodingFlag = 1;			// When CPlayerData starts exploding, clear all input devices...
+		explodingFlag = 1;			// When tPlayer starts exploding, clear all input devices...
 		GameFlushInputs();
 		}
 	else {

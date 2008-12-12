@@ -49,7 +49,7 @@
 char szNMTextBuffer [MAX_ACTIVE_NETGAMES + 5][100];
 
 extern void SetFunctionMode (int);
-extern ubyte ipx_MyAddress [10];
+extern unsigned char ipx_MyAddress [10];
 
 //------------------------------------------------------------------------------
 
@@ -304,7 +304,7 @@ for (i = 0; i < nitems; i++) {
 	}
 if (nm > gameData.multiplayer.nMaxPlayers) {
 	ExecMessageBox (TXT_ERROR, NULL, 1, TXT_OK, "%s %d %s", TXT_SORRY_ONLY, gameData.multiplayer.nMaxPlayers, TXT_NETPLAYERS_IN);
-	// Turn off the last CPlayerData highlighted
+	// Turn off the last tPlayer highlighted
 	for (i = gameData.multiplayer.nPlayers; i > 0; i--)
 		if (menus [i].value == 1) {
 			menus [i].value = 0;
@@ -830,31 +830,31 @@ do {
 
 #define SetTextOpt(_text) \
 	m [opt].nType = NM_TYPE_TEXT; \
-	m [opt++].text = const_cast<char*> (_text)
+	m [opt++].text = (char *) _text
 
 #define SetInputOpt(_label, _text, Value, _len) \
 	SetTextOpt (_label); \
 	m [opt].nType = NM_TYPE_INPUT; \
 	sprintf (_text, "%d", Value); \
-	m [opt].text = const_cast<char*> (_text); \
+	m [opt].text = (char *) _text; \
 	m [opt].value = Value; \
 	m [opt].text_len = _len; \
-	m [opt].szHelp = const_cast<char*> (HTX_ONLINE_MANUAL)
+	m [opt].szHelp = (char *) HTX_ONLINE_MANUAL
 
 #define SetRadioOpt(_text, _group, _key) \
 	m [opt].nType = NM_TYPE_RADIO; \
-	m [opt].text = const_cast<char*> (_text); \
+	m [opt].text = (char *) _text; \
 	m [opt].value = 0; \
 	m [opt].group = _group; \
 	m [opt++].key = _key; \
-	m [opt].szHelp = const_cast<char*> (HTX_ONLINE_MANUAL)
+	m [opt].szHelp = (char *) HTX_ONLINE_MANUAL
 
 #define SetCheckOpt(_text, Value, _key) \
 	m [opt].nType = NM_TYPE_CHECK; \
-	m [opt].text = const_cast<char*> (_text); \
+	m [opt].text = (char *) _text; \
 	m [opt].value = Value; \
 	m [opt].key = _key; \
-	m [opt].szHelp = const_cast<char*> (HTX_ONLINE_MANUAL)
+	m [opt].szHelp = (char *) HTX_ONLINE_MANUAL
 
 //------------------------------------------------------------------------------
 
@@ -959,11 +959,11 @@ optShieldDmg = opt++;
 SetTextOpt ("");
 optTogglesMenu = opt;
 m [opt].nType = NM_TYPE_MENU;  
-m [opt].text = const_cast<char*> (TXT_ENT_TGLMENU); 
+m [opt].text = (char *) TXT_ENT_TGLMENU; 
 m [opt++].key = KEY_E;
 optTextureMenu = opt;
 m [opt].nType = NM_TYPE_MENU;  
-m [opt].text = const_cast<char*> (TXT_ENT_TEXMENU); 
+m [opt].text = (char *) TXT_ENT_TEXMENU; 
 m [opt++].key = KEY_T;
 Assert (sizeofa (m) >= (size_t) opt);
 
@@ -1376,7 +1376,7 @@ if (m [optMissionName].rebuild) {
 	strncpy (netGame.szMissionName, 
 				(nNewMission < 0) ? "" : gameData.missions.list [nNewMission].filename, 
 				sizeof (netGame.szMissionName) - 1);
-	m [optMissionName].text = (nNewMission < 0) ? const_cast<char*> (TXT_NONE_SELECTED) : const_cast<char*> (gameData.missions.list [nNewMission].szMissionName);
+	m [optMissionName].text = (char *) ((nNewMission < 0) ? TXT_NONE_SELECTED : gameData.missions.list [nNewMission].szMissionName);
 	if ((nNewMission >= 0) && (gameData.missions.nLastLevel > 1)) {
 		sprintf (szLevelText, "%s (1-%d)", TXT_LEVEL_, gameData.missions.nLastLevel);
 		Assert (strlen (szLevelText) < 32);
@@ -1618,10 +1618,10 @@ doMenu:
 		}
 	}
 	m [opt].nType = NM_TYPE_TEXT; 
-	m [opt].text = reinterpret_cast<char*> (""); 
+	m [opt].text = (char *) ""; 
 	opt++;
 	m [opt].nType = NM_TYPE_MENU; 
-	m [opt].text = const_cast<char*> (TXT_ACCEPT); 
+	m [opt].text = (char *) TXT_ACCEPT; 
 	m [opt].key = KEY_A;
 	opt++;
 
@@ -1762,7 +1762,7 @@ for (i = 0; i < nSavePlayers; i++) {
 			netPlayers.players [gameData.multiplayer.nPlayers].versionMajor = netPlayers.players [i].versionMajor;
 			netPlayers.players [gameData.multiplayer.nPlayers].versionMinor = netPlayers.players [i].versionMinor;
 			netPlayers.players [gameData.multiplayer.nPlayers].rank = netPlayers.players [i].rank;
-			ClipRank (reinterpret_cast<char*> (&netPlayers.players [gameData.multiplayer.nPlayers].rank));
+			ClipRank ((char *) &netPlayers.players [gameData.multiplayer.nPlayers].rank);
 			NetworkCheckForOldVersion ((char)i);
 			}
 		gameData.multiplayer.players [gameData.multiplayer.nPlayers].connected = 1;
@@ -1835,7 +1835,7 @@ char *PruneText (char *pszDest, char *pszSrc, int nSize, int nPos, int nVersion)
 {
 	int		lDots, lMax, l, tx, ty, ta;
 	char		*psz;
-	CFont	*curFont = CCanvas::Current ()->Font ();
+	grsFont	*curFont = grdCurCanv->cvFont;
 
 if (gameOpts->menus.bShowLevelVersion && (nVersion >= 0)) {
 	if (nVersion)
@@ -1849,20 +1849,20 @@ else
 pszDest [nSize - 1] = '\0';
 if ((psz = strchr (pszDest, '\t')))
 	*psz = '\0';
-fontManager.SetCurrent (SMALL_FONT);
-FONT->StringSize ("... ", lDots, ty, ta);
-FONT->StringSize (pszDest, tx, ty, ta);
+grdCurCanv->cvFont = SMALL_FONT;
+GrGetStringSize ("... ", &lDots, &ty, &ta);
+GrGetStringSize (pszDest, &tx, &ty, &ta);
 l = (int) strlen (pszDest);
 lMax = LHX (nTabs [nPos]) - LHX (nTabs [nPos - 1]);
 if (tx > lMax) {
 	lMax -= lDots;
 	do {
 		pszDest [--l] = '\0';
-		FONT->StringSize (pszDest, tx, ty, ta);
+		GrGetStringSize (pszDest, &tx, &ty, &ta);
 	} while (tx > lMax);
 	strcat (pszDest, "...");
 	}
-fontManager.SetCurrent (curFont); 
+grdCurCanv->cvFont = curFont; 
 return pszDest;
 }
 
@@ -2054,7 +2054,7 @@ networkData.nLastActiveGames = 0;
 memset (activeNetGames, 0, sizeof (activeNetGames));
 memset (activeNetPlayers, 0, sizeof (activeNetPlayers));
 if (!bAutoRun) {
-	fontManager.SetColorRGBi (RGBA_PAL (15, 15, 23), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL (15, 15, 23), 1, 0, 0);
 	memset (m, 0, sizeof (m));
 	m [0].text = szNMTextBuffer [0];
 	m [0].nType = NM_TYPE_TEXT;
@@ -2104,7 +2104,7 @@ if (bAutoRun) {
 else {
 	gameStates.multi.bSurfingNet = 1;
 	NMLoadBackground (MENU_PCX_NAME (), &bg, 0);             //load this here so if we abort after loading level, we restore the palette
-	paletteManager.LoadEffect  ();
+	GrPaletteStepLoad (NULL);
 	choice = ExecMenuTiny (TXT_NETGAMES, NULL, MAX_ACTIVE_NETGAMES + 2 + gameStates.multi.bUseTracker, m, NetworkJoinPoll);
 	NMRemoveBackground (&bg);
 	gameStates.multi.bSurfingNet = 0;
@@ -2276,7 +2276,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int stoip (char *szServerIpAddr, ubyte *pIpAddr)
+int stoip (char *szServerIpAddr, unsigned char *pIpAddr)
 {
 	char	*pi, *pj, *pFields [5], tmp [22];
 	int	h, i, j;
@@ -2319,7 +2319,7 @@ for (j = 0; j < i; j++) {
 		h = atol (pFields [j]);
 		if ((h < 0) || (h > 255))
 			return 0;
-		pIpAddr [j] = (ubyte) h;
+		pIpAddr [j] = (unsigned char) h;
 		}
 	}
 return 1;
@@ -2429,7 +2429,7 @@ if (choice >= networkData.nActiveGames)
 memset (m, 0, sizeof (m));
 memset (mTexts, 0, sizeof (mTexts));
 for (i = 0; i < 20; i++) {
-	m [i].text = reinterpret_cast<char*> (mTexts + i);
+	m [i].text = (char *) (mTexts + i);
 	m [i].nType = NM_TYPE_TEXT;	
 	}
 sprintf (mTexts [opt], TXT_NGI_GAME, szHighlight, AGI.szGameName); 
@@ -2449,10 +2449,10 @@ if (!*AXI.szGameName) {
 else 
 #endif
 	{
-	if (AXI.bShadows || AXI.bUseParticles || AXI.bBrightObjects || (!AXI.bCompetition && AXI.bUseLightnings)) {
+	if (AXI.bShadows || AXI.bUseSmoke || AXI.bBrightObjects || (!AXI.bCompetition && AXI.bUseLightnings)) {
 		INITFLAGS ("Graphics Fx: "); 
 		ADDFLAG (AXI.bShadows, "Shadows");
-		ADDFLAG (AXI.bUseParticles, "Smoke");
+		ADDFLAG (AXI.bUseSmoke, "Smoke");
 		if (!AXI.bCompetition)
 			ADDFLAG (AXI.bUseLightnings, "Lightnings");
 		ADDFLAG (AXI.bBrightObjects, "Bright Objects");
@@ -2556,7 +2556,7 @@ void DoShowNetgameHelp()
 
 memset (m, 0, sizeof (m));
 for (i = 0; i < 30; i++) {
-	m [i].text = reinterpret_cast<char*> (mtext [i]);
+	m [i].text = (char *) mtext [i];
 	m [i].nType = NM_TYPE_TEXT;
 	}
 
@@ -2616,10 +2616,10 @@ for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 	else
 	sprintf (mtext [num++], TXT_EFF_SERVEWELL);
 	}  
-paletteManager.SaveEffectAndReset();
+FullPaletteSave();
 bPauseableMenu = 1;
 ExecMenutiny2 (NULL, "Netgame Information", num, m, NULL);
-paletteManager.LoadEffect ();
+PaletteRestore();
 }
 
 //------------------------------------------------------------------------------

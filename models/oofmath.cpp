@@ -222,7 +222,7 @@ return pm;
 
 //------------------------------------------------------------------------------
 
-float *OOF_VecVms2Gl (float *pDest, const CFixVector& pSrc)
+float *OOF_VecVms2Gl (float *pDest, const vmsVector& pSrc)
 {
 pDest [0] = (float) pSrc[X] / 65536.0f;
 pDest [1] = (float) pSrc[Y] / 65536.0f;
@@ -250,12 +250,12 @@ return pDest;
 
 //------------------------------------------------------------------------------
 
-float *OOF_VecVms2Oof (tOOF_vector *pDest, const CFixVector& pSrc)
+float *OOF_VecVms2Oof (tOOF_vector *pDest, const vmsVector& pSrc)
 {
 pDest->x = (float) pSrc[X] / 65536.0f;
 pDest->y = (float) pSrc[Y] / 65536.0f;
 pDest->z = (float) pSrc[Z] / 65536.0f;
-return reinterpret_cast<float*> (pDest);
+return (float *) pDest;
 }
 
 //------------------------------------------------------------------------------
@@ -265,7 +265,7 @@ float *OOF_MatVms2Oof (tOOF_matrix *pDest, const vmsMatrix& pSrc)
 OOF_VecVms2Oof (&pDest->f, pSrc[FVEC]);
 OOF_VecVms2Oof (&pDest->u, pSrc[UVEC]);
 OOF_VecVms2Oof (&pDest->r, pSrc[RVEC]);
-return reinterpret_cast<float*> (pDest);
+return (float *) pDest;
 }
 
 //------------------------------------------------------------------------------

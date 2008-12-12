@@ -35,7 +35,7 @@ char *iptos (char *pszIP, char *addr)
 {
 sprintf (pszIP, "%d.%d.%d.%d:%d",
 			addr [0], addr [1], addr [2], addr [3],
-			ntohs (*reinterpret_cast<short*> (addr + 4)));
+			ntohs (*((short *) (addr + 4))));
 return pszIP;
 }
 
@@ -125,7 +125,7 @@ if (stricmp (pszNetCallSign, pszLocalCallSign))
 	return 1;
 #if 0
 // if restoring a multiplayer game that had been played via UDP/IP,
-// CPlayerData network addresses may have changed, so we have to rely on the callsigns
+// tPlayer network addresses may have changed, so we have to rely on the callsigns
 // This will cause problems if several players with identical callsigns participate
 if (gameStates.multi.nGameType == UDP_GAME)
 	return 0;
@@ -205,13 +205,13 @@ return i;
 
 int NetworkObjnumIsPast (int nObject, tNetworkSyncData *syncP)
 {
-	// determine whether or not a given CObject number has already been sent
+	// determine whether or not a given tObject number has already been sent
 	// to a re-joining player.
 	int nPlayer = syncP->player [1].player.connected;
 	int nObjMode = !((gameData.multigame.nObjOwner [nObject] == -1) || (gameData.multigame.nObjOwner [nObject] == nPlayer));
 
 if (!syncP->nState)
-	return 0; // We're not sending OBJECTS to a new CPlayerData
+	return 0; // We're not sending OBJECTS to a new tPlayer
 if (nObjMode > syncP->objs.nMode)
 	return 0;
 else if (nObjMode < syncP->objs.nMode)
@@ -278,18 +278,18 @@ return 1;
 }
 
 //------------------------------------------------------------------------------
-// Find the proper initial spawn location for CPlayerData i from team t
+// Find the proper initial spawn location for tPlayer i from team t
 
 int TeamSpawnPos (int i)
 {
 	int	h, j, t = GetTeam (i);
 
-// first find out how many players before CPlayerData i are in the same team
+// first find out how many players before tPlayer i are in the same team
 // result stored in h
 for (h = j = 0; j < i; j++)
 	if (GetTeam (j) == t)
 		h++;
-// assign the spawn location # (h+1) to CPlayerData i
+// assign the spawn location # (h+1) to tPlayer i
 for (j = 0; j < gameData.multiplayer.nPlayerPositions; j++) {
 	switch (gameData.multiplayer.playerInit [j].nSegType) {
 		case SEGMENT_IS_GOAL_BLUE:
@@ -312,7 +312,7 @@ return -1;
 void NetworkCountPowerupsInMine (void)
 {
   int 		i;
-  CObject	*objP;
+  tObject	*objP;
 
 memset (gameData.multiplayer.powerupsInMine, 0, sizeof (gameData.multiplayer.powerupsInMine));
 FORALL_POWERUP_OBJS (objP, i) {
@@ -336,7 +336,7 @@ void OpenSendLog ()
  {
   int i;
 
-SendLogFile = reinterpret_cast<FILE*> (fopen ("sendlog.net", "w"));
+SendLogFile = (FILE *)fopen ("sendlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTSent [i] = 0;
  }
@@ -347,7 +347,7 @@ void OpenReceiveLog ()
  {
 int i;
 
-ReceiveLogFile= reinterpret_cast<FILE*> (fopen ("recvlog.net", "w"));
+ReceiveLogFile= (FILE *)fopen ("recvlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTRecv [i] = 0;
  }
@@ -368,7 +368,7 @@ int HoardEquipped ()
 	static int checked=-1;
 
 if (checked == -1) {
-	if (CFile::Exist ("hoard.ham", gameFolders.szDataDir, 0))
+	if (CFExist ("hoard.ham", gameFolders.szDataDir, 0))
 		checked=1;
 	else
 		checked=0;

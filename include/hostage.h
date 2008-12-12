@@ -22,7 +22,7 @@ extern int nHostageTypes;
 
 extern int nHostageVClips [MAX_HOSTAGE_TYPES];    // for each nType of hostage
 
-void DrawHostage(CObject *obj);
+void DrawHostage(tObject *obj);
 void RescueHostage(int nHostage);
 
 #endif /* _HOSTAGE_H */

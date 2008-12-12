@@ -48,16 +48,16 @@ void _CDECL_ free_text(void)
 	PrintLog ("unloading game texts\n");
 	if (pszGameTexts && pszGameTexts [0]) {
 		p = pszGameTexts [0] - 1;
-		delete[] text;
-		delete[] p;
-		delete[] pszGameTexts;
+		D2_FREE (text);
+		D2_FREE (p);
+		D2_FREE (pszGameTexts);
 		pszGameTexts = NULL;
 	}
 	if (pszHelpTexts && pszHelpTexts [0]) {
 		p = pszHelpTexts [0] - 1;
-		delete[] text;
-		delete[] p;
-		delete[] pszHelpTexts;
+		D2_FREE (text);
+		D2_FREE (p);
+		D2_FREE (pszHelpTexts);
 		pszHelpTexts = NULL;
 	}
 }
@@ -1832,11 +1832,6 @@ const char *defaultGameTexts [][2] = {
 	{"Schnellladen erfolgreich", "Quickload successful"},
 	{"STRG-F5\t  Schnellspeichern", "CTRL-F5\t  Quick Save"},
 	{"STRG-F9\t  Schnellladen", "CTRL-F9\t  Quick Load"},
-	{"Luft~Blasen erzeugen", "air B~ubbles"},
-	{"Luftblasen schwingen hin und her", "air bubbles w~Iggle"},
-	{"Luftblasen aendern die Form", "air bubbles w~Obble"},
-	{"Rauch auf ~onitoren zeigen", "show smoke on ~Monitors"},
-	{"Blitze auf ~Monitoren zeigen", "show lightnings on ~Monitors"},
 #if 0
 	{"", ""},
 #endif
@@ -2495,11 +2490,6 @@ const char *defaultHelpTexts [][2] = {
 	{"Wenn angekreuzt, wird Musik sanft ausgeblendet;\nandernfalls kann sie abrupt aufhoeren.", "If checked music will be soflty faded out;\notherwise it may end abruptly."},
 	{"Wenn angekreuzt, werden Monitorausgaben in der vollen, sonst\nmit 1/4 Bild-\nschirmaufloesung dargestellt.\n\nHochaufloesende Monitore verbrauchen sehr viel Grafikspeicher.", 
 	 "If checked in-game monitor output is rendered at the full,\notherwise at 1/4 of the screen resolution.\n\nHigh resolution monitors consume a lot of video memory."},
-	{"Wenn angekreuzt steigen im Wasser Blasen auf wo vom Autor\ndes Levels vorgesehen.", "If checked air bubbles rise under water where the level\nauthor built it in."},
-	{"Wenn angekreuzt, schweben Luftblasen beim Aufsteigen etwas\nhin und her.", "If checked air bubbles wiggle left and right while rising."},
-	{"Wenn angekreuzt, aendern Luftblasen staendig ihre From", "If checked air bubbles slightly change their shape while\nrising."},
-	{"Wenn angekreuzt, ist Rauch auch auf Monitoren sichtbar.", "If checked smoke is visible on monitors."},
-	{"Wenn angekreuzt, sind Blitze auch auf Monitoren sichtbar.", "If checked lightnings are visible on monitors."},
 #if 0
 	{"", ""},
 #endif
@@ -2541,15 +2531,15 @@ char **InitTexts (char *szTextFile, int bInitHotKeys)
 #endif
 
 j = N_BASE_TEXTS + GameTextCount ();
-if (!(pszTexts = new char * [j + 1]))
+if (!(pszTexts = (char **) D2_ALLOC ((j + 1) * sizeof (char *))))
 	return NULL;
 h = GameTextSize ();
-if (!(*pszTexts = new char [h])) {
-	delete[] pszTexts;
+if (!(*pszTexts = (char *) D2_ALLOC (h))) {
+	D2_FREE (pszTexts);
 	return NULL;
 	}
 for (i = 0; i < j; i++) {
-	pSrc = (i < N_BASE_TEXTS) ? const_cast<char*> (baseGameTexts [i]) : const_cast<char*> (defaultGameTexts [i - N_BASE_TEXTS][gameStates.app.bEnglish]);
+	pSrc = (char *) ((i < N_BASE_TEXTS) ? baseGameTexts [i] : defaultGameTexts [i - N_BASE_TEXTS][gameStates.app.bEnglish]);
 #if DUMP_TEXTS == 1
 	{
 		char *pi, *pj, s [200];
@@ -2621,14 +2611,14 @@ return pszTexts;
 
 void InitGameTexts (void)
 {
-pszGameTexts = InitTexts (gameStates.app.bEnglish ? reinterpret_cast<char*> ("descent.tex.eng") : reinterpret_cast<char*> ("descent.tex.ger"), 1);
+pszGameTexts = InitTexts (gameStates.app.bEnglish ? (char *) "descent.tex.eng" : (char *) "descent.tex.ger", 1);
 }
 
 //------------------------------------------------------------------------------
 
 void InitHelpTexts (void)
 {
-pszHelpTexts = InitTexts (gameStates.app.bEnglish ? reinterpret_cast<char*> ("descent.hlp.eng") : reinterpret_cast<char*> ("descent.hlp.ger"), 0);
+pszHelpTexts = InitTexts (gameStates.app.bEnglish ? (char *) "descent.hlp.eng" : (char *) "descent.hlp.ger", 0);
 }
 
 //------------------------------------------------------------------------------
@@ -2691,8 +2681,8 @@ void LoadGameTexts (void)
 #elif DUMP_TEXTS == 3
 	FILE *fTxt = fopen ("d:\\temp\\basetex.h", "wt");
 #endif
-	CFile	tFile;
-	CFile	iFile;
+	CFILE	tFile;
+	CFILE	iFile;
 	int	len, h, i, j, bBinary = 0;
 	char	*psz;
 	const char	*filename = "descent.tex";
@@ -2704,28 +2694,28 @@ fclose (fTxt);
 #endif
 if ((i = FindArg ("-text")))
 	filename = pszArgList [i+1];
-if (!tFile.Open (filename, gameFolders.szDataDir, "rt", 0)) {
+if (!CFOpen (&tFile, filename, gameFolders.szDataDir, "rt", 0)) {
 	filename = "descent.txb";
-	if (!iFile.Open (filename, gameFolders.szDataDir, "rb", 0)) {
+	if (!CFOpen (&iFile, filename, gameFolders.szDataDir, "rb", 0)) {
 		Warning (TXT_NO_TEXTFILES);
 		return;
 	}
 	bBinary = 1;
-	len = iFile.Length ();
-	text = new char [len];
+	len = CFLength (&iFile, 0);
+	MALLOC (text, char, len);
 	atexit (free_text);
-	iFile.Read (text, 1, len);
-	iFile.Close ();
+	CFRead (text, 1, len, &iFile);
+	CFClose (&iFile);
 	}
 else {
 	int i;
 	char *pi, *pj;
 
-	len = tFile.Length ();
-	text = new char [len];
+	len = CFLength (&tFile, 0);
+	MALLOC (text, char, len);
 	atexit (free_text);
 #if 1
-	tFile.Read (text, 1, len);
+	CFRead (text, 1, len, &tFile);
 	for (i = len, pi = pj = text; i; i--, pi++)
 		if (*pi != 13)
 			*pj++ = *pi;
@@ -2738,7 +2728,7 @@ else {
 			*p++ = c;
 	} while (c != EOF);
 #endif
-	tFile.Close ();
+	CFClose (&tFile);
 	}
 
 j = N_BASE_TEXTS + GameTextCount ();
@@ -2800,13 +2790,13 @@ if (i == 644) {
 		baseGameTexts[172] = baseGameTexts[171];
 		baseGameTexts[171] = baseGameTexts[170];
 		baseGameTexts[170] = baseGameTexts[169];
-		baseGameTexts[169] = reinterpret_cast<char*> ("Windows Joystick");
+		baseGameTexts[169] = (char *) "Windows Joystick";
 		}
-	baseGameTexts[644] = reinterpret_cast<char*> ("Z1");
-	baseGameTexts[645] = reinterpret_cast<char*> ("UN");
-	baseGameTexts[646] = reinterpret_cast<char*> ("P1");
-	baseGameTexts[647] = reinterpret_cast<char*> ("R1");
-	baseGameTexts[648] = reinterpret_cast<char*> ("Y1");
+	baseGameTexts[644] = (char *) "Z1";
+	baseGameTexts[645] = (char *) "UN";
+	baseGameTexts[646] = (char *) "P1";
+	baseGameTexts[647] = (char *) "R1";
+	baseGameTexts[648] = (char *) "Y1";
 	}
 #if DUMP_TEXTS 
 fclose (fTxt);

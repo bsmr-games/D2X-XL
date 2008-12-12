@@ -39,7 +39,7 @@ tUVL rodUvlList [4] = {
 //compute the corners of a rod.  fills in vertbuf.
 int CalcRodCorners (g3sPoint *btmPoint, fix xBtmWidth, g3sPoint *topPoint, fix xTopWidth)
 {
-	CFixVector	vDelta, vTop, vTemp, vRodNorm;
+	vmsVector	vDelta, vTop, vTemp, vRodNorm;
 	ubyte			andCodes;
 	int			i;
 
@@ -54,11 +54,11 @@ vDelta.p.y = FixDiv (vDelta.p.y, viewInfo.scale.p.y);
 //calc Perp vector
 //do lots of normalizing to prevent overflowing.  When this code works,
 //it should be optimized
-CFixVector::Normalize(vDelta);
+vmsVector::Normalize(vDelta);
 vTop = topPoint->p3_vec;
-CFixVector::Normalize(vTop);
-vRodNorm = CFixVector::Cross(vDelta, vTop);
-CFixVector::Normalize(vRodNorm);
+vmsVector::Normalize(vTop);
+vRodNorm = vmsVector::Cross(vDelta, vTop);
+vmsVector::Normalize(vRodNorm);
 //scale for aspect
 #if RESCALE_ROD
 vRodNorm.p.x = FixMul (vRodNorm.p.x, viewInfo.scale.p.x);
@@ -99,9 +99,9 @@ return G3DrawPoly (4, rodPointList);
 }
 
 //------------------------------------------------------------------------------
-//draw a bitmap CObject that is always facing you
+//draw a bitmap tObject that is always facing you
 //returns 1 if off screen, 0 if drew
-int G3DrawRodTexPoly (CBitmap *bmP, g3sPoint *btmPoint, fix xBtmWidth, g3sPoint *topPoint, fix xTopWidth, fix light, tUVL *uvlList)
+int G3DrawRodTexPoly (grsBitmap *bmP, g3sPoint *btmPoint, fix xBtmWidth, g3sPoint *topPoint, fix xTopWidth, fix light, tUVL *uvlList)
 {
 if (CalcRodCorners (btmPoint, xBtmWidth, topPoint, xTopWidth))
 	return 0;

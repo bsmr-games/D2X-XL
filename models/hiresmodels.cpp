@@ -224,26 +224,26 @@ memset (gameData.models.modelToPOL, 0, sizeof (gameData.models.modelToPOL));
 
 short LoadLoresModel (short i)
 {
-	CFile			cf;
+	CFILE			cf;
 	tPolyModel	*pm;
 	short			nModel, j = sizeofa (replacementModels);
 	char			szModel [FILENAME_LEN];
 
 sprintf (szModel, "model%d.pol", replacementModels [i].nModel);
 if (!(replacementModels [i].pszLores && 
-	  (cf.Open (replacementModels [i].pszLores, gameFolders.szDataDir, "rb", 0) ||
-	   cf.Open (szModel, gameFolders.szDataDir, "rb", 0))))
+	  (CFOpen (&cf, replacementModels [i].pszLores, gameFolders.szDataDir, "rb", 0) ||
+	   CFOpen (&cf, szModel, gameFolders.szDataDir, "rb", 0))))
 	return ++i;
 nModel = replacementModels [i].nModel;
 pm = ((gameStates.app.bFixModels && gameStates.app.bAltModels) ? gameData.models.altPolyModels : gameData.models.polyModels) + nModel;
-if (!ReadPolyModel (pm, 1, cf)) {
-	cf.Close ();
+if (!PolyModelRead (pm, &cf, 1)) {
+	CFClose (&cf);
 	return ++i;
 	}
-pm->modelData.SetBuffer (NULL); 
-pm->modelData.SetBuffer (NULL);
-ReadPolyModelData (pm, nModel, gameData.models.defPolyModels + nModel, cf);
-cf.Close ();
+pm->modelData = 
+pm->modelData = NULL;
+PolyModelDataRead (pm, nModel, gameData.models.defPolyModels + nModel, &cf);
+CFClose (&cf);
 pm->rad = G3PolyModelSize (pm, nModel);
 do {
 	gameData.models.modelToPOL [nModel] = pm;
@@ -328,7 +328,7 @@ static int loadOp = 0;
 
 static int LoadModelsPoll (int nItems, tMenuItem *m, int *key, int nCurItem)
 {
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 if (loadOp == 0) {
 	loadIdx = LoadHiresModel (gameData.models.nHiresModels, loadIdx, 0);
 	if (loadIdx >= (int) sizeofa (replacementModels)) {
@@ -340,14 +340,14 @@ else if (loadOp == 1) {
 	loadIdx = LoadLoresModel (loadIdx);
 	if (loadIdx >= (int) sizeofa (replacementModels)) {
 		*key = -2;
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		return nCurItem;
 		}
 	}
 m [0].value++;
 m [0].rebuild = 1;
 *key = 0;
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 return nCurItem;
 }
 

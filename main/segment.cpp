@@ -9,98 +9,93 @@
 #if 1//ndef FAST_FILE_IO /*permanently enabled for a reason!*/
 
 //------------------------------------------------------------------------------
-// reads a tSegment2 structure from a CFile
+// reads a tSegment2 structure from a CFILE
  
-void ReadSegment2 (tSegment2 *s2, CFile& cf)
+void ReadSegment2 (tSegment2 *s2, CFILE *fp)
 {
-	s2->special = cf.ReadByte ();
-	s2->nMatCen = cf.ReadByte ();
-	s2->value = cf.ReadByte ();
-	s2->s2Flags = cf.ReadByte ();
-	s2->xAvgSegLight = cf.ReadFix ();
+	s2->special = CFReadByte (fp);
+	s2->nMatCen = CFReadByte (fp);
+	s2->value = CFReadByte (fp);
+	s2->s2Flags = CFReadByte (fp);
+	s2->xAvgSegLight = CFReadFix (fp);
 }
 
 //------------------------------------------------------------------------------
-// reads a tLightDelta structure from a CFile
+// reads a tLightDelta structure from a CFILE
 
-void ReadlightDelta (tLightDelta *dlP, CFile& cf)
+void ReadlightDelta (tLightDelta *dlP, CFILE *fp)
 {
-dlP->nSegment = cf.ReadShort ();
-dlP->nSide = cf.ReadByte ();
-cf.ReadByte ();
+dlP->nSegment = CFReadShort (fp);
+dlP->nSide = CFReadByte (fp);
+CFReadByte (fp);
 if (!(dlP->bValid = (dlP->nSegment >= 0) && (dlP->nSegment < gameData.segs.nSegments) && (dlP->nSide >= 0) && (dlP->nSide < 6)))
 	PrintLog ("Invalid delta light data %d (%d,%d)\n", dlP - gameData.render.lights.deltas, dlP->nSegment, dlP->nSide);
-cf.Read (dlP->vertLight, sizeof (dlP->vertLight [0]), sizeofa (dlP->vertLight));
+CFRead (dlP->vertLight, sizeof (dlP->vertLight [0]), sizeofa (dlP->vertLight), fp);
 }
 
 
 //------------------------------------------------------------------------------
-// reads a tLightDeltaIndex structure from a CFile
+// reads a tLightDeltaIndex structure from a CFILE
 
-void ReadlightDeltaIndex (tLightDeltaIndex *di, CFile& cf)
+void ReadlightDeltaIndex (tLightDeltaIndex *di, CFILE *fp)
 {
 if (gameStates.render.bD2XLights) {
 	short	i, j;
-	di->d2x.nSegment = cf.ReadShort ();
-	i = (short) cf.ReadByte ();
-	j = (short) cf.ReadByte ();
+	di->d2x.nSegment = CFReadShort (fp);
+	i = (short) CFReadByte (fp);
+	j = (short) CFReadByte (fp);
 	di->d2x.nSide = i;
 	di->d2x.count = (j << 5) + ((i >> 3) & 63);
-	di->d2x.index = cf.ReadShort ();
+	di->d2x.index = CFReadShort (fp);
 	}
 else {
-	di->d2.nSegment = cf.ReadShort ();
-	di->d2.nSide = cf.ReadByte ();
-	di->d2.count = cf.ReadByte ();
-	di->d2.index = cf.ReadShort ();
+	di->d2.nSegment = CFReadShort (fp);
+	di->d2.nSide = CFReadByte (fp);
+	di->d2.count = CFReadByte (fp);
+	di->d2.index = CFReadShort (fp);
 	}
 }
 #endif
 
 //------------------------------------------------------------------------------
 
-int CSkyBox::CountSegments (void)
+int CountSkyBoxSegments (void)
 {
 	tSegment2	*seg2P;
 	int			i, nSegments;
 
-for (i = gameData.segs.nSegments, nSegments = 0, seg2P = SEGMENT2S.Buffer (); i; i--, seg2P++)
+for (i = gameData.segs.nSegments, nSegments = 0, seg2P = SEGMENT2S; i; i--, seg2P++)
 	if (seg2P->special == SEGMENT_IS_SKYBOX)
 		nSegments++;
 return nSegments;
 }
 
-
 //------------------------------------------------------------------------------
 
-void CSkyBox::Destroy (void)
+void FreeSkyBoxSegList (void)
 {
-CStack::Destroy ();
-gameStates.render.bHaveSkyBox = 0;
+D2_FREE (gameData.segs.skybox.segments);
 }
 
 //------------------------------------------------------------------------------
 
 int BuildSkyBoxSegList (void)
 {
-gameData.segs.skybox.Destroy ();
-
-short nSegments = gameData.segs.skybox.CountSegments ();
-
-if (!nSegments) {
-	return 0;
-
+FreeSkyBoxSegList ();
+if ((gameData.segs.skybox.nSegments = CountSkyBoxSegments ())) {
 	tSegment2	*seg2P;
+	short			*segP;
 	int			h, i;
 
-if (!(gameData.segs.skybox.Create (nSegments)))
+if (!(gameData.segs.skybox.segments = (short *) D2_ALLOC (gameData.segs.nSegments * sizeof (short))))
 	return 0;
-for (h = gameData.segs.nSegments, i = 0, seg2P = SEGMENT2S.Buffer (); i < h; i++, seg2P++)
+segP = gameData.segs.skybox.segments;
+for (h = gameData.segs.nSegments, i = 0, seg2P = SEGMENT2S; i < h; i++, seg2P++)
 	if (seg2P->special == SEGMENT_IS_SKYBOX)
-		gameData.segs.skybox.Push (i);
+		*segP++ = i;
 	}
-gameStates.render.bHaveSkyBox = (gameData.segs.skybox.ToS () > 0);
-return gameData.segs.skybox.ToS ();
+gameStates.render.bHaveSkyBox = (gameData.segs.skybox.nSegments > 0);
+return gameData.segs.skybox.nSegments;
 }
 
 //------------------------------------------------------------------------------

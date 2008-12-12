@@ -83,8 +83,8 @@ for (i = 0; i < gameData.segs.nSegments; i++)
 #endif
 
 //------------------------------------------------------------
-// Turns a CSegment into a fully charged up fuel center...
-void FuelCenCreate (CSegment *segP, int oldType)
+// Turns a tSegment into a fully charged up fuel center...
+void FuelCenCreate (tSegment *segP, int oldType)
 {
 	short			nSegment = SEG_IDX (segP);
 	tSegment2	*seg2P = gameData.segs.segment2s + nSegment;
@@ -159,7 +159,7 @@ else if (oldType == SEGMENT_IS_ROBOTMAKER) {
 //------------------------------------------------------------
 // Adds a matcen that already is a special nType into the gameData.matCens.fuelCenters array.
 // This function is separate from other fuelcens because we don't want values reset.
-void BotGenCreate (CSegment *segP, int oldType)
+void BotGenCreate (tSegment *segP, int oldType)
 {
 	short			nSegment = SEG_IDX (segP);
 	tSegment2	*seg2P = gameData.segs.segment2s + nSegment;
@@ -214,7 +214,7 @@ for (i = 0; i < gameData.matCens.nEquipCenters; i++)
 //------------------------------------------------------------
 // Adds a matcen that already is a special nType into the gameData.matCens.fuelCenters array.
 // This function is separate from other fuelcens because we don't want values reset.
-void EquipGenCreate (CSegment *segP, int oldType)
+void EquipGenCreate (tSegment *segP, int oldType)
 {
 	short			nSegment = SEG_IDX (segP);
 	tSegment2	*seg2P = gameData.segs.segment2s  + nSegment;
@@ -262,8 +262,8 @@ gameData.matCens.nFuelCenters++;
 }
 
 //------------------------------------------------------------
-// Adds a CSegment that already is a special nType into the gameData.matCens.fuelCenters array.
-void FuelCenActivate (CSegment * segP, int stationType)
+// Adds a tSegment that already is a special nType into the gameData.matCens.fuelCenters array.
+void FuelCenActivate (tSegment * segP, int stationType)
 {
 	tSegment2	*seg2P = gameData.segs.segment2s + SEG_IDX (segP);
 
@@ -285,17 +285,17 @@ else {
 #define	MATCEN_LIFE (I2X (30-2*gameStates.app.nDifficultyLevel))
 
 //------------------------------------------------------------
-//	Trigger (enable) the materialization center in CSegment nSegment
+//	Trigger (enable) the materialization center in tSegment nSegment
 int MatCenTrigger (short nSegment)
 {
-	// -- CSegment		*segP = &gameData.segs.segments [nSegment];
+	// -- tSegment		*segP = &gameData.segs.segments [nSegment];
 	tSegment2		*seg2P = &gameData.segs.segment2s [nSegment];
-	CFixVector		pos, delta;
+	vmsVector		pos, delta;
 	tFuelCenInfo	*matCenP;
 	int				nObject;
 
 #if TRACE
-con_printf (CONDBG, "Trigger matcen, CSegment %i\n", nSegment);
+con_printf (CONDBG, "Trigger matcen, tSegment %i\n", nSegment);
 #endif
 if (seg2P->special == SEGMENT_IS_EQUIPMAKER) {
 	matCenP = gameData.matCens.fuelCenters + gameData.matCens.equipGens [seg2P->nMatCen].nFuelCen;
@@ -319,7 +319,7 @@ matCenP->bEnabled = 1;			//	Say this center is enabled, it can create robots.
 matCenP->xCapacity = I2X (gameStates.app.nDifficultyLevel + 3);
 matCenP->xDisableTime = MATCEN_LIFE;
 
-//	Create a bright CObject in the CSegment.
+//	Create a bright tObject in the tSegment.
 pos = matCenP->vCenter;
 delta = gameData.segs.vertices[gameData.segs.segments [nSegment].verts [0]] - matCenP->vCenter;
 pos += delta * (F1_0/2);
@@ -338,8 +338,8 @@ return 0;
 }
 
 //------------------------------------------------------------
-//	Trigger (enable) the materialization center in CSegment nSegment
-void SpawnBotTrigger (CObject *objP, short nSegment)
+//	Trigger (enable) the materialization center in tSegment nSegment
+void SpawnBotTrigger (tObject *objP, short nSegment)
 {
 	tSegment2		*seg2P = &gameData.segs.segment2s [nSegment];
 	tFuelCenInfo	*matCenP;
@@ -361,9 +361,9 @@ BossSpewRobot (objP, NULL, nType, 1);
 
 #ifdef EDITOR
 //------------------------------------------------------------
-// Takes away a CSegment's fuel center properties.
-//	Deletes the CSegment point entry in the tFuelCenInfo list.
-void FuelCenDelete (CSegment * segP)
+// Takes away a tSegment's fuel center properties.
+//	Deletes the tSegment point entry in the tFuelCenInfo list.
+void FuelCenDelete (tSegment * segP)
 {
 	tSegment2	*seg2P = &gameData.segs.segment2s [SEG_IDX (segP)];
 	int i, j;
@@ -405,10 +405,10 @@ for (i = 0; i < gameData.matCens.nFuelCenters; i++) {
 
 //	----------------------------------------------------------------------------------------------------------
 
-CObject *CreateMorphRobot (CSegment *segP, CFixVector *vObjPosP, ubyte nObjId)
+tObject *CreateMorphRobot (tSegment *segP, vmsVector *vObjPosP, ubyte nObjId)
 {
 	short			nObject;
-	CObject		*objP;
+	tObject		*objP;
 	tRobotInfo	*botInfoP;
 	ubyte			default_behavior;
 
@@ -423,7 +423,7 @@ if (nObject < 0) {
 	return NULL;
 	}
 objP = OBJECTS + nObject;
-//Set polygon-CObject-specific data
+//Set polygon-tObject-specific data
 botInfoP = &ROBOTINFO (objP->info.nId);
 objP->rType.polyObjInfo.nModel = botInfoP->nModel;
 objP->rType.polyObjInfo.nSubObjFlags = 0;
@@ -433,8 +433,8 @@ objP->mType.physInfo.drag = botInfoP->drag;
 objP->mType.physInfo.flags |= (PF_LEVELLING);
 objP->info.xShields = RobotDefaultShields (objP);
 default_behavior = botInfoP->behavior;
-InitAIObject (OBJ_IDX (objP), default_behavior, -1);		//	Note, -1 = CSegment this robot goes to to hide, should probably be something useful
-CreateNSegmentPath (objP, 6, -1);		//	Create a 6 CSegment path from creation point.
+InitAIObject (OBJ_IDX (objP), default_behavior, -1);		//	Note, -1 = tSegment this robot goes to to hide, should probably be something useful
+CreateNSegmentPath (objP, 6, -1);		//	Create a 6 tSegment path from creation point.
 gameData.ai.localInfo [nObject].mode = AIBehaviorToMode (default_behavior);
 return objP;
 }
@@ -449,11 +449,11 @@ int	FrameCount_last_msg = 0;
 
 void CreateMatCenEffect (tFuelCenInfo *matCenP, ubyte nVideoClip)
 {
-	CFixVector	vPos;
-	CObject		*objP;
+	vmsVector	vPos;
+	tObject		*objP;
 
 COMPUTE_SEGMENT_CENTER_I (&vPos, matCenP->nSegment);
-// HACK!!!The 10 under here should be something equal to the 1/2 the size of the CSegment.
+// HACK!!!The 10 under here should be something equal to the 1/2 the size of the tSegment.
 objP = ObjectCreateExplosion ((short) matCenP->nSegment, &vPos, I2X (10), nVideoClip);
 if (objP) {
 	ExtractOrientFromSegment (&objP->info.position.mOrient, gameData.segs.segments + matCenP->nSegment);
@@ -470,13 +470,13 @@ if (objP) {
 int GetMatCenObjType (tFuelCenInfo *matCenP, int *objFlags)
 {
 	int				i, nObjIndex, nTypes = 0;
-	uint	flags;
+	unsigned int	flags;
 	sbyte				objTypes [64];
 
 memset (objTypes, 0, sizeof (objTypes));
 for (i = 0; i < 3; i++) {
 	nObjIndex = i * 32;
-	flags = (uint) objFlags [i];
+	flags = (unsigned int) objFlags [i];
 	while (flags) {
 		if (flags & 1)
 			objTypes [nTypes++] = nObjIndex;
@@ -496,8 +496,8 @@ return objTypes [(d_rand () * nTypes) / 32768];
 void EquipGenHandler (tFuelCenInfo * matCenP)
 {
 	int			nObject, nMatCen, nType;
-	CObject		*objP;
-	CFixVector	vPos;
+	tObject		*objP;
+	vmsVector	vPos;
 	fix			topTime;
 
 if (!matCenP->bEnabled)
@@ -514,7 +514,7 @@ if (!matCenP->bFlag) {
 	topTime = EQUIP_GEN_TIME;
 	if (matCenP->xTimer < topTime)
 		return;
-	nObject = SEGMENTS [matCenP->nSegment].objects;
+	nObject = gameData.segs.objects [matCenP->nSegment];
 	while (nObject >= 0) {
 		objP = OBJECTS + nObject;
 		if ((objP->info.nType == OBJ_POWERUP) || (objP->info.nId == OBJ_PLAYER)) {
@@ -560,8 +560,8 @@ else {
 void VirusGenHandler (tFuelCenInfo * matCenP)
 {
 	int			nObject, nMatCen;
-	CObject		*objP;
-	CFixVector	vPos;
+	tObject		*objP;
+	vmsVector	vPos;
 	fix			topTime;
 
 if (gameStates.entropy.bExitSequence || (gameData.segs.xSegments [matCenP->nSegment].owner <= 0))
@@ -578,7 +578,7 @@ if (!matCenP->bFlag) {
 	topTime = I2X (extraGameInfo [1].entropy.nVirusGenTime);
 	if (matCenP->xTimer < topTime)
 		return;
-	nObject = SEGMENTS [matCenP->nSegment].objects;
+	nObject = gameData.segs.objects [matCenP->nSegment];
 	while (nObject >= 0) {
 		objP = OBJECTS + nObject;
 		if ((objP->info.nType == OBJ_POWERUP) && (objP->info.nId == POW_ENTROPY_VIRUS)) {
@@ -626,9 +626,9 @@ return miP->objFlags [2] = gameData.objs.nVertigoBotFlags;
 void BotGenHandler (tFuelCenInfo * matCenP)
 {
 	fix			xDistToPlayer;
-	CFixVector	vPos, vDir;
+	vmsVector	vPos, vDir;
 	int			nMatCen, nSegment, nObject;
-	CObject		*objP;
+	tObject		*objP;
 	fix			topTime;
 	int			nType, nMyStation, nCount, i;
 
@@ -664,7 +664,7 @@ if (!(gameData.matCens.botGens [nMatCen].objFlags [0] ||
 		VertigoObjFlags (gameData.matCens.botGens + nMatCen)))
 	return;
 
-// Wait until we have a free slot for this puppy...
+// Wait until we have a D2_FREE slot for this puppy...
 if ((LOCALPLAYER.numRobotsLevel -
 	  LOCALPLAYER.numKillsLevel) >=
 	 (nGameSaveOrgRobots + Num_extryRobots)) {
@@ -683,7 +683,7 @@ if (!matCenP->bFlag) {
 	if (IsMultiGame)
 		topTime = ROBOT_GEN_TIME;
 	else {
-		xDistToPlayer = CFixVector::Dist(gameData.objs.consoleP->info.position.vPos, matCenP->vCenter);
+		xDistToPlayer = vmsVector::Dist(gameData.objs.consoleP->info.position.vPos, matCenP->vCenter);
 		topTime = xDistToPlayer / 64 + d_rand () * 2 + F1_0*2;
 		if (topTime > ROBOT_GEN_TIME)
 			topTime = ROBOT_GEN_TIME + d_rand ();
@@ -706,14 +706,14 @@ if (!matCenP->bFlag) {
 		matCenP->xTimer /= 2;
 		return;
 		}
-		//	Whack on any robot or CPlayerData in the matcen CSegment.
+		//	Whack on any robot or tPlayer in the matcen tSegment.
 	nCount = 0;
 	nSegment = matCenP->nSegment;
-	for (nObject = SEGMENTS [nSegment].objects; nObject != -1; nObject = OBJECTS [nObject].info.nNextInSeg) {
+	for (nObject = gameData.segs.objects [nSegment]; nObject != -1; nObject = OBJECTS [nObject].info.nNextInSeg) {
 		nCount++;
 		if (nCount > MAX_OBJECTS) {
 #if TRACE
-			con_printf (CONDBG, "Object list in CSegment %d is circular.", nSegment);
+			con_printf (CONDBG, "Object list in tSegment %d is circular.", nSegment);
 #endif
 			Int3 ();
 			return;
@@ -819,7 +819,7 @@ for (i = 0; i < gameData.matCens.nFuelCenters; i++, fuelCenP++) {
 
 //-------------------------------------------------------------
 
-fix HostileRoomDamageShields (CSegment *segP, fix MaxAmountCanGive)
+fix HostileRoomDamageShields (tSegment *segP, fix MaxAmountCanGive)
 {
 	static fix last_playTime=0;
 	fix amount;
@@ -850,7 +850,7 @@ return amount;
 
 //-------------------------------------------------------------
 
-fix FuelCenGiveFuel (CSegment *segP, fix MaxAmountCanTake)
+fix FuelCenGiveFuel (tSegment *segP, fix MaxAmountCanTake)
 {
 	short			nSegment = SEG_IDX (segP);
 	tSegment2	*seg2P = gameData.segs.segment2s + nSegment;
@@ -901,7 +901,7 @@ return amount;
 // DM/050904
 // Repair centers
 // use same values as fuel centers
-fix RepairCenGiveShields (CSegment *segP, fix MaxAmountCanTake)
+fix RepairCenGiveShields (tSegment *segP, fix MaxAmountCanTake)
 {
 	short		nSegment = SEG_IDX (segP);
 	tSegment2	*seg2P = gameData.segs.segment2s + nSegment;
@@ -948,7 +948,7 @@ return amount;
 
 //--unused-- //-----------------------------------------------------------
 //--unused-- // Damages a fuel center
-//--unused-- void FuelCenDamage (CSegment *segP, fix damage)
+//--unused-- void FuelCenDamage (tSegment *segP, fix damage)
 //--unused-- {
 //--unused-- 	//int i;
 //--unused-- 	// int	station_num = segP->value;
@@ -1014,7 +1014,7 @@ return amount;
 //--unused-- //return though which tSide of seg0 is seg1
 //--unused-- int john_find_connect_side (int seg0,int seg1)
 //--unused-- {
-//--unused-- 	CSegment *Seg=&gameData.segs.segments [seg0];
+//--unused-- 	tSegment *Seg=&gameData.segs.segments [seg0];
 //--unused-- 	int i;
 //--unused--
 //--unused-- 	for (i=MAX_SIDES_PER_SEGMENT;i--;) if (Seg->children [i]==seg1) return i;
@@ -1024,15 +1024,15 @@ return amount;
 
 //	----------------------------------------------------------------------------------------------------------
 //--unused-- vmsAngVec start_angles, deltaAngles, goalAngles;
-//--unused-- CFixVector start_pos, delta_pos, goal_pos;
+//--unused-- vmsVector start_pos, delta_pos, goal_pos;
 //--unused-- int FuelStationSeg;
 //--unused-- fix currentTime,deltaTime;
 //--unused-- int next_side, side_index;
 //--unused-- int * sidelist;
 
 //--repair-- int Repairing;
-//--repair-- CFixVector repair_save_uvec;		//the CPlayerData's upvec when enter repaircen
-//--repair-- CObject *RepairObj=NULL;		//which CObject getting repaired
+//--repair-- vmsVector repair_save_uvec;		//the tPlayer's upvec when enter repaircen
+//--repair-- tObject *RepairObj=NULL;		//which tObject getting repaired
 //--repair-- int disable_repair_center=0;
 //--repair-- fix repair_rate;
 //--repair-- #define FULL_REPAIR_RATE I2X (10)
@@ -1049,9 +1049,9 @@ return amount;
 //--unused-- int SideUpVector [] = {WBOTTOM, WFRONT, WBOTTOM, WFRONT, WBOTTOM, WBOTTOM };
 
 //--repair-- //	----------------------------------------------------------------------------------------------------------
-//--repair-- void refuel_calc_deltas (CObject *objP, int next_side, int repair_seg)
+//--repair-- void refuel_calc_deltas (tObject *objP, int next_side, int repair_seg)
 //--repair-- {
-//--repair-- 	CFixVector nextcenter, headfvec, *headuvec;
+//--repair-- 	vmsVector nextcenter, headfvec, *headuvec;
 //--repair-- 	vmsMatrix goal_orient;
 //--repair--
 //--repair-- 	// Find time for this movement
@@ -1105,7 +1105,7 @@ return amount;
 //--repair-- }
 //--repair--
 //--repair-- //	----------------------------------------------------------------------------------------------------------
-//--repair-- int refuel_do_repair_effect (CObject * objP, int firstTime, int repair_seg)	{
+//--repair-- int refuel_do_repair_effect (tObject * objP, int firstTime, int repair_seg)	{
 //--repair--
 //--repair-- 	objP->mType.physInfo.velocity.x = 0;
 //--repair-- 	objP->mType.physInfo.velocity.y = 0;
@@ -1187,12 +1187,12 @@ return amount;
 //--repair--
 //--repair-- 		factor = FixDiv (currentTime,deltaTime);
 //--repair--
-//--repair-- 		// Find CObject's current position
+//--repair-- 		// Find tObject's current position
 //--repair-- 		objP->info.position.vPos = delta_pos;
 //--repair-- 		VmVecScale (&objP->info.position.vPos, factor);
 //--repair-- 		VmVecInc (&objP->info.position.vPos, &start_pos);
 //--repair--
-//--repair-- 		// Find CObject's current orientation
+//--repair-- 		// Find tObject's current orientation
 //--repair-- 		p	= FixMul (deltaAngles.p,factor);
 //--repair-- 		b	= FixMul (deltaAngles.b,factor);
 //--repair-- 		h	= FixMul (deltaAngles.h,factor);
@@ -1203,14 +1203,14 @@ return amount;
 //--repair--
 //--repair-- 	}
 //--repair--
-//--repair-- 	UpdateObjectSeg (objP);		//update CSegment
+//--repair-- 	UpdateObjectSeg (objP);		//update tSegment
 //--repair--
 //--repair-- 	return 0;
 //--repair-- }
 //--repair--
 //--repair-- //	----------------------------------------------------------------------------------------------------------
 //--repair-- //do the repair center for this frame
-//--repair-- void do_repair_sequence (CObject *objP)
+//--repair-- void do_repair_sequence (tObject *objP)
 //--repair-- {
 //--repair-- 	Assert (obj == RepairObj);
 //--repair--
@@ -1223,7 +1223,7 @@ return amount;
 //--repair-- 		RepairObj = NULL;
 //--repair--
 //--repair--
-//--repair-- 		//the two lines below will spit the CPlayerData out of the rapair center,
+//--repair-- 		//the two lines below will spit the tPlayer out of the rapair center,
 //--repair-- 		//but what happen is that the ship just bangs into the door
 //--repair-- 		//if (objP->info.movementType == MT_PHYSICS)
 //--repair-- 		//	VmVecCopyScale (&objP->mType.physInfo.velocity,&objP->info.position.mOrient.fVec,I2X (200);
@@ -1233,7 +1233,7 @@ return amount;
 //--repair--
 //--repair-- //	----------------------------------------------------------------------------------------------------------
 //--repair-- //see if we should start the repair center
-//--repair-- void check_start_repair_center (CObject *objP)
+//--repair-- void check_start_repair_center (tObject *objP)
 //--repair-- {
 //--repair-- 	if (RepairObj != NULL) return;		//already in repair center
 //--repair--
@@ -1364,7 +1364,7 @@ short blueFlagGoals = -1;
 int GatherFlagGoals (void)
 {
 	int			h, i, j;
-	tSegment2	*seg2P = gameData.segs.segment2s.Buffer ();
+	tSegment2	*seg2P = gameData.segs.segment2s;
 
 memset (flagGoalList, 0xff, sizeof (flagGoalList));
 for (h = i = 0; i <= gameData.segs.nLastSegment; i++, seg2P++) {
@@ -1391,10 +1391,10 @@ void MultiSendCaptureBonus (char);
 int FlagAtHome (int nFlagId)
 {
 	int		i, j;
-	CObject	*objP;
+	tObject	*objP;
 
 for (i = flagGoalRoots [nFlagId - POW_BLUEFLAG]; i >= 0; i = flagGoalList [i])
-	for (j = SEGMENTS [i].objects; j >= 0; j = objP->info.nNextInSeg) {
+	for (j = gameData.segs.objects [i]; j >= 0; j = objP->info.nNextInSeg) {
 		objP = OBJECTS + j;
 		if ((objP->info.nType == OBJ_POWERUP) && (objP->info.nId == nFlagId))
 			return 1;
@@ -1423,7 +1423,7 @@ return 1;
 
 //--------------------------------------------------------------------
 
-void FuelCenCheckForGoal (CSegment *segP)
+void FuelCenCheckForGoal (tSegment *segP)
 {
 	tSegment2	*seg2P = gameData.segs.segment2s + SEG_IDX (segP);
 
@@ -1455,7 +1455,7 @@ else if (seg2P->special == SEGMENT_IS_GOAL_RED) {
 
 //--------------------------------------------------------------------
 
-void FuelCenCheckForHoardGoal (CSegment *segP)
+void FuelCenCheckForHoardGoal (tSegment *segP)
 {
 	tSegment2	*seg2P = &gameData.segs.segment2s [SEG_IDX (segP)];
 
@@ -1478,27 +1478,27 @@ LOCALPLAYER.secondaryAmmo [PROXMINE_INDEX]=0;
 //--------------------------------------------------------------------
 #if 1//ndef FAST_FILE_IO /*permanently enabled for a reason!*/
 /*
- * reads an old_tMatCenInfo structure from a CFile
+ * reads an old_tMatCenInfo structure from a CFILE
  */
-void OldMatCenInfoRead (old_tMatCenInfo *mi, CFile& cf)
+void OldMatCenInfoRead (old_tMatCenInfo *mi, CFILE *fp)
 {
-mi->objFlags = cf.ReadInt ();
-mi->xHitPoints = cf.ReadFix ();
-mi->xInterval = cf.ReadFix ();
-mi->nSegment = cf.ReadShort ();
-mi->nFuelCen = cf.ReadShort ();
+mi->objFlags = CFReadInt (fp);
+mi->xHitPoints = CFReadFix (fp);
+mi->xInterval = CFReadFix (fp);
+mi->nSegment = CFReadShort (fp);
+mi->nFuelCen = CFReadShort (fp);
 }
 
 /*
- * reads a tMatCenInfo structure from a CFile
+ * reads a tMatCenInfo structure from a CFILE
  */
-void MatCenInfoRead (tMatCenInfo *mi, CFile& cf)
+void MatCenInfoRead (tMatCenInfo *mi, CFILE *fp)
 {
-mi->objFlags [0] = cf.ReadInt ();
-mi->objFlags [1] = cf.ReadInt ();
-mi->xHitPoints = cf.ReadFix ();
-mi->xInterval = cf.ReadFix ();
-mi->nSegment = cf.ReadShort ();
-mi->nFuelCen = cf.ReadShort ();
+mi->objFlags [0] = CFReadInt (fp);
+mi->objFlags [1] = CFReadInt (fp);
+mi->xHitPoints = CFReadFix (fp);
+mi->xInterval = CFReadFix (fp);
+mi->nSegment = CFReadShort (fp);
+mi->nFuelCen = CFReadShort (fp);
 }
 #endif

@@ -14,7 +14,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #ifndef _MENU_H
 #define _MENU_H
 
-#include "pstypes.h"
 // returns number of item chosen
 int MainMenu ();
 void ConfigMenu ();
@@ -26,9 +25,9 @@ int SelectAndLoadMission (int bMulti, int *bAnarchyOnly);
 // name of background bitmap
 #if 0
 #define MENU_PCX_NAME \
-			(CFile::Exist (MENU_PCX_FULL,gameFolders.szDataDir,0) ? MENU_PCX_FULL : \
-			(CFile::Exist (MENU_PCX_OEM,gameFolders.szDataDir,0) ? MENU_PCX_OEM : \
-			CFile::Exist (MENU_PCX_SHAREWARE,gameFolders.szDataDir,0) ? MENU_PCX_SHAREWARE : MENU_PCX_MAC_SHARE))
+			(CFExist (MENU_PCX_FULL,gameFolders.szDataDir,0) ? MENU_PCX_FULL : \
+			(CFExist (MENU_PCX_OEM,gameFolders.szDataDir,0) ? MENU_PCX_OEM : \
+			CFExist (MENU_PCX_SHAREWARE,gameFolders.szDataDir,0) ? MENU_PCX_SHAREWARE : MENU_PCX_MAC_SHARE))
 #else
 char *MENU_PCX_NAME (void);
 #endif
@@ -89,7 +88,7 @@ extern int Cockpit_rearView;
 			(_j) = (_max); \
 		}
 
-int stoip (char *szServerIpAddr, ubyte *pIpAddr);
+int stoip (char *szServerIpAddr, unsigned char *pIpAddr);
 int stoport (char *szPort, int *pPort, int *pSign);
 int SetCustomDisplayMode (int x, int y);
 

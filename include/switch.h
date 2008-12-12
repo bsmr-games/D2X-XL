@@ -120,9 +120,6 @@ typedef struct tTrigger {
 	short   nSide [MAX_TRIGGER_TARGETS];
 } __pack__ tTrigger;
 
-inline int operator- (tTrigger* t, CArray<tTrigger>& a) { return a.Index (t); }
-
-
 typedef struct tObjTriggerRef {
 	short		prev;
 	short		next;
@@ -130,7 +127,7 @@ typedef struct tObjTriggerRef {
 } tObjTriggerRef;
 
 void TriggerInit();
-void CheckTrigger(CSegment *seg, short tSide, short nObject,int shot);
+void CheckTrigger(tSegment *seg, short tSide, short nObject,int shot);
 int CheckTriggerSub (short nObject, tTrigger *triggers, int nTriggerCount, int nTrigger, 
 							int nPlayer, int shot, int bBotTrigger);
 void TriggersFrameProcess();
@@ -144,23 +141,23 @@ void ExecObjTriggers (short nObject, int bDamage);
 /*
  * reads a tTriggerV29 structure from a CFILE
  */
-void V29TriggerRead(tTriggerV29 *t, CFile& cf);
+void V29TriggerRead(tTriggerV29 *t, CFILE *fp);
 
 /*
  * reads a tTriggerV30 structure from a CFILE
  */
-void V30TriggerRead(tTriggerV30 *t, CFile& cf);
+void V30TriggerRead(tTriggerV30 *t, CFILE *fp);
 
 /*
  * reads a tTrigger structure from a CFILE
  */
-void TriggerRead(tTrigger *t, CFile& cf, int bObjTrigger);
+void TriggerRead(tTrigger *t, CFILE *fp, int bObjTrigger);
 #endif
 
 void SetSpeedBoostVelocity (short nObject, fix speed, 
 									 short srcSegnum, short srcSidenum,
 									 short destSegnum, short destSidenum,
-									 CFixVector *pSrcPt, CFixVector *pDestPt,
+									 vmsVector *pSrcPt, vmsVector *pDestPt,
 									 int bSetOrient);
 
 void TriggerSetOrient (tTransformation *posP, short nSegment, short nSide, int bSetPos, int nStep);
@@ -171,6 +168,6 @@ int FindTriggerTarget (short nSegment, short nSide);
 tTrigger *FindObjTrigger (short nObject, short nType, short nTrigger);
 int OpenExits (void);
 
-extern CFixVector	speedBoostSrc, speedBoostDest;
+extern vmsVector	speedBoostSrc, speedBoostDest;
 
 #endif

@@ -98,7 +98,7 @@ if (fSize <= 0) {
 	}
 #endif
 
-if (!(bufP = new char [fSize + 1])) {
+if (!(bufP = (char *) D2_ALLOC (sizeof (char) *(fSize + 1)))) {
 	fclose (fp);
 	return NULL;	// out of memory
 	}
@@ -111,7 +111,7 @@ return bufP;
 //------------------------------------------------------------------------------
 
 #ifdef __macosx__
-#	define	_HANDLE	(uint) handle
+#	define	_HANDLE	(unsigned int) handle
 #else
 #	define	_HANDLE	handle
 #endif
@@ -125,29 +125,30 @@ void PrintShaderInfoLog (GLhandleARB handle, int bProgram)
 #ifdef GL_VERSION_20
 if (bProgram) {
 	glGetProgramiv (_HANDLE, GL_INFO_LOG_LENGTH, &nLogLen);
-	if ((nLogLen > 0) && (infoLog = new char [nLogLen])) {
+	if ((nLogLen > 0) && (infoLog = (char *) D2_ALLOC (nLogLen))) {
+		infoLog = (char *) D2_ALLOC (nLogLen);
 		glGetProgramInfoLog (_HANDLE, nLogLen, &charsWritten, infoLog);
 		if (*infoLog)
 			PrintLog ("\n%s\n\n", infoLog);
-		delete[] infoLog;
+		D2_FREE (infoLog);
 		}
 	}
 else {
 	glGetShaderiv (_HANDLE, GL_INFO_LOG_LENGTH, &nLogLen);
-	if ((nLogLen > 0) && (infoLog = new char [nLogLen])) {
+	if ((nLogLen > 0) && (infoLog = (char *) D2_ALLOC (nLogLen))) {
 		glGetShaderInfoLog (_HANDLE, nLogLen, &charsWritten, infoLog);
 		if (*infoLog)
 			PrintLog ("\n%s\n\n", infoLog);
-		delete[] infoLog;
+		D2_FREE (infoLog);
 		}
 	}
 #else
 glGetObjectParameteriv (_HANDLE, GL_OBJECT_INFO_LOG_LENGTH_ARB, &nLogLen);
-if ((nLogLen > 0) && (infoLog = new char [nLogLen])) {
+if ((nLogLen > 0) && (infoLog = (char *) D2_ALLOC (nLogLen))) {
 	glGetInfoLog (_HANDLE, nLogLen, &charsWritten, infoLog);
 	if (*infoLog)
 		PrintLog ("\n%s\n\n", infoLog);
-	delete[] infoLog;
+	D2_FREE (infoLog);
 	}
 #endif
 }
@@ -196,7 +197,7 @@ if (*progP)
 *progP = glCreateProgramObject (); 
 if (*progP)
 	return 1;
-PrintLog ("   Couldn't create shader program CObject\n");
+PrintLog ("   Couldn't create shader program tObject\n");
 return 0; 
 }
 
@@ -248,12 +249,12 @@ if (bFromFile) {
 		return 0; 
 	}
 #endif
-glShaderSource (vs, 1, reinterpret_cast<const GLcharARB **> (&vsName), NULL); 
-glShaderSource (fs, 1, reinterpret_cast<const GLcharARB **> (&fsName), NULL); 
+glShaderSource (vs, 1, (const GLcharARB **) &vsName, NULL); 
+glShaderSource (fs, 1, (const GLcharARB **) &fsName, NULL); 
 #if DBG_SHADERS
 if (bFromFile) {
-	delete[] vsName; 
-	delete[] fsName; 
+	D2_FREE (vsName); 
+	D2_FREE (fsName); 
 	}
 #endif
 glCompileShader (vs); 
@@ -381,9 +382,7 @@ else {
 	gameStates.ogl.bShadersOk = 1;
 #endif
 	}
-PrintLog (gameStates.ogl.bShadersOk ? 
-			 reinterpret_cast<char*> ("Shaders are available\n") : 
-			 reinterpret_cast<char*> ("No shaders available\n"));
+PrintLog (gameStates.ogl.bShadersOk ? (char *) "Shaders are available\n" : (char *) "No shaders available\n");
 }
 
 //------------------------------------------------------------------------------

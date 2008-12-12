@@ -31,7 +31,6 @@ typedef unsigned char ubyte;
 #if defined(_WIN32)
 typedef unsigned short ushort;
 typedef unsigned int uint;
-typedef unsigned long ulong;
 #endif
 
 #if defined(_WIN32) || defined(__sun__) // platforms missing (u_)int??_t
@@ -56,10 +55,10 @@ typedef unsigned long ulong;
 # include <stdlib.h> // this is where minand max are defined
 #endif
 //#ifndef min
-//#	define min(a,b) (((a)>(b))?(b):(a))
+//7#define min(a,b) (((a)>(b))?(b):(a))
 //#endif
 //#ifndef max
-//#	define max(a,b) (((a)<(b))?(b):(a))
+//#/define max(a,b) (((a)<(b))?(b):(a))
 //#endif
 
 #if defined(_WIN32)
@@ -81,7 +80,7 @@ typedef unsigned long ulong;
 #endif
 
 #ifdef __macosx__
-#	define ushort ushort
+#	define ushort unsigned short
 #endif
 
 #ifndef NULL

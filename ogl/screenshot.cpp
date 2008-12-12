@@ -66,7 +66,7 @@ extern int screenShotIntervals [];
 
 //writes out an uncompressed RGB .tga file
 //if we got really spiffy, we could optionally link in libpng or something, and use that.
-void WriteScreenShot (char *szSaveName, int w, int h, ubyte *buf, int nFormat)
+void WriteScreenShot (char *szSaveName, int w, int h, unsigned char *buf, int nFormat)
 {
 	FILE *f = fopen (szSaveName, "wb");
 if (!f) {
@@ -77,7 +77,7 @@ if (!f) {
 else {
 		tTgaHeader	hdr;
 		int			i, j, r;
-		tBGR			*outBuf = new tBGR [w * h * sizeof (tBGR)];
+		tBGR			*outBuf = (tBGR *) D2_ALLOC (w * h * sizeof (tBGR));
 		tBGR			*bgrP;
 		tRGB			*rgbP;
 
@@ -90,10 +90,10 @@ else {
 	//write .TGA header.
 	fwrite (&hdr, sizeof (hdr), 1, f);
 #else	// if only I knew how to control struct member packing with gcc or XCode ... ^_^
-	*(reinterpret_cast<char*> (&hdr) + 2) = 2;
-	*reinterpret_cast<short*> (reinterpret_cast<char*> (&hdr) + 12) = w;
-	*reinterpret_cast<short*> (reinterpret_cast<char*> (&hdr) + 14) = h;
-	*(reinterpret_cast<char*> (&hdr) + 16) = 24;
+	*(((char *) &hdr) + 2) = 2;
+	*((short *) (((char *) &hdr) + 12)) = w;
+	*((short *) (((char *) &hdr) + 14)) = h;
+	*(((char *) &hdr) + 16) = 24;
 	//write .TGA header.
 	fwrite (&hdr, 18, 1, f);
 #endif
@@ -123,7 +123,7 @@ else {
 
 extern char *pszSystemNames [];
 
-void SaveScreenShot (ubyte *buf, int bAutomap)
+void SaveScreenShot (unsigned char *buf, int bAutomap)
 {
 	char				szMessage [100];
 	char				szSaveName [FILENAME_LEN], szLevelName [128];
@@ -164,24 +164,24 @@ do {
 	} while (!access (szSaveName, 0));
 
 if ((bTmpBuf = (buf == NULL))) {
-	buf = new ubyte [screen.Width () * screen.Height () * 3];
+	buf = (unsigned char *) D2_ALLOC (grdCurScreen->scWidth * grdCurScreen->scHeight * 3);
 	glDisable (GL_TEXTURE_2D);
 	OglSetReadBuffer (GL_FRONT, 1);
-	glReadPixels (0, 0, screen.Width (), screen.Height (), GL_RGB, GL_UNSIGNED_BYTE, buf);
+	glReadPixels (0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight, GL_RGB, GL_UNSIGNED_BYTE, buf);
 	glErrCode = glGetError ();
 	glErrCode = GL_NO_ERROR;
 	}
 else
 	glErrCode = GL_NO_ERROR;
 if (glErrCode == GL_NO_ERROR) {
-	WriteScreenShot (szSaveName, screen.Width (), screen.Height (), buf, 0);
+	WriteScreenShot (szSaveName, grdCurScreen->scWidth, grdCurScreen->scHeight, buf, 0);
 	if (!(bAutomap || screenShotIntervals [gameOpts->app.nScreenShotInterval])) {
 		sprintf (szMessage, "%s '%s'", TXT_DUMPING_SCREEN, szSaveName);
 		HUDMessage (MSGC_GAME_FEEDBACK, szMessage);
 		}
 	}
 if (bTmpBuf)
-	delete[] buf;
+	D2_FREE (buf);
 //KeyFlush ();
 StartTime (0);
 }

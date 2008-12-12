@@ -197,7 +197,7 @@ int	TexStretchUp();
 int	TexChangeAll();
 int	TexChangeAll2();
 
-//	CObject.c
+//	tObject.c
 int	ObjectPlaceObject();
 int	ObjectMakeCoop();
 int	ObjectPlaceObjectTmap();

@@ -42,9 +42,31 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 // ---------------------------------------------------------
 //	On entry, gameData.bots.nTypes had darn sure better be set.
-//	Mallocs gameData.bots.nTypes tRobotInfo structs into global gameData.bots.infoP.
+//	Mallocs gameData.bots.nTypes tRobotInfo structs into global gameData.bots.pInfo.
 void InitAISystem (void)
 {
+#if 0
+	int	i;
+
+#if TRACE
+	con_printf (CONDBG, "Trying to D2_ALLOC %i bytes for gameData.bots.pInfo.\n",
+					gameData.bots.nTypes * sizeof (*gameData.bots.pInfo));
+#endif
+	gameData.bots.pInfo = (tRobotInfo *) D2_ALLOC (gameData.bots.nTypes * sizeof (*gameData.bots.pInfo));
+#if TRACE
+	con_printf (CONDBG, "gameData.bots.pInfo = %i\n", gameData.bots.pInfo);
+#endif
+	for (i = 0; i < gameData.bots.nTypes; i++) {
+		gameData.bots.pInfo [i].fieldOfView = F1_0/2;
+		gameData.bots.pInfo [i].primaryFiringWait = F1_0;
+		gameData.bots.pInfo [i].turnTime = F1_0*2;
+		// -- gameData.bots.pInfo [i].fire_power = F1_0;
+		// -- gameData.bots.pInfo [i].shield = F1_0/2;
+		gameData.bots.pInfo [i].xMaxSpeed = F1_0*10;
+		gameData.bots.pInfo [i].always_0xabcd = 0xabcd;
+	}
+#endif
+
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -75,7 +97,7 @@ return AIM_IDLING;
 //	initial_mode == -1 means leave mode unchanged.
 void InitAIObject (short nObject, short behavior, short nHideSegment)
 {
-	CObject		*objP = OBJECTS + nObject;
+	tObject		*objP = OBJECTS + nObject;
 	tAIStaticInfo	*aiP = &objP->cType.aiInfo;
 	tAILocalInfo		*ailP = gameData.ai.localInfo + nObject;
 	tRobotInfo	*botInfoP = &ROBOTINFO (objP->info.nId);
@@ -143,16 +165,16 @@ aiP->xDyingStartTime = 0;
 void InitAIObjects (void)
 {
 	short		h, i, j;
-	CObject	*objP;
+	tObject	*objP;
 
-gameData.ai.freePointSegs = gameData.ai.pointSegs.Buffer ();
+gameData.ai.freePointSegs = gameData.ai.pointSegs;
 for (i = 0; i < MAX_BOSS_COUNT; i++) {
 	gameData.boss [i].nObject = -1;
 #if DBG
 //	gameData.boss [i].xPrevShields = -1;
 #endif
 	}
-for (i = j = 0, objP = OBJECTS.Buffer (); i < MAX_OBJECTS; i++, objP++) {
+for (i = j = 0, objP = OBJECTS; i < MAX_OBJECTS; i++, objP++) {
 	if (objP->info.controlType == CT_AI)
 		InitAIObject (i, objP->cType.aiInfo.behavior, objP->cType.aiInfo.nHideSegment);
 	if ((objP->info.nType == OBJ_ROBOT) && (ROBOTINFO (objP->info.nId).bossFlag))
@@ -182,12 +204,12 @@ gameStates.app.bLunacy = 1;
 nDiffSave = gameStates.app.nDifficultyLevel;
 gameStates.app.nDifficultyLevel = NDL-1;
 for (i = 0; i < MAX_ROBOT_TYPES; i++) {
-	Firing_wait_copy [i] = gameData.bots.infoP [i].primaryFiringWait [NDL-1];
-	Firing_wait2_copy [i] = gameData.bots.infoP [i].secondaryFiringWait [NDL-1];
-	RapidfireCount_copy [i] = gameData.bots.infoP [i].nRapidFireCount [NDL-1];
-	gameData.bots.infoP [i].primaryFiringWait [NDL-1] = gameData.bots.infoP [i].primaryFiringWait [1];
-	gameData.bots.infoP [i].secondaryFiringWait [NDL-1] = gameData.bots.infoP [i].secondaryFiringWait [1];
-	gameData.bots.infoP [i].nRapidFireCount [NDL-1] = gameData.bots.infoP [i].nRapidFireCount [1];
+	Firing_wait_copy [i] = gameData.bots.pInfo [i].primaryFiringWait [NDL-1];
+	Firing_wait2_copy [i] = gameData.bots.pInfo [i].secondaryFiringWait [NDL-1];
+	RapidfireCount_copy [i] = gameData.bots.pInfo [i].nRapidFireCount [NDL-1];
+	gameData.bots.pInfo [i].primaryFiringWait [NDL-1] = gameData.bots.pInfo [i].primaryFiringWait [1];
+	gameData.bots.pInfo [i].secondaryFiringWait [NDL-1] = gameData.bots.pInfo [i].secondaryFiringWait [1];
+	gameData.bots.pInfo [i].nRapidFireCount [NDL-1] = gameData.bots.pInfo [i].nRapidFireCount [1];
 	}
 }
 
@@ -201,15 +223,15 @@ if (!gameStates.app.bLunacy)	//already off
 	return;
 gameStates.app.bLunacy = 0;
 for (i = 0; i < MAX_ROBOT_TYPES; i++) {
-	gameData.bots.infoP [i].primaryFiringWait [NDL-1] = Firing_wait_copy [i];
-	gameData.bots.infoP [i].secondaryFiringWait [NDL-1] = Firing_wait2_copy [i];
-	gameData.bots.infoP [i].nRapidFireCount [NDL-1] = RapidfireCount_copy [i];
+	gameData.bots.pInfo [i].primaryFiringWait [NDL-1] = Firing_wait_copy [i];
+	gameData.bots.pInfo [i].secondaryFiringWait [NDL-1] = Firing_wait2_copy [i];
+	gameData.bots.pInfo [i].nRapidFireCount [NDL-1] = RapidfireCount_copy [i];
 	}
 gameStates.app.nDifficultyLevel = nDiffSave;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
-//	Call this each time the CPlayerData starts a new ship.
+//	Call this each time the tPlayer starts a new ship.
 void InitAIForShip (void)
 {
 	int	i;
@@ -246,7 +268,7 @@ if (gameData.ai.nMaxAwareness < PA_PLAYER_COLLISION)
 	gameData.ai.vLastPlayerPosFiredAt.SetZero();
 if (!gameData.ai.vLastPlayerPosFiredAt.IsZero())
 	gameData.ai.nDistToLastPlayerPosFiredAt =
-		CFixVector::Dist(gameData.ai.vLastPlayerPosFiredAt, gameData.ai.vBelievedPlayerPos);
+		vmsVector::Dist(gameData.ai.vLastPlayerPosFiredAt, gameData.ai.vBelievedPlayerPos);
 else
 	gameData.ai.nDistToLastPlayerPosFiredAt = F1_0 * 10000;
 abState = gameData.physics.xAfterburnerCharge && Controls [0].afterburnerState &&

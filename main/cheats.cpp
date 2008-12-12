@@ -40,7 +40,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "escort.h"
 #include "switch.h"
 #include "key.h"
-#include "crypt.h"
 #include "slowmotion.h"
 
 //	Cheat functions ------------------------------------------------------------
@@ -117,7 +116,7 @@ return i;
 int KillAllBuddyBots (int bVerbose)
 {
 	int	i, nKilled = 0;
-	CObject *objP;
+	tObject *objP;
 	//int	boss_index = -1;
 
 FORALL_ROBOT_OBJS (objP, i)
@@ -140,7 +139,7 @@ return nKilled;
 void KillAllRobots (int bVerbose)
 {
 	int	i, nKilled = 0;
-	CObject *objP;
+	tObject *objP;
 	//int	boss_index = -1;
 
 // Kill all bots except for Buddy bot and boss.  However, if only boss and buddy left, kill boss.
@@ -166,7 +165,7 @@ if (bVerbose)
 void KillAllBossRobots (int bVerbose)
 {
 	int		i, nKilled = 0;
-	CObject	*objP;
+	tObject	*objP;
 
 if (gameStates.gameplay.bKillBossCheat)
 	gameStates.gameplay.bKillBossCheat = 0;
@@ -189,14 +188,14 @@ if (bVerbose)
 
 //	--------------------------------------------------------------------------
 //	Detonate reactor.
-//	Award CPlayerData all powerups in mine.
-//	Place CPlayerData just outside exit.
+//	Award tPlayer all powerups in mine.
+//	Place tPlayer just outside exit.
 //	Kill all bots in mine.
 //	Yippee!!
 void KillEverything (int bVerbose)
 {
 	int     	i, j;
-	CObject	*objP;
+	tObject	*objP;
 
 if (bVerbose)
 	HUDInitMessage (TXT_KILL_ETC);
@@ -220,7 +219,7 @@ for (i = 0; i < gameData.trigs.nTriggers; i++) {
 			if (gameData.walls.walls [j].nTrigger == i) {
 				short nSegment = gameData.walls.walls [j].nSegment;
 				COMPUTE_SEGMENT_CENTER_I (&gameData.objs.consoleP->info.position.vPos, nSegment);
-				gameData.objs.consoleP->RelinkToSeg (nSegment);
+				RelinkObjToSeg (OBJ_IDX (gameData.objs.consoleP), nSegment);
 				gameData.objs.consoleP->info.position.mOrient[FVEC] = gameData.segs.segments [nSegment].sides [gameData.walls.walls [j].nSide].normals [0];
 				gameData.objs.consoleP->info.position.mOrient[FVEC].Neg();
 				return;
@@ -237,7 +236,7 @@ gameStates.gameplay.bKillBossCheat = 0;
 void KillThief (int bVerbose)
 {
 	int     i;
-	CObject *objP;
+	tObject *objP;
 
 FORALL_ROBOT_OBJS (objP, i)
 	if (IS_THIEF (objP)) {
@@ -259,7 +258,7 @@ FORALL_ROBOT_OBJS (objP, i)
 void KillAllSnipers (int bVerbose)
 {
 	int		i, nKilled = 0;
-	CObject	*objP;
+	tObject	*objP;
 
 //	Kill all snipers.
 FORALL_ROBOT_OBJS (objP, i)
@@ -278,7 +277,7 @@ if (bVerbose)
 void KillBuddy (int bVerbose)
 {
 	int     	i;
-	CObject	*objP;
+	tObject	*objP;
 
 //	Kill buddy.
 FORALL_ROBOT_OBJS (objP, i)
@@ -546,7 +545,7 @@ bInvul = (LOCALPLAYER.flags & PLAYER_FLAGS_INVULNERABLE) != 0;
 if (bVerbose)
 	HUDInitMessage ("%s %s!", TXT_INVULNERABILITY, bInvul ? TXT_ON : TXT_OFF);
 LOCALPLAYER.invulnerableTime = bInvul ? 0x7fffffff : 0; //gameData.time.xGame + I2X (1000);
-SetupSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
 }
 
 //------------------------------------------------------------------------------
@@ -681,7 +680,7 @@ else
 
 void TriFusionCheat (int bVerbose)
 {
-	CPlayerData	*playerP = &LOCALPLAYER;
+	tPlayer	*playerP = &LOCALPLAYER;
 
 if (gameData.multiplayer.weaponStates [gameData.multiplayer.nLocalPlayer].bTripleFusion)
 	return;
@@ -812,7 +811,7 @@ else {
 	LOCALPLAYER.primaryWeaponFlags |= 1 << FUSION_INDEX;
 	gameData.weapons.bTripleFusion = 1;
 	gameStates.gameplay.bMineMineCheat = 1;
-	SetupSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+	SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
 	}
 }
 
@@ -834,7 +833,7 @@ typedef void tCheatFunc (int bVerbose);
 typedef tCheatFunc *pCheatFunc;
 
 typedef struct tCheat {
-	const char	*pszCheat;
+	const char		*pszCheat;
 	pCheatFunc	cheatFunc;
 	char			bPunish;		//0: never punish, 1: always punish, -1: cheat function decides whether to punish
 	char			bEncrypted;
@@ -875,6 +874,8 @@ return 1;
 }
 
 //------------------------------------------------------------------------------
+
+extern char *jcrypt (char *);
 
 #define N_LAMER_CHEATS (sizeof (LamerCheats) / sizeof (*LamerCheats))
 

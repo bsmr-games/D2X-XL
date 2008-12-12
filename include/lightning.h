@@ -2,283 +2,36 @@
 #define __LIGHTNING_H
 
 #include "inferno.h"
-#include "u_mem.h"
 
-#define MAX_LIGHTNINGS	1000
-#define MAX_LIGHTNING_NODES	1000
-
-//------------------------------------------------------------------------------
-
-class CLightning;
-
-typedef struct tLightningNode {
-	CLightning			*m_child;
-	CFixVector			m_vPos;
-	CFixVector			m_vNewPos;
-	CFixVector			m_vOffs;
-	CFixVector			m_vBase;
-	CFixVector			m_vDelta [2];
-	int					m_nDelta [2];
-} tLightningNode;
-
-class CLightningNode : public tLightningNode {
-	public:
-		CLightningNode () { m_child = NULL; };
-		~CLightningNode () { Destroy (); };
-		CFixVector *Create (CFixVector *vOffs, CFixVector *vAttract, int nDist);
-		void Destroy (void);
-		void Setup (bool bInit, CFixVector *vPos, CFixVector *vDelta);
-		void Animate (bool bInit, short nSegment, int nDepth);
-		bool CreateChild (CFixVector *vEnd, CFixVector *vDelta,
-							   int nLife, int nLength, int nAmplitude,
-							   char nAngle, short nNodes, short nChildren, char nDepth, short nSteps,
-							   short nSmoothe, char bClamp, char bPlasma, char bLight,
-							   char nStyle, tRgbaColorf *colorP, CLightning *parentP, short nNode);
-		void ComputeOffset (int nSteps);
-		int ComputeAttractor (CFixVector *vAttract, CFixVector *vDest, CFixVector *vPos, int nMinDist, int i);
-		int Clamp (CFixVector *vPos, CFixVector *vBase, int nAmplitude);
-		CFixVector *Smoothe (CFixVector *vOffs, CFixVector *vPrevOffs, int nDist, int nSmoothe);
-		CFixVector *Attract (CFixVector *vOffs, CFixVector *vAttract, CFixVector *vPos, int nDist, int i, int bJoinPaths);
-		CFixVector CreateJaggy (CFixVector *vPos, CFixVector *vDest, CFixVector *vBase, CFixVector *vPrevOffs,
-									  int nSteps, int nAmplitude, int nMinDist, int i, int nSmoothe, int bClamp);
-		CFixVector CreateErratic (CFixVector *vPos, CFixVector *vBase, int nSteps, int nAmplitude,
-									    int bInPlane, int bFromEnd, int bRandom, int i, int nNodes, int nSmoothe, int bClamp);
-		CFixVector CreatePerlin (int nSteps, int nAmplitude, int *nSeed, double phi, double i);
-		void Move (CFixVector& vDelta, short nSegment);
-		bool SetLight (short nSegment, tRgbaColorf *colorP);
-		inline CLightning *GetChild (void) { return m_child; }
-		inline void GetChild (CLightning * child) { m_child = child; }
-};
-
-//------------------------------------------------------------------------------
-
-typedef struct tLightning {
-	CLightning			*m_parent;
-	CFixVector			m_vBase;
-	CFixVector			m_vPos;
-	CFixVector			m_vEnd;
-	CFixVector			m_vDir;
-	CFixVector			m_vRefEnd;
-	CFixVector			m_vDelta;
-	CLightningNode		*m_nodes;
-	tRgbaColorf			m_color;
-	int					m_nNext;
-	int					m_nLife;
-	int					m_nTTL;
-	int					m_nDelay;
-	int					m_nLength;
-	int					m_nOffset;
-	int					m_nAmplitude;
-	short					m_nSegment;
-	short					m_nSmoothe;
-	short					m_nSteps;
-	short					m_iStep;
-	short					m_nNodes;
-	short					m_nChildren;
-	short					m_nObject;
-	short					nSegment;
-	short					m_nNode;
-	char					m_nStyle;
-	char					m_nAngle;
-	char					m_nDepth;
-	char					m_bClamp;
-	char					m_bPlasma;
-	char					m_bRandom;
-	char					m_bLight;
-	char					m_bInPlane;
-} tLightning;
-
-class CLightning : public tLightning {
-	public:
-		CLightning () { m_parent = NULL, m_nodes = NULL, m_nNodes = 0; };
-		~CLightning () { Destroy (); };
-		bool Create (char nDepth);
-		void Init (CFixVector *vPos, CFixVector *vEnd, CFixVector *vDelta,
-					  short nObject, int nLife, int nDelay, int nLength, int nAmplitude,
-					  char nAngle, int nOffset, short nNodes, short nChildren, short nSteps,
-					  short nSmoothe, char bClamp, char bPlasma, char bLight,
-					  char nStyle, tRgbaColorf *colorP, CLightning *parentP, short nNode);
-		void Setup (bool bInit);
-		void Destroy (void);
-		void DestroyNodes (void);
-		void Smoothe (void);
-		void ComputeOffsets (void);
-		void Bump (void);
-		int SetLife (void);
-		void Animate (int nDepth);
-		int Update (int nDepth);
-		void Move (CFixVector *vNewPos, short nSegment, bool bStretch, bool bFromEnd);
-		void Render (int nDepth, int bDepthSort, int nThread);
-		int SetLight (void);
-		inline int MayBeVisible (void);
-		CLightning& operator= (CLightning& source) { 
-			memcpy (this, &source, sizeof (CLightning)); 
-			return *this;
-			}
-	private:
-		void CreatePath (int bSeed, int nDepth);
-		int ComputeChildEnd (CFixVector *vPos, CFixVector *vEnd, CFixVector *vDir, CFixVector *vParentDir, int nLength);
-		void ComputePlasmaSegment (CFloatVector *vPosf, int bScale, short nSegment, char bStart, char bEnd, int nDepth, int nThread);
-		void ComputePlasma (int nDepth, int nThread);
-		void RenderCore (tRgbaColorf *colorP, int nDepth, int nThread);
-		int SetupPlasma (void);
-		void RenderPlasma (tRgbaColorf *colorP, int nThread);
-		void RenderBuffered (int nDepth, int nThread);
-};
-
-//------------------------------------------------------------------------------
-
-typedef struct tLightningSystem {
-	int				m_nId;
-	int				m_nNext;
-	CLightning		*m_lightnings;
-	int				m_nLightnings;
-	short				m_nObject;
-	int				m_nKey [2];
-	time_t			m_tUpdate;
-	int				m_nSound;
-	char				m_bSound;
-	char				m_bForcefield;
-	char				m_bDestroy;
-} tLightningSystem;
-
-class CLightningSystem : public tLightningSystem {
-	public:
-		CLightningSystem () { m_lightnings = NULL, m_nLightnings = 0, m_nObject = -1; };
-		~CLightningSystem () { Destroy (); };
-		bool Create (int m_nId, int nLightnings, CFixVector *vPos, CFixVector *vEnd, CFixVector *vDelta,
-						 short nObject, int nLife, int nDelay, int nLength, int nAmplitude, char nAngle, int nOffset,
-						 short nNodeC, short nChildC, char nDepth, short nSteps, short nSmoothe, 
-						 char bClamp, char bPlasma, char bSound, char bLight, char nStyle, tRgbaColorf *colorP);
-		void Destroy (void);
-		void Animate (int nStart, int nLightnings);
-		void Render (int nStart, int nLightnings, int bDepthSort, int nThread);
-		int Update (void);
-		void Move (CFixVector *vNewPos, short nSegment, bool bStretch, bool bFromEnd);
-		int SetLife (void);
-		int SetLight (void);
-		inline CLightning* Lightnings (void) { return m_lightnings; }
-		inline int GetNext (void) { return m_nNext; }
-		inline void SetNext (int nNext) { m_nNext = nNext; }
-	private:
-		void CreateSound (int bSound);
-		void DestroySound (void);
-		void UpdateSound (void);
-		void MoveForObject (void);
-		void RenderBuffered (int nStart, int nLightnings, int nThread);
-};
-
-//------------------------------------------------------------------------------
-
-typedef struct tLightningLight {
-	CFixVector		vPos;
-	tRgbaColorf		color;
-	int				nNext;
-	int				nLights;
-	int				nBrightness;
-	int				nDynLight;
-	short				nSegment;
-	int				nFrame;
-} tLightningLight;
-
-
-typedef struct tLightningData {
-	short					*m_objects;
-	tLightningLight	*m_lights;
-	CLightningSystem	m_systems [MAX_LIGHTNINGS];
-	int					m_nFree;
-	int					m_nUsed;
-	int					m_nNext;
-	int					m_bDestroy;
-	int					m_nFirstLight;
-} tLightningData;
-
-class CLightningManager : public tLightningData {
-	public:
-		int	m_bDestroy;
-
-	public:
-		CLightningManager ();
-		~CLightningManager ();
-		void Init (void);
-		int Create (int nLightnings, CFixVector *vPos, CFixVector *vEnd, CFixVector *vDelta,
-						short nObject, int nLife, int nDelay, int nLength, int nAmplitude, char nAngle, int nOffset,
-						short nNodeC, short nChildC, char nDepth, short nSteps, short nSmoothe, 
-						char bClamp, char bPlasma, char bSound, char bLight, char nStyle, tRgbaColorf *colorP);
-		void Destroy (int iLightning, CLightning *pl, bool bDestroy);
-		int Shutdown (bool bForce);
-		void Render (void);
-		void Update (void);
-		void Move (int i, CFixVector *vNewPos, short nSegment, bool bStretch, bool bFromEnd);
-		void MoveForObject (CObject *objP);
-		void Render (tLightning *pl, int nLightnings, short nDepth, int bDepthSort);
-		void RenderBuffered (tLightning *plRoot, int nStart, int nLightnings, int nDepth, int nThread);
-		void RenderSystem (void);
-		void RenderForDamage (CObject *objP, g3sPoint **pointList, tG3ModelVertex *pVerts, int nVertices);
-		void Animate (tLightning *pl, int nStart, int nLightnings, int nDepth);
-		int CreateForMissile (CObject *objP);
-		void CreateForShaker (CObject *objP);
-		void CreateForShakerMega (CObject *objP);
-		void CreateForMega (CObject *objP);
-		void CreateForBlowup (CObject *objP);
-		void CreateForDamage (CObject *objP, tRgbaColorf *colorP);
-		void CreateForRobot (CObject *objP, tRgbaColorf *colorP);
-		void CreateForPlayer (CObject *objP, tRgbaColorf *colorP);
-		void CreateForExplosion (CObject *objP, tRgbaColorf *colorP, int nRods, int nRad, int nTTL);
-		void DestroyForObject (CObject *objP);
-		void DestroyForAllObjects (int nType, int nId);
-		void DestroyForPlayers (void);
-		void DestroyForRobots (void);
-		void DestroyStatic (void);
-		void SetLights (void);
-		void ResetLights (int bForce);
-		void DoFrame (void);
-		void StaticFrame (void);
-		int FindDamageLightning (short nObject, int *pKey);
-		void SetSegmentLight (short nSegment, CFixVector *vPosP, tRgbaColorf *colorP);
-		tRgbaColorf *LightningColor (CObject *objP);
-		inline short GetObjectSystem (short nObject) { return (m_objects && (nObject >= 0)) ? m_objects [nObject] : -1; }
-		inline void SetObjectSystem (short nObject, int i) { if (m_objects && (nObject >= 0)) m_objects [nObject] = i; }
-		inline tLightningLight* GetLight (short nSegment) { return m_lights + nSegment; }
-	private:
-		int IsUsed (int iLightning);
-		CLightningSystem *PrevSystem (int iLightning);
-		CFixVector *FindTargetPos (CObject *emitterP, short nTarget);
-
-};
-
-extern CLightningManager lightningManager;
-
-//------------------------------------------------------------------------------
-
-typedef struct tOmegaLightningHandles {
-	int		nLightning;
-	short		nParentObj;
-	short		nTargetObj;
-} tOmegaLightningHandles;
-
-
-class COmegaLightnings {
-	private:
-		tOmegaLightningHandles	m_handles [MAX_OBJECTS_D2X];
-		int							m_nHandles;
-
-	public:
-		COmegaLightnings () { m_nHandles = 0; };
-		~COmegaLightnings () {};
-		void Init (void) { m_nHandles = 0; };
-		int Create (CFixVector *vTargetPos, CObject *parentObjP, CObject *targetObjP);
-		int Update (CObject *parentObjP, CObject *targetObjP);
-		void Destroy (short nObject);
-	private:
-		int Find (short nObject);
-		void Delete (short nHandle);
-		CFixVector *GetGunPoint (CObject *objP, CFixVector *vMuzzle);
-};
-
-extern COmegaLightnings	omegaLightnings;
-
-//------------------------------------------------------------------------------
+int CreateLightning (int nLightnings, vmsVector *vPos, vmsVector *vEnd, vmsVector *vDelta,
+							short nObject, int nLife, int nDelay, int nLength, int nAmplitude, char nAngle, int nOffset,
+							short nNodeC, short nChildC, char nDepth, short nSteps, short nSmoothe, 
+							char bClamp, char bPlasma, char bSound, char bLight, char nStyle, tRgbaColorf *colorP);
+void DestroyLightnings (int iLightning, tLightning *pf, int bDestroy);
+int DestroyAllLightnings (int bForce);
+void MoveLightnings (int i, tLightning *pl, vmsVector *vNewPos, short nSegment, int bStretch, int bFromEnd);
+void RenderLightningSegment (fVector *vLine, fVector *vPlasma, tRgbaColorf *colorP, int bPlasma, int bStart, int bEnd, short nDepth);
+void RenderLightning (tLightning *pl, int nLightnings, short nDepth, int bDepthSort);
+void RenderLightningsBuffered (tLightning *plRoot, int nStart, int nLightnings, int nDepth, int nThread);
+void RenderLightnings (void);
+void RenderDamageLightnings (tObject *objP, g3sPoint **pointlist, tG3ModelVertex *pVerts, int nVertices);
+void AnimateLightning (tLightning *pl, int nStart, int nLightnings, int nDepth);
+void MoveObjectLightnings (tObject *objP);
+void DestroyObjectLightnings (tObject *objP);
+void SetLightningLights (void);
+void ResetLightningLights (int bForce);
+void DoLightningFrame (void);
+int CreateMissileLightnings (tObject *objP);
+void CreateShakerLightnings (tObject *objP);
+void CreateShakerMegaLightnings (tObject *objP);
+void CreateMegaLightnings (tObject *objP);
+void CreateBlowupLightnings (tObject *objP);
+void CreateDamageLightnings (tObject *objP, tRgbaColorf *colorP);
+void CreateRobotLightnings (tObject *objP, tRgbaColorf *colorP);
+void CreatePlayerLightnings (tObject *objP, tRgbaColorf *colorP);
+void DestroyPlayerLightnings (void);
+void DestroyRobotLightnings (void);
+void DestroyStaticLightnings (void);
 
 #define	SHOW_LIGHTNINGS \
 			(!(gameStates.app.bNostalgia || COMPETITION) && EGI_FLAG (bUseLightnings, 1, 1, 0))

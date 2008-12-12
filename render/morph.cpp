@@ -27,8 +27,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "interp.h"
 
 //-------------------------------------------------------------
-//returns ptr to data for this CObject, or NULL if none
-tMorphInfo *MorphFindData (CObject *objP)
+//returns ptr to data for this tObject, or NULL if none
+tMorphInfo *MorphFindData (tObject *objP)
 {
 	int i;
 
@@ -46,19 +46,19 @@ return NULL;
 
 //-------------------------------------------------------------
 //takes pmP, fills in min& max
-void MorphFindModelBounds (tPolyModel *pmP, int nSubModel, CFixVector& minv, CFixVector& maxv)
+void MorphFindModelBounds (tPolyModel *pmP, int nSubModel, vmsVector& minv, vmsVector& maxv)
 {
 	ushort nVerts;
-	CFixVector *vp;
+	vmsVector *vp;
 	ushort *data, nType;
 
-	data = reinterpret_cast<ushort*> (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
+	data = (ushort *) (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
 	nType = *data++;
 	Assert (nType == 7 || nType == 1);
 	nVerts = *data++;
 	if (nType==7)
 		data+=2;		//skip start & pad
-	vp = reinterpret_cast<CFixVector*> (data);
+	vp = (vmsVector *) data;
 	minv = maxv = *vp++;
 	nVerts--;
 	while (nVerts--) {
@@ -80,15 +80,15 @@ void MorphFindModelBounds (tPolyModel *pmP, int nSubModel, CFixVector& minv, CFi
 
 //-------------------------------------------------------------
 
-int MorphInitPoints (tPolyModel *pmP, CFixVector *vBoxSize, int nSubModel, tMorphInfo *mdP)
+int MorphInitPoints (tPolyModel *pmP, vmsVector *vBoxSize, int nSubModel, tMorphInfo *mdP)
 {
 	ushort		nVerts;
-	CFixVector	*vp, v;
+	vmsVector	*vp, v;
 	ushort		*data, nType;
 	int			i;
 
 //printf ("initing %d ", nSubModel);
-data = reinterpret_cast<ushort*> (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
+data = (ushort *) (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
 nType = *data++;
 #if DBG
 //Assert (nType == 7 || nType == 1);
@@ -105,7 +105,7 @@ else
 	i = 0;				//start at zero
 Assert (i+nVerts < MAX_VECS);
 mdP->submodelStartPoints [nSubModel] = i;
-vp = reinterpret_cast<CFixVector*> (data);
+vp = (vmsVector *) data;
 v = *vp;
 while (nVerts--) {
 	fix k, dist;
@@ -125,7 +125,7 @@ while (nVerts--) {
 	else
 		k = 0;
 	mdP->vecs[i] = *vp * k;
-	dist = CFixVector::NormalizedDir(mdP->deltas[i], *vp, mdP->vecs[i]);
+	dist = vmsVector::NormalizedDir(mdP->deltas[i], *vp, mdP->vecs[i]);
 	mdP->times [i] = FixDiv (dist, gameData.render.morph.xRate);
 	if (mdP->times [i] != 0)
 		mdP->nMorphingPoints [nSubModel]++;
@@ -142,12 +142,12 @@ return 1;
 int MorphUpdatePoints (tPolyModel *pmP, int nSubModel, tMorphInfo *mdP)
 {
 	ushort nVerts;
-	CFixVector *vp;
+	vmsVector *vp;
 	ushort *data, nType;
 	int i;
 
 	////printf ("updating %d ", nSubModel);
-data = reinterpret_cast<ushort*> (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
+data = (ushort *) (pmP->modelData + pmP->subModels.ptrs [nSubModel]);
 nType = *data++;
 #if DBG
 //Assert (nType == 7 || nType == 1);
@@ -161,7 +161,7 @@ if (nType == 7) {
 	}
 else
 	i = 0;				//start at zero
-vp = reinterpret_cast<CFixVector*> (data);
+vp = (vmsVector *) data;
 while (nVerts--) {
 	if (mdP->times [i]) {		//not done yet
 		if ((mdP->times [i] -= gameData.time.xFrame) <= 0) {
@@ -181,8 +181,8 @@ return 1;
 
 
 //-------------------------------------------------------------
-//process the morphing CObject for one frame
-void DoMorphFrame (CObject *objP)
+//process the morphing tObject for one frame
+void DoMorphFrame (tObject *objP)
 {
 	int			i, t;
 	tPolyModel	*pmP;
@@ -193,7 +193,7 @@ if (!(mdP = MorphFindData (objP))) {	//maybe loaded half-morphed from disk
 	return;
 	}
 pmP = gameData.models.polyModels + mdP->objP->rType.polyObjInfo.nModel;
-G3CheckAndSwap (reinterpret_cast<void*> (pmP->modelData.Buffer ()));
+G3CheckAndSwap (pmP->modelData);
 for (i = 0; i < pmP->nModels; i++)
 	if (mdP->submodelActive [i] == 1) {
 		if (!MorphUpdatePoints (pmP, i, mdP))
@@ -208,7 +208,7 @@ for (i = 0; i < pmP->nModels; i++)
 			}
 		}
 if (!mdP->nSubmodelsActive) {			//done morphing!
-	CObject *objP = mdP->objP;
+	tObject *objP = mdP->objP;
 	objP->info.controlType = mdP->saveControlType;
 	objP->info.movementType = mdP->saveMovementType;
 	objP->info.renderType = RT_POLYOBJ;
@@ -219,7 +219,7 @@ if (!mdP->nSubmodelsActive) {			//done morphing!
 
 //-------------------------------------------------------------
 
-CFixVector morph_rotvel = CFixVector::Create(0x4000, 0x2000, 0x1000);
+vmsVector morph_rotvel = vmsVector::Create(0x4000, 0x2000, 0x1000);
 
 void MorphInit ()
 {
@@ -231,12 +231,12 @@ for (i = 0; i < MAX_MORPH_OBJECTS; i++)
 
 
 //-------------------------------------------------------------
-//make the CObject morph
-void MorphStart (CObject *objP)
+//make the tObject morph
+void MorphStart (tObject *objP)
 {
 	tPolyModel *pmP;
-	CFixVector pmmin, pmmax;
-	CFixVector vBoxSize;
+	vmsVector pmmin, pmmax;
+	vmsVector vBoxSize;
 	int i;
 	tMorphInfo *mdP = gameData.render.morph.objects;
 
@@ -246,7 +246,7 @@ for (i=0;i<MAX_MORPH_OBJECTS;i++, mdP++)
 			mdP->objP->info.nSignature!=mdP->nSignature)
 		break;
 
-if (i==MAX_MORPH_OBJECTS)		//no free slots
+if (i==MAX_MORPH_OBJECTS)		//no D2_FREE slots
 	return;
 
 Assert (objP->info.renderType == RT_POLYOBJ);
@@ -261,7 +261,7 @@ objP->info.renderType = RT_MORPH;
 objP->info.movementType = MT_PHYSICS;		//RT_NONE;
 objP->mType.physInfo.rotVel = morph_rotvel;
 pmP = gameData.models.polyModels + objP->rType.polyObjInfo.nModel;
-G3CheckAndSwap (reinterpret_cast<void*> (pmP->modelData.Buffer ()));
+G3CheckAndSwap (pmP->modelData);
 MorphFindModelBounds (pmP, 0, pmmin, pmmax);
 vBoxSize[X] = max (-pmmin[X], pmmax[X]) / 2;
 vBoxSize[Y] = max (-pmmin[Y], pmmax[Y]) / 2;
@@ -308,12 +308,12 @@ for (i = 0; i < sort_n; i++) {
 	if (mn == nSubModel) {
  		int i;
 		for (i=0;i<pmP->nTextures;i++) {
-			gameData.models.textureIndex [i] = gameData.pig.tex.objBmIndex [gameData.pig.tex.objBmIndexP [pmP->nFirstTexture+i]];
-			gameData.models.textures [i] = gameData.pig.tex.bitmaps [0] + /*gameData.pig.tex.objBmIndex [gameData.pig.tex.objBmIndexP [pmP->nFirstTexture+i]]*/gameData.models.textureIndex [i].index;
+			gameData.models.textureIndex [i] = gameData.pig.tex.objBmIndex [gameData.pig.tex.pObjBmIndex [pmP->nFirstTexture+i]];
+			gameData.models.textures [i] = gameData.pig.tex.bitmaps [0] + /*gameData.pig.tex.objBmIndex [gameData.pig.tex.pObjBmIndex [pmP->nFirstTexture+i]]*/gameData.models.textureIndex [i].index;
 			}
 
 #ifdef PIGGY_USE_PAGING
-		// Make sure the textures for this CObject are paged in..
+		// Make sure the textures for this tObject are paged in..
 		gameData.pig.tex.bPageFlushed = 0;
 		for (i = 0; i < pmP->nTextures;i++)
 			PIGGY_PAGE_IN (gameData.models.textureIndex [i].index, 0);
@@ -345,7 +345,7 @@ for (i = 0; i < sort_n; i++) {
 
 //-------------------------------------------------------------
 
-void MorphDrawObject (CObject *objP)
+void MorphDrawObject (tObject *objP)
 {
 //	int save_light;
 	tPolyModel *pmP;
@@ -359,9 +359,9 @@ pmP = gameData.models.polyModels+objP->rType.polyObjInfo.nModel;
 light = ComputeObjectLight (objP, NULL);
 G3StartInstanceMatrix(objP->info.position.vPos, objP->info.position.mOrient);
 G3SetModelPoints (gameData.models.polyModelPoints);
-gameData.render.vertP = gameData.models.fPolyModelVerts;
+gameData.render.pVerts = gameData.models.fPolyModelVerts;
 MorphDrawModel (pmP, 0, objP->rType.polyObjInfo.animAngles, light, mdP, objP->rType.polyObjInfo.nModel);
-gameData.render.vertP = NULL;
+gameData.render.pVerts = NULL;
 G3DoneInstance ();
 
 #ifdef NEWDEMO

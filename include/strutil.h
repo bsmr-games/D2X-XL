@@ -37,10 +37,6 @@ char *strlwr( char *s1 );
 char *strrev( char *s1 );
 #endif
 
-char *strcompress (char *str);
-
-char* StrDup (const char* source);
-
 #if !(defined(_WIN32) && !defined(_WIN32_WCE))
 void _splitpath(char *name, char *drive, char *path, char *base, char *ext);
 #endif

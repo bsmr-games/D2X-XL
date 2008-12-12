@@ -49,15 +49,21 @@ typedef struct {
 extern int Num_vclips [2];
 extern tVideoClip Vclip [2][VCLIP_MAXNUM];
 
-// draw an CObject which renders as a tVideoClip.
-void DrawVClipObject (CObject *objP, fix timeleft, int lighted, int vclip_num, tRgbaColorf *color);
-void DrawWeaponVClip (CObject *objP);
-void DrawExplBlast (CObject *objP);
-void ConvertWeaponToVClip (CObject *objP);
+// draw an tObject which renders as a tVideoClip.
+void DrawVClipObject (tObject *objP, fix timeleft, int lighted, int vclip_num, tRgbaColorf *color);
+void DrawWeaponVClip (tObject *objP);
+void DrawExplBlast (tObject *objP);
+void ConvertWeaponToVClip (tObject *objP);
 int SetupHiresVClip (tVideoClip *vcP, tVClipInfo *vciP);
-tRgbColorb *VClipColor (CObject *objP);
+tRgbColorb *VClipColor (tObject *objP);
 
-void ReadVideoClip (tVideoClip& vc, CFile& cf);
-int ReadVideoClips (CArray<tVideoClip>& vc, int n, CFile& cf);
+#if 0
+#define VClipReadN(vc, n, fp) CFRead(vc, sizeof(tVideoClip), n, fp)
+#else
+/*
+ * reads n tVideoClip structs from a CFILE
+ */
+extern int VClipReadN(tVideoClip *vc, int n, CFILE *fp);
+#endif
 
 #endif /* _VCLIP_H */
