@@ -1,3 +1,4 @@
+/* $Id: timer.h,v 1.5 2003/02/21 04:08:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -43,13 +44,28 @@ extern void timer_set_function( void _far * function );
 // and microseconds.  They time out after 1000 hrs, 100 hrs, 10 hrs, and
 // 1 hr, respectively.
 
+#if 0//def _WIN32
+extern QLONG TimerGetFixedSeconds(void);
+#else
+extern fix TimerGetFixedSeconds();   // Rolls about every 9 hours...
+#endif
 #ifdef __DJGPP__
 extern fix timer_get_fixedSecondsX(); // Assume interrupts already disabled
+extern fix TimerGetApproxSeconds();		// Returns time since program started... accurate to 1/120th of a second
 extern void timer_set_joyhandler( void (*joy_handler)() );
 #else
 #define timer_get_fixedSecondsX TimerGetFixedSeconds
 //#define TimerGetApproxSeconds TimerGetFixedSeconds
+extern fix TimerGetApproxSeconds();
 #endif
+
+//NOT_USED extern unsigned int timer_get_microseconds();
+//NOT_USED extern unsigned int timer_get_milliseconds100();
+//NOT_USED extern unsigned int timer_get_milliseconds10();
+//NOT_USED extern unsigned int timer_get_milliseconds();
+//NOT_USED extern unsigned int timer_get_millisecondsX();	// Assume interrupts disabled
+
+void timer_delay(fix seconds);
 
 //==========================================================================
 // Use to access the BIOS ticker... ie...   i = TICKER
@@ -75,21 +91,6 @@ extern void timer_set_joyhandler( void (*joy_handler)() );
 #define ApproxMSecToFSec(msec) ((msec) << 6)
 #define approx_fsec_to_msec(fsec) ((fsec) >> 6)
 
-#define SECS2X(s)	(I2X ((s) / 1000) | (I2X ((s) % 1000) / 1000))
-
-static inline fix TimerGetApproxSeconds (void)
-{
-return ApproxMSecToFSec (SDL_GetTicks ());
-}
-
-static inline fix TimerGetFixedSeconds (void)
-{
-return SECS2X (SDL_GetTicks ());
-}
-
-static inline void TimerDelay (fix seconds)
-{
-SDL_Delay (X2I (FixMul (seconds, I2X (1000))));
-}
+#define secs2f(s)	(i2f ((s) / 1000) | (i2f ((s) % 1000) / 1000))
 
 #endif

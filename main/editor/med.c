@@ -225,7 +225,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "centers.h"
 
 #include "fuelcen.h"
-#include "loadgame.h"
+#include "gameseq.h"
 #include "newmenu.h"
 
 //#define _MARK_ON 1
@@ -424,8 +424,8 @@ int	GotoGameCommon(int mode) {
 //@@
 //@@	gameData.multiplayer.playerInit.position.vPos = Player->position.vPos;
 //@@	gameData.multiplayer.playerInit.position.mOrient = Player->position.mOrient;
-//@@	gameData.multiplayer.playerInit.nSegment = Player->nSegment;
-
+//@@	gameData.multiplayer.playerInit.nSegment = Player->nSegment;	
+	
 // -- must always save gamesave.sav because the restore-gameData.objs.objects code relies on it
 // -- that code could be made smarter and use the original file, if appropriate.
 //	if (mine_changed) 
@@ -461,7 +461,7 @@ void ReadLispMacro( FILE * file, char * buffer )
 //	int pcount = 0;
 //	char text[100];
 //	int i=0;
-
+	
 	fscanf( file, " { %s } ", buffer );
 
 /*
@@ -481,7 +481,7 @@ void ReadLispMacro( FILE * file, char * buffer )
 
 static int (*KeyFunction[2048])();
 
-void medKeyInit()
+void medkey_init()
 {
 	FILE * keyfile;
 	char keypress[100];
@@ -533,14 +533,14 @@ void init_editor()
 	ui_pad_read( 7, "lighting.pad" );
 	ui_pad_read( 8, "test.pad" );
 
-	medKeyInit();
+	medkey_init();
 
 	editor_font = GrInitFont( "pc8x16.fnt" );
-
+	
 	menubar_init( "MED.MNU" );
 
 	canv_offscreen = GrCreateCanvas(LVIEW_W,LVIEW_H);
-
+	
 	Draw_all_segments = 1;						// Say draw all segments, not just connected ones
 
 	init_autosave();
@@ -614,7 +614,7 @@ int fuelcen_delete_from_curseg() {
 //@@	vmsVector vp;
 //@@
 //@@//	int newseg,newside;
-//@@//	get_previous_segment(SEG_IDX(Cursegp),Curside,&newseg,&newside);
+//@@//	get_previous_segment(SEG_PTR_2_NUM(Cursegp),Curside,&newseg,&newside);
 //@@//	MovePlayerToSegment(&gameData.segs.segments[newseg],newside);
 //@@
 //@@	med_compute_center_point_on_side(&Player->tObjPosition,Cursegp,sideOpposite[Curside]);
@@ -622,7 +622,7 @@ int fuelcen_delete_from_curseg() {
 //@@	VmVecDec(&vp,&Player->position.vPosition);
 //@@	VmVector2Matrix(&Player->position.mOrient,&vp,NULL,NULL);
 //@@
-//@@	Player->seg = SEG_IDX(Cursegp);
+//@@	Player->seg = SEG_PTR_2_NUM(Cursegp);
 //@@
 //@@	UpdateFlags |= UF_GAME_VIEW_CHANGED;
 //@@	return 1;
@@ -650,8 +650,8 @@ void move_player_2_segment_and_rotate(tSegment *seg,int tSide)
 	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,&upvec,NULL);
 //	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,NULL,NULL);
 
-	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_IDX(seg) );
-
+	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(seg) );
+	
 }
 
 int SetPlayerFromCursegAndRotate()
@@ -689,23 +689,23 @@ int SetPlayerFromCursegMinusOne()
 
 	GrSetCurrentCanvas(Canv_editor_game);
 	G3StartFrame();
-	G3SetViewMatrix(&gameData.objs.console->position.vPos,&gameData.objs.console->position.mOrient,gameStates.render.xZoom, 1);
+	G3SetViewMatrix(&gameData.objs.console->position.vPos,&gameData.objs.console->position.mOrient,gameStates.render.xZoom);
 
 	for (i=max=0;i<4;i++) {
 		corner_v[i] = gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][i]]];
 		G3TransformAndEncodePoint(&corner_p[i],&corner_v[i]);
-		if (labs(corner_p[i].p3_vec[X]) > max) max = labs(corner_p[i].p3_vec[X]);
-		if (labs(corner_p[i].p3_vec[Y]) > max) max = labs(corner_p[i].p3_vec[Y]);
+		if (labs(corner_p[i].p3_x) > max) max = labs(corner_p[i].p3_x);
+		if (labs(corner_p[i].p3_y) > max) max = labs(corner_p[i].p3_y);
 	}
 
-	viewDist = FixMul(viewDist,FixDiv(FixDiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_vec[Z]);
+	viewDist = FixMul(viewDist,FixDiv(FixDiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_z);
 	VmVecCopyScale(&view_vec2,&view_vec,viewDist);
 	VmVecSub(&gameData.objs.console->position.vPos,&side_center,&view_vec2);
 
-	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_IDX(Cursegp) );
+	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(Cursegp) );
 	//UpdateObjectSeg(gameData.objs.console);		//might have backed right out of curseg
 
-	newseg = FindSegByPoint(&gameData.objs.console->position.vPos, SEG_IDX(Cursegp), 1, 0);
+	newseg = FindSegByPoint(&gameData.objs.console->position.vPos, SEG_PTR_2_NUM(Cursegp, 1);
 	if (newseg != -1)
 		RelinkObject(OBJ_IDX (gameData.objs.console),newseg);
 
@@ -778,13 +778,13 @@ int DosShell()
 	//printf( "\n\nType EXIT to return to Inferno" );
 	//fflush(stdout);
 
-	KeyClose();
+	key_close();
 #ifndef __LINUX__
 	ok = spawnl(P_WAIT,getenv("COMSPEC"), NULL );
 #else
         system("");
 #endif
-	KeyInit();
+	key_init();
 
 	GrSetMode(grdCurScreen->scMode);
 	GrBmUBitBlt(w, h, 0, 0, 0, 0, save_bitmap, &(grdCurScreen->scCanvas.cvBitmap);
@@ -838,7 +838,7 @@ int GameZoomOut()
 	return 1;
 }
 
-int GameZoostd::min()
+int GameZoomIn()
 {
 	gameStates.render.xZoom = FixMul(gameStates.render.xZoom,62259);
 	UpdateFlags |= UF_GAME_VIEW_CHANGED;
@@ -864,19 +864,19 @@ int editor_screen_open = 0;
 //setup the editors windows, canvases, gadgets, etc.
 //called whenever the editor screen is selected
 void init_editor_screen()
-{
+{	
 //	grsBitmap * bmp;
 
 	if (editor_screen_open) return;
 
 	grdCurScreen->scCanvas.cvFont = editor_font;
-
+	
 	//create canvas for game on the editor screen
 	initializing = 1;
 	GrSetCurrentCanvas(Canv_editor);
 	Canv_editor->cvFont = editor_font;
 	GrInitSubCanvas(Canv_editor_game,Canv_editor,GAMEVIEW_X,GAMEVIEW_Y,GAMEVIEW_W,GAMEVIEW_H);
-
+	
 	//Editor renders into full (320x200) game screen 
 
 	init_info = 1;
@@ -1014,9 +1014,9 @@ void med_show_warning(char *s)
 int SafetyCheck()
 {
 	int x;
-		
+			
 	if (mine_changed) {
-		StopTime();			
+		StopTime();				
 		x = ExecMessageBox( "Warning!", 2, "Cancel", "OK", "You are about to lose work." );
 		if (x<1) {
 			StartTime();
@@ -1033,7 +1033,7 @@ void close_editor() {
 	close_autosave();
 
 	menubar_close();
-
+	
 	GrCloseFont(editor_font);
 
 	GrFreeCanvas(canv_offscreen); canv_offscreen = NULL;
@@ -1086,7 +1086,7 @@ void gamestate_restore_check() {
 
 	if (gamestate_not_restored) {
 		sprintf( Message, "Do you wish to restore game state?\n");
-
+	
 		if (MessageBox( -2, -2, 2, Message, "Yes", "No" )==1) {
 
 			// Save current position
@@ -1104,7 +1104,7 @@ void gamestate_restore_check() {
 			}
 
 			gamestate_not_restored = 0;
-			UpdateFlags |= UF_WORLD_CHANGED;
+			UpdateFlags |= UF_WORLD_CHANGED;	
 			}
 		else
 			gamestate_not_restored = 1;
@@ -1154,7 +1154,7 @@ void editor(void)
 
 	SetWarnFunc(med_show_warning);
 
-	gameStates.input.keys.bRepeat = 1;		// Allow repeat in editor
+	keyd_repeat = 1;		// Allow repeat in editor
 
 //	_MARK_("start of editor");//Nuked to compile -KRB
 
@@ -1176,7 +1176,7 @@ void editor(void)
 
 	w = GameViewBox->canvas->cvBitmap.bmProps.w;
 	h = GameViewBox->canvas->cvBitmap.bmProps.h;
-
+	
 	savedbitmap = GrCreateBitmap(w, h );
 
 	GrBmUBitBlt( w, h, 0, 0, 0, 0, &GameViewBox->canvas->cvBitmap, savedbitmap );
@@ -1186,7 +1186,7 @@ void editor(void)
 	//GrSetColor( CBLACK );
 	//gr_deaccent_canvas();
 	//gr_grey_canvas();
-
+	
 	ui_mouse_show();
 
 	GrSetCurFont(editor_font);
@@ -1205,7 +1205,7 @@ void editor(void)
 
 		// Only update if there is no key waiting and we're not in
 		// fast play mode.
-		if (!KeyPeekKey()) //-- && (MacroStatus != UI_STATUS_FASTPLAY))
+		if (!key_peekkey()) //-- && (MacroStatus != UI_STATUS_FASTPLAY))
 			medlisp_update_screen();
 
 		//do editor stuff
@@ -1246,7 +1246,7 @@ void editor(void)
 		TimedAutosave(mine_filename);
 		set_editorTime_of_day();
 		GrSetCurrentCanvas( GameViewBox->canvas );
-	
+		
 		// Remove keys used for slew
 		switch(last_keypress)
 		{
@@ -1299,7 +1299,7 @@ void editor(void)
 		case KEY_F1:
 			render_3d_in_big_window = !render_3d_in_big_window;
 			UpdateFlags |= UF_ALL;
-			break;		
+			break;			
 		default:
 			{
 			char kdesc[100];
@@ -1379,13 +1379,13 @@ void editor(void)
 			find_segments(xcrd,ycrd,LargeViewBox->canvas,&LargeView,Cursegp,Big_depth);	// Sets globals N_found_segs, Found_segs
 
 			// If shift is down, then add tSegment to found list
-			if (gameStates.input.keys.pressed[ KEY_LSHIFT ] || gameStates.input.keys.pressed[ KEY_RSHIFT ])
+			if (keyd_pressed[ KEY_LSHIFT ] || keyd_pressed[ KEY_RSHIFT ])
 				subtract_found_segments_from_selected_list();
 			else
 				add_found_segments_to_selected_list();
 
-  			Found_seg_index = 0;
-	
+  			Found_seg_index = 0;	
+		
 			if (N_found_segs > 0) {
 				sort_seg_list(N_found_segs,Found_segs,&gameData.objs.console->position.vPos);
 				Cursegp = &gameData.segs.segments[Found_segs[0]];
@@ -1409,7 +1409,7 @@ void editor(void)
 			ui_mouse_show();
 
 		}
-	
+		
 		// Set current tSegment and tSide by clicking on a polygon in game window.
 		//	If ctrl pressed, also assign current texture map to that tSide.
 		//if (GameViewBox->mouse_onme && (GameViewBox->b1_done_dragging || GameViewBox->b1_clicked)) {
@@ -1427,10 +1427,10 @@ void editor(void)
 				xcrd = GameViewBox->b1_drag_x1;
 				ycrd = GameViewBox->b1_drag_y1;
 			}
-
+	
 			//Int3();
 
-			if (FindSegSideFace(xcrd,ycrd,&seg,&tSide,&face,&poly)) {
+			if (find_seg_side_face(xcrd,ycrd,&seg,&tSide,&face,&poly)) {
 
 
 				if (seg<0) {							//found an tObject
@@ -1443,17 +1443,17 @@ void editor(void)
 				else {
 
 					//	See if either shift key is down and, if so, assign texture map
-					if (gameStates.input.keys.pressed[KEY_LSHIFT] || gameStates.input.keys.pressed[KEY_RSHIFT]) {
+					if (keyd_pressed[KEY_LSHIFT] || keyd_pressed[KEY_RSHIFT]) {
 						Cursegp = &gameData.segs.segments[seg];
 						Curside = tSide;
 						AssignTexture();
 						med_create_new_segment_from_cursegp();
 						editor_status("Texture assigned");
-					} else if (gameStates.input.keys.pressed[KEY_G])	{
+					} else if (keyd_pressed[KEY_G])	{
 						tmap = gameData.segs.segments[seg].sides[tSide].nBaseTex;
 						texpage_grab_current(tmap);
 						editor_status( "Texture grabbed." );
-					} else if (gameStates.input.keys.pressed[ KEY_LAPOSTRO] ) {
+					} else if (keyd_pressed[ KEY_LAPOSTRO] ) {
 						ui_mouse_hide();
 						moveObject_to_mouse_click();
 					} else {
@@ -1472,7 +1472,7 @@ void editor(void)
 		}
 
 		// Allow specification of LargeView using mouse
-		if (gameStates.input.keys.pressed[ KEY_LCTRL ] || gameStates.input.keys.pressed[ KEY_RCTRL ]) {
+		if (keyd_pressed[ KEY_LCTRL ] || keyd_pressed[ KEY_RCTRL ]) {
 			ui_mouse_hide();
 			if ( (Mouse.dx!=0) && (Mouse.dy!=0) ) {
 				GetMouseRotation( Mouse.dx, Mouse.dy, &MouseRotMat );
@@ -1485,7 +1485,7 @@ void editor(void)
 			ui_mouse_show();
 		}
 
-		if ( gameStates.input.keys.pressed[ KEY_Z ] ) {
+		if ( keyd_pressed[ KEY_Z ] ) {
 			ui_mouse_hide();
 			if ( Mouse.dy!=0 ) {
 				currentView->evDist += Mouse.dy*10000;

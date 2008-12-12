@@ -69,7 +69,7 @@ int UndoCommand();
 
 // In kview.c
 int ZoomOut();
-int Zoomin();
+int ZoomIn();
 int MoveAway();
 int MoveCloser();
 int ToggleChaseMode();
@@ -197,7 +197,7 @@ int	TexStretchUp();
 int	TexChangeAll();
 int	TexChangeAll2();
 
-//	CObject.c
+//	tObject.c
 int	ObjectPlaceObject();
 int	ObjectMakeCoop();
 int	ObjectPlaceObjectTmap();
@@ -264,7 +264,7 @@ int SelectNextFoundSeg();
 int SelectPreviousFoundSeg(void);
 int do_reset_orient();
 int GameZoomOut();
-int GameZoomin();
+int GameZoomIn();
 
 // John's temp page stuff
 int medtmp_set_page();

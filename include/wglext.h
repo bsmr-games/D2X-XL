@@ -52,7 +52,7 @@ extern "C" {
 /*************************************************************/
 
 /* Header file version number */
-/* wglext[HA] last updated 2005/01/07 */
+/* wglext.h last updated 2005/01/07 */
 /* Current version at http://oss.sgi.com/projects/ogl-sample/registry/ */
 #define WGL_WGLEXT_VERSION 6
 
@@ -65,8 +65,7 @@ extern "C" {
 
 #ifndef WGL_ARB_multisample
 #define WGL_SAMPLE_BUFFERS_ARB         0x2041
-#define WGL_SAMPLES_ARB                0x20
-
+#define WGL_SAMPLES_ARB                0x2042
 #endif
 
 #ifndef WGL_ARB_extensions_string
@@ -255,8 +254,7 @@ extern "C" {
 
 #ifndef WGL_EXT_multisample
 #define WGL_SAMPLE_BUFFERS_EXT         0x2041
-#define WGL_SAMPLES_EXT                0x20
-
+#define WGL_SAMPLES_EXT                0x2042
 #endif
 
 #ifndef WGL_I3D_digital_video_control
@@ -489,7 +487,7 @@ typedef int (WINAPI * PFNWGLGETSWAPINTERVALEXTPROC) (void);
 #define WGL_NV_vertex_array_range 1
 #ifdef WGL_WGLEXT_PROTOTYPES
 extern void* WINAPI wglAllocateMemoryNV (GLsizei, GLfloat, GLfloat, GLfloat);
-extern void WINAPI wglFreeMemoryNV reinterpret_cast<void *>;
+extern void WINAPI wglFreeMemoryNV (void *);
 #endif /* WGL_WGLEXT_PROTOTYPES */
 typedef void* (WINAPI * PFNWGLALLOCATEMEMORYNVPROC) (GLsizei size, GLfloat readfreq, GLfloat writefreq, GLfloat priority);
 typedef void (WINAPI * PFNWGLFREEMEMORYNVPROC) (void *pointer);

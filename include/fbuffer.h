@@ -2,23 +2,21 @@
 #ifndef _FBUFFER_H_
 #define _FBUFFER_H_
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #	include <windows.h>
 #	include <stddef.h>
 #endif
 
 #if RENDER2TEXTURE == 2
 
-typedef struct tFrameBuffer {
-	GLuint	hFBO;
-	GLuint	hDepthBuffer;
-	GLuint	hRenderBuffer;
-	GLuint	hStencilBuffer;
-	int		nType;
+typedef struct ogl_fbuffer {
+	GLuint	hBuf;
+	GLuint	hDepthRb;
+	GLuint	texId;
 	int		nWidth;
 	int		nHeight;
 	GLenum	nStatus;
-} tFrameBuffer;
+} ogl_fbuffer;
 
 #ifdef _WIN32
 extern PFNGLBINDRENDERBUFFEREXTPROC glBindRenderbufferEXT;
@@ -40,32 +38,12 @@ extern PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC glGetFramebufferAttachmen
 extern PFNGLGENERATEMIPMAPEXTPROC glGenerateMipmapEXT;
 #endif
 
-class CFBO {
-	private:
-		tFrameBuffer	m_info;
-	public:
-		CFBO () { Init (); }
-		~CFBO () { Destroy (); }
-		static void Setup (void);
-		void Init (void);
-		int Create (int nWidth, int nHeight, int nType);
-		void Destroy (void);
-		int Available (void);
-		int Enable (void);
-		int Disable (void);
-		inline int GetType (void) { return m_info.nType; }
-		inline void SetType (int nType) { m_info.nType = nType; }
-		inline int GetWidth (void) { return m_info.nWidth; }
-		inline void SetWidth (int nWidth) { m_info.nWidth = nWidth; }
-		inline int GetHeight (void) { return m_info.nHeight; }
-		inline void SetHeight (int nHeight) { m_info.nHeight = nHeight; }
-		inline GLenum GetStatus (void) { return m_info.nStatus; }
-		inline void SetStatus (GLenum nStatus) { m_info.nStatus = nStatus; }
-		GLuint Handle (void) { return m_info.hFBO; }
-		GLuint& RenderBuffer (void) { return m_info.hRenderBuffer; }
-		GLuint& DepthBuffer (void) { return m_info.hDepthBuffer; }
-		GLuint& StencilBuffer (void) { return m_info.hStencilBuffer; }
-};
+void OglInitFBuffer (void);
+int OglCreateFBuffer (ogl_fbuffer *pb, int nWidth, int nHeight, int nDepth);
+void OglDestroyFBuffer (ogl_fbuffer *pb);
+int OglFBufferAvail (ogl_fbuffer *pb);
+int OglEnableFBuffer (ogl_fbuffer *pb);
+int OglDisableFBuffer (ogl_fbuffer *pb);
 
 #endif //RENDER2TEXTURE
 

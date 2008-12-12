@@ -1,8 +1,8 @@
 # -*- mode: shell-script -*-
 
 define([D2X_MAJOR],1)
-define([D2X_MINOR],13)
-define([D2X_MICRO],128)
+define([D2X_MINOR],10)
+define([D2X_MICRO],26)
 
 AC_INIT(d2x-xl,[D2X_MAJOR.D2X_MINOR.D2X_MICRO],[karx11erx@hotmail.com])
 AC_PREREQ(2.52)
@@ -26,13 +26,11 @@ AM_MAINTAINER_MODE
 
 #kludge to keep autoconf from adding -g -O2
 CFLAGS=" $CFLAGS"
-CXXFLAGS=" $CXXFLAGS"
 
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 AC_ISC_POSIX
 AC_CHECK_TOOL(CC, gcc, :)
-AC_CHECK_TOOL(CXX, g++, :)
 AC_CHECK_TOOL(RANLIB, ranlib, :)
 AC_CHECK_TOOL(STRIP, strip, :)
 AC_CHECK_TOOL(AR, ar, :)
@@ -88,7 +86,6 @@ dnl Set default locations to find data files.
 default_sharepath="$datadir/$PACKAGE"
 
 CFLAGS="-Wall -Wno-char-subscripts $CFLAGS"
-CXXFLAGS="-Wall -Wno-char-subscripts $CXXFLAGS"
 
 D2X_SUBDIRS=""
 D2X_MAIN_SUBDIRS=""
@@ -117,11 +114,9 @@ AC_ARG_ENABLE(debug,
     [  --enable-debug         Take out debug symbols, Asserts, Int3, etc ],,)
 if test x$enable_debug != xyes; then
     AC_DEFINE(NDEBUG,,[Define to disable asserts, int3, etc.])
-    CFLAGS="-O3 -g $CFLAGS"
-    CXXFLAGS="-O3 -g $CXXFLAGS"
+    CFLAGS="-O2 $CFLAGS"
 else
     CFLAGS="-g $CFLAGS"
-    CXXFLAGS="-g $CXXFLAGS"
     AC_DEFINE(_DEBUG,,[Define to enable asserts, int3, etc.])
     D2X_FEATURES="debug ${D2X_FEATURES}"
 fi
@@ -198,10 +193,10 @@ else
         AC_MSG_ERROR(SDL not found. Make sure sdl-config is in your PATH, or specify with --with-sdl-prefix)
     )
     CFLAGS="$SDL_CFLAGS $CFLAGS"
-    CXXFLAGS="$SDL_CFLAGS $CXXFLAGS"
     LIBS="$SDL_LIBS $LIBS"
 
-    TARGETS=d2x-xl
+    TARGETS=d2x-sdl
+    D2X_ARCH_SUBDIRS=sdl
 
     AC_CHECK_HEADERS(netipx/ipx.h)
 
@@ -435,33 +430,24 @@ AC_SUBST(NASMFLAGS)
 
 AC_SUBST(CFLAGS)
 
-AC_SUBST(CXXFLAGS)
-
 AC_OUTPUT(
     Makefile
     2d/Makefile
     3d/Makefile
-    ai/Makefile
-    audio/Makefile
-    cockpit/Makefile
+    arch/Makefile
+    arch/linux/Makefile
+    arch/ogl/Makefile
+    arch/sdl/Makefile
+    arch/win32/Makefile
     console/Makefile
-    effects/Makefile
-    gameio/Makefile
-    gamemodes/Makefile
-    input/Makefile
-    io/Makefile
-    lighting/Makefile
+    iff/Makefile
     libmve/Makefile
     main/Makefile
     maths/Makefile
     mem/Makefile
     misc/Makefile
-    models/Makefile
-    network/Makefile
-    ogl/Makefile
     texmap/Makefile
-    render/Makefile
-    weapons/Makefile
+	 cfile/Makefile
 )
 
 AC_MSG_RESULT([

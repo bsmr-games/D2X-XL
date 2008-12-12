@@ -1,5 +1,20 @@
 noinst_LIBRARIES = libmaths.a
+INCLUDES = -I $(top_srcdir)/include -I $(top_srcdir)/main -I $(top_srcdir)/3d
 
-INCLUDES = -I $(top_srcdir)/include -I $(top_srcdir)/input/include -I $(top_srcdir)/network/linux/include -I $(top_srcdir)/audio/linux/include -I /usr/local/include/SDL
+if USE_ASM
+libmaths_a_SOURCES = vecmat.c rand.c tables.c
+else
+libmaths_a_SOURCES = vecmat.c rand.c tables.c fixc.c
+endif
 
-libmaths_a_SOURCES = vecmat.cpp rand.cpp tables.cpp fixc.cpp
+SUFFIXES = .asm
+%.o: %.asm
+	$(NASM) $(NASMFLAGS) $< -o $@
+
+if USE_ASM
+libmaths_a_LIBADD = vecmata.o fix.o
+endif
+
+EXTRA_DIST = \
+fix.asm vecmata.asm \
+fixc.c rand.c tables.c vecmat.c
