@@ -1,3 +1,4 @@
+/* $Id: winnet.c,v 1.10 2003/10/12 09:17:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -149,14 +150,14 @@ struct ipx_driver *driver = &ipx_win;
 
 ubyte *IpxGetMyServerAddress ()
 {
-return reinterpret_cast<ubyte*> (&ipx_network);
+return (ubyte *) &ipx_network;
 }
 
 								/*---------------------------*/
 
 ubyte *IpxGetMyLocalAddress ()
 {
-return reinterpret_cast<ubyte*> (ipx_MyAddress + 4);
+return (ubyte *) (ipx_MyAddress + 4);
 }
 
 								/*---------------------------*/
@@ -190,9 +191,9 @@ if (WSAStartup (wVersionRequested, &wsaData))
 	return IPX_SOCKET_ALREADY_OPEN;
 
 if ((i = FindArg ("-ipxnetwork")) && pszArgList [i + 1]) {
-	ulong n = strtol (pszArgList [i + 1], NULL, 16);
+	unsigned long n = strtol (pszArgList [i + 1], NULL, 16);
 	for (i = 3; i >= 0; i--, n >>= 8)
-		ipx_MyAddress [i] = (ubyte) n & 0xff; 
+		ipx_MyAddress [i] = (unsigned char) n & 0xff; 
 	}
 if ((nSocket >= 0) && driver->OpenSocket (&ipxSocketData, nSocket)) {
 	return IPX_NOT_INSTALLED;
@@ -229,7 +230,7 @@ int IpxGetPacketData (ubyte *data)
 	int size, offs;
 
 while (driver->PacketReady (&ipxSocketData)) {
-	size = driver->ReceivePacket (reinterpret_cast<ipx_socket_t*> (&ipxSocketData), buf, sizeof (buf), &ipx_udpSrc);
+	size = driver->ReceivePacket ((ipx_socket_t *) &ipxSocketData, buf, sizeof (buf), &ipx_udpSrc);
 #if 0//def _DEBUG
 	HUDMessage (0, "received %d bytes from %d.%d.%d.%d:%u", 
 					size,
@@ -237,7 +238,7 @@ while (driver->PacketReady (&ipxSocketData)) {
 					ipx_udpSrc.src_node [1],
 					ipx_udpSrc.src_node [2],
 					ipx_udpSrc.src_node [3],
-					*(reinterpret_cast<ushort*> (ipx_udpSrc.src_node + 4)));
+					*((ushort *) (ipx_udpSrc.src_node + 4)));
 #endif
 	if (size < 0)
 		break;
@@ -245,7 +246,7 @@ while (driver->PacketReady (&ipxSocketData)) {
 		continue;
 	if (size > DATALIMIT - 4)
 		continue;
-	offs = IsTracker (*reinterpret_cast<uint*> (ipx_udpSrc.src_node), *reinterpret_cast<ushort*> (ipx_udpSrc.src_node + 4)) ? 0 : 4;
+	offs = IsTracker (*((unsigned int *) ipx_udpSrc.src_node), *((ushort *) (ipx_udpSrc.src_node + 4))) ? 0 : 4;
 	memcpy (data, buf + offs, size - offs);
 	return size - offs;
 	}
@@ -263,12 +264,12 @@ void IPXSendPacketData
 if (datasize <= MAX_DATASIZE - 4) {
 	memcpy (ipxHeader.Destination.Network, network, 4);
 	memcpy (ipxHeader.Destination.Node, dest, 6);
-	*reinterpret_cast<u_short*> (ipxHeader.Destination.Socket) = htons (ipxSocketData.socket);
+	*((u_short *) ipxHeader.Destination.Socket) = htons (ipxSocketData.socket);
 	ipxHeader.PacketType = 4; /* Packet Exchange */
 	if (gameStates.multi.bTrackerCall)
 		memcpy (buf, data, datasize);
 	else {
-		*reinterpret_cast<uint*> (buf) = nIpxPacket++;
+		*((uint *) buf) = nIpxPacket++;
 		memcpy (buf + 4, data, datasize);
 		}
 	driver->SendPacket (&ipxSocketData, &ipxHeader, buf, datasize + (gameStates.multi.bTrackerCall ? 0 : 4));
@@ -292,16 +293,16 @@ void IPXSendBroadcastData (ubyte *data, int datasize)
 	ubyte localAddress [6];
 
 if (gameStates.multi.nGameType > IPX_GAME)
-	IPXSendPacketData (data, datasize, reinterpret_cast<ubyte*> (ipxNetworks), broadcast, broadcast);
+	IPXSendPacketData (data, datasize, (ubyte *) ipxNetworks, broadcast, broadcast);
 else {
 	// send to all networks besides mine
 	for (i = 0; i < nIpxNetworks; i++)	{
 		if (memcmp (ipxNetworks + i, &ipx_network, 4))	{
-			IpxGetLocalTarget (reinterpret_cast<ubyte*> (ipxNetworks) + i, broadcast, localAddress);
-			IPXSendPacketData (data, datasize, reinterpret_cast<ubyte*> (ipxNetworks + i), broadcast, localAddress);
+			IpxGetLocalTarget (((ubyte *) ipxNetworks) + i, broadcast, localAddress);
+			IPXSendPacketData (data, datasize, (ubyte *) (ipxNetworks + i), broadcast, localAddress);
 			} 
 		else {
-			IPXSendPacketData (data, datasize, reinterpret_cast<ubyte*> (ipxNetworks + i), broadcast, broadcast);
+			IPXSendPacketData (data, datasize, (ubyte *) (ipxNetworks + i), broadcast, broadcast);
 			}
 		}
 	// Send directly to all users not on my network or in the network list.
@@ -325,7 +326,7 @@ void IPXSendInternetPacketData (ubyte *data, int datasize, ubyte *server, ubyte 
 {
 	ubyte localAddress [6];
 
-if (*reinterpret_cast<uint*> (server) != 0) {
+if ((*(uint *)server) != 0) {
 	IpxGetLocalTarget (server, address, localAddress);
 	IPXSendPacketData (data, datasize, server, address, localAddress);
 	} 
@@ -347,7 +348,7 @@ return (driver->OpenSocket (&ipxSocketData, nSocket)) ? -3 : 0;
 
 								/*---------------------------*/
 
-void IpxReadUserFile (const char * filename)
+void IpxReadUserFile (char * filename)
 {
 	FILE * fp;
 	user_address tmp;
@@ -396,7 +397,7 @@ fclose (fp);
 
 								/*---------------------------*/
 
-void IpxReadNetworkFile (const char * filename)
+void IpxReadNetworkFile (char * filename)
 {
 	FILE * fp;
 	user_address tmp;
@@ -471,9 +472,9 @@ int IpxSendGamePacket (ubyte *data, int datasize)
 if ((driver->SendGamePacket) && (datasize <= MAX_DATASIZE - 4)) {
 	static u_char buf [MAX_PACKETSIZE];
 
-	*reinterpret_cast<uint*> (buf) = nIpxPacket++;
+	*(uint *) buf = nIpxPacket++;
 	memcpy (buf + 4, data, datasize);
-	*reinterpret_cast<uint*> (data) = nIpxPacket++;
+	*(uint *) data = nIpxPacket++;
 	return driver->SendGamePacket (&ipxSocketData, buf, datasize + 4);
 	} 
 else {

@@ -1,3 +1,4 @@
+/* $Id: clipper.c,v 1.5 2002/10/03 03:46:34 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -20,12 +21,12 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "clipper.h"
 #include "error.h"
 
-int nFreePoints=0;
+int free_point_num=0;
 
 g3sPoint temp_points[MAX_POINTS_IN_POLY];
 g3sPoint *free_points[MAX_POINTS_IN_POLY];
 
-void InitFreePoints(void)
+void init_free_points(void)
 {
 	int i;
 
@@ -38,8 +39,8 @@ g3sPoint *get_temp_point()
 {
 	g3sPoint *p;
 
-	Assert (nFreePoints < MAX_POINTS_IN_POLY );
-	p = free_points[nFreePoints++];
+	Assert (free_point_num < MAX_POINTS_IN_POLY );
+	p = free_points[free_point_num++];
 
 	p->p3_flags = PF_TEMP_POINT;
 
@@ -50,12 +51,12 @@ void free_temp_point(g3sPoint *p)
 {
 	Assert(p->p3_flags & PF_TEMP_POINT);
 
-	free_points[--nFreePoints] = p;
+	free_points[--free_point_num] = p;
 
 	p->p3_flags &= ~PF_TEMP_POINT;
 }
 
-//clips an edge against one plane.
+//clips an edge against one plane. 
 g3sPoint *clip_edge(int planeFlag,g3sPoint *on_pnt,g3sPoint *off_pnt)
 {
 	fix psx_ratio;
@@ -66,12 +67,12 @@ g3sPoint *clip_edge(int planeFlag,g3sPoint *on_pnt,g3sPoint *off_pnt)
 	//use x or y as appropriate, and negate x/y value as appropriate
 
 	if (planeFlag & (CC_OFF_RIGHT | CC_OFF_LEFT)) {
-		a = on_pnt->p3_vec[X];
-		b = off_pnt->p3_vec[X];
+		a = on_pnt->p3_x;
+		b = off_pnt->p3_x;
 	}
 	else {
-		a = on_pnt->p3_vec[Y];
-		b = off_pnt->p3_vec[Y];
+		a = on_pnt->p3_y;
+		b = off_pnt->p3_y;
 	}
 
 	if (planeFlag & (CC_OFF_LEFT | CC_OFF_BOT)) {
@@ -79,8 +80,8 @@ g3sPoint *clip_edge(int planeFlag,g3sPoint *on_pnt,g3sPoint *off_pnt)
 		b = -b;
 	}
 
-	kn = a - on_pnt->p3_vec[Z];						//xs-zs
-	kd = kn - b + off_pnt->p3_vec[Z];				//xs-zs-xe+ze
+	kn = a - on_pnt->p3_z;						//xs-zs
+	kd = kn - b + off_pnt->p3_z;				//xs-zs-xe+ze
 
 	tmp = get_temp_point();
 
@@ -88,19 +89,19 @@ g3sPoint *clip_edge(int planeFlag,g3sPoint *on_pnt,g3sPoint *off_pnt)
 
 
 // PSX_HACK!!!!
-//	tmp->p3_vec[X] = on_pnt->p3_vec[X] + FixMulDiv(off_pnt->p3_vec[X]-on_pnt->p3_vec[X],kn,kd);
-//	tmp->p3_vec[Y] = on_pnt->p3_vec[Y] + FixMulDiv(off_pnt->p3_vec[Y]-on_pnt->p3_vec[Y],kn,kd);
+//	tmp->p3_x = on_pnt->p3_x + FixMulDiv(off_pnt->p3_x-on_pnt->p3_x,kn,kd);
+//	tmp->p3_y = on_pnt->p3_y + FixMulDiv(off_pnt->p3_y-on_pnt->p3_y,kn,kd);
 
-	tmp->p3_vec[X] = on_pnt->p3_vec[X] + FixMul( (off_pnt->p3_vec[X]-on_pnt->p3_vec[X]), psx_ratio);
-	tmp->p3_vec[Y] = on_pnt->p3_vec[Y] + FixMul( (off_pnt->p3_vec[Y]-on_pnt->p3_vec[Y]), psx_ratio);
+	tmp->p3_x = on_pnt->p3_x + FixMul( (off_pnt->p3_x-on_pnt->p3_x), psx_ratio);
+	tmp->p3_y = on_pnt->p3_y + FixMul( (off_pnt->p3_y-on_pnt->p3_y), psx_ratio);
 
 	if (planeFlag & (CC_OFF_TOP|CC_OFF_BOT))
-		tmp->p3_vec[Z] = tmp->p3_vec[Y];
+		tmp->p3_z = tmp->p3_y;
 	else
-		tmp->p3_vec[Z] = tmp->p3_vec[X];
+		tmp->p3_z = tmp->p3_x;
 
 	if (planeFlag & (CC_OFF_LEFT|CC_OFF_BOT))
-		tmp->p3_vec[Z] = -tmp->p3_vec[Z];
+		tmp->p3_z = -tmp->p3_z;
 
 	if (on_pnt->p3_flags & PF_UVS) {
 // PSX_HACK!!!!
@@ -185,6 +186,8 @@ int clip_plane(int planeFlag,g3sPoint **src,g3sPoint **dest,int *nv,g3sCodes *cc
 				cc->ccAnd &= (*dest)->p3_codes;
 				dest++;
 			}
+
+			//see if must D2_FREE discarded point
 
 			if (src[i]->p3_flags & PF_TEMP_POINT)
 				free_temp_point(src[i]);

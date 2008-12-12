@@ -1,3 +1,4 @@
+/* $Id: disc.c,v 1.4 2002/10/10 18:55:32 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,9 +25,9 @@ int gr_disk(fix xc1,fix yc1,fix r1)
 {
 	int p,x, y, xc, yc, r;
 
-	r = X2I(r1);
-	xc = X2I(xc1);
-	yc = X2I(yc1);
+	r = f2i(r1);
+	xc = f2i(xc1);
+	yc = f2i(yc1);
 	p=3-(r*2);
 	x=0;
 	y=r;
@@ -65,9 +66,9 @@ int gr_udisk(fix xc1,fix yc1,fix r1)
 {
 	int p,x, y, xc, yc, r;
 
-	r = X2I(r1);
-	xc = X2I(xc1);
-	yc = X2I(yc1);
+	r = f2i(r1);
+	xc = f2i(xc1);
+	yc = f2i(yc1);
 	p=3-(r*2);
 	x=0;
 	y=r;

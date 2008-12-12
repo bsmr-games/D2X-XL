@@ -1,3 +1,4 @@
+/* $Id: game.h,v 1.6 2003/12/08 22:32:56 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -77,7 +78,7 @@ extern int ft_preference;
 
 extern int gauge_message_on;
 
-#if DBG      // if debugging, these are variables
+#ifndef NDEBUG      // if debugging, these are variables
 
 extern int Slew_on;                 // in slew or sim mode?
 extern int bGameDoubleBuffer;      // double buffering?
@@ -98,7 +99,7 @@ extern int bGameDoubleBuffer;      // double buffering?
 #define SUSP_ROBOTS     1           // Robot AI doesn't move
 #define SUSP_WEAPONS    2           // Lasers, etc. don't move
 
-extern int Game_suspended;          // if non-zero, nothing moves but CPlayerData
+extern int Game_suspended;          // if non-zero, nothing moves but tPlayer
 
 // from game.c
 void InitGame(void);
@@ -107,7 +108,7 @@ void _CDECL_ CloseGame(void);
 void InitCockpit(void);
 void CalcFrameTime(void);
 
-int do_flythrough(CObject *obj,int firstTime);
+int do_flythrough(tObject *obj,int firstTime);
 
 extern jmp_buf gameExitPoint;       // Do a long jump to this when game is over.
 extern int DifficultyLevel;    // Difficulty level in 0..NDL-1, 0 = easiest, NDL-1 = hardest
@@ -117,6 +118,16 @@ extern int Global_laser_firingCount;
 extern int Global_missile_firingCount;
 extern int Render_depth;
 extern fix Auto_fire_fusion_cannonTime, Fusion_charge;
+
+#define MAX_PALETTE_ADD 30
+
+extern void PALETTE_FLASH_ADD(int dr, int dg, int db);
+
+//sets the rgb values for palette flash
+#define	PALETTE_FLASH_SET(_r,_g,_b) \
+			gameStates.ogl.palAdd.red=(_r), \
+			gameStates.ogl.palAdd.green=(_g), \
+			gameStates.ogl.palAdd.blue=(_b)
 
 extern int draw_gauges_on;
 
@@ -136,7 +147,7 @@ int TimeStopped (void);
 
 // If automapFlag == 1, then call automap routine to write message.
 
-extern CCanvas * GetCurrentGameScreen();
+extern gsrCanvas * GetCurrentGameScreen();
 
 //valid modes for cockpit
 #define CM_FULL_COCKPIT     0   // normal screen with cockput
@@ -146,13 +157,13 @@ extern CCanvas * GetCurrentGameScreen();
 #define CM_LETTERBOX        4   // half-height window (for cutscenes)
 
 extern int Cockpit_mode;        // what sort of cockpit or window is up?
-extern int Game_window_w,       // width and height of CPlayerData's game window
+extern int Game_window_w,       // width and height of tPlayer's game window
            Game_window_h;
 
 extern int RearView;           // if true, looking back.
 
 // initalize flying
-void FlyInit(CObject *obj);
+void FlyInit(tObject *obj);
 
 // selects a given cockpit (or lack of one).
 void SelectCockpit(int mode);
@@ -169,7 +180,7 @@ void PaletteRestore(void);
 void DoShowHelp();
 
 // show a message in a nice little box
-void ShowBoxedMessage(const char *pszMsg);
+void ShowBoxedMessage(char *msg);
 
 // erases message drawn with ShowBoxedMessage()
 void ClearBoxedMessage();
@@ -180,20 +191,18 @@ void ResetRearView(void);
 extern int Game_turbo_mode;
 
 // returns ptr to escort robot, or NULL
-CObject *find_escort();
+tObject *find_escort();
 
 extern void ApplyModifiedPalette(void);
 
 int GrToggleFullScreenGame(void);
 
-void ShowInGameWarning (const char *s);
+void ShowInGameWarning (char *s);
 
-int PlayerHasHeadlight (int nPlayer);
-int HeadlightIsOn (int nPlayer);
+int PlayerHasHeadLight (int nPlayer);
+int HeadLightIsOn (int nPlayer);
 int MarkPathToExit ();
 void CheckRearView ();
-
-void DoEffectsFrame (void);
 
 void GameDisableCheats ();
 void TurnCheatsOff ();

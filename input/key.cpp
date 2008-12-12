@@ -1,3 +1,4 @@
+/* $Id: key.c,v 1.3 2003/02/27 22:07:21 btb Exp $ */
 /*
  *
  * SDL tKeyboard input support
@@ -29,7 +30,7 @@
 
 #define KEY_BUFFER_SIZE 16
 
-static ubyte bInstalled = 0;
+static unsigned char bInstalled = 0;
 
 //-------- Variable accessed by outside functions ---------
 
@@ -45,18 +46,18 @@ typedef struct tKeyInfo {
 } tKeyInfo;
 
 typedef struct tKeyboard	{
-	ushort		keybuffer [KEY_BUFFER_SIZE];
+	unsigned short		keybuffer [KEY_BUFFER_SIZE];
 	tKeyInfo				keys [256];
 	fix					xTimePressed [KEY_BUFFER_SIZE];
-	uint 		nKeyHead, nKeyTail;
+	unsigned int 		nKeyHead, nKeyTail;
 } tKeyboard;
 
 static tKeyboard keyData;
 
 typedef struct tKeyProps {
-	const char *pszKeyText;
-	ubyte asciiValue;
-	ubyte shiftedAsciiValue;
+	char *pszKeyText;
+	unsigned char asciiValue;
+	unsigned char shiftedAsciiValue;
 	SDLKey sym;
 } tKeyProps;
 
@@ -90,7 +91,7 @@ tKeyProps keyProperties [256] = {
 { "[",      '[',    '{',    SDLK_LEFTBRACKET   },
 { "]",      ']',    '}',    SDLK_RIGHTBRACKET  },
 //edited 06/08/99 Matt Mueller - set to correct text
-{ "ï¿½",      255,    255,    SDLK_RETURN        },
+{ "ƒ",      255,    255,    SDLK_RETURN        },
 //end edit -MM
 { "LCTRL",  255,    255,    SDLK_LCTRL         },
 { "A",      'a',    'A',    SDLK_a             },
@@ -228,7 +229,7 @@ tKeyProps keyProperties [256] = {
 { "",       255,    255,    (SDLKey) -1                 },
 { "",       255,    255,    (SDLKey) -1                 },
 //edited 06/08/99 Matt Mueller - set to correct pszKeyText
-{ "PADï¿½",   255,    255,    SDLK_KP_ENTER      },
+{ "PADƒ",   255,    255,    SDLK_KP_ENTER      },
 //end edit -MM
 //edited 06/08/99 Matt Mueller - set to correct sym
 { "RCTRL",  255,    255,    SDLK_RCTRL         },
@@ -342,11 +343,11 @@ tKeyProps keyProperties [256] = {
 { "LCMD",   255,    255,    SDLK_LMETA         }
 };
 
-const char *pszKeyText [256];
+char *pszKeyText [256];
 
 //------------------------------------------------------------------------------
 
-ubyte KeyToASCII(int keycode )
+unsigned char KeyToASCII(int keycode )
 {
 	int shifted;
 
@@ -362,7 +363,7 @@ void KeyHandler(SDL_KeyboardEvent *event)
 	ubyte				state;
 	int				i, keycode, event_key, keyState;
 	tKeyInfo			*key;
-	ubyte	temp;
+	unsigned char	temp;
 
    event_key = event->keysym.sym;
 	keyState = (event->state == SDL_PRESSED); //  !(wInfo & KF_UP);
@@ -426,7 +427,7 @@ void KeyHandler(SDL_KeyboardEvent *event)
 				keycode |= KEY_CTRLED;
 			if ( gameStates.input.keys.pressed[KEY_LCMD] || gameStates.input.keys.pressed[KEY_RCMD])
 				keycode |= KEY_COMMAND;
-#if DBG
+#ifdef _DEBUG
       if ( gameStates.input.keys.pressed[KEY_DELETE] )
 				keycode |= KEYDBGGED;
 #endif			
@@ -527,22 +528,21 @@ int KeyInKey()
 {
 	int key = 0;
 	int b = gameOpts->legacy.bInput;
-
-gameOpts->legacy.bInput = 1;
-if (!bInstalled)
-	KeyInit();
-event_poll (SDL_KEYDOWNMASK | SDL_KEYUPMASK);
-if (keyData.nKeyTail != keyData.nKeyHead) {
-	key = keyData.keybuffer [keyData.nKeyHead];
-	keyData.nKeyHead = KeyAddKey (keyData.nKeyHead);
-	if (key == KEY_CTRLED + KEY_ALTED + KEY_ENTER)
-		exit (0);
+	gameOpts->legacy.bInput = 1;
+	if (!bInstalled)
+		KeyInit();
+   event_poll(SDL_KEYDOWNMASK | SDL_KEYUPMASK);
+	if (keyData.nKeyTail!=keyData.nKeyHead) {
+		key = keyData.keybuffer[keyData.nKeyHead];
+		keyData.nKeyHead = KeyAddKey(keyData.nKeyHead);
+		if (key == KEY_CTRLED+KEY_ALTED+KEY_ENTER)
+			exit (0);
 	}
 //added 9/3/98 by Matt Mueller to D2_FREE cpu time instead of hogging during menus and such
-else TimerDelay(1);
+	else timer_delay(1);
 //end addition - Matt Mueller
-gameOpts->legacy.bInput = b;
-return key;
+	gameOpts->legacy.bInput = b;
+	return key;
 }
 
 //------------------------------------------------------------------------------
@@ -593,9 +593,9 @@ int KeyGetChar()
 
 //------------------------------------------------------------------------------
 
-uint KeyGetShiftStatus()
+unsigned int KeyGetShiftStatus()
 {
-	uint shift_status = 0;
+	unsigned int shift_status = 0;
 
 	if ( gameStates.input.keys.pressed[KEY_LSHIFT] || gameStates.input.keys.pressed[KEY_RSHIFT] )
 		shift_status |= KEY_SHIFTED;
@@ -606,7 +606,7 @@ uint KeyGetShiftStatus()
 	if ( gameStates.input.keys.pressed[KEY_LCTRL] || gameStates.input.keys.pressed[KEY_RCTRL] )
 		shift_status |= KEY_CTRLED;
 
-#if DBG
+#ifdef _DEBUG
 	if (gameStates.input.keys.pressed[KEY_DELETE])
 		shift_status |=KEYDBGGED;
 #endif
@@ -657,7 +657,7 @@ if (timeDown && timeDown < gameStates.input.kcPollTime)
 
 //------------------------------------------------------------------------------
 
-uint KeyDownCount(int scancode)
+unsigned int KeyDownCount(int scancode)
 {
 	int n;
 #ifndef FAST_EVENTPOLL
@@ -686,7 +686,7 @@ if (!bFastPoll)
 
 //------------------------------------------------------------------------------
 
-uint KeyUpCount(int scancode)
+unsigned int KeyUpCount(int scancode)
 {
 	int n;
 #ifndef FAST_EVENTPOLL

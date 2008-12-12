@@ -1,3 +1,4 @@
+/* $Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,18 +16,79 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $";
+#endif
+
+#define PATCH12
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#	include <winsock.h>
+#else
+#	include <sys/socket.h>
+#endif
 #ifndef _WIN32
 #	include <arpa/inet.h>
 #	include <netinet/in.h> /* for htons & co. */
 #endif
 
 #include "inferno.h"
+#include "strutil.h"
+#include "args.h"
+#include "timer.h"
+#include "mono.h"
 #include "ipx.h"
+#include "newmenu.h"
+#include "key.h"
+#include "gauges.h"
+#include "object.h"
+#include "objsmoke.h"
 #include "error.h"
+#include "laser.h"
+#include "gamesave.h"
+#include "gamemine.h"
+#include "player.h"
+#include "loadgame.h"
+#include "fireball.h"
 #include "network.h"
 #include "network_lib.h"
+#include "game.h"
+#include "multi.h"
+#include "endlevel.h"
+#include "palette.h"
+#include "reactor.h"
+#include "powerup.h"
+#include "menu.h"
+#include "sounds.h"
+#include "text.h"
+#include "highscores.h"
+#include "newdemo.h"
+#include "multibot.h"
+#include "wall.h"
+#include "bm.h"
+#include "effects.h"
+#include "physics.h"
+#include "switch.h"
+#include "automap.h"
+#include "byteswap.h"
 #include "netmisc.h"
-#include "hogfile.h"
+#include "kconfig.h"
+#include "playsave.h"
+#include "cfile.h"
+#include "autodl.h"
+#include "tracker.h"
+#include "newmenu.h"
+#include "gamefont.h"
+#include "gameseg.h"
+#include "hudmsg.h"
+#include "vers_id.h"
+#include "netmenu.h"
+#include "banlist.h"
+#include "collide.h"
+#include "ipx.h"
 
 #define SECURITY_CHECK	1
 
@@ -59,10 +121,15 @@ networkData.nSocket = 0;
 networkData.bAllowSocketChanges = 1;
 networkData.nSecurityFlag = NETSECURITY_OFF;
 networkData.nSecurityNum = 0;
-NetworkResetSyncStates ();
+networkData.nSyncExtras = 0;
+networkData.bVerifyPlayerJoined = -1;
+networkData.nPlayerJoiningExtras = -1;	// This is so we know who to send 'latecomer' packets to.
 networkData.nJoinState = 0;					// Did WE rejoin this game?
 networkData.bNewGame = 0;					// Is this the first level of a new game?
-networkData.bPlayerAdded = 0;				// Is this a new CPlayerData or a returning CPlayerData?
+networkData.nSyncState = 0;				// Are we in the process of sending gameData.objs.objects to a tPlayer?
+networkData.nSentObjs = -1;				// What tObject are we sending next?
+networkData.bPlayerAdded = 0;				// Is this a new tPlayer or a returning tPlayer?
+networkData.bSendObjectMode = 0;			// What nType of gameData.objs.objects are we sending, static or dynamic?
 networkData.bPacketUrgent = 0;
 networkData.nGameType = 0;
 networkData.nTotalMissedPackets = 0;
@@ -95,21 +162,21 @@ networkData.nTotalMissedPackets = 0;
 networkData.nTotalPacketsGot = 0;
 memset (&netGame, 0, sizeof (tNetgameInfo));
 memset (&netPlayers, 0, sizeof (tAllNetPlayersInfo));
-networkData.thisPlayer.nType = PID_REQUEST;
-memcpy (networkData.thisPlayer.player.callsign, LOCALPLAYER.callsign, CALLSIGN_LEN+1);
-networkData.thisPlayer.player.versionMajor=D2X_MAJOR;
-networkData.thisPlayer.player.versionMinor=D2X_MINOR | (IS_D2_OEM ? NETWORK_OEM : 0);
-networkData.thisPlayer.player.rank=GetMyNetRanking ();
+networkData.mySeq.nType = PID_REQUEST;
+memcpy (networkData.mySeq.player.callsign, LOCALPLAYER.callsign, CALLSIGN_LEN+1);
+networkData.mySeq.player.versionMajor=D2X_MAJOR;
+networkData.mySeq.player.versionMinor=D2X_MINOR | (IS_D2_OEM ? NETWORK_OEM : 0);
+networkData.mySeq.player.rank=GetMyNetRanking ();
 if (gameStates.multi.nGameType >= IPX_GAME) {
-	memcpy (networkData.thisPlayer.player.network.ipx.node, IpxGetMyLocalAddress (), 6);
+	memcpy (networkData.mySeq.player.network.ipx.node, IpxGetMyLocalAddress (), 6);
 	if (gameStates.multi.nGameType == UDP_GAME)
-		*reinterpret_cast<ushort*> (networkData.thisPlayer.player.network.ipx.node + 4) = 
-			htons (*reinterpret_cast<ushort*> (networkData.thisPlayer.player.network.ipx.node + 4));
+		* ((ushort *) (networkData.mySeq.player.network.ipx.node + 4)) = 
+			htons (* ((ushort *) (networkData.mySeq.player.network.ipx.node + 4)));
 //		if (gameStates.multi.nGameType == UDP_GAME)
-//			memcpy (networkData.thisPlayer.player.network.ipx.node, ipx_LocalAddress + 4, 4);
-	memcpy (networkData.thisPlayer.player.network.ipx.server, IpxGetMyServerAddress (), 4);
+//			memcpy (networkData.mySeq.player.network.ipx.node, ipx_LocalAddress + 4, 4);
+	memcpy (networkData.mySeq.player.network.ipx.server, IpxGetMyServerAddress (), 4);
 }
-networkData.thisPlayer.player.computerType = DOS;
+networkData.mySeq.player.computerType = DOS;
 for (gameData.multiplayer.nLocalPlayer = 0; 
 	  gameData.multiplayer.nLocalPlayer < MAX_NUM_NET_PLAYERS; 
 	  gameData.multiplayer.nLocalPlayer++)
@@ -132,13 +199,13 @@ int NetworkCreateMonitorVector (void)
 	int      nBlownBitmaps = 0;
 	int      nMonitor = 0;
 	int      vector = 0;
-	CSegment *segP = gameData.segs.segments.Buffer ();
+	tSegment *segP = gameData.segs.segments;
 	tSide    *sideP;
 	int      h, i, j, k;
 	int      tm, ec;
 
 for (i = 0; i < gameData.eff.nEffects [gameStates.app.bD1Data]; i++) {
-	if ((h = gameData.eff.effectP [i].nDestBm) > 0) {
+	if ((h = gameData.eff.pEffects [i].nDestBm) > 0) {
 		for (j = 0; j < nBlownBitmaps; j++)
 			if (blownBitmaps [j] == h)
 				break;
@@ -152,8 +219,8 @@ for (i = 0; i < gameData.eff.nEffects [gameStates.app.bD1Data]; i++) {
 for (i = 0; i <= gameData.segs.nLastSegment; i++, segP++) {
 	for (j = 0, sideP = segP->sides; j < 6; j++, sideP++) {
 		if ((tm = sideP->nOvlTex) != 0) {
-			if (((ec = gameData.pig.tex.tMapInfoP [tm].nEffectClip) != -1) &&
-					(gameData.eff.effectP[ec].nDestBm != -1)) {
+			if (((ec = gameData.pig.tex.pTMapInfo [tm].nEffectClip) != -1) &&
+					(gameData.eff.pEffects[ec].nDestBm != -1)) {
 				nMonitor++;
 				Assert (nMonitor < 32);
 				}
@@ -231,7 +298,7 @@ forceP [22].nWeaponId = EARTHSHAKER_ID;
 forceP [22].nForce = 200;
 forceP [23].nWeaponId = EARTHSHAKER_MEGA_ID; 
 forceP [23].nForce = 150;
-// CPlayerData ships
+// tPlayer ships
 forceP [24].nWeaponId = 255;
 forceP [24].nForce = 4;
 monsterballP->nBonus = 1;
@@ -281,7 +348,7 @@ for (i = 0; i < 2; i++) {
 	extraGameInfo [i].bAutoBalanceTeams = 0;
 	extraGameInfo [i].bDualMissileLaunch = 0;
 	extraGameInfo [i].bRobotsOnRadar = 0;
-	extraGameInfo [i].grWallTransparency = (FADE_LEVELS * 10 + 3) / 6;
+	extraGameInfo [i].grWallTransparency = (GR_ACTUAL_FADE_LEVELS * 10 + 3) / 6;
 	extraGameInfo [i].nSpeedBoost = 10;
 	extraGameInfo [i].bDropAllMissiles = 1;
 	extraGameInfo [i].bImmortalPowerups = 0;
@@ -300,7 +367,7 @@ for (i = 0; i < 2; i++) {
 	extraGameInfo [i].nWeaponIcons = 0;
 	extraGameInfo [i].bSafeUDP = 0;
 	extraGameInfo [i].bFastPitch = i ? 0 : 1;
-	extraGameInfo [i].bUseParticles = 1;
+	extraGameInfo [i].bUseSmoke = 1;
 	extraGameInfo [i].bUseLightnings = 1;
 	extraGameInfo [i].bDamageExplosions = 1;
 	extraGameInfo [i].bThrusterFlames = 1;
@@ -355,9 +422,9 @@ int InitAutoNetGame (void)
 if (!gameData.multiplayer.autoNG.bValid)
 	return 0;
 if (gameData.multiplayer.autoNG.bHost) {
-	hogFileManager.UseAlt (gameData.multiplayer.autoNG.szFile);
+	CFUseAltHogFile (gameData.multiplayer.autoNG.szFile);
 	strcpy (szAutoMission, gameData.multiplayer.autoNG.szMission);
-	gameStates.app.bAutoRunMission = hogFileManager.AltFiles ().bInitialized;
+	gameStates.app.bAutoRunMission = gameHogFiles.AltHogFiles.bInitialized;
 	strncpy (mpParams.szGameName, gameData.multiplayer.autoNG.szName, sizeof (mpParams.szGameName));
 	mpParams.nLevel = gameData.multiplayer.autoNG.nLevel;
 	extraGameInfo [0].bEnhancedCTF = 0;
@@ -442,7 +509,7 @@ else {
 	PrintLog ("   nWeaponIcons: %d\n", extraGameInfo [1].nWeaponIcons);
 	PrintLog ("   bSafeUDP: %d\n", extraGameInfo [1].bSafeUDP);
 	PrintLog ("   bFastPitch: %d\n", extraGameInfo [1].bFastPitch);
-	PrintLog ("   bUseParticles: %d\n", extraGameInfo [1].bUseParticles);
+	PrintLog ("   bUseSmoke: %d\n", extraGameInfo [1].bUseSmoke);
 	PrintLog ("   bUseLightnings: %d\n", extraGameInfo [1].bUseLightnings);
 	PrintLog ("   bDamageExplosions: %d\n", extraGameInfo [1].bDamageExplosions);
 	PrintLog ("   bThrusterFlames: %d\n", extraGameInfo [1].bThrusterFlames);

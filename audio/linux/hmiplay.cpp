@@ -68,7 +68,7 @@ struct msgbuf *snd;
 SDL_Thread *player_thread=NULL;
 
 Voice_info *voices;
-ubyte *data=NULL;
+unsigned char *data=NULL;
 
 struct synth_info card_info;
 
@@ -202,7 +202,7 @@ int seq_init()
 	else
 #endif
 	{
-		voices = new Voice_info [card_info.nr_voices];
+		voices = D2_ALLOC(sizeof(Voice_info)*card_info.nr_voices);
 		for (i=0;i<card_info.nr_voices;i++)
 		{
 			voices[i].note = -1;
@@ -218,8 +218,7 @@ void seq_close()
 	SEQ_DUMPBUF();
 	ioctl(seqfd,SNDCTL_SEQ_SYNC);
 	close(seqfd);
-	delete[] voices;
-	voices = NULL;
+	D2_FREE(voices);
 }
 
 void set_program(int channel, int pgm)
@@ -398,7 +397,7 @@ void stop_all()
 	}    
 }
 
-int get_dtime(ubyte *data, int *pos)
+int get_dtime(unsigned char *data, int *pos)
 {
 	char buf;
 	int result;
@@ -430,10 +429,10 @@ int get_dtime(ubyte *data, int *pos)
 	return result;
 }
 
-int do_track_event(ubyte *data, int *pos)
+int do_track_event(unsigned char *data, int *pos)
 {
 	char channel;
-	ubyte buf[5];
+	unsigned char buf[5];
 
 	buf[0]=data[*pos];
 	*pos +=1;
@@ -535,7 +534,7 @@ void send_ipc(char *message)
 	{
 		ipc_queue_id=msgget ((key_t) ('l'<<24) | ('d'<<16) | ('e'<<8) | 's', 
 				     IPC_CREAT | 0660);
-		snd= reinterpret_cast<struct msgbuf*> (new ubyte [sizeof(long) + 32]);
+		snd=D2_ALLOC(sizeof(long) + 32);
 		snd->mType=1;
 		player_thread=SDL_CreateThread(play_hmi, NULL);
 //		player_pid = play_hmi();
@@ -552,8 +551,7 @@ void kill_ipc()
 //	send_ipc("q");
 //	kill(player_pid,SIGTERM);
 	msgctl( ipc_queue_id, IPC_RMID, 0);
-	delete[] snd;
-	snd = NULL;
+	D2_FREE(snd);
 	ipc_queue_id = -1;
 //	player_pid = 0;
 }
@@ -561,7 +559,7 @@ void kill_ipc()
 int do_ipc(int qid, struct msgbuf *buf, int flags)
 {
 	int ipc_read;
-	CFile cf;
+	CFILE cf;
 	int l=0;
 
 	ipc_read = msgrcv(qid,buf,16,0,flags | MSG_NOERROR);
@@ -583,11 +581,11 @@ int do_ipc(int qid, struct msgbuf *buf, int flags)
 			volume=(double) ((double) buf->mtext[0]/127.0);
 			break;
 		 case 'p':
-			if (cf.Open(&cf, (buf->mtext+1), gameFolders.szDataDir,"rb", 0)) {
-				l = cf.Length(&cf);
+			if (CFOpen(&cf, (buf->mtext+1), gameFolders.szDataDir,"rb", 0)) {
+				l = CFLength(&cf);
 				data=realloc(data,(size_t) l);
-				cf.Read(data, l, 1);
-				cf.Close(&cf);
+				CFRead(data, l, 1, &cf);
+				CFClose(&cf);
 				//printf ("good. fpr=%p l=%i data=%p\n", fptr, l, data);//##########3
 			}
 			stop = 0;
@@ -639,7 +637,7 @@ void play_hmi (void * arg)
 	}*/
 
 //	signal(SIGTERM, my_quit);
-	rcv = reinterpret_cast<struct msgbuf*> (new ubyte [sizeof(long) + 16]);
+	rcv=D2_ALLOC(sizeof(long) + 16);
 
 	rcv->mType=1;
 	rcv->mtext[0]='0';
@@ -665,16 +663,16 @@ void play_hmi (void * arg)
 
 	n_chunks=data[0x30];
 
-	t_info = new Track_info [n_chunks];
+	t_info = D2_ALLOC(sizeof(Track_info)*n_chunks);
 
 	while(1)
 	{
 	
 		for(i=0;i<n_chunks;i++)
 		{
-			t_info[i].info.position.vPosition = pos + 12;
+			t_info[i].position.vPosition = pos + 12;
 			t_info[i].status = PLAYING;
-			t_info[i].time = get_dtime(data,&t_info[i].info.position.vPosition);
+			t_info[i].time = get_dtime(data,&t_info[i].position.vPosition);
 			pos += (( (0xff & data[pos + 5]) << 8 ) + (0xff & data[pos + 4]);
 		}
 	
@@ -721,7 +719,7 @@ void play_hmi (void * arg)
 		
 			SEQ_WAIT_TIME(csec);
 		
-			t_info[low_chunk].status = do_track_event(data,&t_info[low_chunk].info.position.vPosition);
+			t_info[low_chunk].status = do_track_event(data,&t_info[low_chunk].position.vPosition);
 		
 			if (t_info[low_chunk].status == 3)
 			{
@@ -730,7 +728,7 @@ void play_hmi (void * arg)
 			}
 		
 			if (t_info[low_chunk].status == PLAYING)
-			  t_info[low_chunk].time += get_dtime(data,&t_info[low_chunk].info.position.vPosition);
+			  t_info[low_chunk].time += get_dtime(data,&t_info[low_chunk].position.vPosition);
 		
 			//Check if the song has reached the end
 			stop = t_info[0].status;
@@ -763,12 +761,9 @@ void play_hmi (void * arg)
 		}
 		pos=0x308;
 	}
-	delete[] data;
-	delete[] t_info;
-	delete[] rcv;
-	data = NULL;
-	t_info = NULL;
-	rcv = NULL;
+	D2_FREE(data);
+	D2_FREE(t_info);
+	D2_FREE(rcv);
 
 }
 

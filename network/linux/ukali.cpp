@@ -20,7 +20,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "vers_id.h"
 #include "ukali.h"
 //added 05/17/99 Matt Mueller - needed to redefine FD_* so that no asm is used
 #include "checker.h"
@@ -43,7 +42,7 @@ int knix_newSock(void) {
 
 	fcntl(tempsock, F_SETFL, fcntl(tempsock, F_GETFL) | O_NONBLOCK);
 
-	if ((bind(tempsock, reinterpret_cast<struct sockaddr*> (&taddr), sizeof(taddr))) < 0) {
+	if ((bind(tempsock, (struct sockaddr *)&taddr, sizeof(taddr))) < 0) {
 		close(tempsock);
 		return -1;
 	}
@@ -53,7 +52,7 @@ int knix_newSock(void) {
 int knix_Send(int hand, char *data, int len) {
 	int i = 0, t;
 
-	while ((t = sendto(hand, data, len, 0, reinterpret_cast<struct sockaddr*> (&kalinix_addr), 
+	while ((t = sendto(hand, data, len, 0, (struct sockaddr *)&kalinix_addr, 
 			sizeof(kalinix_addr))) < 0) {
 		i++;
 		if (i > 10)
@@ -65,11 +64,11 @@ int knix_Send(int hand, char *data, int len) {
 
 int knix_Recv(int hand, char *data, int len) {
 	struct sockaddr_in taddr;
-	uint tlen;
+	unsigned int tlen;
 
 	tlen = sizeof(taddr);
 
-	return (int) recvfrom(hand, data, len, 0, reinterpret_cast<struct sockaddr*> (&taddr), &tlen);
+	return (int) recvfrom(hand, data, len, 0, (struct sockaddr *)&taddr, &tlen);
 
 }
 
@@ -105,7 +104,7 @@ int knix_ReceivePacket(int hand, char *outdata, int *outlen, kaliaddr_ipx *from)
 			from->sa_family = AF_IPX;
 			memcpy(from->sa_nodenum, &data[1], sizeof(from->sa_nodenum));
 			memset(from->sa_netnum, 0, sizeof(from->sa_netnum));
-			memcpy(&from->sa_socket, &data[9], sizeof(ushort));
+			memcpy(&from->sa_socket, &data[9], sizeof(unsigned short));
 			memcpy(outdata, &data[11], len-11 > *outlen ? *outlen : len-11);
 			*outlen = len-11;
 			break;
@@ -132,8 +131,7 @@ int knix_GetMyAddress(void) {
 	if (g_sockfd < 0) {
 		kalinix_addr.sin_family = AF_INET;
 		kalinix_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-		kalinix_addr.sin_port = htons(
-13);
+		kalinix_addr.sin_port = htons(4213);
 
 		g_sockfd = knix_newSock();
 	}
@@ -231,7 +229,7 @@ int KaliCloseSocket(int hand) {
 
 }
 
-int KaliOpenSocket(ushort port) {
+int KaliOpenSocket(unsigned short port) {
 	char opendata[16];
 	int hand;
 	int tcount = 0;

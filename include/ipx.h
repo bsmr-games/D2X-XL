@@ -1,3 +1,4 @@
+/* $Id: ipx.h,v 1.8 2003/10/12 09:17:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -48,37 +49,37 @@ extern int IpxInit(int socket_number);
 
 void _CDECL_ IpxClose(void);
 
-int IpxChangeDefaultSocket( ushort socket_number );
+extern int IpxChangeDefaultSocket( ushort socket_number );
 
 // Returns a pointer to 6-byte address
-ubyte * IpxGetMyLocalAddress();
+extern ubyte * IpxGetMyLocalAddress();
 // Returns a pointer to 4-byte server
-ubyte * IpxGetMyServerAddress();
+extern ubyte * IpxGetMyServerAddress();
 
 // Determines the local address equivalent of an internetwork address.
 void IpxGetLocalTarget( ubyte * server, ubyte * node, ubyte * local_target );
 
 // If any packets waiting to be read in, this fills data in with the packet data and returns
 // the number of bytes read.  Else returns 0 if no packets waiting.
-int IpxGetPacketData( ubyte * data );
+extern int IpxGetPacketData( ubyte * data );
 
 // Sends a broadcast packet to everyone on this socket.
-void IPXSendBroadcastData( ubyte * data, int datasize );
+extern void IPXSendBroadcastData( ubyte * data, int datasize );
 
 // Sends a packet to a certain address
-void IPXSendPacketData( ubyte * data, int datasize, ubyte *network, ubyte *address, ubyte *immediate_address );
-void IPXSendInternetPacketData( ubyte * data, int datasize, ubyte * server, ubyte *address );
+extern void IPXSendPacketData( ubyte * data, int datasize, ubyte *network, ubyte *address, ubyte *immediate_address );
+extern void IPXSendInternetPacketData( ubyte * data, int datasize, ubyte * server, ubyte *address );
 
 // Sends a packet to everyone in the game
-int IpxSendGamePacket(ubyte *data, int datasize);
+extern int IpxSendGamePacket(ubyte *data, int datasize);
 
 // Initialize and handle the protocol-specific field of the netgame struct.
-void IpxInitNetGameAuxData(ubyte data[]);
-int IpxHandleNetGameAuxData(const ubyte data[]);
+extern void IpxInitNetGameAuxData(ubyte data[]);
+extern int IpxHandleNetGameAuxData(const ubyte data[]);
 // Handle disconnecting from the game
-void ipx_handle_leave_game();
+extern void ipx_handle_leave_game();
 
-void IpxReadUserFile (const char * filename);
-void IpxReadNetworkFile (const char * filename);
+extern void IpxReadUserFile(char * filename);
+extern void IpxReadNetworkFile(char * filename);
 
 #endif

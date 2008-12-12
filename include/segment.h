@@ -1,3 +1,4 @@
+/* $Id: segment.h,v 1.4 2003/10/04 03:14:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -21,7 +22,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 //#include "inferno.h"
 #include "cfile.h"
 #include "gr.h"
-#include "carray.h"
 
 // Version 1 - Initial version
 // Version 2 - Mike changed some shorts to bytes in segments, so incompatible!
@@ -41,7 +41,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define WBACK                       4
 #define WFRONT                      5
 
-#define MAX_SEGMENTS_D1					800
 #define MAX_SEGMENTS_D2					900
 #define MAX_SEGMENTS_D2X				6000
 #define MAX_SEGMENTS						gameData.segs.nMaxSegments
@@ -85,7 +84,7 @@ typedef struct tSide {
 	short   nWall;
 	short   nTexture [2];
 	tUVL     uvls [4];
-	//CFixVector normals[2]; // 2 normals, if quadrilateral, both the same.
+	//vmsVector normals[2]; // 2 normals, if quadrilateral, both the same.
 } tSide;
 #else
 typedef struct tSide {
@@ -101,7 +100,7 @@ typedef struct tSide {
 	ushort		nOvlTex : 14;
 #endif
 	tUVL     	uvls [4];
-	CFixVector	normals [2];  // 2 normals, if quadrilateral, both the same.
+	vmsVector	normals [2];  // 2 normals, if quadrilateral, both the same.
 } tSide;
 #endif
 
@@ -127,14 +126,8 @@ typedef struct tSegment {
 
 #endif //!EDITOR
 
-class CSegment : public tSegment {
-	//public:
-	};
-
-inline int operator- (CSegment* s, CArray<CSegment>& a) { return a.Index (s); }
-
 typedef struct tSegFaces {
-	tFace	*pFaces;
+	grsFace	*pFaces;
 	ubyte		nFaces;
 	ubyte		bVisible;
 } tSegFaces;
@@ -149,7 +142,7 @@ typedef struct xsegment {
 #define S2F_AMBIENT_LAVA    0x02
 
 typedef struct tSide2 {
-	CFixVector	rotNorms [2];
+	vmsVector	rotNorms [2];
 } tSide2;
 
 
@@ -161,8 +154,6 @@ typedef struct tSegment2 {
 	fix			xAvgSegLight;
 	tSide2		sides [MAX_SIDES_PER_SEGMENT];
 } tSegment2;
-
-inline int operator- (tSegment2* s, CArray<tSegment2>& a) { return a.Index (s); }
 
 //values for special field
 #define SEGMENT_IS_NOTHING			0
@@ -185,8 +176,8 @@ inline int operator- (tSegment2* s, CArray<tSegment2>& a) { return a.Index (s); 
 #define MAX_CENTER_TYPES			17
 
 #ifdef COMPACT_SEGS
-extern void GetSideNormal(tSegment *sp, int nSide, int normal_num, CFixVector * vm );
-extern void GetSideNormals(tSegment *sp, int nSide, CFixVector * vm1, CFixVector *vm2 );
+extern void GetSideNormal(tSegment *sp, int nSide, int normal_num, vmsVector * vm );
+extern void GetSideNormals(tSegment *sp, int nSide, vmsVector * vm1, vmsVector *vm2 );
 #endif
 
 // Local tSegment data.
@@ -231,14 +222,14 @@ typedef struct {
 	short   nSegment;
 	ubyte   nSide;
 	ubyte   count;
-	ushort   index;
+	unsigned short   index;
 } tDlIndexD2;
 
 typedef struct {
 	short   nSegment;
-	ushort nSide :3;
-	ushort count :13;
-	ushort index;
+	unsigned short nSide :3;
+	unsigned short count :13;
+	unsigned short index;
 } tDlIndexD2X;
 
 typedef union {
@@ -296,25 +287,26 @@ extern void med_check_all_vertices();
 
 #if 0
 #define ReadSegment2(s2, fp) CFRead(s2, sizeof(tSegment2), 1, fp)
-#define ReadlightDelta(dl, fp) CFRead(dl, sizeof(tLightDelta), 1, fp)
-#define ReadlightDeltaIndex(di, fp) CFRead(di, sizeof(tLightDeltaIndex), 1, fp)
+#define ReadLightDelta(dl, fp) CFRead(dl, sizeof(tLightDelta), 1, fp)
+#define ReadLightDeltaIndex(di, fp) CFRead(di, sizeof(tLightDeltaIndex), 1, fp)
 #else
 /*
  * reads a tSegment2 structure from a CFILE
  */
-void ReadSegment2(tSegment2 *s2, CFile& cf);
+void ReadSegment2(tSegment2 *s2, CFILE *fp);
 
 /*
  * reads a tLightDelta structure from a CFILE
  */
-void ReadlightDelta(tLightDelta *dl, CFile& cf);
+void ReadLightDelta(tLightDelta *dl, CFILE *fp);
 
 /*
  * reads a tLightDeltaIndex structure from a CFILE
  */
-void ReadlightDeltaIndex(tLightDeltaIndex *di, CFile& cf);
+void ReadLightDeltaIndex(tLightDeltaIndex *di, CFILE *fp);
 #endif
 
+int CountSkyBoxSegments (void);
 void FreeSkyBoxSegList (void);
 int BuildSkyBoxSegList (void);
 

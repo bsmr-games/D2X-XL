@@ -1,3 +1,4 @@
+/* $Id: interp.h,v 1.6 2003/02/13 22:07:58 btb Exp $ */
 /*
  *
  * took out functions declarations from include/3d.h
@@ -26,10 +27,10 @@
 
 #define MAX_POINTS_PER_POLY 25
 
-#define WORDVAL(_p)	(*(reinterpret_cast<short *> (_p)))
-#define WORDPTR(_p)	(reinterpret_cast<short *> (_p))
+#define WORDVAL(_p)	(*((short *) (_p)))
+#define WORDPTR(_p)	((short *) (_p))
 #define FIXPTR(_p)	((fix *) (_p))
-#define VECPTR(_p)	((CFixVector *) (_p))
+#define VECPTR(_p)	((vmsVector *) (_p))
 
 //------------------------------------------------------------------------------
 
@@ -40,12 +41,12 @@ fix G3PolyModelSize (tPolyModel *pm, int nModel);
 //gives the interpreter an array of points to use
 void G3SetModelPoints(g3sPoint *pointlist);
 
-//calls the CObject interpreter to render an CObject.  The CObject renderer
+//calls the tObject interpreter to render an tObject.  The tObject renderer
 //is really a seperate pipeline. returns true if drew
-int G3DrawPolyModel (CObject *objP, void *modelDataP, CBitmap **modelBitmaps, vmsAngVec *animAngles, CFixVector *vOffset,
+int G3DrawPolyModel (tObject *objP, void *modelP, grsBitmap **modelBitmaps, vmsAngVec *animAngles, vmsVector *vOffset,
 							 fix light, fix *glowValues, tRgbaColorf *obj_colors, tPOFObject *po, int nModel);
 
-int G3DrawPolyModelShadow (CObject *objP, void *modelDataP, vmsAngVec *pAnimAngles, int nModel);
+int G3DrawPolyModelShadow (tObject *objP, void *modelP, vmsAngVec *pAnimAngles, int nModel);
 
 int G3FreePolyModelItems (tPOFObject *po);
 
@@ -55,9 +56,9 @@ void G3InitPolyModel(tPolyModel *pm, int nModel);
 //un-initialize, i.e., convert color entries back to RGB15
 void g3_uninit_polygon_model(void *model_ptr);
 
-//alternate interpreter for morphing CObject
-int G3DrawMorphingModel(void *model_ptr,CBitmap **model_bitmaps,vmsAngVec *animAngles, CFixVector *vOffset,
-								 fix light, CFixVector *new_points, int nModel);
+//alternate interpreter for morphing tObject
+int G3DrawMorphingModel(void *model_ptr,grsBitmap **model_bitmaps,vmsAngVec *animAngles, vmsVector *vOffset, 
+								 fix light, vmsVector *new_points, int nModel);
 
 //this remaps the 15bpp colors for the models into a new palette.  It should
 //be called whenever the palette changes
@@ -71,6 +72,8 @@ void G3FreeAllPolyModelItems (void);
 // routine to convert little to big endian in polygon model data
 void swap_polygon_model_data(ubyte *data);
 //routines to convert little to big endian in vectors
+void VmsVectorSwap(vmsVector *v);
+void VmsAngVecSwap(vmsAngVec *v);
 #endif
 
 #ifdef WORDS_NEED_ALIGNMENT
@@ -90,7 +93,7 @@ typedef struct chunk {
 } chunk;
 #define MAX_CHUNKS 100 // increase if insufficent
 /*
- * finds what chunks the data points to, adds them to the chunk_list,
+ * finds what chunks the data points to, adds them to the chunk_list, 
  * and returns the length of the current chunk
  */
 int get_chunks(ubyte *data, ubyte *new_data, chunk *list, int *no);
@@ -98,10 +101,10 @@ int get_chunks(ubyte *data, ubyte *new_data, chunk *list, int *no);
 
 void G3SwapPolyModelData (ubyte *data);
 
-int G3RenderModel (CObject *objP, short nModel, short nSubModel, tPolyModel *pp, CBitmap **modelBitmaps,
-						 vmsAngVec *pAnimAngles, CFixVector *pOffs, fix xModelLight, fix *xGlowValues, tRgbaColorf *pObjColor);
+int G3RenderModel (tObject *objP, short nModel, short nSubModel, tPolyModel *pp, grsBitmap **modelBitmaps, 
+						 vmsAngVec *pAnimAngles, vmsVector *pOffs, fix xModelLight, fix *xGlowValues, tRgbaColorf *pObjColor);
 
-void G3DynLightModel (CObject *objP, tG3Model *pm, short iVerts, short nVerts, short iFaceVerts, short nFaceVerts);
+void G3DynLightModel (tObject *objP, tG3Model *pm, short iVerts, short nVerts, short iFaceVerts, short nFaceVerts);
 
 int G3ModelMinMax (int nModel, tHitbox *phb);
 
@@ -109,19 +112,18 @@ int G3ModelMinMax (int nModel, tHitbox *phb);
 
 extern g3sPoint *pointList [MAX_POINTS_PER_POLY];
 extern int hitboxFaceVerts [6][4];
-extern CFixVector hitBoxOffsets [8];
-//extern vmsAngVec vmsAngVec::ZERO;
-//extern CFixVector vZero;
-//extern vmsMatrix mIdentity;
+extern vmsVector hitBoxOffsets [8];
+extern vmsAngVec avZero;
+extern vmsVector vZero;
+extern vmsMatrix mIdentity;
 extern short nGlow;
 
 //------------------------------------------------------------------------------
 
-static inline void RotatePointListToVec (CFixVector *dest, CFixVector *src, int n) {
-	while(n--) {
-		G3TransformPoint(*dest, *src, 0);
-		dest++; src++;
-	}
+static inline void RotatePointListToVec (vmsVector *dest, vmsVector *src, int n)
+{
+while (n--)
+	G3TransformPoint (dest++, src++, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -133,47 +135,6 @@ if (gameData.models.g3Models [0][nModel].bValid)
 if (gameData.models.g3Models [1][nModel].bValid)
 	return 2;
 return 0;
-}
-
-//------------------------------------------------------------------------------
-
-#include "byteswap.h"
-
-static inline void ShortSwap (short *s)
-{
-*s = SWAPSHORT (*s);
-}
-
-//------------------------------------------------------------------------------
-
-static inline void FixSwap (fix *f)
-{
-*f = (fix)SWAPINT ((int)*f);
-}
-
-//------------------------------------------------------------------------------
-
-static inline void VmsVectorSwap(CFixVector& v)
-{
-FixSwap (FIXPTR (&v[X]));
-FixSwap (FIXPTR (&v[Y]));
-FixSwap (FIXPTR (&v[Z]));
-}
-
-//------------------------------------------------------------------------------
-
-static inline void FixAngSwap (fixang *f)
-{
-*f = (fixang) SWAPSHORT ((short)*f);
-}
-
-//------------------------------------------------------------------------------
-
-static inline void VmsAngVecSwap (vmsAngVec& v)
-{
-FixAngSwap (&v[PA]);
-FixAngSwap (&v[BA]);
-FixAngSwap (&v[HA]);
 }
 
 //------------------------------------------------------------------------------

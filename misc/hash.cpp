@@ -1,3 +1,4 @@
+/* $Id: hash.c,v 1.3 2003/02/18 20:35:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,119 +16,108 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: hash.c,v 1.3 2003/02/18 20:35:35 btb Exp $";
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
 #include "u_mem.h"
 #include "strutil.h"
 #include "error.h"
 #include "hash.h"
 
-//------------------------------------------------------------------------------
-
-void CHashTable::Init (void)
-{
-m_bitSize = 0;
-m_andMask = 0;
-m_size = 0;
-m_nItems = 0;
-}
-
-//------------------------------------------------------------------------------
-
-int CHashTable::Create (int size)
+int hashtable_init( hashtable *ht, int size )
 {
 	int i;
 
-m_size = 0;
-for (i = 1; i < 13; i++) {
-	if ( (1 << i) >= size) {
-		m_bitSize = i;
-		m_size = 1<<i;
+ht->size=0;
+for (i=1; i<13; i++ )	{
+	if ( (1<<i) >= size )	{
+		ht->bitsize = i;
+		ht->size = 1<<i;
 		break;
 		}
 	}
-size = m_size;
-m_andMask = m_size - 1;
-if (m_size == 0)
-	Error ("Hashtable has size of 0");
-if (!m_key.Create (size))
-	Error ("Not enough memory to create a hash table of size %d", size);
-for (i = 0; i < size; i++)
-	m_key [i] = NULL;
+size = ht->size;
+ht->and_mask = ht->size - 1;
+if (ht->size==0)
+	Error( "Hashtable has size of 0" );
+if (!(ht->key = (char **) D2_ALLOC (size * sizeof (char *))))
+	Error( "Not enough memory to create a hash table of size %d", size );
+for (i = 0; i < size; i++ )
+	ht->key [i] = NULL;
 // Use calloc cause we want zero'd array.
-if (!m_value.Create (size)) {
-	m_key.Destroy ();
-	Error ("Not enough memory to create a hash table of size %d\n", size);
+ht->value = (int *) D2_ALLOC (size * sizeof (int));
+if (ht->value==NULL)	{
+	D2_FREE(ht->key);
+	Error( "Not enough memory to create a hash table of size %d\n", size );
 	}
-m_nItems = 0;
+ht->nitems = 0;
 return 0;
 }
 
-//------------------------------------------------------------------------------
 
-void CHashTable::Destroy (void)
+void hashtable_free( hashtable *ht )
 {
-m_key.Destroy ();
-m_value.Destroy ();
-m_size = 0;
+if (ht->key != NULL)
+	D2_FREE( ht->key);
+if (ht->value != NULL)
+	D2_FREE( ht->value);
+ht->size = 0;
 }
 
-//------------------------------------------------------------------------------
 
-int CHashTable::GetKey (const char *key)
+int hashtable_getkey( char *key )
 {
-	int k = 0, i = 0;
-	char c;
+	int k = 0, i=0;
 
-while ( (c = *key++)) {
-	k ^= ( (int) (tolower (c))) << i;
+while (*key) {
+	k ^= ((int)(*key++)) << i;
 	i++;
 	}
 return k;
 }
 
-//------------------------------------------------------------------------------
 
-int CHashTable::Search (const char *key)
+int hashtable_search( hashtable *ht, char *key )
 {
-	int i, j, k;
+	int i,j,k;
 
-k = GetKey (key);
+strlwr( key );
+k = hashtable_getkey( key );
 i = 0;
-while (i < m_size)	{
-	j = (k+ (i++)) & m_andMask;
-	if (m_key [j] == NULL)
+while(i < ht->size )	{
+	j = (k+(i++)) & ht->and_mask;
+	if ( ht->key[j] == NULL )
 		return -1;
-	if (!stricmp (m_key [j], key))
-		return m_value [j];
+	if (!stricmp(ht->key[j], key ))
+		return ht->value[j];
 	}
 return -1;
 }
 
-//------------------------------------------------------------------------------
 
-void CHashTable::Insert (const char *key, int value)
+void hashtable_insert( hashtable *ht, char *key, int value )
 {
 	int i,j,k;
 
-k = GetKey (key);
+strlwr( key );
+k = hashtable_getkey(key);
 i = 0;
-while (i < m_size) {
-	j = (k+ (i++)) & m_andMask;
-	if (m_key [j] == NULL) {
-		m_nItems++;
-		m_key [j] = key;
-		m_value [j] = value;
+while(i < ht->size) {
+	j = (k+(i++)) & ht->and_mask;
+	if (ht->key [j] == NULL) {
+		ht->nitems++;
+		ht->key [j] = key;
+		ht->value [j] = value;
 		return;
 		} 
-	else if (!stricmp (key, m_key [j])) {
+	else if (!stricmp (key, ht->key[j])) {
 		return;
 		}
 	}
-Error ("Out of hash slots\n");
+Error( "Out of hash slots\n" );
 }
-
-//------------------------------------------------------------------------------

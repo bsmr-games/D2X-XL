@@ -1,3 +1,4 @@
+/* $Id: digiobj.c,v 1.1 2004/11/29 05:25:58 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -7,10 +8,14 @@ IN USING, DISPLAYING,  AND CREATING DERIVATIVE WORKS THEREOF, SO LONG AS
 SUCH USE, DISPLAY OR CREATION IS FOR NON-COMMERCIAL, ROYALTY OR REVENUE
 FREE PURPOSES.  IN NO EVENT SHALL THE END-USER USE THE COMPUTER CODE
 CONTAINED HEREIN FOR REVENUE-BEARING PURPOSES.  THE END-USER UNDERSTANDS
-AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
+AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.  
 COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
+
+#ifdef RCS
+static char rcsid [] = "$Id: digiobj.c,v 1.1 2004/11/29 05:25:58 btb Exp $";
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include <conf.h>
@@ -18,25 +23,43 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <fcntl.h> 
 #include <string.h>
+#include <ctype.h>
 #include <math.h>
 
-#include "inferno.h"
 #include "fix.h"
+#include "inferno.h"
 #include "mono.h"
 #include "timer.h"
 #include "joy.h"
+#include "digi.h"
+#include "sounds.h"
+#include "args.h"
 #include "key.h"
 #include "newdemo.h"
+#include "game.h"
 #include "error.h"
+#include "wall.h"
+#include "cfile.h"
+#include "piggy.h"
 #include "text.h"
 #include "kconfig.h"
 #include "gameseg.h"
 
+#ifdef __macosx__
+# include <SDL/SDL.h>
+#else
+# include <SDL.h>
+# if USE_SDL_MIXER
+#  include <SDL_mixer.h>
+# endif
+#endif
+
 #define SOF_USED				1 		// Set if this sample is used
 #define SOF_PLAYING			2		// Set if this sample is playing on a channel
-#define SOF_LINK_TO_OBJ		4		// Sound is linked to a moving CObject. If CObject dies, then finishes play and quits.
-#define SOF_LINK_TO_POS		8		// Sound is linked to CSegment, pos
+#define SOF_LINK_TO_OBJ		4		// Sound is linked to a moving tObject. If tObject dies, then finishes play and quits.
+#define SOF_LINK_TO_POS		8		// Sound is linked to tSegment, pos
 #define SOF_PLAY_FOREVER	16		// Play bForever (or until level is stopped), otherwise plays once
 #define SOF_PERMANENT		32		// Part of the level, like a waterfall or fan
 
@@ -57,8 +80,8 @@ typedef struct tSoundObject {
 	union {
 		struct {
 			short			nSegment;				// Used if SOF_LINK_TO_POS field is used
-			short			nSide;
-			CFixVector	position;
+			short			nSide;			
+			vmsVector	position;
 		} pos;
 		struct {
 			short			nObject;				// Used if SOF_LINK_TO_OBJ field is used
@@ -94,7 +117,7 @@ int DigiUnXlatSound (int nSound)
 	int i;
 	ubyte *table = (gameStates.sound.digi.bLoMem ? AltSounds [gameStates.sound.bD1Sound] :Sounds [gameStates.sound.bD1Sound]);
 
-if (nSound < 0)
+if (nSound < 0) 
 	return -1;
 for (i = 0; i < MAX_SOUNDS; i++)
 	if (table [i] == nSound)
@@ -106,10 +129,10 @@ return 0;
 //------------------------------------------------------------------------------
 
 void DigiGetSoundLoc (
-	vmsMatrix *mListener, CFixVector *vListenerPos, short nListenerSeg, CFixVector *vSoundPos,
+	vmsMatrix *mListener, vmsVector *vListenerPos, short nListenerSeg, vmsVector *vSoundPos, 
 	short nSoundSeg, fix maxVolume, int *volume, int *pan, fix maxDistance, int nDecay)
-{
-	CFixVector	vecToSound;
+{	  
+	vmsVector	vecToSound;
 	fix 			angleFromEar, cosang, sinang;
 	fix			distance, pathDistance;
 	float			fDecay;
@@ -120,35 +143,35 @@ if (nDecay)
 	maxDistance *= 2;
 else
 	maxDistance = (5 * maxDistance) / 4;	// Make all sounds travel 1.25 times as far.
-distance = CFixVector::NormalizedDir (vecToSound, *vSoundPos, *vListenerPos);
+distance = VmVecNormalizedDir (&vecToSound, vSoundPos, vListenerPos);
 if (distance < maxDistance) {
-	int nSearchSegs = X2I (maxDistance / 10);
+	int nSearchSegs = f2i (maxDistance / 10);
 	if (nSearchSegs < 1)
 		nSearchSegs = 1;
 	pathDistance = FindConnectedDistance (vListenerPos, nListenerSeg, vSoundPos, nSoundSeg, nSearchSegs, WID_RENDPAST_FLAG | WID_FLY_FLAG, 0);
 	if (pathDistance > -1) {
-		if (!nDecay)
+		if (!nDecay) 
 			*volume = maxVolume - FixDiv (pathDistance, maxDistance);
-		else if (nDecay == 1) {
-			fDecay = (float) exp (-log (2.0f) * 4.0f * X2F (pathDistance) / X2F (maxDistance / 2));
+		else if (nDecay == 1) { 
+			fDecay = (float) exp (-log (2.0f) * 4.0f * f2fl (pathDistance) / f2fl (maxDistance / 2));
 			*volume = (int) (maxVolume * fDecay);
 			}
 		else {
-			fDecay = 1.0f - X2F (pathDistance) / X2F (maxDistance);
+			fDecay = 1.0f - f2fl (pathDistance) / f2fl (maxDistance);
 			*volume = (int) (maxVolume * fDecay * fDecay * fDecay);
 			}
 
-		if (*volume <= 0)
+		if (*volume <= 0) 
 			*volume = 0;
 		else {
-			angleFromEar = CFixVector::DeltaAngleNorm((*mListener)[RVEC], vecToSound, &(*mListener)[UVEC]);
+			angleFromEar = VmVecDeltaAngNorm (&mListener->rVec, &vecToSound, &mListener->uVec);
 			FixSinCos (angleFromEar, &sinang, &cosang);
-			if (gameConfig.bReverseChannels || gameOpts->sound.bHires)
+			if (gameConfig.bReverseChannels || gameOpts->sound.bHires) 
 				cosang = -cosang;
 			*pan = (cosang + F1_0) / 2;
 			}
 		}
-	}
+	}																					  
 }
 
 //------------------------------------------------------------------------------
@@ -162,7 +185,7 @@ if (gameData.demo.nState == ND_STATE_RECORDING)
 	NDRecordSound (nSound);
 #endif
 nSound = DigiXlatSound (nSound);
-if (nSound < 0)
+if (nSound < 0) 
 	return;
 channel = DigiFindChannel (nSound);
 if (channel > -1)
@@ -173,7 +196,7 @@ DigiStartSound (nSound, maxVolume, 0xffff/2, 0, -1, -1, -1, F1_0, NULL, NULL, 0)
 
 //------------------------------------------------------------------------------
 
-int DigiPlaySampleSpeed (short nSound, fix maxVolume, int nSpeed, int nLoops, const char *pszWAV, int nSoundClass)
+int DigiPlaySampleSpeed (short nSound, fix maxVolume, int nSpeed, int nLoops, char *pszWAV, int nSoundClass)
 {
 if (!pszWAV) {
 #ifdef NEWDEMO
@@ -181,7 +204,7 @@ if (!pszWAV) {
 		NDRecordSound (nSound);
 #endif
 	nSound = (nSound < 0) ? - nSound : DigiXlatSound (nSound);
-	if (nSound < 0)
+	if (nSound < 0) 
 		return -1;
 	}
 // start the sample playing
@@ -193,7 +216,7 @@ else
 
 //------------------------------------------------------------------------------
 
-void DigiPlaySample3D (short nSound, int angle, int volume, int no_dups, CFixVector *vPos, const char *pszSound)
+void DigiPlaySample3D (short nSound, int angle, int volume, int no_dups, vmsVector *vPos, char *pszSound)
 {
 
 	no_dups = 1;
@@ -209,7 +232,7 @@ if (gameData.demo.nState == ND_STATE_RECORDING)	{
 nSound = DigiXlatSound (nSound);
 if ((nSound < 0) && !(pszSound && *pszSound))
 	return;
-if (volume < 10)
+if (volume < 10) 
 	return;
 // start the sample playing
 DigiStartSound (nSound, volume, angle, 0, -1, -1, -1, F1_0, pszSound, vPos, 0);
@@ -238,7 +261,7 @@ gameStates.sound.digi.bSoundsInitialized = 1;
 
 //------------------------------------------------------------------------------
 
-// plays a sample that loops bForever.
+// plays a sample that loops bForever.  
 // Call digi_stop_channe (channel) to stop it.
 // Call DigiSetChannelVolume (channel, volume) to change volume.
 // if nLoopStart is -1, entire sample loops
@@ -248,15 +271,15 @@ gameStates.sound.digi.bSoundsInitialized = 1;
 void DigiPlaySampleLoopingSub (void)
 {
 if (gameStates.sound.digi.nLoopingSound > -1)
-	gameStates.sound.digi.nLoopingChannel  =
-		DigiStartSound (gameStates.sound.digi.nLoopingSound,
-								gameStates.sound.digi.nLoopingVolume,
-								0xFFFF/2,
-								1,
-								gameStates.sound.digi.nLoopingStart,
-								gameStates.sound.digi.nLoopingEnd,
-								-1,
-								F1_0, NULL,
+	gameStates.sound.digi.nLoopingChannel  = 
+		DigiStartSound (gameStates.sound.digi.nLoopingSound, 
+								gameStates.sound.digi.nLoopingVolume, 
+								0xFFFF/2, 
+								1, 
+								gameStates.sound.digi.nLoopingStart, 
+								gameStates.sound.digi.nLoopingEnd, 
+								-1, 
+								F1_0, NULL, 
 								NULL, 0);
 }
 
@@ -265,7 +288,7 @@ if (gameStates.sound.digi.nLoopingSound > -1)
 void DigiPlaySampleLooping (short nSound, fix maxVolume,int nLoopStart, int nLoopEnd)
 {
 nSound = DigiXlatSound (nSound);
-if (nSound < 0)
+if (nSound < 0) 
 	return;
 if (gameStates.sound.digi.nLoopingChannel>-1)
 	DigiStopSound (gameStates.sound.digi.nLoopingChannel);
@@ -312,12 +335,12 @@ DigiPlaySampleLoopingSub ();
 }
 
 //------------------------------------------------------------------------------
-//hack to not start CObject when loading level
+//hack to not start tObject when loading level
 
 void DigiStartSoundObject (int i)
 {
 	tSoundObject	*soP = soundObjects + i;
-	// start sample structures
+	// start sample structures 
 soP->channel = -1;
 if (soP->volume <= 0)
 	return;
@@ -326,20 +349,20 @@ if (gameStates.sound.bDontStartObjects)
 // -- MK, 2/22/96 -- 	if (gameData.demo.nState == ND_STATE_RECORDING)
 // -- MK, 2/22/96 -- 		NDRecordSound3DOnce (DigiUnXlatSound (soP->nSound), soP->pan, soP->volume);
 // only use up to half the sound channels for "permanent" sounts
-if ((soP->flags & SOF_PERMANENT) &&
+if ((soP->flags & SOF_PERMANENT) && 
 	 (gameStates.sound.digi.nActiveObjects >= max (1, DigiGetMaxChannels () / 4)))
 	return;
 // start the sample playing
-soP->channel =
+soP->channel = 
 	DigiStartSound (
-		soP->nSound,
-		soP->volume,
-		soP->pan,
-		soP->flags & SOF_PLAY_FOREVER,
-		soP->nLoopStart,
-		soP->nLoopEnd, i, F1_0,
+		soP->nSound, 
+		soP->volume, 
+		soP->pan, 
+		soP->flags & SOF_PLAY_FOREVER, 
+		soP->nLoopStart, 
+		soP->nLoopEnd, i, F1_0, 
 		soP->szSound,
-		(soP->flags & SOF_LINK_TO_OBJ) ? &OBJECTS [soP->linkType.obj.nObject].info.position.vPos : &soP->linkType.pos.position,
+		(soP->flags & SOF_LINK_TO_OBJ) ? &gameData.objs.objects [soP->linkType.obj.nObject].position.vPos : &soP->linkType.pos.position,
 		soP->nDecay != 0);
 if (soP->channel > -1)
 	gameStates.sound.digi.nActiveObjects++;
@@ -347,37 +370,37 @@ if (soP->channel > -1)
 
 //------------------------------------------------------------------------------
 //sounds longer than this get their 3d aspects updated
-//#define SOUND_3D_THRESHHOLD  (gameOpts->sound.digiSampleRate * 3 / 2)	//1.5 seconds
+#define SOUND_3D_THRESHHOLD  (gameOpts->sound.digiSampleRate * 3 / 2)	//1.5 seconds
 
 int DigiLinkSoundToObject3 (
-	short nOrgSound, short nObject, int bForever, fix maxVolume, fix maxDistance,
-	int nLoopStart, int nLoopEnd, const char *pszSound, int nDecay, int nSoundClass)
+	short nOrgSound, short nObject, int bForever, fix maxVolume, fix maxDistance, 
+	int nLoopStart, int nLoopEnd, char *pszSound, int nDecay, int nSoundClass)
 {
-	CObject			*objP;
+	tObject			*objP;
 	tSoundObject 	*soP;
 	int				i, volume, pan;
 	short				nSound = 0;
 
-if (maxVolume < 0)
+if (maxVolume < 0) 
 	return -1;
-if ((nObject < 0) || (nObject > gameData.objs.nLastObject [0]))
+if ((nObject < 0) || (nObject > gameData.objs.nLastObject))
 	return -1;
 if (!(pszSound && *pszSound)) {
 	nSound = DigiXlatSound (nOrgSound);
-	if (nSound < 0)
+	if (nSound < 0) 
 		return -1;
 	if (!gameData.pig.sound.sounds [gameStates.sound.bD1Sound][nSound].data) {
 		Int3 ();
 		return -1;
 		}
 	}
-objP = OBJECTS + nObject;
+objP = gameData.objs.objects + nObject;
 if (!bForever) { 	// Hack to keep sounds from building up...
 	DigiGetSoundLoc (
-		&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos,
-		gameData.objs.viewerP->info.nSegment, &objP->info.position.vPos, objP->info.nSegment, maxVolume, &volume, &pan,
+		&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, 
+		gameData.objs.viewer->nSegment, &objP->position.vPos, objP->nSegment, maxVolume, &volume, &pan, 
 		maxDistance, nDecay);
-	DigiPlaySample3D (nOrgSound, pan, volume, 0, &objP->info.position.vPos, pszSound);
+	DigiPlaySample3D (nOrgSound, pan, volume, 0, &objP->position.vPos, pszSound);
 	return -1;
 	}
 #ifdef NEWDEMO
@@ -387,14 +410,14 @@ if (gameData.demo.nState == ND_STATE_RECORDING)
 for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++)
 	if (!soP->flags)
 		break;
-if (i == MAX_SOUND_OBJECTS)
+if (i == MAX_SOUND_OBJECTS) 
 	return -1;
 soP->nSignature = gameStates.sound.digi.nNextSignature++;
 soP->flags = SOF_USED | SOF_LINK_TO_OBJ;
 if (bForever)
 	soP->flags |= SOF_PLAY_FOREVER;
 soP->linkType.obj.nObject = nObject;
-soP->linkType.obj.nObjSig = objP->info.nSignature;
+soP->linkType.obj.nObjSig = objP->nSignature;
 soP->maxVolume = maxVolume;
 soP->maxDistance = maxDistance;
 soP->volume = 0;
@@ -413,8 +436,8 @@ if (gameStates.sound.bDontStartObjects) { 		//started at level start
 	}
 else {
 	DigiGetSoundLoc (
-		&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos,
-		gameData.objs.viewerP->info.nSegment, &objP->info.position.vPos, objP->info.nSegment, soP->maxVolume,
+		&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, 
+		gameData.objs.viewer->nSegment, &objP->position.vPos, objP->nSegment, soP->maxVolume,
       &soP->volume, &soP->pan, soP->maxDistance, soP->nDecay);
 	DigiStartSoundObject (i);
 	// If it's a one-shot sound effect, and it can't start right away, then
@@ -431,22 +454,22 @@ return soP->nSignature;
 
 int DigiLinkSoundToObject2 (
 	short nOrgSound, short nObject, int bForever, fix maxVolume, fix maxDistance, int nSoundClass)
-{
+{	
 return DigiLinkSoundToObject3 (nOrgSound, nObject, bForever, maxVolume, maxDistance, -1, -1, NULL, 0, nSoundClass);
 }
 
 //------------------------------------------------------------------------------
 
 int DigiLinkSoundToObject (short nSound, short nObject, int bForever, fix maxVolume, int nSoundClass)
-{
+{	
 return DigiLinkSoundToObject2 (nSound, nObject, bForever, maxVolume, 256 * F1_0, nSoundClass);
 }
 
 //------------------------------------------------------------------------------
 
 int DigiLinkSoundToPos2 (
-	short nOrgSound, short nSegment, short nSide, CFixVector * pos, int bForever,
-	fix maxVolume, fix maxDistance, const char *pszSound)
+	short nOrgSound, short nSegment, short nSide, vmsVector * pos, int bForever, 
+	fix maxVolume, fix maxDistance, char *pszSound)
 {
 
 	int i, volume, pan;
@@ -454,10 +477,10 @@ int DigiLinkSoundToPos2 (
 	tSoundObject *soP;
 
 nSound = DigiXlatSound (nOrgSound);
-if (maxVolume < 0)
+if (maxVolume < 0) 
 	return -1;
 //	if (maxVolume > F1_0) maxVolume = F1_0;
-if (nSound < 0)
+if (nSound < 0) 
 	return -1;
 if (!gameData.pig.sound.sounds [gameStates.sound.bD1Sound][nSound].data) {
 	Int3 ();
@@ -467,7 +490,7 @@ if ((nSegment < 0)|| (nSegment > gameData.segs.nLastSegment))
 	return -1;
 if (!bForever) { 	//&& gameData.pig.sound.sounds [nSound - SOUND_OFFSET].length < SOUND_3D_THRESHHOLD)	{
 	// Hack to keep sounds from building up...
-	DigiGetSoundLoc (&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos, gameData.objs.viewerP->info.nSegment,
+	DigiGetSoundLoc (&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, gameData.objs.viewer->nSegment, 
 						  pos, nSegment, maxVolume, &volume, &pan, maxDistance, 0);
 	DigiPlaySample3D (nOrgSound, pan, volume, 0, pos, pszSound);
 	return -1;
@@ -476,6 +499,7 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++)
 	if (soP->flags == 0)
 		break;
 if (i == MAX_SOUND_OBJECTS) {
+	//mprintf ((1, "Too many sound gameData.objs.objects!\n"));
 	return -1;
 	}
 soP->nSignature = gameStates.sound.digi.nNextSignature++;
@@ -502,8 +526,8 @@ if (gameStates.sound.bDontStartObjects) {		//started at level start
 	}
 else {
 	DigiGetSoundLoc (
-		&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos,
-		gameData.objs.viewerP->info.nSegment, &soP->linkType.pos.position,
+		&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, 
+		gameData.objs.viewer->nSegment, &soP->linkType.pos.position, 
 		soP->linkType.pos.nSegment, soP->maxVolume, &soP->volume, &soP->pan, soP->maxDistance, soP->nDecay);
 	DigiStartSoundObject (i);
 	// If it's a one-shot sound effect, and it can't start right away, then
@@ -519,7 +543,7 @@ return soP->nSignature;
 //------------------------------------------------------------------------------
 
 int DigiLinkSoundToPos (
-	short nSound, short nSegment, short nSide, CFixVector * pos, int bForever, fix maxVolume)
+	short nSound, short nSegment, short nSide, vmsVector * pos, int bForever, fix maxVolume)
 {
 return DigiLinkSoundToPos2 (nSound, nSegment, nSide, pos, bForever, maxVolume, F1_0 * 256, NULL);
 }
@@ -536,7 +560,7 @@ if (nSound != -1)
 nKilled = 0;
 for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++)	{
 	if ((soP->flags & (SOF_USED | SOF_LINK_TO_POS)) == (SOF_USED | SOF_LINK_TO_POS))	{
-		if ((soP->linkType.pos.nSegment == nSegment) && (soP->linkType.pos.nSide==nSide) &&
+		if ((soP->linkType.pos.nSegment == nSegment) && (soP->linkType.pos.nSide==nSide) && 
 			 ((nSound == -1) || (soP->nSound == nSound))) {
 			if (soP->channel > -1)	{
 				DigiStopSound (soP->channel);
@@ -562,7 +586,7 @@ int DigiKillSoundLinkedToObject (int nObject)
 	nKilled = 0;
 
 #ifdef NEWDEMO
-if (gameData.demo.nState == ND_STATE_RECORDING)
+if (gameData.demo.nState == ND_STATE_RECORDING)	
 	NDRecordKillSoundLinkedToObject (nObject);
 #endif
 
@@ -596,7 +620,7 @@ int DigiChangeSoundLinkedToObject (int nObject, fix volume)
 	nKilled = 0;
 
 #ifdef NEWDEMO
-if (gameData.demo.nState == ND_STATE_RECORDING)
+if (gameData.demo.nState == ND_STATE_RECORDING)	
 	NDRecordKillSoundLinkedToObject (nObject);
 #endif
 
@@ -622,8 +646,8 @@ void DigiRecordsoundObjects ()
 for (i = 0; i < MAX_SOUND_OBJECTS; i++)	{
 	if ((soundObjects [i].flags & (SOF_USED | SOF_LINK_TO_OBJ | SOF_PLAY_FOREVER))
 		 == (SOF_USED | SOF_LINK_TO_OBJ | SOF_PLAY_FOREVER)) {
-		NDRecordLinkSoundToObject3 (DigiUnXlatSound (soundObjects [i].nSound), soundObjects [i].linkType.obj.nObject,
-											 soundObjects [i].maxVolume, soundObjects [i].maxDistance, soundObjects [i].nLoopStart,
+		NDRecordLinkSoundToObject3 (DigiUnXlatSound (soundObjects [i].nSound), soundObjects [i].linkType.obj.nObject, 
+											 soundObjects [i].maxVolume, soundObjects [i].maxDistance, soundObjects [i].nLoopStart, 
 											 soundObjects [i].nLoopEnd);
 		}
 	}
@@ -637,7 +661,7 @@ void DigiSyncSounds ()
 {
 	int				i, oldvolume, oldpan;
 	tSoundObject	*soP;
-	CObject			*objP;
+	tObject			*objP;
 
 if (gameData.demo.nState == ND_STATE_RECORDING)	{
 	if (!gameStates.sound.bWasRecording)
@@ -657,10 +681,10 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++) {
 			soP->flags = 0;	// Mark as dead, so some other sound can use this sound
 			gameStates.sound.digi.nActiveObjects--;
 			continue;		// Go on to next sound...
-			}
+			}		
 		if (soP->flags & SOF_LINK_TO_POS) {
 			DigiGetSoundLoc (
-				&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos, gameData.objs.viewerP->info.nSegment,
+				&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, gameData.objs.viewer->nSegment, 
 				&soP->linkType.pos.position, soP->linkType.pos.nSegment, soP->maxVolume,
 				&soP->volume, &soP->pan, soP->maxDistance, soP->nDecay);
 #if USE_SDL_MIXER
@@ -671,12 +695,12 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++) {
 		else if (soP->flags & SOF_LINK_TO_OBJ) {
 			if (gameData.demo.nState == ND_STATE_PLAYBACK) {
 				int nObject = NDFindObject (soP->linkType.obj.nObjSig);
-				objP = OBJECTS + ((nObject > -1) ? nObject : 0);
+				objP = gameData.objs.objects + ((nObject > -1) ? nObject : 0);
 				}
-			else
-				objP = OBJECTS + soP->linkType.obj.nObject;
-			if ((objP->info.nType == OBJ_NONE) || (objP->info.nSignature != soP->linkType.obj.nObjSig)) {
-			// The CObject that this is linked to is dead, so just end this sound if it is looping.
+			else 
+				objP = gameData.objs.objects + soP->linkType.obj.nObject;
+			if ((objP->nType == OBJ_NONE) || (objP->nSignature != soP->linkType.obj.nObjSig)) {
+			// The tObject that this is linked to is dead, so just end this sound if it is looping.
 				if (soP->channel > -1)	{
 					if (soP->flags & SOF_PLAY_FOREVER)
 						DigiStopSound (soP->channel);
@@ -689,8 +713,8 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++) {
 				}
 			else {
 				DigiGetSoundLoc (
-					&gameData.objs.viewerP->info.position.mOrient, &gameData.objs.viewerP->info.position.vPos,
-					gameData.objs.viewerP->info.nSegment, &objP->info.position.vPos, objP->info.nSegment, soP->maxVolume,
+					&gameData.objs.viewer->position.mOrient, &gameData.objs.viewer->position.vPos, 
+					gameData.objs.viewer->nSegment, &objP->position.vPos, objP->nSegment, soP->maxVolume,
 					&soP->volume, &soP->pan, soP->maxDistance, soP->nDecay);
 #if USE_SDL_MIXER
 				if (gameOpts->sound.bUseSDLMixer)
@@ -728,7 +752,7 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++) {
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 //	DigiSoundDebug ();
 #endif
 }
@@ -745,7 +769,7 @@ for (i = 0; i < MAX_SOUND_OBJECTS; i++)	{
 			soundObjects [i].flags = 0;	// Mark as dead, so some other sound can use this sound
 		gameStates.sound.digi.nActiveObjects--;
 		soundObjects [i].channel = -1;
-		}
+		}		
 	}
 DigiStopAllChannels ();
 SoundQPause ();
@@ -778,7 +802,7 @@ DigiResumeLoopingSound ();
 }
 
 //------------------------------------------------------------------------------
-// Called by the code in digi.c when another sound takes this sound CObject's
+// Called by the code in digi.c when another sound takes this sound tObject's
 // slot because the sound was done playing.
 void DigiEndSoundObj (int i)
 {
@@ -818,7 +842,7 @@ DigiStopDigiSounds ();
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 int VerifySoundChannelFree (int channel)
 {
 	int i;
@@ -826,6 +850,7 @@ int VerifySoundChannelFree (int channel)
 for (i = 0; i < MAX_SOUND_OBJECTS; i++) {
 	if (soundObjects [i].flags & SOF_USED)	{
 		if (soundObjects [i].channel == channel)	{
+			//mprintf ((0, "ERROR STARTING SOUND CHANNEL ON USED SLOT!!\n"));
 			Int3 ();	// Get John!
 			}
 		}
@@ -858,8 +883,8 @@ tSoundQueue soundQueue;
 
 void SoundQInit ()
 {
-soundQueue.nHead =
-soundQueue.nTail =
+soundQueue.nHead = 
+soundQueue.nTail = 
 soundQueue.nSounds = 0;
 soundQueue.nChannel = -1;
 }
@@ -876,7 +901,7 @@ soundQueue.nChannel = -1;
 void SoundQEnd ()
 {
 	// Current playing sound is stopped, so take it off the Queue
-if (++soundQueue.nHead >= MAX_SOUND_QUEUE)
+if (++soundQueue.nHead >= MAX_SOUND_QUEUE) 
 	soundQueue.nHead = 0;
 soundQueue.nSounds--;
 soundQueue.nChannel = -1;
@@ -912,10 +937,10 @@ void DigiStartSoundQueued (short nSound, fix volume)
 	tSoundQueueEntry *q;
 
 nSound = DigiXlatSound (nSound);
-if (nSound < 0)
+if (nSound < 0) 
 	return;
 i = soundQueue.nTail+1;
-if (i>=MAX_SOUND_QUEUE)
+if (i>=MAX_SOUND_QUEUE) 
 	i = 0;
 // Make sure its loud so it doesn't get cancelled!
 if (volume < F1_0 + 1)
@@ -927,12 +952,16 @@ if (i != soundQueue.nHead)	{
 	soundQueue.nSounds++;
 	soundQueue.nTail = i;
 	}
+else {
+	//mprintf ((0, "Sound Q full!\n"));
+}
+// Try to start it!
 SoundQProcess ();
 }
 
 //------------------------------------------------------------------------------
 
-int DigiGetSoundByName (const char *pszSound)
+int DigiGetSoundByName (char *pszSound)
 {
 	char	szSound [FILENAME_LEN];
 	int	nSound;
@@ -944,9 +973,9 @@ return (nSound == 255) ? -1 : DigiUnXlatSound (nSound);
 
 //------------------------------------------------------------------------------
 
-int DigiSetObjectSound (int nObject, int nSound, const char *pszSound, const fix xVolume)
+int DigiSetObjectSound (int nObject, int nSound, char *pszSound)
 {
-return (nObject < 0) ? -1 : DigiLinkSoundToObject3 (nSound, nObject, 1, xVolume, I2X (256), -1, -1, pszSound, 0, SOUNDCLASS_GENERIC);
+return (nObject < 0) ? -1 : DigiLinkSoundToObject3 (nSound, nObject, 1, F1_0, i2f (256), -1, -1, pszSound, 0, SOUNDCLASS_GENERIC);
 }
 
 //------------------------------------------------------------------------------

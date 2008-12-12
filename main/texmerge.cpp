@@ -1,3 +1,4 @@
+/* $Id: texmerge.c,v 1.3 2002/09/04 22:47:25 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -18,23 +19,27 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <stdio.h>
 
 #include "inferno.h"
+#include "gr.h"
 #include "error.h"
-#include "u_mem.h"
+#include "game.h"
 #include "textures.h"
+#include "mono.h"
 #include "rle.h"
+#include "piggy.h"
+#include "ogl_defs.h"
 #include "ogl_shader.h"
 #include "ogl_render.h"
 
 #define MAX_NUM_CACHE_BITMAPS 200
 
-//static CBitmap * cache_bitmaps [MAX_NUM_CACHE_BITMAPS];                     
+//static grsBitmap * cache_bitmaps [MAX_NUM_CACHE_BITMAPS];                     
 
 typedef struct	{
-	CBitmap*		bitmap;
-	CBitmap* 	bmBot;
-	CBitmap* 	bmTop;
-	int 			nOrient;
-	int			last_frame_used;
+	grsBitmap * bitmap;
+	grsBitmap * bmBot;
+	grsBitmap * bmTop;
+	int 		nOrient;
+	int		last_frame_used;
 } TEXTURE_CACHE;
 
 static TEXTURE_CACHE texCache [MAX_NUM_CACHE_BITMAPS];
@@ -44,8 +49,8 @@ static int nCacheEntries = 0;
 static int nCacheHits = 0;
 static int nCacheMisses = 0;
 
-void MergeTextures (int nType, CBitmap *bmBot, CBitmap *bmTop, CBitmap *dest_bmp, int bSuperTransp);
-void MergeTexturesNormal (int nType, CBitmap *bmBot, CBitmap *bmTop, ubyte *dest_data);
+void MergeTextures (int nType, grsBitmap *bmBot, grsBitmap *bmTop, grsBitmap *dest_bmp, int bSuperTransp);
+void MergeTexturesNormal (int nType, grsBitmap *bmBot, grsBitmap *bmTop, ubyte *dest_data);
 void _CDECL_ TexMergeClose (void);
 
 //----------------------------------------------------------------------
@@ -69,7 +74,7 @@ return 1;
 
 //----------------------------------------------------------------------
 
-void TexMergeFlush (void)
+void TexMergeFlush()
 {
 	int i;
 
@@ -90,7 +95,7 @@ void _CDECL_ TexMergeClose (void)
 PrintLog ("shutting down merged textures cache\n");
 for (i = 0; i < nCacheEntries; i++) {
 	if (texCache [i].bitmap) {
-		delete texCache [i].bitmap;
+		GrFreeBitmap (texCache [i].bitmap);
 		texCache [i].bitmap = NULL;
 		}
 	}
@@ -99,16 +104,16 @@ nCacheEntries = 0;
 
 //-------------------------------------------------------------------------
 //--unused-- int info_printed = 0;
-CBitmap * TexMergeGetCachedBitmap (int tMapBot, int tMapTop, int nOrient)
+grsBitmap * TexMergeGetCachedBitmap (int tMapBot, int tMapTop, int nOrient)
 {
-	CBitmap			*bmTop, *bmBot, *bmP;
+	grsBitmap		*bmTop, *bmBot, *bmP;
 	int				i, nLowestFrame, nLRU;
 	TEXTURE_CACHE	*cacheP;
 
 nLRU = 0;
 nLowestFrame = texCache [0].last_frame_used;
-bmTop = gameData.pig.tex.bitmapP [gameData.pig.tex.bmIndexP [tMapTop].index].Override (-1);
-bmBot = gameData.pig.tex.bitmapP [gameData.pig.tex.bmIndexP [tMapBot].index].Override (-1);
+bmTop = BmOverride (gameData.pig.tex.pBitmaps + gameData.pig.tex.pBmIndex [tMapTop].index, -1);
+bmBot = BmOverride (gameData.pig.tex.pBitmaps + gameData.pig.tex.pBmIndex [tMapBot].index, -1);
 
 for (i = 0, cacheP = texCache; i < nCacheEntries; i++,cacheP++) {
 #if 1//ndef _DEBUG
@@ -132,58 +137,58 @@ nCacheMisses++;
 // Make sure the bitmaps are paged in...
 #ifdef PIGGY_USE_PAGING
 gameData.pig.tex.bPageFlushed = 0;
-PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tMapTop].index, gameStates.app.bD1Mission);
-PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tMapBot].index, gameStates.app.bD1Mission);
+PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tMapTop].index, gameStates.app.bD1Mission);
+PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tMapBot].index, gameStates.app.bD1Mission);
 if (gameData.pig.tex.bPageFlushed)	{	// If cache got flushed, re-read 'em.
 	gameData.pig.tex.bPageFlushed = 0;
-	PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tMapTop].index, gameStates.app.bD1Mission);
-	PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tMapBot].index, gameStates.app.bD1Mission);
+	PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tMapTop].index, gameStates.app.bD1Mission);
+	PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tMapBot].index, gameStates.app.bD1Mission);
 	}
 Assert (gameData.pig.tex.bPageFlushed == 0);
 #endif
 
-bmTop = gameData.pig.tex.bitmapP [gameData.pig.tex.bmIndexP [tMapTop].index].Override (-1);
-bmBot = gameData.pig.tex.bitmapP [gameData.pig.tex.bmIndexP [tMapBot].index].Override (-1);
-if (!bmTop->Palette ())
-	bmTop->SetPalette (paletteManager.Game ());
-if (!bmBot->Palette ())
-	bmBot->SetPalette (paletteManager.Game ());
+bmTop = BmOverride (gameData.pig.tex.pBitmaps + gameData.pig.tex.pBmIndex [tMapTop].index, -1);
+bmBot = BmOverride (gameData.pig.tex.pBitmaps + gameData.pig.tex.pBmIndex [tMapBot].index, -1);
+if (!bmTop->bmPalette)
+	bmTop->bmPalette = gamePalette;
+if (!bmBot->bmPalette)
+	bmBot->bmPalette = gamePalette;
 cacheP = texCache + nLRU;
 bmP = cacheP->bitmap;
 if (bmP)
-	bmP->FreeTexture ();
+	OglFreeBmTexture(bmP);
 
 // if necessary, allocate cache bitmap
 // in any case make sure the cache bitmap has the proper size
 if (!bmP ||
-	(bmP->Width () != bmBot->Width ()) || 
-	(bmP->Height () != bmBot->Height ())) {
+	(bmP->bmProps.w != bmBot->bmProps.w) || 
+	(bmP->bmProps.h != bmBot->bmProps.h)) {
 	if (bmP)
-		delete bmP;
-	bmP = CBitmap::Create (0, bmBot->Width (), bmBot->Height (), 4);
+		GrFreeBitmap (bmP);
+	cacheP->bitmap =
+	bmP = GrCreateBitmap (bmBot->bmProps.w, bmBot->bmProps.h, 4);
 	if (!bmP)
 		return NULL;
 	}
 else
-	bmP->SetFlags ((char) BM_FLAG_TGA);
-if (!bmP->Buffer ())
+	bmP->bmProps.flags = (char) BM_FLAG_TGA;
+if (!bmP->bmTexBuf)
 	return NULL;
-bmP->SetPalette (paletteManager.Game ());
+bmP->bmPalette = gamePalette;
 if (!(gameOpts->ogl.bGlTexMerge && gameStates.render.textures.bGlsTexMergeOk)) {
-	if (bmTop->Flags () & BM_FLAG_SUPER_TRANSPARENT) {
+	if (bmTop->bmProps.flags & BM_FLAG_SUPER_TRANSPARENT) {
 //			return bmTop;
 		MergeTextures (nOrient, bmBot, bmTop, bmP, 1);
-		bmP->AddFlags (BM_FLAG_TRANSPARENT | BM_FLAG_SUPER_TRANSPARENT);
-		bmP->SetAvgColorIndex (bmTop->AvgColorIndex ());
+		bmP->bmProps.flags |= BM_FLAG_TRANSPARENT | BM_FLAG_SUPER_TRANSPARENT;
+		bmP->bmAvgColor = bmTop->bmAvgColor;
 		}
 	else {
-//			MergeTexturesNormal (nOrient, bmBot, bmTop, bmP->Buffer ());
+//			MergeTexturesNormal (nOrient, bmBot, bmTop, bmP->bmTexBuf);
 		MergeTextures (nOrient, bmBot, bmTop, bmP, 0);
-		bmP->AddFlags (bmBot->Flags () & (~BM_FLAG_RLE));
-		bmP->SetAvgColorIndex (bmBot->AvgColorIndex ());
+		bmP->bmProps.flags |= bmBot->bmProps.flags & (~BM_FLAG_RLE);
+		bmP->bmAvgColor = bmBot->bmAvgColor;
 		}
 	}
-cacheP->bitmap = bmP;
 cacheP->bmTop = bmTop;
 cacheP->bmBot = bmBot;
 cacheP->last_frame_used = gameData.app.nFrameCount;
@@ -193,21 +198,21 @@ return bmP;
 
 //-------------------------------------------------------------------------
 
-void MergeTexturesNormal (int nType, CBitmap * bmBot, CBitmap * bmTop, ubyte * dest_data)
+void MergeTexturesNormal (int nType, grsBitmap * bmBot, grsBitmap * bmTop, ubyte * dest_data)
 {
 	ubyte * top_data, *bottom_data;
 	int scale;
 
 if (gameOpts->ogl.bGlTexMerge && gameStates.render.textures.bGlsTexMergeOk)
 	return;
-if (bmTop->Flags () & BM_FLAG_RLE)
+if (bmTop->bmProps.flags & BM_FLAG_RLE)
 	bmTop = rle_expand_texture(bmTop);
-if (bmBot->Flags () & BM_FLAG_RLE)
+if (bmBot->bmProps.flags & BM_FLAG_RLE)
 	bmBot = rle_expand_texture(bmBot);
 //	Assert(bmBot != bmTop);
-top_data = bmTop->Buffer ();
-bottom_data = bmBot->Buffer ();
-scale = bmBot->Width () / bmTop->Width ();
+top_data = bmTop->bmTexBuf;
+bottom_data = bmBot->bmTexBuf;
+scale = bmBot->bmProps.w / bmTop->bmProps.w;
 if (!scale)
 	scale = 1;
 if (scale > 1)
@@ -216,16 +221,16 @@ if (scale > 1)
 switch(nType)	{
 	case 0:
 		// Normal
-		GrMergeTextures(bottom_data, top_data, dest_data, bmBot->Width (), bmBot->Height (), scale);
+		GrMergeTextures(bottom_data, top_data, dest_data, bmBot->bmProps.w, bmBot->bmProps.h, scale);
 		break;
 	case 1:
-		GrMergeTextures1(bottom_data, top_data, dest_data, bmBot->Width (), bmBot->Height (), scale);
+		GrMergeTextures1(bottom_data, top_data, dest_data, bmBot->bmProps.w, bmBot->bmProps.h, scale);
 		break;
 	case 2:
-		GrMergeTextures2(bottom_data, top_data, dest_data, bmBot->Width (), bmBot->Height (), scale);
+		GrMergeTextures2(bottom_data, top_data, dest_data, bmBot->bmProps.w, bmBot->bmProps.h, scale);
 		break;
 	case 3:
-		GrMergeTextures3(bottom_data, top_data, dest_data, bmBot->Width (), bmBot->Height (), scale);
+		GrMergeTextures3(bottom_data, top_data, dest_data, bmBot->bmProps.w, bmBot->bmProps.h, scale);
 		break;
 	}
 }
@@ -242,7 +247,7 @@ inline tRGBA *C (ubyte *palP, ubyte *b, int i, int bpp, int *pbST)
 	int bST;
 
 if (bpp == 4) {
-	c = reinterpret_cast<tRGBA*> (b) [i];
+	c = ((tRGBA *) (b)) [i];
 	if ((*pbST = ((c.r == 120) && (c.g == 88) && (c.b == 128))))
 		c.a = 0;
 	return &c;
@@ -291,49 +296,49 @@ return TexScale (y * w + x, s);
 
 #define TOPSCALE(v)	TexScale (v, topScale)
 
-//#define TOPIDX	TexIdx (x, y, tw, topScale)
+#define TOPIDX	TexIdx (x, y, tw, topScale)
 #define BTMIDX	TexIdx (x, y, bw, btmScale)
 
 
 void MergeTextures (
-	int nType, CBitmap * bmBot, CBitmap * bmTop, CBitmap *dest_bmp, int bSuperTransp)
+	int nType, grsBitmap * bmBot, grsBitmap * bmTop, grsBitmap *dest_bmp, int bSuperTransp)
 {
 	tRGBA		*c;
 	int		i, x, y, bw, bh, tw, th, dw, dh;
 	int		bTopBPP, bBtmBPP, bST = 0;
 	frac		topScale, btmScale;
-	tRGBA		*dest_data = reinterpret_cast<tRGBA*> (dest_bmp->Buffer ());
+	tRGBA		*dest_data = (tRGBA *) dest_bmp->bmTexBuf;
 
-	ubyte		*top_data, *bottom_data, *top_pal, *btmPalette;
+	ubyte * top_data, *bottom_data, *top_pal, *btmPalette;
 
-bmBot = bmBot->Override (-1);
-bmTop = bmTop->Override (-1);
+bmBot = BmOverride (bmBot, -1);
+bmTop = BmOverride (bmTop, -1);
 if (gameOpts->ogl.bGlTexMerge && gameStates.render.textures.bGlsTexMergeOk)
 	return;
-if (bmTop->Flags () & BM_FLAG_RLE)
+if (bmTop->bmProps.flags & BM_FLAG_RLE)
 	bmTop = rle_expand_texture (bmTop);
 
-if (bmBot->Flags () & BM_FLAG_RLE)
+if (bmBot->bmProps.flags & BM_FLAG_RLE)
 	bmBot = rle_expand_texture (bmBot);
 
 //	Assert(bmBot != bmTop);
 
-top_data = bmTop->Buffer ();
-bottom_data = bmBot->Buffer ();
-top_pal = bmTop->Palette ()->Raw ();
-btmPalette = bmBot->Palette ()->Raw ();
+top_data = bmTop->bmTexBuf;
+bottom_data = bmBot->bmTexBuf;
+top_pal = bmTop->bmPalette;
+btmPalette = bmBot->bmPalette;
 
 //	Assert(bottom_data != top_data);
 
 //Int3();
 bh =
-bw = bmBot->Width ();
-//h = bmBot->Height ();
+bw = bmBot->bmProps.w;
+//h = bmBot->bmProps.h;
 th =
-tw = bmTop->Width ();
+tw = bmTop->bmProps.w;
 dw =
-dh = dest_bmp->Width ();
-//th = bmTop->Height ();
+dh = dest_bmp->bmProps.w;
+//th = bmTop->bmProps.h;
 #if 1
 // square textures assumed here, so no test for h!
 if (dw < tw) {
@@ -353,14 +358,14 @@ else {
 	btmScale.d = 1;
 	}
 #else
-if (w > bmTop->Width ())
-	w = h = bmBot->Width ();
+if (w > bmTop->bmProps.w)
+	w = h = bmBot->bmProps.w;
 scale.c = scale.d = 1;
 #endif
-bTopBPP = bmTop->BPP ();
-bBtmBPP = bmBot->BPP ();
-#if DBG
-memset (dest_data, 253, dest_bmp->Width () * dest_bmp->Height () * 4);
+bTopBPP = bmTop->bmBPP;
+bBtmBPP = bmBot->bmBPP;
+#ifdef _DEBUG
+memset (dest_data, 253, dest_bmp->bmProps.w * dest_bmp->bmProps.h * 4);
 #endif
 switch(nType)	{
 	case 0:
@@ -412,13 +417,13 @@ GLhandleARB tmShaderProgs [6] = {0,0,0,0,0,0};
 GLhandleARB tmf [6] = {0,0,0,0,0,0}; 
 GLhandleARB tmv [6] = {0,0,0,0,0,0}; 
 
-const char *texMergeFS [6] = {
+char *texMergeFS [6] = {
 	"uniform sampler2D baseTex, decalTex;\r\n" \
 	"uniform float grAlpha;\r\n" \
 	"void main(void){" \
 	"vec4 decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"vec4 texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
 	"float l = (color.r + color.g + color.b) / 3.0;\r\n" \
 	"gl_FragColor = vec4 (l, l, l, color.a);\r\n" \
    "}"
@@ -430,7 +435,7 @@ const char *texMergeFS [6] = {
 	"{decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"if((abs(decalColor.r-120.0/255.0)<8.0/255.0)&&(abs(decalColor.g-88.0/255.0)<8.0/255.0)&&(abs(decalColor.b-128.0/255.0)<8.0/255.0))discard;\r\n" \
 	"texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
 	"float l = (color.r + color.g + color.b) / 3.0;\r\n" \
 	"gl_FragColor = vec4 (l, l, l, color.a);\r\n" \
    "}"
@@ -443,7 +448,7 @@ const char *texMergeFS [6] = {
 	"bMask = texture2D(maskTex,gl_TexCoord [2].xy).r;\r\n" \
 	"decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"vec4 color = vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
 	"float l = (color.r + color.g + color.b) / 3.0;\r\n" \
 	"gl_FragColor = bMask * vec4 (l, l, l, color.a);\r\n" \
 	"}"
@@ -453,7 +458,7 @@ const char *texMergeFS [6] = {
 	"void main(void){" \
 	"vec4 decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"vec4 texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"gl_FragColor=vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"gl_FragColor=vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
    "}"
 ,
 	"uniform sampler2D baseTex, decalTex;\r\n" \
@@ -463,7 +468,7 @@ const char *texMergeFS [6] = {
 	"{decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"if((abs(decalColor.r-120.0/255.0)<8.0/255.0)&&(abs(decalColor.g-88.0/255.0)<8.0/255.0)&&(abs(decalColor.b-128.0/255.0)<8.0/255.0))discard;\r\n" \
 	"texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"gl_FragColor=vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"gl_FragColor=vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
    "}"
 ,
 	"uniform sampler2D baseTex, decalTex, maskTex;\r\n" \
@@ -475,11 +480,11 @@ const char *texMergeFS [6] = {
 	"bMask = texture2D(maskTex,gl_TexCoord [2].xy).r;\r\n" \
 	"decalColor=texture2D(decalTex,gl_TexCoord [1].xy);\r\n" \
 	"texColor=texture2D(baseTex,gl_TexCoord [0].xy);\r\n" \
-	"gl_FragColor = bMask * vec4(vec3(mix(texColor,decalColor,decalColor.a)),min (1.0,(texColor.a+decalColor.a))*grAlpha)*gl_Color;\r\n" \
+	"gl_FragColor = bMask * vec4(vec3(mix(texColor,decalColor,decalColor.a)),(texColor.a+decalColor.a)*grAlpha)*gl_Color;\r\n" \
 	"}"
 	};
 
-const char *texMergeVS [3] = {
+char *texMergeVS [3] = {
 	"void main(void){" \
 	"gl_TexCoord [0]=gl_MultiTexCoord0;"\
 	"gl_TexCoord [1]=gl_MultiTexCoord1;"\
@@ -500,7 +505,7 @@ const char *texMergeVS [3] = {
 	"gl_FrontColor=gl_Color;}"
 	};
 
-const char *texMergeFSData = 
+char *texMergeFSData = 
 	"uniform sampler2D baseTex, decalTex, maskTex;\r\n" \
 	"uniform float grAlpha;";
 
@@ -521,7 +526,7 @@ else {
 			DeleteShaderProg (tmShaderProgs + i);
 		b = CreateShaderProg (tmShaderProgs + i) &&
 			 CreateShaderFunc (tmShaderProgs + i, tmf + i, tmv + i, texMergeFS [i], texMergeVS [i % 3], 1) &&
-			 LinkShaderProg (tmShaderProgs + i);
+-			 LinkShaderProg (tmShaderProgs + i);
 		if (i == 2)
 			gameStates.render.textures.bHaveMaskShader = b;
 		else
@@ -541,11 +546,11 @@ if (!(gameOpts->ogl.bGlTexMerge && gameStates.render.textures.bGlsTexMergeOk))
 
 //------------------------------------------------------------------------------
 
-int G3SetupTexMergeShader (int bColorKey, int bColored, int nType)
+int G3SetupTexMergeShader (int bColorKey, int bColored)
 {
-int nShader = nType - 1;
+int nShader = bColorKey ? 2 : 0;
 if (nShader != gameStates.render.history.nShader) {
-	gameData.render.nShaderChanges++;
+	gameData.render.nStateChanges++;
 	glUseProgramObject (activeShaderProg = tmShaderProgs [nShader + bColored * 3]);
 	}
 glUniform1i (glGetUniformLocation (activeShaderProg, "baseTex"), 0);

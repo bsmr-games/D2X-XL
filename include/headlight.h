@@ -1,3 +1,4 @@
+/* $Id: light.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -22,8 +23,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define	HEADLIGHT_SCALE			(F1_0*10)
 #define HEADLIGHT_TRANSFORMATION	2
 
-extern CObject	*Headlights [MAX_HEADLIGHTS];
-extern int		nHeadlights;
+extern tObject	*Headlights [MAX_HEADLIGHTS];
+extern int		nHeadLights;
 extern fix		xBeamBrightness;
 
 extern void SetDynamicLight (void);
@@ -35,14 +36,14 @@ int LightingMethod (void);
 //  point - the 3d coords of the point
 //  face_light - a scale factor derived from the surface normal of the face
 // If no surface normal effect is wanted, pass F1_0 for face_light
-fix ComputeHeadlight (CFixVector *point, fix xFaceLight);
-fix ComputeHeadlightLightOnObject (CObject *objP);
-void ToggleHeadlight (void);
+fix ComputeHeadLight (vmsVector *point, fix xFaceLight);
+fix ComputeHeadlightLightOnObject (tObject *objP);
+void ToggleHeadLight (void);
 void InitHeadlightShaders (int nLights);
-void SetupHeadlight (CDynLight *pl, CShaderLight *psl);
-void TransformHeadlights (void);
-int AddOglHeadlight (CObject *objP);
-void RemoveOglHeadlight (CObject *objP);
-void UpdateOglHeadlight (void);
+void SetupHeadLight (tDynLight *pl, tShaderLight *psl);
+void TransformHeadLights (void);
+int AddOglHeadLight (tObject *objP);
+void RemoveOglHeadLight (tObject *objP);
+void UpdateOglHeadLight (void);
 
 #endif //_HEADLIGHT_H 

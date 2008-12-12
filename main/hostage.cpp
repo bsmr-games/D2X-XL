@@ -1,3 +1,4 @@
+/* $Id: hostage.c,v 1.3 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,14 +16,23 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: hostage.c,v 1.3 2003/10/10 09:36:35 btb Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "inferno.h"
 #include "error.h"
+#include "object.h"
 #include "objrender.h"
+#include "game.h"
+#include "player.h"
 #include "gauges.h"
 #include "hostage.h"
+#include "vclip.h"
 #include "newdemo.h"
 #include "text.h"
 
@@ -35,24 +45,22 @@ int nHostageVClips [MAX_HOSTAGE_TYPES] = {33};	// tVideoClip num for each tpye o
 
 //-------------- Renders a hostage --------------------------------------------
 
-void DrawHostage (CObject *objP)
+void DrawHostage(tObject *objP)
 {
-DrawObjectRodTexPoly (objP, gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].frames [objP->rType.vClipInfo.nCurFrame], 
-							 1, objP->rType.vClipInfo.nCurFrame);
-gameData.render.nTotalSprites++;
+DrawObjectRodTexPoly (objP, gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].frames [objP->rType.vClipInfo.nCurFrame], 1, objP->rType.vClipInfo.nCurFrame);
 }
 
 
 //------------- Called once when a hostage is rescued -------------------------
-
-void RescueHostage (int nHostage)
+void hostage_rescue(int blah)
 {
-paletteManager.BumpEffect(0, 0, 25);		//small blue flash
-LOCALPLAYER.hostages.nOnBoard++;
-// Do an audio effect
-if (gameData.demo.nState != ND_STATE_PLAYBACK)
-	DigiPlaySample (SOUND_HOSTAGE_RESCUED, F1_0);
-HUDInitMessage (TXT_HOSTAGE_RESCUED);
-}
+	PALETTE_FLASH_ADD(0, 0, 25);		//small blue flash
 
-//------------- Called once when a hostage is rescued -------------------------
+	LOCALPLAYER.hostages.nOnBoard++;
+
+	// Do an audio effect
+	if (gameData.demo.nState != ND_STATE_PLAYBACK)
+		DigiPlaySample(SOUND_HOSTAGE_RESCUED, F1_0);
+
+	HUDInitMessage(TXT_HOSTAGE_RESCUED);
+}

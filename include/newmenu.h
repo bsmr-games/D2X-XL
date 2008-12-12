@@ -1,3 +1,4 @@
+/* $Id: newmenu.h,v 1.7 2003/11/27 00:36:15 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -37,7 +38,7 @@ typedef struct tMenuItem {
 	int			text_len;       // The maximum length of characters that can be entered by this inputboxes
 	char			*text;          // The text associated with this item.
 	char			*textSave;
-	uint color;
+	unsigned int color;
 	short			key;
 	// The rest of these are used internally by by the menu system, so don't set 'em!!
 	short			x, y, xSave, ySave;
@@ -48,17 +49,17 @@ typedef struct tMenuItem {
 	ubyte			noscroll;
 	ubyte			unavailable;
 	ubyte			centered;
-	char			saved_text [NM_MAX_TEXT_LEN+1];
-	CBitmap		*text_bm [2];
+	char			saved_text[NM_MAX_TEXT_LEN+1];
+	grsBitmap	*text_bm [2];
 	char			*szHelp;
 } tMenuItem;
 
 typedef struct bkg {
 	short			x, y, w, h;			// The location of the menu.
-	CCanvas*		menu_canvas;
-	CBitmap*		saved;			// The background under the menu.
-	CBitmap*		background;
-	CBitmap*		bmP;
+	gsrCanvas	*menu_canvas;
+	grsBitmap	*saved;			// The background under the menu.
+	grsBitmap	*background;
+	grsBitmap	*bmp;
 	char			bIgnoreBg;
 	char			bIgnoreCanv;
 	char			*pszPrevBg;
@@ -67,89 +68,89 @@ typedef struct bkg {
 // Pass an array of newmenu_items and it processes the menu. It will
 // return a -1 if Esc is pressed, otherwise, it returns the index of
 // the item that was current when Enter was was selected.
-// The menuCallback function gets called constantly, so you can dynamically
+// The subfunction function gets called constantly, so you can dynamically
 // change the text of an item.  Just pass NULL if you don't want this.
 // Title draws big, Subtitle draw medium sized.  You can pass NULL for
 // either/both of these if you don't want them.
-int ExecMenu (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *item, 
-				  int (*menuCallback)(int nItems, tMenuItem *items, int *lastKeyP, int nItem),
-				  char *filename);
+int ExecMenu(char * title, char * subtitle, int nitems, tMenuItem *item, 
+					void (*subfunction)(int nitems, tMenuItem *items, int *last_key, int citem),
+					char *filename);
 
 // Same as above, only you can pass through what item is initially selected.
-int ExecMenu1 (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *item, 
-				   int (*menuCallback)(int nItems, tMenuItem *items, int *lastKeyP, int nItem), 
-				   int *pnItem);
+int ExecMenu1(char *title, char *subtitle, int nitems, tMenuItem *item, 
+					 void (*subfunction)(int nitems, tMenuItem *items, int *last_key, int citem), 
+					 int *pcitem);
 
 // Same as above, only you can pass through what background bitmap to use.
-int ExecMenu2 (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *item, 
-				   int (*menuCallback)(int nItems, tMenuItem *items, int *lastKeyP, int nItem), 
-				   int *pnItem, char *filename);
+int ExecMenu2(char *title, char *subtitle, int nitems, tMenuItem *item, 
+					 void (*subfunction)(int nitems, tMenuItem *items, int *last_key, int citem), 
+					 int *pcitem, char *filename);
 
 // Same as above, only you can pass through the width & height
-int ExecMenu3 (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *item, 
-					 int (*menuCallback)(int nItems, tMenuItem *items, int *lastKeyP, int nItem), 
-					 int *pnItem, char *filename, int width, int height);
+int ExecMenu3(char *title, char *subtitle, int nitems, tMenuItem *item, 
+					 void (*subfunction)(int nitems, tMenuItem *items, int *last_key, int citem), 
+					 int *pcitem, char *filename, int width, int height);
 
-void NMLoadBackground (char *filename, bkg *bgP, int bReload);
+void NMLoadBackground (char * filename, bkg *bg, int bReload);
 
-void NMDrawBackground (bkg *bgP, int x1, int y1, int x2, int y2, int bReload);
+void NMDrawBackground (bkg *bg, int x1, int y1, int x2, int y2, int bReload);
 
-void NMRemoveBackground (bkg *bgP);
+void NMRemoveBackground (bkg *bg);
 
 
 // This function pops up a messagebox and returns which choice was selected...
 // Example:
 // ExecMessageBox( "Title", "Subtitle", 2, "Ok", "Cancel", "There are %d objects", nobjects );
-// Returns 0 through nChoices-1.
-int _CDECL_ ExecMessageBox (const char *pszTitle, char *filename, int nChoices, ...);
+// Returns 0 through nchoices-1.
+int _CDECL_ ExecMessageBox(char *title, char *filename, int nchoices, ...);
 // Same as above, but you can pass a function
 int _CDECL_ ExecMessageBox1 (
-					const char *pszTitle,
-					int (*menuCallback)(int nItems, tMenuItem *items, int *lastKeyP, int nItem), 
-					char *filename, int nChoices, ...);
+					char *title,
+					void (*subfunction)(int nitems, tMenuItem *items, int *last_key, int citem), 
+					char *filename, int nchoices, ...);
 
-void NMRestoreBackground (int sx, int sy, int dx, int dy, int w, int h);
+void NMRestoreBackground( int sx, int sy, int dx, int dy, int w, int h);
 
 // Returns 0 if no file selected, else filename is filled with selected file.
-int ExecMenuFileSelector (const char *pszTitle, const char *filespec, char *filename, int bAllowAbort);
+int ExecMenuFileSelector(char *title, char *filespec, char *filename, int allow_abortFlag);
 
 // in menu.c
 extern int Max_linear_depthObjects;
 
 extern char *nmAllowedChars;
 
-void NMInitBackground (char *filename, bkg *bgP, int x, int y, int w, int h, int bRedraw);
-void NMDrawBackground (bkg *bgP, int x1, int y1, int x2, int y2, int bRedraw);
+void NMInitBackground (char *filename, bkg *bg, int x, int y, int w, int h, int bRedraw);
+void NMDrawBackground (bkg *bg, int x1, int y1, int x2, int y2, int bRedraw);
 
-int ExecMenuListBox (const char *pszTitle, int nItems, char *itemP [], int bAllowAbort, 
-						   int (*listbox_callback)(int *nItem, int *nItems, char *itemP [], int *keypress));
-int ExecMenuListBox1 (const char *pszTitle, int nItems, char *itemP [], int bAllowAbort, int nDefaultItem, 
-							 int (*listbox_callback)(int *nItem, int *nItems, char *itemP [], int *keypress));
+int ExecMenuListBox(char *title, int nitems, char *items[], int allow_abortFlag, 
+						  int (*listbox_callback)(int *citem, int *nitems, char *items[], int *keypress));
+int ExecMenuListBox1(char *title, int nitems, char *items[], int allow_abortFlag, int default_item, 
+							int (*listbox_callback)(int *citem, int *nitems, char *items[], int *keypress));
 
-int ExecMenuFileList (const char *pszTitle, const char *filespace, char *filename);
+int ExecMenuFileList(char *title, char *filespace, char *filename);
 
-int ExecMenuTiny (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *itemP, 
-						 int (*menuCallback) (int nItems, tMenuItem *itemP, int *lastKeyP, int nItem));
+int ExecMenuTiny (char * title, char * subtitle, int nItems, tMenuItem * item, 
+						 void (*subfunction) (int nItems, tMenuItem * items, int * last_key, int citem));
 
-int ExecMenutiny2 (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *itemP, 
-							int (*menuCallback) (int nItems,tMenuItem *itemP, int *lastKeyP, int nItem));
+int ExecMenutiny2 (char * title, char * subtitle, int nitems, tMenuItem * item, 
+							void (*subfunction) (int nitems,tMenuItem * items, int * last_key, int citem));
 
-void NMProgressBar (const char *szCaption, int nCurProgress, int nMaxProgress, 
-						  int (*doProgress) (int nItems, tMenuItem *items, int *lastKeyP, int cItem));
+void NMProgressBar (char *szCaption, int nCurProgress, int nMaxProgress, 
+						  void (*doProgress) (int nItems, tMenuItem *items, int *last_key, int cItem));
 
-int ExecMenutiny2 (const char *pszTitle, const char *pszSubTitle, int nItems, tMenuItem *itemP, 
-						 int (*menuCallback) (int nItems, tMenuItem *itemP, int *lastKeyP, int nItem));
+int ExecMenutiny2 (char * title, char * subtitle, int nitems, tMenuItem * item, 
+						 void (*subfunction) (int nitems, tMenuItem * items, int * last_key, int citem));
 
 //added on 10/14/98 by Victor Rachels to attempt a fixedwidth font messagebox
-int _CDECL_ NMMsgBoxFixedFont (const char *pszTitle, int nChoices, ...);
+int _CDECL_ NMMsgBoxFixedFont(char *title, int nchoices, ...);
 //end this section addition
 
 //should be called whenever the palette changes
-void NMRemapBackground (void);
+void NMRemapBackground(void);
 void NMLoadAltBg (void);
 int NMFreeAltBg (int bForce);
 
-void NMRestoreScreen (char *filename, bkg *bgP, CCanvas *saveCanvasP, CFont *saveFontP, int bDontRestore);
+void NMRestoreScreen (char *filename, bkg *bg, gsrCanvas *save_canvas, grsFont *saveFont, int bDontRestore);
 void NMBlueBox (int x1, int y1, int x2, int y2, int nLineWidth, float fAlpha, int bForce);
 
 extern double altBgAlpha;
@@ -159,7 +160,7 @@ extern char altBgName [FILENAME_LEN];
 extern char bAlreadyShowingInfo;
 
 #define STARS_BACKGROUND \
-			((gameStates.menus.bHires && CFile::Exist ("starsb.pcx", gameFolders.szDataDir, 0)) ? "starsb.pcx":\
-			CFile::Exist ("stars.pcx", gameFolders.szDataDir, 0) ? "stars.pcx" : "starsb.pcx")
+			((gameStates.menus.bHires && CFExist ("starsb.pcx", gameFolders.szDataDir, 0)) ? "starsb.pcx":\
+			CFExist ("stars.pcx", gameFolders.szDataDir, 0) ? "stars.pcx" : "starsb.pcx")
 
 #endif /* _NEWMENU_H */

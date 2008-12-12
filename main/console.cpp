@@ -1,3 +1,4 @@
+/* $Id: console.c,v 1.18 2003/11/26 12:39:00 btb Exp $ */
 /*
  *
  * Code for controlling the console
@@ -13,9 +14,10 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#ifndef _WIN32
-#	include <fcntl.h>
+#ifndef _WIN32_WCE
+#include <fcntl.h>
 #endif
+#include <ctype.h>
 #ifdef __macosx__
 # include <SDL/SDL.h>
 #else
@@ -23,11 +25,15 @@
 #endif
 
 #include "inferno.h"
+#include "pstypes.h"
 #include "u_mem.h"
 #include "error.h"
+#include "console.h"
 #include "cmd.h"
+#include "gr.h"
 #include "gamefont.h"
 #include "pcx.h"
+#include "cfile.h"
 #ifdef CONSOLE
 #include "CON_console.h"
 #endif
@@ -42,7 +48,7 @@ cvar_t *cvar_vars = NULL;
 
 /* Console specific cvars */
 /* How discriminating we are about which messages are displayed */
-cvar_t con_threshold = {"con_threshold", reinterpret_cast<char*> ("0"),};
+cvar_t con_threshold = {"con_threshold", "0",};
 
 /* Private console stuff */
 #define CON_NUM_LINES 400
@@ -90,28 +96,30 @@ int con_init(void)
 
 #ifdef CONSOLE
 
-#define CON_BG_HIRES (CFile::Exist("scoresb.pcx",gameFolders.szDataDir,0)?"scoresb.pcx":"scores.pcx")
-#define CON_BG_LORES (CFile::Exist("scores.pcx",gameFolders.szDataDir,0)?"scores.pcx":"scoresb.pcx") // Mac datafiles only have scoresb.pcx
+#define CON_BG_HIRES (CFExist("scoresb.pcx",gameFolders.szDataDir,0)?"scoresb.pcx":"scores.pcx")
+#define CON_BG_LORES (CFExist("scores.pcx",gameFolders.szDataDir,0)?"scores.pcx":"scoresb.pcx") // Mac datafiles only have scoresb.pcx
 #define CON_BG ((SWIDTH>=640)?CON_BG_HIRES:CON_BG_LORES)
 
 //------------------------------------------------------------------------------
 
-void con_background (const char *filename)
+void con_background(char *filename)
 {
-	int		pcx_error;
-	CBitmap	bm;
+	int pcx_error;
+	grsBitmap bmp;
 
-pcx_error = PCXReadBitmap (filename, &bm, BM_LINEAR, 0);
-Assert(pcx_error == PCX_ERROR_NONE);
-bm.Remap (NULL, -1, -1);
-CON_Background (Console, &bm);
+	GrInitBitmapData(&bmp);
+	pcx_error = PCXReadBitmap(filename, &bmp, BM_LINEAR, 0);
+	Assert(pcx_error == PCX_ERROR_NONE);
+	GrRemapBitmapGood(&bmp, NULL, -1, -1);
+	CON_Background (Console, &bmp);
+	GrFreeBitmapData (&bmp);
 }
 
 //------------------------------------------------------------------------------
 
 void con_init_real(void)
 {
-	Console = CON_Init(SMALL_FONT, &screen, CON_NUM_LINES, 0, 0, SWIDTH, SHEIGHT / 2);
+	Console = CON_Init(SMALL_FONT, grdCurScreen, CON_NUM_LINES, 0, 0, SWIDTH, SHEIGHT / 2);
 
 	Assert(Console);
 	CON_SetExecuteFunction(Console, con_parse);
@@ -142,7 +150,7 @@ void con_resize(void)
 
 static char buffer[65536];
 
-void _CDECL_ con_printf(int priority, const char *fmt, ...)
+void _CDECL_ con_printf(int priority, char *fmt, ...)
 {
 	va_list arglist;
   
@@ -226,7 +234,7 @@ void cvar_registervariable (cvar_t *cvar)
 	Assert(cvar != NULL);
 
 	cvar->next = NULL;
-	cvar->value = cvar->string ? strtod(cvar->string, reinterpret_cast<char **> (NULL)) : 0;
+	cvar->value = cvar->string ? strtod(cvar->string, (char **) NULL) : 0;
 
 	if (cvar_vars == NULL)
 	{
@@ -242,7 +250,7 @@ void cvar_registervariable (cvar_t *cvar)
  * cvar_set - Set a CVar's value
  * ======
  */
-void cvar_set (const char *cvar_name, char *value)
+void cvar_set (char *cvar_name, char *value)
 {
 	cvar_t *ptr;
 
@@ -251,14 +259,14 @@ void cvar_set (const char *cvar_name, char *value)
 
 	if (ptr == NULL) return; // If we didn't find the cvar, give up
 
-	ptr->value = strtod(value, reinterpret_cast<char **> (NULL));
+	ptr->value = strtod(value, (char **) NULL);
 }
 
 /* ======
  * cvar() - Get a CVar's value
  * ======
  */
-double cvar (const char *cvar_name)
+double cvar (char *cvar_name)
 {
 	cvar_t *ptr;
 

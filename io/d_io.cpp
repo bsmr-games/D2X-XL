@@ -1,3 +1,4 @@
+/* $Id: d_io.c,v 1.7 2003/11/27 00:21:04 btb Exp $ */
 /*
  * some misc. file/disk routines
  * Arne de Bruijn, 1998
@@ -47,13 +48,13 @@ long ffilelength(FILE *file)
 }
 
 
-ulong d_getdiskfree()
+unsigned long d_getdiskfree()
 {
  // FIXME:
 return 999999999;
 }
 
-ulong GetDiskFree()
+unsigned long GetDiskFree()
 {
  return d_getdiskfree();
 }
@@ -61,7 +62,7 @@ ulong GetDiskFree()
 // remove extension from filename, doesn't work with paths.
 void removeext(const char *filename, char *out) {
 	char *p;
-	if ((p = const_cast<char*> (strrchr (filename, '.')))) {
+	if ((p = (char *) strrchr (filename, '.'))) {
 		strncpy(out, filename, p - filename);
 		out[p - filename] = 0;
 	} else

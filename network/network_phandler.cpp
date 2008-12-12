@@ -1,3 +1,4 @@
+/* $Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -12,9 +13,23 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
 #ifdef HAVE_CONFIG_H
-#	include <conf.h>
+#include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $";
+#endif
+
+#define PATCH12
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#	include <winsock.h>
+#else
+#	include <sys/socket.h>
+#endif
 #ifndef _WIN32
 #	include <arpa/inet.h>
 #	include <netinet/in.h> /* for htons & co. */
@@ -22,18 +37,69 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "strutil.h"
+#include "args.h"
+#include "timer.h"
+#include "mono.h"
 #include "ipx.h"
+#include "newmenu.h"
+#include "key.h"
+#include "gauges.h"
+#include "object.h"
+#include "objsmoke.h"
 #include "error.h"
+#include "laser.h"
+#include "gamesave.h"
+#include "gamemine.h"
+#include "player.h"
+#include "loadgame.h"
+#include "fireball.h"
 #include "network.h"
 #include "network_lib.h"
+#include "game.h"
+#include "multi.h"
+#include "endlevel.h"
+#include "palette.h"
+#include "reactor.h"
+#include "powerup.h"
+#include "menu.h"
+#include "sounds.h"
+#include "text.h"
+#include "highscores.h"
+#include "newdemo.h"
+#include "multibot.h"
+#include "wall.h"
+#include "bm.h"
+#include "effects.h"
+#include "physics.h"
+#include "switch.h"
+#include "automap.h"
+#include "byteswap.h"
 #include "netmisc.h"
+#include "kconfig.h"
+#include "playsave.h"
+#include "cfile.h"
 #include "autodl.h"
 #include "tracker.h"
+#include "newmenu.h"
+#include "gamefont.h"
+#include "gameseg.h"
+#include "hudmsg.h"
+#include "vers_id.h"
+#include "netmenu.h"
 #include "banlist.h"
+#include "collide.h"
+#include "ipx.h"
+#ifdef _WIN32
+#	include "win32/include/ipx_udp.h"
+#	include "win32/include/ipx_drv.h"
+#else
+#	include "linux/include/ipx_udp.h"
+#	include "linux/include/ipx_drv.h"
+#endif
 
 //------------------------------------------------------------------------------
 
-#if defined(_WIN32) && !DBG
+#ifdef _WIN32
 typedef int ( __fastcall * pPacketHandler) (ubyte *dataP, int nLength);
 #else
 typedef int (* pPacketHandler) (ubyte *dataP, int nLength);
@@ -41,7 +107,7 @@ typedef int (* pPacketHandler) (ubyte *dataP, int nLength);
 
 typedef struct tPacketHandlerInfo {
 	pPacketHandler	packetHandler;
-	const char				*pszInfo;
+	char				*pszInfo;
 	int				nLength;
 	short				nStatusFilter;
 	} tPacketHandlerInfo;
@@ -79,13 +145,13 @@ if (gameStates.multi.nGameType == UDP_GAME)
 
 //------------------------------------------------------------------------------
 
-int NetworkBadPacketSize (int nLength, int nExpectedLength, const char *pszId)
+int NetworkBadPacketSize (int nLength, int nExpectedLength, char *pszId)
 {
 if (!nExpectedLength || (nLength == nExpectedLength))
 	return 0;
 con_printf (CONDBG, "WARNING! Received invalid size for %s\n", pszId);
 PrintLog ("Networking: Bad size for %s\n", pszId);
-#if DBG
+#ifdef _DEBUG
 HUDMessage (0, "invalid %s", pszId);
 #endif
 if (nLength == nExpectedLength - 4)
@@ -95,7 +161,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int NetworkBadSecurity (int nSecurity, const char *pszId)
+int NetworkBadSecurity (int nSecurity, char *pszId)
 {
 #if SECURITY_CHECK
 if (nSecurity == netGame.nSecurity)
@@ -108,7 +174,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-#define THEIR	reinterpret_cast<tSequencePacket*>(dataP)
+#define THEIR	((tSequencePacket *) dataP)
 
 int GameInfoHandler (ubyte *dataP, int nLength)
 {
@@ -144,7 +210,7 @@ return 1;
 
 int GameListHandler (ubyte *dataP, int nLength)
 {
-if (banList.Find (THEIR->player.callsign))
+if (FindPlayerInBanList (THEIR->player.callsign))
 	return 0;
 if (!NetworkIAmMaster ())
 	return 0;
@@ -176,7 +242,7 @@ return 1;
 
 int RequestHandler (ubyte *dataP, int nLength)
 {
-if (banList.Find (THEIR->player.callsign))
+if (FindPlayerInBanList (THEIR->player.callsign))
 	return 0;
 if (networkData.nStatus == NETSTAT_STARTING) // Someone wants to join our game!
 	NetworkAddPlayer (THEIR);	
@@ -205,8 +271,10 @@ int QuitJoiningHandler (ubyte *dataP, int nLength)
 {
 if (networkData.nStatus == NETSTAT_STARTING)
 	NetworkRemovePlayer (THEIR);
-else if (networkData.nStatus == NETSTAT_PLAYING) 
-	NetworkStopResync (THEIR);
+else if (networkData.nStatus == NETSTAT_PLAYING) {
+	if (networkData.nSyncState)
+		NetworkStopResync (THEIR);
+	}
 return 1;
 }
 
@@ -217,7 +285,7 @@ int SyncHandler (ubyte *dataP, int nLength)
 if (gameStates.multi.nGameType >= IPX_GAME)
 	ReceiveFullNetGamePacket (dataP, &tempNetInfo);
 else
-	tempNetInfo = *reinterpret_cast<tNetgameInfo*> (dataP);
+	tempNetInfo = *((tNetgameInfo *) dataP);
 if (NetworkBadSecurity (tempNetInfo.nSecurity, "PID_SYNC"))
 	return 0;
 if (networkData.nSecurityFlag == NETSECURITY_WAIT_FOR_SYNC) {
@@ -235,7 +303,7 @@ else {
 	networkData.nSecurityFlag = NETSECURITY_WAIT_FOR_PLAYERS;
 	networkData.nSecurityNum = tempNetInfo.nSecurity;
 	if (NetworkWaitForPlayerInfo ())
-		NetworkReadSyncPacket (reinterpret_cast<tNetgameInfo*> (dataP), 0);
+		NetworkReadSyncPacket ((tNetgameInfo *) dataP, 0);
 	networkData.nSecurityFlag = 0;
 	networkData.nSecurityNum = 0;
 	}
@@ -282,7 +350,7 @@ return 1;
 int PDataHandler (ubyte *dataP, int nLength)
 {
 if (IsNetworkGame)
-	NetworkProcessPData (reinterpret_cast<char*> (dataP));
+	NetworkProcessPData ((char *) dataP);
 return 1;
 }
 
@@ -291,7 +359,7 @@ return 1;
 int NakedPDataHandler (ubyte *dataP, int nLength)
 {
 if (IsNetworkGame)
-	NetworkProcessNakedPData (reinterpret_cast<char*> (dataP), nLength);
+	NetworkProcessNakedPData ((char *) dataP, nLength);
 return 1;
 }
 
@@ -323,7 +391,7 @@ return 1;
 
 int GameUpdateHandler (ubyte *dataP, int nLength)
 {
-if (NetworkBadSecurity (reinterpret_cast<tNetgameInfo*> (dataP)->nSecurity, "PID_GAME_UPDATE"))
+if (NetworkBadSecurity (((tNetgameInfo *) dataP)->nSecurity, "PID_GAME_UPDATE"))
 	return 0;
 if (networkData.nStatus == NETSTAT_PLAYING) {
 	if (gameStates.multi.nGameType >= IPX_GAME)
@@ -336,7 +404,7 @@ if (IsTeamGame) {
 
 	for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 		if (gameData.multiplayer.players [i].connected)
-		   MultiResetObjectTexture (OBJECTS + gameData.multiplayer.players [i].nObject);
+		   MultiResetObjectTexture (gameData.objs.objects + gameData.multiplayer.players [i].nObject);
 	ResetCockpit ();
 	}
 return 1;
@@ -354,7 +422,7 @@ return 1;
 
 int PingReturnHandler (ubyte *dataP, int nLength)
 {
-NetworkHandlePingReturn (dataP [1]);  // dataP [1] is CPlayerData who told us of THEIR ping time
+NetworkHandlePingReturn (dataP [1]);  // dataP [1] is tPlayer who told us of THEIR ping time
 return 1;
 }
 
@@ -363,7 +431,7 @@ return 1;
 int NamesReturnHandler (ubyte *dataP, int nLength)
 {
 if (networkData.nNamesInfoSecurity != -1)
-	NetworkProcessNamesReturn (reinterpret_cast<char*> (dataP));
+	NetworkProcessNamesReturn ((char *) dataP);
 return 1;
 }
 
@@ -381,13 +449,13 @@ return 1;
 
 int MissingObjFramesHandler (ubyte *dataP, int nLength)
 {
-NetworkProcessMissingObjFrames (reinterpret_cast<char*> (dataP));
+NetworkProcessMissingObjFrames ((char *) dataP);
 return 1;
 }
 
 //------------------------------------------------------------------------------
 
-void InitPacketHandler (ubyte pId, pPacketHandler packetHandler, const char *pszInfo, int nLength, short nStatusFilter)
+void InitPacketHandler (ubyte pId, pPacketHandler packetHandler, char *pszInfo, int nLength, short nStatusFilter)
 {
 	tPacketHandlerInfo	*piP = packetHandlers + pId;
 

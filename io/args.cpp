@@ -1,3 +1,4 @@
+/* $Id: args.c,v 1.10 2003/11/26 12:26:33 btb Exp $ */
 /*
  THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
  SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,6 +16,10 @@
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: args.c,v 1.10 2003/11/26 12:26:33 btb Exp $";
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -27,7 +32,6 @@
 #include "console.h"
 #include "error.h"
 #include "findfile.h"
-#include "strutil.h"
 
 int nArgCount = 0;
 
@@ -37,7 +41,7 @@ char * pszArgList [MAX_ARGS], *ps;
 
 //------------------------------------------------------------------------------
 
-int FindArg (const char * s)
+int FindArg (char * s)
 {
 	int i;
   
@@ -56,7 +60,7 @@ void _CDECL_ args_exit (void)
 PrintLog ("unloading program arguments\n");
 for (i = 0; i < nArgCount; i++)
 	if (pszArgList [i])
-		delete[] pszArgList [i];
+		D2_FREE (pszArgList [i]);
 memset (pszArgList, 0, sizeof (pszArgList));
 nArgCount = 0;
 }
@@ -98,7 +102,7 @@ return fnIni;
 void InitArgs (int argc, char **argv)
 {
 	int 		i, j;
-	CFile 	cf;
+	CFILE 	cf = {NULL, 0, 0, 0};
 	char 		*pszLine, *pszToken, fnIni [FILENAME_LEN];
 	static	char **pszArgs = NULL;
 	static	int  nArgs = 0;
@@ -116,7 +120,7 @@ else
 PrintLog ("Loading program arguments\n");
 args_exit ();
 for (i = 0; i < argc; i++)
-	pszArgList [nArgCount++] = StrDup (argv [i]);
+	pszArgList [nArgCount++] = D2_STRDUP (argv [i]);
 
 for (i = 0; i < nArgCount; i++)
 	if (pszArgList [i] [0] == '-')
@@ -124,21 +128,21 @@ for (i = 0; i < nArgCount; i++)
 
 // look for the ini file
 // for unix, allow both ~/.d2x-xl and <config dir>/d2x.ini
-#if DBG
+#ifdef _DEBUG
 GetIniFileName (fnIni, 1);
 #else
 GetIniFileName (fnIni, 0);
 #endif
-cf.Open (fnIni, "", "rt", 0);
-#if DBG
-if (!cf.File()) {
+CFOpen (&cf, fnIni, "", "rt", 0);
+#ifdef _DEBUG
+if (!cf.file) {
 	GetIniFileName (fnIni, 0);
-	cf.Open (fnIni, "", "rt", 0);
+	CFOpen (&cf, fnIni, "", "rt", 0);
 	}
 #endif
-if (cf.File()) {
-	while (!cf.EoF ()) {
-		pszLine = fsplitword (cf, '\n');
+if (cf.file) {
+	while (!CFEoF (&cf)) {
+		pszLine = fsplitword (&cf, '\n');
 		if (*pszLine && (*pszLine != ';')) {
 			pszToken = splitword (pszLine, ' ');
 			if (nArgCount >= MAX_ARGS)
@@ -149,12 +153,12 @@ if (cf.File()) {
 					PrintLog ("too many program arguments\n");
 					break;
 					}
-				pszArgList [nArgCount++] = *pszLine ? StrDup (pszLine) : NULL;
+				pszArgList [nArgCount++] = *pszLine ? D2_STRDUP (pszLine) : NULL;
 				}
 			}
-		delete[] pszLine; 
+		D2_FREE (pszLine); 
 		}
-	cf.Close ();
+	CFClose (&cf);
 	}
 PrintLog ("   ");
 for (i = j = 0; i < nArgCount; i++, j++) {

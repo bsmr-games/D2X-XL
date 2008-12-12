@@ -4,7 +4,6 @@
 	Version="9,00"
 	Name="d2x-xl"
 	ProjectGUID="{1C9AA6BF-147B-4027-848A-B33038B49BFE}"
-	RootNamespace="d2x-xl"
 	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
@@ -23,7 +22,7 @@
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC71.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
-			CharacterSet="0"
+			CharacterSet="2"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -50,7 +49,6 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				FavorSizeOrSpeed="0"
-				WholeProgramOptimization="false"
 				AdditionalIncludeDirectories="&quot;..\..\..\..\irrlicht-1.4\include&quot;;&quot;..\..\..\..\SDL-1.2.13\include&quot;;&quot;..\..\..\..\SDL_mixer-1.2.8&quot;;&quot;\projects\OpenAL 1.1 SDK\include&quot;;&quot;..\..\d2x-trackir&quot;;..\..\3d;..\..\include;..\..\input\include;..\..\audio\win32\include;..\..\network\win32\include"
 				PreprocessorDefinitions="DBG=1;_DEBUG;WIN32;_WINDOWS;NO_ASM;NMONO;PIGGY_USE_PAGING;NEWDEMO;SDL_INPUT;SDL_GL_VIDEO;CONSOLE;NETWORK;NATIVE_IPX;OGL;OGL_ZBUF;FAST_EVENTPOLL;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE"
 				StringPooling="true"
@@ -70,7 +68,7 @@
 				SuppressStartupBanner="true"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="4"
-				CallingConvention="0"
+				CallingConvention="1"
 				CompileAs="0"
 			/>
 			<Tool
@@ -167,6 +165,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				EnableFiberSafeOptimizations="true"
+				WholeProgramOptimization="true"
 				AdditionalIncludeDirectories="&quot;..\..\..\..\irrlicht-1.4\include&quot;;&quot;..\..\..\..\SDL-1.2.13\include&quot;;&quot;..\..\..\..\SDL_mixer-1.2.8&quot;;&quot;\projects\OpenAL 1.1 SDK\include&quot;;&quot;..\..\d2x-trackir&quot;;..\..\3d;..\..\include;..\..\input\include;..\..\audio\win32\include;..\..\network\win32\include"
 				PreprocessorDefinitions="NDEBUG;RELEASE;WIN32;_WINDOWS;NO_ASM;NMONO;PIGGY_USE_PAGING;NEWDEMO;SDL_INPUT;SDL_GL_VIDEO;CONSOLE;NETWORK;NATIVE_IPX;OGL;OGL_ZBUF;FAST_EVENTPOLL;_CRT_SECURE_NO_WARNINGS"
 				StringPooling="true"
@@ -246,6 +245,422 @@
 			Name="Source Files"
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
+			<Filter
+				Name="2d"
+				>
+				<Filter
+					Name="Header Files"
+					>
+					<File
+						RelativePath="..\..\2d\bitmap.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\mono.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\palette.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\pcx.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\rle.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\texmap\scanline.h"
+						>
+					</File>
+				</Filter>
+				<Filter
+					Name="Source Files"
+					>
+					<File
+						RelativePath="..\..\2d\2dsline.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\bitblt.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\bitmap.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\box.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\canvas.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\circle.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\disc.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\font.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\gpixel.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\ibitblt.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\line.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\palette.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\pcx.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\pixel.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\poly.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\rect.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\rle.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\scalec.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\2d\tmerge.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+				</Filter>
+			</Filter>
 			<Filter
 				Name="3d"
 				>
@@ -609,10 +1024,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\crypt.h"
-						>
-					</File>
-					<File
 						RelativePath="..\..\include\error.h"
 						>
 					</File>
@@ -638,26 +1049,6 @@
 					>
 					<File
 						RelativePath="..\..\console\CON_console.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\crypt.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -776,6 +1167,10 @@
 							/>
 						</FileConfiguration>
 					</File>
+					<File
+						RelativePath="..\..\misc\timer.cpp"
+						>
+					</File>
 				</Filter>
 			</Filter>
 			<Filter
@@ -835,10 +1230,6 @@
 					</File>
 					<File
 						RelativePath="..\..\include\game.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\main\gameargs.h"
 						>
 					</File>
 					<File
@@ -994,6 +1385,26 @@
 						</FileConfiguration>
 					</File>
 					<File
+						RelativePath="..\..\main\config.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
 						RelativePath="..\..\main\console.cpp"
 						>
 						<FileConfiguration
@@ -1035,6 +1446,26 @@
 					</File>
 					<File
 						RelativePath="..\..\main\credits.cpp"
+						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\..\main\crypt.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -1174,10 +1605,6 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\main\gameargs.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\main\gamecntl.cpp"
 						>
 						<FileConfiguration
@@ -1198,16 +1625,24 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\main\gamedata.cpp"
+						RelativePath="..\..\main\gamefont.cpp"
 						>
-					</File>
-					<File
-						RelativePath="..\..\main\gamefolders.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\main\gameoptions.cpp"
-						>
+						<FileConfiguration
+							Name="Debug|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="Release|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								ObjectFile="$(IntDir)/$(InputName)1.obj"
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\..\main\gameseg.cpp"
@@ -1228,10 +1663,6 @@
 								ObjectFile="$(IntDir)/$(InputName)1.obj"
 							/>
 						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\gamestates.cpp"
-						>
 					</File>
 					<File
 						RelativePath="..\..\main\highscores.cpp"
@@ -1906,10 +2337,6 @@
 						</FileConfiguration>
 					</File>
 					<File
-						RelativePath="..\..\ai\d1_ai.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\ai\escort.cpp"
 						>
 						<FileConfiguration
@@ -1954,19 +2381,11 @@
 					Name="Header Files"
 					>
 					<File
-						RelativePath="..\..\include\ai.h"
+						RelativePath="..\..\main\ai.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\aistruct.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\d1_ai.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\d1_aistruct.h"
+						RelativePath="..\..\main\aistruct.h"
 						>
 					</File>
 				</Filter>
@@ -2366,15 +2785,15 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\network\include\win32\ipx_drv.h"
+						RelativePath="..\..\arch\win32\ipx_drv.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\network\include\win32\ipx_mcast4.h"
+						RelativePath="..\..\arch\win32\include\ipx_mcast4.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\network\include\win32\ipx_udp.h"
+						RelativePath="..\..\arch\win32\include\ipx_udp.h"
 						>
 					</File>
 					<File
@@ -2438,6 +2857,10 @@
 						>
 					</File>
 					<File
+						RelativePath="..\..\render\glare.cpp"
+						>
+					</File>
+					<File
 						RelativePath="..\..\render\morph.cpp"
 						>
 					</File>
@@ -2490,15 +2913,23 @@
 					Name="Header Files"
 					>
 					<File
+						RelativePath="..\..\main\automap.h"
+						>
+					</File>
+					<File
 						RelativePath="..\..\include\cameras.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\fastrender.h"
+						RelativePath="..\..\main\fastrender.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\gamepal.h"
+						RelativePath="..\..\main\gamepal.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\main\glare.h"
 						>
 					</File>
 					<File
@@ -2510,7 +2941,11 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\objrender.h"
+						RelativePath="..\..\include\objsmoke.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\main\polyobj.h"
 						>
 					</File>
 					<File
@@ -2518,11 +2953,11 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\radar.h"
+						RelativePath="..\..\main\radar.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\render.h"
+						RelativePath="..\..\main\render.h"
 						>
 					</File>
 					<File
@@ -2530,7 +2965,7 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\rendershadows.h"
+						RelativePath="..\..\main\rendershadows.h"
 						>
 					</File>
 					<File
@@ -2538,7 +2973,7 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\sphere.h"
+						RelativePath="..\..\main\sphere.h"
 						>
 					</File>
 					<File
@@ -2558,10 +2993,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\render\glare.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\effects\lightning.cpp"
 						>
 					</File>
@@ -2578,10 +3009,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\effects\shrapnel.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\..\effects\sparkeffect.cpp"
 						>
 					</File>
@@ -2590,19 +3017,15 @@
 					Name="Header Files"
 					>
 					<File
-						RelativePath="..\..\include\fireball.h"
+						RelativePath="..\..\main\fireball.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\glare.h"
+						RelativePath="..\..\main\lightning.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\lightning.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\objsmoke.h"
+						RelativePath="..\..\main\objsmoke.h"
 						>
 					</File>
 					<File
@@ -2610,7 +3033,7 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\perlin.h"
+						RelativePath="..\..\main\perlin.h"
 						>
 					</File>
 				</Filter>
@@ -2675,26 +3098,6 @@
 					>
 					<File
 						RelativePath="..\..\gameio\bm.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\main\config.cpp"
 						>
 						<FileConfiguration
 							Name="Debug|Win32"
@@ -2978,10 +3381,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\state.h"
-						>
-					</File>
-					<File
 						RelativePath="..\..\include\tga.h"
 						>
 					</File>
@@ -3078,15 +3477,15 @@
 					Name="Header Files"
 					>
 					<File
-						RelativePath="..\..\include\ase.h"
+						RelativePath="..\..\main\ase.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\hiresmodels.h"
+						RelativePath="..\..\main\hiresmodels.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\oof.h"
+						RelativePath="..\..\main\oof.h"
 						>
 					</File>
 				</Filter>
@@ -3142,11 +3541,11 @@
 					Name="Header Files"
 					>
 					<File
-						RelativePath="..\..\include\entropy.h"
+						RelativePath="..\..\main\entropy.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\monsterball.h"
+						RelativePath="..\..\main\monsterball.h"
 						>
 					</File>
 				</Filter>
@@ -3274,15 +3673,15 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\songs.h"
+						RelativePath="..\..\main\songs.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\sounds.h"
+						RelativePath="..\..\main\sounds.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\soundthreads.h"
+						RelativePath="..\..\main\soundthreads.h"
 						>
 					</File>
 				</Filter>
@@ -3656,6 +4055,46 @@
 				</Filter>
 			</Filter>
 			<Filter
+				Name="io"
+				>
+				<Filter
+					Name="Source Files"
+					>
+					<File
+						RelativePath="..\..\io\args.cpp"
+						>
+					</File>
+					<File
+						RelativePath="..\..\io\cfile.cpp"
+						>
+					</File>
+					<File
+						RelativePath="..\..\io\d_io.cpp"
+						>
+					</File>
+					<File
+						RelativePath="..\..\io\win32\findfile.cpp"
+						>
+					</File>
+				</Filter>
+				<Filter
+					Name="Header Files"
+					>
+					<File
+						RelativePath="..\..\include\args.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\cfile.h"
+						>
+					</File>
+					<File
+						RelativePath="..\..\include\d_io.h"
+						>
+					</File>
+				</Filter>
+			</Filter>
+			<Filter
 				Name="maths"
 				>
 				<Filter
@@ -3998,15 +4437,15 @@
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\hud_defs.h"
+						RelativePath="..\..\main\hud_defs.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\hudicons.h"
+						RelativePath="..\..\main\hudicons.h"
 						>
 					</File>
 					<File
-						RelativePath="..\..\include\hudmsg.h"
+						RelativePath="..\..\main\hudmsg.h"
 						>
 					</File>
 				</Filter>
@@ -4119,486 +4558,6 @@
 					</File>
 				</Filter>
 			</Filter>
-			<Filter
-				Name="io"
-				>
-				<Filter
-					Name="Source Files"
-					>
-					<File
-						RelativePath="..\..\io\args.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\io\cfile.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\io\d_io.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\io\win32\findfile.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\io\hogfile.cpp"
-						>
-					</File>
-				</Filter>
-				<Filter
-					Name="Header Files"
-					>
-					<File
-						RelativePath="..\..\include\args.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\cfile.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\d_io.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\hogfile.h"
-						>
-					</File>
-				</Filter>
-			</Filter>
-			<Filter
-				Name="2d"
-				>
-				<Filter
-					Name="Header Files"
-					>
-					<File
-						RelativePath="..\..\include\bitmap.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\canvas.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\color.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\font.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\mono.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\palette.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\pcx.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\include\rle.h"
-						>
-					</File>
-					<File
-						RelativePath="..\..\texmap\scanline.h"
-						>
-					</File>
-				</Filter>
-				<Filter
-					Name="Source Files"
-					>
-					<File
-						RelativePath="..\..\2d\2dsline.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\bitblt.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\bitmap.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\box.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\canvas.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\circle.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\disc.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\font.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\gpixel.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\ibitblt.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\line.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\palette.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\pcx.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\pixel.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\poly.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\rect.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\rle.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\scalec.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\..\2d\string.cpp"
-						>
-					</File>
-					<File
-						RelativePath="..\..\2d\tmerge.cpp"
-						>
-						<FileConfiguration
-							Name="Debug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="Release|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-								ObjectFile="$(IntDir)/$(InputName)1.obj"
-							/>
-						</FileConfiguration>
-					</File>
-				</Filter>
-			</Filter>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -4617,11 +4576,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\descent.ico"
+				RelativePath="..\..\descent.ico"
 				>
 			</File>
 			<File
-				RelativePath="..\..\descent.ico"
+				RelativePath=".\descent.ico"
 				>
 			</File>
 			<File
@@ -4633,6 +4592,10 @@
 			Name="Header Files"
 			>
 			<File
+				RelativePath="..\..\include\ase.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\include\automap.h"
 				>
 			</File>
@@ -4641,23 +4604,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\include\carray.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\cdatapool.h"
-				>
-			</File>
-			<File
 				RelativePath="..\..\include\checker.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\include\compbit.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\cstack.h"
 				>
 			</File>
 			<File
@@ -4673,15 +4624,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\include\gamepal.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\include\gamestat.h"
 				>
 			</File>
 			<File
 				RelativePath="..\..\include\glext.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\include\globvars.h"
 				>
 			</File>
 			<File

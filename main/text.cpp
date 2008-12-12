@@ -1,3 +1,4 @@
+/* $Id: text.c,v 1.11 2003/11/26 12:26:33 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,17 +16,23 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: text.c,v 1.11 2003/11/26 12:26:33 btb Exp $";
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "inferno.h"
+#include "pstypes.h"
+#include "cfile.h"
 #include "u_mem.h"
 #include "error.h"
 #include "text.h"
 #include "args.h"
 #include "compbit.h"
 
-#if DBG
+#ifdef _DEBUG
 #	define DUMP_TEXTS 0
 #else
 #	define DUMP_TEXTS 0
@@ -45,20 +52,20 @@ void _CDECL_ free_text(void)
 {
 	char	*p = pszGameTexts [0] - 1;
 
-	PrintLog ("unloading game texts\n");
-	if (pszGameTexts && pszGameTexts [0]) {
-		p = pszGameTexts [0] - 1;
-		delete[] text;
-		delete[] p;
-		delete[] pszGameTexts;
-		pszGameTexts = NULL;
+PrintLog ("unloading game texts\n");
+if (pszGameTexts && pszGameTexts [0]) {
+	p = pszGameTexts [0] - 1;
+	D2_FREE (text);
+	D2_FREE (p);
+	D2_FREE (pszGameTexts);
+	pszGameTexts = NULL;
 	}
-	if (pszHelpTexts && pszHelpTexts [0]) {
-		p = pszHelpTexts [0] - 1;
-		delete[] text;
-		delete[] p;
-		delete[] pszHelpTexts;
-		pszHelpTexts = NULL;
+if (pszHelpTexts && pszHelpTexts [0]) {
+	p = pszHelpTexts [0] - 1;
+	D2_FREE (text);
+	D2_FREE (p);
+	D2_FREE (pszHelpTexts);
+	pszHelpTexts = NULL;
 	}
 }
 
@@ -66,7 +73,7 @@ void _CDECL_ free_text(void)
 
 char **pszGameTexts = NULL;
 
-const char *d2GameTexts [] = {
+char *d2GameTexts [] = {
 	"New game",
 	"High scores",
 	"Quit",
@@ -704,7 +711,7 @@ const char *d2GameTexts [] = {
 	"Macro",
 	"Error locking serial interrupt routine!",
 	"Error locking serial port data!",
-	"Robots are Normal",
+	"Robots are normal",
 	"Robots move fast, fire seldom",
 	"Robot painting OFF",
 	"Robot painting with texture %d",
@@ -719,7 +726,7 @@ const char *d2GameTexts [] = {
 	"S~Ingle Player Game"
 	};
 
-const char *defaultGameTexts [][2] = {
+char *defaultGameTexts [][2] = {
 	// menu messages
 	{"Ein~Zelspieler-Spiel", "S~Ingle Player Game"},
 	{"~Filme abspielen", "PLAY MOVIES..."},
@@ -1522,7 +1529,7 @@ const char *defaultGameTexts [][2] = {
 	{"~Pyro-Kraft: x %d", "~Pyro Force: x %d"},
 	{"Beleuchtung je ~Vertex", "~Vertex lighting"},
 	{"openGL ~Objekt-Beleuchtung", "openGL ~Object lighting"},
-	{"max. lichter/fl~Aeche: %d", "max. lights/f~Ace: %d"},
+	{"max. ~Lichter/Flaeche: %d", "max. ~Lights/face: %d"},
 	{"~Verdunkelung", "~Darkness game"},
 	{"~Team-Tueren", "~Team Doors"},
 	{"~Cheat Codes zulassen", "Enable ~Cheat Codes"},
@@ -1532,7 +1539,7 @@ const char *defaultGameTexts [][2] = {
 	{"~Dreieckige Zielmarkierungen", "~Triangular Target Indicators"},
 	{"~Schadensanzeigen aktivieren", "show ~Damage Indicators"},
 	{"keine Schein~Werfer", "no ~Headlights"},
-	{"kein Licht von po~Werups", "no light from po~Werups"},
+	{"kein Licht von ~Powerups", "no light from ~Powerups"},
 	{"Spot~Groesse: %s", "Sp~Ot size: %s"},
 	{"Nur ~Freundkennungen anzeigen", "show only ~Friendly tags"},
 	{"~Kennungen getarnter Objekte anzeigen", "show tags for ~Cloaked objects"},
@@ -1650,7 +1657,7 @@ const char *defaultGameTexts [][2] = {
 	{"~Alle missionen spielen", "play ~All missions"},
 	{"Neues Spiel", "New Game"},
 	{"~Schuesse mit Lichthoefen zeichnen", "render coronas for gun ~Shots"},
-	{"s~Kybox anzeigen", "show ~sKybox"},
+	{"~Skybox anzeigen", "show ~Skybox"},
 	{"Zeitlupe/-raffer", "Slowmo/Speed"},
 	{"beschleunige...", "speeding up..."},
 	{"verzoegere...", "slowing down..."},
@@ -1800,43 +1807,22 @@ const char *defaultGameTexts [][2] = {
 	{"Initialisiere...", "Initializing..."},
 	{"ro~Boter-Omega schiesst blitze", "ro~Bot omega fires lightnings"},
 	{"~Geometrie-Verbesserung: %s", "Mesh impr~Ovement: %s"},
-	{"lightmap-~Qualitaet: %s", "lightmap ~Quality: %s"},
-	{"~Klaenge", "~Sound"},
-	{"~Beleuchtung", "~Lighting"},
-	{"~Renderer", "~Renderer"},
-	{"~Transparenz", "~Transparency"},
-	{"~Effekte", "~Effects"},
-	{"~Objekte", "~Objects"},
+	{"li~Ghtmap-Qualitaet: %s", "li~Ghtmap quality: %s"},
+	{"statische Beleuchtung", "static light calculation"},
+	{"dynamische Beleuchtung", "dynamic light calculation"},
+	{"Polygon-Sortierung", "face sorting"},
+	{"Vorverarbeitung Segment-Sortierung", "segment sort preprocess"},
+	{"Tiefensortierung Segment", "segment depth sorting"},
+	{"Blitz-Animation", "lightning animation"},
+	{"Blitz-Darstellung", "lightning rendering"},
+	{"Partikel-Animation", "particle animation"},
+	{"Partikel-Darstellung", "particle rendering"},
+	{"Beleuchtung 3D-Modelle", "3D model lighting"},
 	{"M~Ulti-Threading...", "m~Ulti threading..."},
 	{"Multi-Threading", "multi threading"},
-	{"max. Lichter/D~Urchgang: %d", "max. lights/pa~Ss: %d"},
+	{"max. Lichter/D~Urchgang: %d", "max. lights/~Pass: %d"},
 	{"max. Lichter/~Objekt: %d", "max. lights/~Object: %d"},
 	{"Bojen ~Drehen sich", "mar~Kers rotate"},
-	{"Lightmaps ~Verwenden", "use li~Ghtmaps"},
-	{"Blaue Flagge!", "BLUE FLAG!"},
-	{"Rote Flagge!", "RED FLAG!"},
-	{"Rauchspuren fuer Maschinen~Kanonen", "~Gatling smoke trails"},
-	{"Descent 1 K~I verwenden", "use Descent 1 A~I"},
-	{"treibende ~Funken", "mo~Ving sparks"},
-	{"~Sprites weichzeichnen", "soften spr~Ite edges"},
-	{"~Funken weichzeichnen", "soften sp~Ark edges"},
-	{"~Rauch weichzeichnen", "soften sm~Oke edges"},
-	{"~Dieb unterdruecken", "suppress ~Thief bots"},
-	{"moderat", "moderate"},
-	{"AI-A~Ggressivitaet: %s", "AI A~Ggressivity: %s"},
-	{"Savegame inkompatibel:\nMax. Segmentzahl unterschiedlich (savegame: %d).\nDer Wert kann in d2x.ini gesetzt werden.", 
-	 "Savegame incompatible:\nMaximum segment count differs (savegame: %d).\nYou can change the value in d2x.ini."},
-	{"Musik aus~Blenden", "~Fade out music"},
-	{"~Hochaufloesende Kameras", "~High resolution cameras"},
-	{"Schnellspeichern erfolgreich", "Quicksave successful"},
-	{"Schnellladen erfolgreich", "Quickload successful"},
-	{"STRG-F5\t  Schnellspeichern", "CTRL-F5\t  Quick Save"},
-	{"STRG-F9\t  Schnellladen", "CTRL-F9\t  Quick Load"},
-	{"Luft~Blasen erzeugen", "air B~ubbles"},
-	{"Luftblasen schwingen hin und her", "air bubbles w~Iggle"},
-	{"Luftblasen aendern die Form", "air bubbles w~Obble"},
-	{"Rauch auf ~onitoren zeigen", "show smoke on ~Monitors"},
-	{"Blitze auf ~Monitoren zeigen", "show lightnings on ~Monitors"},
 #if 0
 	{"", ""},
 #endif
@@ -1847,7 +1833,7 @@ const char *defaultGameTexts [][2] = {
 
 char **pszHelpTexts = NULL;
 
-const char *defaultHelpTexts [][2] = {
+char *defaultHelpTexts [][2] = {
 	//main menu
 	{"Neues Spiel starten.", "Start a new game."},
 	{"Neues Einzelspieler-Spiel mit einer Mission aus dem\nMissions-Unterordner 'single' starten.", 
@@ -1878,7 +1864,7 @@ const char *defaultHelpTexts [][2] = {
 	 "If checked, all mouse axes have the same sensitivity.\nOtherwise, sensitivity can be adjusted per axis."},
 	{"Staerke der Richtungsaenderungen des Schiffes bei Mausbewegungen einstellen.", 
 	 "Adjust strength of changes of movement direction during mouse movements."},
-	{"Ankreuzen, wenn Sie eine normale Maus verwenden.", "Check if you are using a Normal mouse."},
+	{"Ankreuzen, wenn Sie eine normale Maus verwenden.", "Check if you are using a normal mouse."},
 	{"Ankreuzen, wenn Sie einen Cyberman verwenden.", "Check if you are using a Cyberman."},
 	{"Ankreuzen, um die Steuerung des Schiffs per Joystick zu ermoeglichen.", 
 	 "Check to enable control of the ship using a joystick."},
@@ -1892,7 +1878,7 @@ const char *defaultHelpTexts [][2] = {
 	 "Adjust strength of changes of movement direction during joystick\nmovements."},
 	{"Groesse der Totzone des Joysticks einstellen.\nAchsenausschlaege innerhalb der Totzone haben keine Wirkung auf das Schiff.", 
 	 "Adjust size of joystick deadzone. Axis movements inside the\ndeadzone do not affect ship movement."},
-	{"Ankreuzen, wenn Sie einen normalen Joystick verwenden.", "Check if you are using a Normal joystick."},
+	{"Ankreuzen, wenn Sie einen normalen Joystick verwenden.", "Check if you are using a normal joystick."},
 	{"Ankreuzen, wenn Sie einen Flightstick Pro verwenden.", "Check if you are using a Flightstick Pro."},
 	{"Ankreuzen, wenn Sie ein FCS Flight Control System verwenden.", "Check if you are using an FCS Flight Control System."},
 	{"Ankreuzen, wenn Sie eine Gravis Flugsteuerung verwenden.", "Check if you are using a Gravis flight controller."},
@@ -2009,8 +1995,8 @@ const char *defaultHelpTexts [][2] = {
 	 "Check if you want to have explosions appear on badly damaged\nships and robots. The effect will start if an robot's or\nship's shields are down to 50% of the initial value, and will\nincrease the more additional damage the object takes.\n\nThis option may cause a performance hit."},
 	{"Hier wird eingestellt, wie der Abgasstrahl des Schiffes aussieht.\nDie 2D-Darstellung ist einfach, sieht aber dennoch gut aus.\nIn der 3D-Darstellung werden die Flammen als dreidimensionales\nObjekt gezeichnet.", 
 	 "Set the style of the flames coming out of a ship's thrusters.\n2D thruster flames are simple yet good looking display style.\n3D thrusters are rendered as fully threedimensional objects."},
-	{"Ankreuzen, wenn die Schiffe von einer transparenten Schildkugel\numgeben sein sollen (blau: Normal, weiss: unverwundbar,\norange: getroffen)", 
-	 "Check if a transparent shield sphere is to be rendered around\nthe ships (blue: Normal, white: invulnerable, orange: hit)."},
+	{"Ankreuzen, wenn die Schiffe von einer transparenten Schildkugel\numgeben sein sollen (blau: normal, weiss: unverwundbar,\norange: getroffen)", 
+	 "Check if a transparent shield sphere is to be rendered around\nthe ships (blue: normal, white: invulnerable, orange: hit)."},
 	{"Ankreuzen, wenn den Filmen zum Spiel Untertitel unterlegt\nwerden sollen", 
 	 "Check to have subtitles displayed when playing the game movies."},
 	{"Ankreuzen, wenn die Filme zum Spiel zur Qualitaetsverbesserung\ngefiltert werden sollen.\nDies kann zu ruckelnder oder ganz fehlender Wiedergabe fuehren.", 
@@ -2469,37 +2455,22 @@ const char *defaultHelpTexts [][2] = {
 	 "Depending on the setting, huge faces will be split in\nmore or less many smaller ones. That will improve the lighting,\nbut may also slow down the program."},
 	{"Je hoeher die Qualitaet der Lightmaps, desto besser\nsieht die Beleuchtung mit Lightmaps aus,\ndesto laenger benoetigt aber auch ihre\nBerechnung.", 
 	 "The higher lightmap quality, the better lighting with lightmaps\ndoes look, but the longer it takes to compute them."},
-	{"Multi-Threading fuer die Klangerzeugung einsetzen.", "Use multi threading for sound."},
-	{"Multi-Threading fuer die Beleuchtung einsetzen.", "Use multi threading for computing level lighting."},
-	{"Multi-Threading im Renderer verwenden.", "Use multi threading in the renderer."},
-	{"Multi-Threading fuer die Darstellung von Transparenz verwenden.", "Use multi threading for rendering transparency."},
-	{"Multi-Threading bei der Berechnung von Effekten nutzen.", "Use multi threading for computing effects."},
-	{"Multi-Threading fuer die Darstellung von 3D-Objekten verwenden.", "Use multi threading for rendering 3D models."},
+	{"", "Use multi threading for computing static lighting\n(happens once during level load)."},
+	{"", "Use multi threading for computing dynamic lighting.\n(happens every frame, can almost double the frame rate)."},
+	{"", "Use multi threading for face sorting\n(happens every frame, small frame rate improvement)."},
+	{"", "Use multi threading for segment sorting preprocessing\n(happens every frame, minor frame rate improvement)."},
+	{"", "Use multi threading for segment sorting\n(happens every frame, minor frame rate improvement)."},
+	{"", "Use multi threading for lightning animation\n(happens every few frames for every lighting,\nsmall to strong frame rate improvement\ndepending on number of lightnings.)"},
+	{"", "Use multi threading for lightning creation\n(happens every time a lighting bolt is created,\nsmall to medium frame rate improvement)."},
+	{"", "Use multi threading for particle rendering\n(currently deactivated)."},
+	{"", "Use multi threading for particle animation\n(currently deactivated)."},
+	{"", "Use multi threading for 3D model lighting\n(currently deactivated)."},
 	{"In diesem Menue koennen Feineinstellungen fuer das Multi-\nThreading vorgenommen werden.", "Fine tune multi threading in this menu."},
 	{"Hier kann eingestellt werden, wieviele Lichter gleichzeitig\nverwendet werden, um eine Flaeche darzustellen.\nJe mehr Lichter, desto schneller wird gezeichnet,\naber desto eher ueberstrahlen viele Lichter.",
 	 "Adjust how many lights are used simultaneously when\nrendering a face. The higher the number, the faster\nthe renderer, but the more likely saturation will occur."},
 	{"Hier kann eingestellt werden, wieviele Lichter maximal die \nBeleuchtung eines Objekts bestimmen. Werte ueber\n8 koennen die Geschwindigkeit bei vielen sichtbaren Objekten stark verringern.", 
 	 "Here you can adjust how many lights will maximally influence\nthe brightness of an object. Values greater than 8 can\nsignificantly reduce rendering speed if many objects are visible."},
 	{"Wenn angekreuzt, drehen Bojen sich langsam um ihre Laengs-\nachse und zeigen in der Bojensicht eine 360-Grad-Ansicht\nihrer Umgebung.", "If checked, markers will spin slowly, giving you a 360 degree view\nof their environment in the marker view."},
-	{"Wenn angekreuzt, wird die Beleuchtung durch statische Lichter\nmit Lightmaps realisiert, was sehr natuerlich wirkt.", 
-	 "If checked, light cast by static lights is simulated with lightmaps,\nwhich looks very natural."},
-	{"Wenn angekreuzt, erzeugen Schuesse aus Maschinenkanonen\nfeine Rauchspuren.", "If checked, shots from Gatling guns create fine smoke trails."},
-	{"Wenn angekreuzt, werden Roboter in Descent 1-Missionen\nvon der originalen Descent 1 KI gesteuert.", 
-	 "If checked, robots are controlled by the original Descent 1\nAI in Descent missions."},
-	{"Wenn angekreuzt, treiben Funken langsam herum.", "If checked, energy sparks slowly drift around."},
-	{"Wenn angekreuzt, sehen Sprite-Uebergaenge (Explosionen, Schuesse)\nan Waenden weicher und natuerlicher aus.", "If checked, sprite transitions (explosions, shots)\nat walls look smoother and more natural."},
-	{"Wenn angekreuzt, sehen Funken-Uebergaenge an Waenden weicher\nund natuerlicher aus.", "If checked, spark transitions at walls look smoother\nand more natural."},
-	{"Wenn angekreuzt, sehen Rauch-Uebergaenge an Waenden weicher\nund natuerlicher aus.", "If checked, smoke transitions at walls look smoother\nand more natural."},
-	{"Wenn angekreuzt, werden alle Diebe aus dem aktuellen Level\nentfernt.", "If checked, all thief bots are removed when playing a level."},
-	{"Je nach Einstellung verfolgen Roboter die Spieler zunehmend\naggressiv.", "Depending on the setting, robots pursue players increasingly\naggressive."},
-	{"Wenn angekreuzt, wird Musik sanft ausgeblendet;\nandernfalls kann sie abrupt aufhoeren.", "If checked music will be soflty faded out;\notherwise it may end abruptly."},
-	{"Wenn angekreuzt, werden Monitorausgaben in der vollen, sonst\nmit 1/4 Bild-\nschirmaufloesung dargestellt.\n\nHochaufloesende Monitore verbrauchen sehr viel Grafikspeicher.", 
-	 "If checked in-game monitor output is rendered at the full,\notherwise at 1/4 of the screen resolution.\n\nHigh resolution monitors consume a lot of video memory."},
-	{"Wenn angekreuzt steigen im Wasser Blasen auf wo vom Autor\ndes Levels vorgesehen.", "If checked air bubbles rise under water where the level\nauthor built it in."},
-	{"Wenn angekreuzt, schweben Luftblasen beim Aufsteigen etwas\nhin und her.", "If checked air bubbles wiggle left and right while rising."},
-	{"Wenn angekreuzt, aendern Luftblasen staendig ihre From", "If checked air bubbles slightly change their shape while\nrising."},
-	{"Wenn angekreuzt, ist Rauch auch auf Monitoren sichtbar.", "If checked smoke is visible on monitors."},
-	{"Wenn angekreuzt, sind Blitze auch auf Monitoren sichtbar.", "If checked lightnings are visible on monitors."},
 #if 0
 	{"", ""},
 #endif
@@ -2541,15 +2512,15 @@ char **InitTexts (char *szTextFile, int bInitHotKeys)
 #endif
 
 j = N_BASE_TEXTS + GameTextCount ();
-if (!(pszTexts = new char * [j + 1]))
+if (!(pszTexts = (char **) D2_ALLOC ((j + 1) * sizeof (char *))))
 	return NULL;
 h = GameTextSize ();
-if (!(*pszTexts = new char [h])) {
-	delete[] pszTexts;
+if (!(*pszTexts = (char *) D2_ALLOC (h))) {
+	D2_FREE (pszTexts);
 	return NULL;
 	}
 for (i = 0; i < j; i++) {
-	pSrc = (i < N_BASE_TEXTS) ? const_cast<char*> (baseGameTexts [i]) : const_cast<char*> (defaultGameTexts [i - N_BASE_TEXTS][gameStates.app.bEnglish]);
+	pSrc = (i < N_BASE_TEXTS) ? baseGameTexts [i] : defaultGameTexts [i - N_BASE_TEXTS][gameStates.app.bEnglish];
 #if DUMP_TEXTS == 1
 	{
 		char *pi, *pj, s [200];
@@ -2621,14 +2592,14 @@ return pszTexts;
 
 void InitGameTexts (void)
 {
-pszGameTexts = InitTexts (gameStates.app.bEnglish ? reinterpret_cast<char*> ("descent.tex.eng") : reinterpret_cast<char*> ("descent.tex.ger"), 1);
+pszGameTexts = InitTexts (gameStates.app.bEnglish ? (char *) "descent.tex.eng" : (char *) "descent.tex.ger", 1);
 }
 
 //------------------------------------------------------------------------------
 
 void InitHelpTexts (void)
 {
-pszHelpTexts = InitTexts (gameStates.app.bEnglish ? reinterpret_cast<char*> ("descent.hlp.eng") : reinterpret_cast<char*> ("descent.hlp.ger"), 0);
+pszHelpTexts = InitTexts (gameStates.app.bEnglish ? (char *) "descent.hlp.eng" : (char *) "descent.hlp.ger", 0);
 }
 
 //------------------------------------------------------------------------------
@@ -2691,11 +2662,11 @@ void LoadGameTexts (void)
 #elif DUMP_TEXTS == 3
 	FILE *fTxt = fopen ("d:\\temp\\basetex.h", "wt");
 #endif
-	CFile	tFile;
-	CFile	iFile;
+	CFILE	tFile;
+	CFILE	iFile;
 	int	len, h, i, j, bBinary = 0;
 	char	*psz;
-	const char	*filename = "descent.tex";
+	char	*filename = "descent.tex";
 
 #if DUMP_TEXTS == 2
 for (i = 0; *GT (i); i++)
@@ -2704,28 +2675,28 @@ fclose (fTxt);
 #endif
 if ((i = FindArg ("-text")))
 	filename = pszArgList [i+1];
-if (!tFile.Open (filename, gameFolders.szDataDir, "rt", 0)) {
+if (!CFOpen (&tFile, filename, gameFolders.szDataDir, "rt", 0)) {
 	filename = "descent.txb";
-	if (!iFile.Open (filename, gameFolders.szDataDir, "rb", 0)) {
+	if (!CFOpen (&iFile, filename, gameFolders.szDataDir, "rb", 0)) {
 		Warning (TXT_NO_TEXTFILES);
 		return;
 	}
 	bBinary = 1;
-	len = iFile.Length ();
-	text = new char [len];
+	len = CFLength (&iFile, 0);
+	MALLOC (text, char, len);
 	atexit (free_text);
-	iFile.Read (text, 1, len);
-	iFile.Close ();
+	CFRead (text, 1, len, &iFile);
+	CFClose (&iFile);
 	}
 else {
 	int i;
 	char *pi, *pj;
 
-	len = tFile.Length ();
-	text = new char [len];
+	len = CFLength (&tFile, 0);
+	MALLOC (text, char, len);
 	atexit (free_text);
 #if 1
-	tFile.Read (text, 1, len);
+	CFRead (text, 1, len, &tFile);
 	for (i = len, pi = pj = text; i; i--, pi++)
 		if (*pi != 13)
 			*pj++ = *pi;
@@ -2738,7 +2709,7 @@ else {
 			*p++ = c;
 	} while (c != EOF);
 #endif
-	tFile.Close ();
+	CFClose (&tFile);
 	}
 
 j = N_BASE_TEXTS + GameTextCount ();
@@ -2800,13 +2771,13 @@ if (i == 644) {
 		baseGameTexts[172] = baseGameTexts[171];
 		baseGameTexts[171] = baseGameTexts[170];
 		baseGameTexts[170] = baseGameTexts[169];
-		baseGameTexts[169] = reinterpret_cast<char*> ("Windows Joystick");
+		baseGameTexts[169] = "Windows Joystick";
 		}
-	baseGameTexts[644] = reinterpret_cast<char*> ("Z1");
-	baseGameTexts[645] = reinterpret_cast<char*> ("UN");
-	baseGameTexts[646] = reinterpret_cast<char*> ("P1");
-	baseGameTexts[647] = reinterpret_cast<char*> ("R1");
-	baseGameTexts[648] = reinterpret_cast<char*> ("Y1");
+	baseGameTexts[644] = "Z1";
+	baseGameTexts[645] = "UN";
+	baseGameTexts[646] = "P1";
+	baseGameTexts[647] = "R1";
+	baseGameTexts[648] = "Y1";
 	}
 #if DUMP_TEXTS 
 fclose (fTxt);
@@ -2816,9 +2787,9 @@ InitGameTexts ();
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 
-const char *GAMETEXT (int _i) 
+char *GAMETEXT (int _i) 
 {
 if (pszGameTexts)
 	return pszGameTexts [_i];
@@ -2828,7 +2799,7 @@ else
 	return defaultGameTexts [_i - N_BASE_TEXTS][gameStates.app.bEnglish];
 }
 
-const char *HELPTEXT (int _i) 
+char *HELPTEXT (int _i) 
 {
 if (pszHelpTexts)
 	return pszHelpTexts [_i];

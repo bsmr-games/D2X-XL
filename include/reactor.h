@@ -1,3 +1,4 @@
+/* $Id: reactor.h,v 1.6 2003/10/10 09:36:34 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -34,36 +35,41 @@ typedef struct tReactorTriggers {
 typedef struct tReactorProps {
 	int nModel;
 	int nGuns;
-	CFixVector gunPoints [MAX_CONTROLCEN_GUNS];
-	CFixVector gun_dirs [MAX_CONTROLCEN_GUNS];
-} tReactorProps;
+	vmsVector gunPoints[MAX_CONTROLCEN_GUNS];
+	vmsVector gun_dirs[MAX_CONTROLCEN_GUNS];
+} __pack__ tReactorProps;
 
 #define MAX_REACTORS 7
 
-//@@extern CFixVector controlcen_gun_points[MAX_CONTROLCEN_GUNS];
-//@@extern CFixVector controlcen_gun_dirs[MAX_CONTROLCEN_GUNS];
-extern CFixVector Gun_pos[MAX_CONTROLCEN_GUNS];
+//@@extern vmsVector controlcen_gun_points[MAX_CONTROLCEN_GUNS];
+//@@extern vmsVector controlcen_gun_dirs[MAX_CONTROLCEN_GUNS];
+extern vmsVector Gun_pos[MAX_CONTROLCEN_GUNS];
 
 // do whatever this thing does in a frame
-void DoReactorFrame(CObject *obj);
+void DoReactorFrame(tObject *obj);
 // Initialize control center for a level.
 // Call when a new level is started.
 void InitReactorForLevel(int bRestore);
-void DoReactorDestroyedStuff(CObject *objp);
+void DoReactorDestroyedStuff(tObject *objp);
 void DoReactorDeadFrame(void);
 fix ReactorStrength (void);
 
+#if 0
+#define ReactorReadN(r, n, fp) CFRead(r, sizeof(reactor), n, fp)
+#define ControlCenterTriggersReadN(cct, n, fp) CFRead(cct, sizeof(tReactorTriggers), n, fp)
+#else
 /*
  * reads n reactor structs from a CFILE
  */
-int ReadReactors (tReactorProps *r, int n, CFile& cf);
+extern int ReactorReadN(tReactorProps *r, int n, CFILE *fp);
 
 /*
  * reads n tReactorTriggers structs from a CFILE
  */
-int ReadReactorTriggers (tReactorTriggers *cct, int n, CFile& cf);
+extern int ControlCenterTriggersReadN(tReactorTriggers *cct, int n, CFILE *fp);
+#endif
 
-int FindReactor (CObject *objP);
+int FindReactor (tObject *objP);
 void InitCountdown (tTrigger *trigP, int bReactorDestroyed, int nTimer);
 
 #endif /* _CNTRLCEN_H */

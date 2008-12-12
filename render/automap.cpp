@@ -1,3 +1,4 @@
+/* $Id: automap.c,v 1.16 2003/11/15 00:37:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -22,24 +23,49 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "error.h"
+#include "3d.h"
 #include "u_mem.h"
+#include "ogl_defs.h"
 #include "ogl_lib.h"
 #include "ogl_color.h"
 #include "render.h"
 #include "transprender.h"
+#include "object.h"
+#include "vclip.h"
+#include "game.h"
+#include "mono.h"
+#include "polyobj.h"
+#include "sounds.h"
+#include "player.h"
+#include "bm.h"
 #include "key.h"
+#include "newmenu.h"
+#include "menu.h"
 #include "screens.h"
+#include "textures.h"
 #include "mouse.h"
 #include "timer.h"
 #include "segpoint.h"
 #include "joy.h"
 #include "iff.h"
 #include "pcx.h"
+#include "palette.h"
+#include "wall.h"
+#include "loadgame.h"
 #include "gamefont.h"
+#include "network.h"
 #include "kconfig.h"
+#include "multi.h"
 #include "endlevel.h"
 #include "text.h"
 #include "gauges.h"
+#include "songs.h"
+#include "powerup.h"
+#include "switch.h"
+#include "reactor.h"
+#include "hudmsg.h"
+#include "inferno.h"
+#include "globvars.h"
 #include "gameseg.h"
 #include "gamecntl.h"
 #include "input.h"
@@ -55,16 +81,23 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define EF_NO_FADE  32  // An edge that doesn't fade with distance
 #define EF_TOO_FAR  64  // An edge that is too far away
 
-void ModexPrintF (int x,int y, char *s, CFont *font, uint color);
+void ModexPrintF (int x,int y, char *s, grsFont *font, unsigned int color);
 
 typedef struct tEdgeInfo {
 	short verts [2];     // 4 bytes
 	ubyte sides [4];     // 4 bytes
 	short nSegment [4];    // 8 bytes  // This might not need to be stored... If you can access the normals of a tSide.
 	ubyte flags;        // 1 bytes  // See the EF_??? defines above.
-	uint color; // 4 bytes
+	unsigned int color; // 4 bytes
 	ubyte num_faces;    // 1 bytes  // 19 bytes...
 } tEdgeInfo;
+
+// OLD BUT GOOD -- #define MAX_EDGES_FROM_VERTS (v) ((v*5)/2)
+// THE following was determined by John by loading levels 1-14 and recording
+// numbers on 10/26/94.
+//#define MAX_EDGES_FROM_VERTS (v) (((v)*21)/10)
+#define MAX_EDGES_FROM_VERTS(v)   ((v)*4)
+//#define MAX_EDGES (MAX_EDGES_FROM_VERTS (MAX_VERTICES))
 
 #define MAX_EDGES 65536 // Determined by loading all the levels by John & Mike, Feb 9, 1995
 
@@ -76,25 +109,27 @@ typedef struct tEdgeInfo {
 #define K_WALL_REVEALED_COLOR   RGBA_PAL2 (0, 0, 25) //what you see when you have the full map powerup
 #define K_HOSTAGE_COLOR         RGBA_PAL2 (0, 31, 0)
 #define K_MONSTERBALL_COLOR     RGBA_PAL2 (31, 23, 0)
+#define K_FONT_COLOR_20         RGBA_PAL2 (20, 20, 20)
+#define K_GREEN_31              RGBA_PAL2 (0, 31, 0)
 
 typedef struct amWallColors {
-	uint	nNormal;
-	uint	nDoor;
-	uint	nDoorBlue;
-	uint	nDoorGold;
-	uint	nDoorRed;
-	uint	nRevealed;
+	unsigned int	nNormal;
+	unsigned int	nDoor;
+	unsigned int	nDoorBlue;
+	unsigned int	nDoorGold;
+	unsigned int	nDoorRed;
+	unsigned int	nRevealed;
 } amWallColors;
 
 typedef struct amColors {
 	amWallColors	walls;
-	uint	nHostage;
-	uint	nMonsterball;
-	uint	nWhite;
-	uint	nMedGreen;
-	uint	nLgtBlue;
-	uint	nLgtRed;
-	uint	nDkGray;
+	unsigned int	nHostage;
+	unsigned int	nMonsterball;
+	unsigned int	nWhite;
+	unsigned int	nMedGreen;
+	unsigned int	nLgtBlue;
+	unsigned int	nLgtRed;
+	unsigned int	nDkGray;
 } amColors;
 
 amColors automapColors;
@@ -133,16 +168,19 @@ static int DrawingListBright [MAX_EDGES];
 
 // Map movement defines
 #define PITCH_DEFAULT 9000
-#define ZOOM_DEFAULT I2X (20*10)
-#define ZOOM_MIN_VALUE I2X (20*5)
-#define ZOOM_MAX_VALUE I2X (20*100)
+#define ZOOM_DEFAULT i2f (20*10)
+#define ZOOM_MIN_VALUE i2f (20*5)
+#define ZOOM_MAX_VALUE i2f (20*100)
 
 #define SLIDE_SPEED 				 (350)
 #define ZOOM_SPEED_FACTOR		500	// (1500)
 #define ROT_SPEED_DIVISOR		 (115000)
 
-//static CCanvas	automap_canvas;
-static CBitmap bmAutomapBackground;
+//static gsrCanvas	automap_canvas;
+static grsBitmap bmAutomapBackground;
+
+#define Page Pages [0]
+#define DrawingPage DrawingPages [0]
 
 typedef struct tAutomapData {
 	int			bCheat;
@@ -150,33 +188,18 @@ typedef struct tAutomapData {
 	fix			nViewDist;
 	fix			nMaxDist;
 	fix			nZoom;
-	CFixVector	viewPos;
-	CFixVector	viewTarget;
+	vmsVector	viewPos;
+	vmsVector	viewTarget;
 	vmsMatrix	viewMatrix;
 } tAutomapData;
 
 // Rendering variables
-//static tAutomapData	amData = {0, 1, 0, F1_0 * 20 * 100, 0x9000, CFixVector::ZERO, CFixVector::ZERO, {CFixVector::ZERO,CFixVector::ZERO,CFixVector::ZERO}};
-static tAutomapData	amData; // = {0, 1, 0, F1_0 * 20 * 100, 0x9000, CFixVector::ZERO, CFixVector::ZERO, vmsMatrix::IDENTITY};
+static tAutomapData	amData = {0, 1, 0, F1_0 * 20 * 100, 0x9000, ZERO_VECTOR, ZERO_VECTOR, {{{0,0,0}},{{0,0,0}},{{0,0,0}}}};
 
 //	Function Prototypes
 void AdjustSegmentLimit (int nSegmentLimit, ushort *pVisited);
 void DrawAllEdges (void);
 void AutomapBuildEdgeList (void);
-
-//------------------------------------------------------------------------------
-
-void InitAutomapData (void)
-{
-amData.bCheat = 0;
-amData.bHires = 1;
-amData.nViewDist = 0;
-amData.nMaxDist = F1_0 * 2000;
-amData.nZoom = 0x9000;
-amData.viewPos.SetZero ();
-amData.viewTarget.SetZero ();
-amData.viewMatrix = vmsMatrix::IDENTITY;
-}
 
 //------------------------------------------------------------------------------
 
@@ -189,29 +212,29 @@ ClearMarkers ();
 //------------------------------------------------------------------------------
 
 #if 0
-CCanvas *levelNumCanv, *levelNameCanv;
+gsrCanvas *levelNumCanv, *levelNameCanv;
 #endif
 
 #ifndef Pi
 #	define Pi 3.141592653589793240
 #endif
-#define f2glf(x) (X2F (x))
+#define f2glf(x) (f2fl (x))
 
 //------------------------------------------------------------------------------
 
 int G3DrawSphere3D (g3sPoint *p0, int nSides, int rad)
 {
-	tCanvasColor	c = CCanvas::Current ()->Color ();
-	g3sPoint			p = *p0;
-	int				i;
-	float				hx, hy, x, y, z, r;
-	float				ang;
+	grsColor	c = grdCurCanv->cvColor;
+	g3sPoint	p = *p0;
+	int			i;
+	float			hx, hy, x, y, z, r;
+	float			ang;
 
 glDisable (GL_TEXTURE_2D);
-OglCanvasColor (&CCanvas::Current ()->Color ());
-x = f2glf (p.p3_vec[X]);
-y = f2glf (p.p3_vec[Y]);
-z = f2glf (p.p3_vec[Z]);
+OglGrsColor (&grdCurCanv->cvColor);
+x = f2glf (p.p3_vec.p.x);
+y = f2glf (p.p3_vec.p.y);
+z = f2glf (p.p3_vec.p.z);
 r = f2glf (rad);
 glBegin (GL_POLYGON);
 for (i = 0; i <= nSides; i++) {
@@ -232,25 +255,25 @@ int G3DrawCircle3D (g3sPoint *p0, int nSides, int rad)
 {
 	g3sPoint		p = *p0;
 	int			i, j;
-	CFloatVector		v;
+	fVector		v;
 	float			x, y, r;
 	float			ang;
 
 glDisable (GL_TEXTURE_2D);
-OglCanvasColor (&CCanvas::Current ()->Color ());
-x = f2glf (p.p3_vec[X]);
-y = f2glf (p.p3_vec[Y]);
-v[Z] = f2glf (p.p3_vec[Z]);
+OglGrsColor (&grdCurCanv->cvColor);
+x = f2glf (p.p3_vec.p.x);
+y = f2glf (p.p3_vec.p.y);
+v.p.z = f2glf (p.p3_vec.p.z);
 r = f2glf (rad);
 glBegin (GL_LINES);
 for (i = 0; i <= nSides; i++)
 	for (j = i; j <= i + 1; j++) {
 		ang = 2.0f * (float) Pi * (j % nSides) / nSides;
-		v[X] = x + (float) cos (ang) * r;
-		v[Y] = y + (float) sin (ang) * r;
-		glVertex3fv (reinterpret_cast<GLfloat*> (&v));
+		v.p.x = x + (float) cos (ang) * r;
+		v.p.y = y + (float) sin (ang) * r;
+		glVertex3fv ((GLfloat *) &v);
 		}
-if (CCanvas::Current ()->Color ().rgb)
+if (grdCurCanv->cvColor.rgb)
 	glDisable (GL_BLEND);
 glEnd ();
 return 1;
@@ -258,47 +281,43 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-void DrawPlayer (CObject * objP)
+void DrawPlayer (tObject * objP)
 {
-	CFixVector	vArrowPos, vHeadPos;
-	g3sPoint		spherePoint, arrowPoint, headPoint;
-	int			size = objP->info.xSize * (gameStates.render.automap.bRadar ? 2 : 1);
-	int			bUseTransform = gameStates.ogl.bUseTransform;
+	vmsVector	vArrowPos, vHeadPos;
+	g3sPoint	spherePoint, arrowPoint, headPoint;
+	int size = objP->size * (gameStates.render.automap.bRadar ? 2 : 1);
 
-//gameStates.ogl.bUseTransform = RENDERPATH;
 headPoint.p3_index =
 arrowPoint.p3_index =
 spherePoint.p3_index = -1;
-// Draw Console CPlayerData -- shaped like a ellipse with an arrow.
-spherePoint.p3_vec.SetZero();
-G3TransformAndEncodePoint (&spherePoint, objP->info.position.vPos);
-//G3RotatePoint (&spherePoint.p3_vec, &objP->info.position.vPos, 0);
-G3DrawSphere (&spherePoint, gameStates.render.automap.bRadar ? objP->info.xSize * 2 : objP->info.xSize, !gameStates.render.automap.bRadar);
+// Draw Console tPlayer -- shaped like a ellipse with an arrow.
+G3TransformAndEncodePoint (&spherePoint, &objP->position.vPos);
+G3DrawSphere (&spherePoint, gameStates.render.automap.bRadar ? objP->size * 2 : objP->size, !gameStates.render.automap.bRadar);
+//G3DrawSphere3D (&spherePoint, gameStates.render.automap.bRadar ? 8 : 20, objP->size * (gameStates.render.automap.bRadar + 1));
 
 if (gameStates.render.automap.bRadar && (OBJ_IDX (objP) != LOCALPLAYER.nObject))
 	return;
 // Draw shaft of arrow
-vArrowPos = objP->info.position.vPos + objP->info.position.mOrient[FVEC] * (size*3);
-G3TransformAndEncodePoint(&arrowPoint, vArrowPos);
+VmVecScaleAdd (&vArrowPos, &objP->position.vPos, &objP->position.mOrient.fVec, size*3);
+G3TransformAndEncodePoint (&arrowPoint,&vArrowPos);
 G3DrawLine (&spherePoint, &arrowPoint);
 
 // Draw right head of arrow
-vHeadPos = objP->info.position.vPos + objP->info.position.mOrient[FVEC] * (size*2);
-vHeadPos += objP->info.position.mOrient[RVEC] * (size*1);
-G3TransformAndEncodePoint(&headPoint, vHeadPos);
+VmVecScaleAdd (&vHeadPos, &objP->position.vPos, &objP->position.mOrient.fVec, size*2);
+VmVecScaleInc (&vHeadPos, &objP->position.mOrient.rVec, size*1);
+G3TransformAndEncodePoint (&headPoint,&vHeadPos);
 G3DrawLine (&arrowPoint, &headPoint);
 
 // Draw left head of arrow
-vHeadPos = objP->info.position.vPos + objP->info.position.mOrient[FVEC] * (size*2);
-vHeadPos += objP->info.position.mOrient[RVEC] * (size* (-1));
-G3TransformAndEncodePoint(&headPoint, vHeadPos);
+VmVecScaleAdd (&vHeadPos, &objP->position.vPos, &objP->position.mOrient.fVec, size*2);
+VmVecScaleInc (&vHeadPos, &objP->position.mOrient.rVec, size* (-1));
+G3TransformAndEncodePoint (&headPoint,&vHeadPos);
 G3DrawLine (&arrowPoint, &headPoint);
 
-// Draw CPlayerData's up vector
-vArrowPos = objP->info.position.vPos + objP->info.position.mOrient[UVEC] * (size*2);
-G3TransformAndEncodePoint(&arrowPoint, vArrowPos);
+// Draw tPlayer's up vector
+VmVecScaleAdd (&vArrowPos, &objP->position.vPos, &objP->position.mOrient.uVec, size*2);
+G3TransformAndEncodePoint (&arrowPoint,&vArrowPos);
 G3DrawLine (&spherePoint, &arrowPoint);
-gameStates.ogl.bUseTransform = bUseTransform;
 }
 
 //------------------------------------------------------------------------------
@@ -315,24 +334,14 @@ int automap_height = 480;
 
 void DrawAutomap (void)
 {
-PROF_START
-	int			i, color, size,
-					bAutomapFrame = !gameStates.render.automap.bRadar && 
-										 (gameStates.render.cockpit.nMode != CM_FULL_SCREEN) && 
-										 (gameStates.render.cockpit.nMode != CM_LETTERBOX);
-	CObject		*objP;
+	int			i, color, size;
+	tObject		*objP;
 	g3sPoint		spherePoint;
 	vmsMatrix	vmRadar;
 
 gameStates.render.automap.bFull = (LOCALPLAYER.flags & (PLAYER_FLAGS_FULLMAP_CHEAT | PLAYER_FLAGS_FULLMAP)) != 0;
 if (gameStates.render.automap.bRadar && gameStates.render.bTopDownRadar) {
-	vmsMatrix& po = gameData.multiplayer.playerInit [gameData.multiplayer.nLocalPlayer].position.mOrient;
-#if 1
-	vmRadar[RVEC] = po[RVEC];
-	vmRadar[FVEC] = po[UVEC];
-	vmRadar[FVEC][Y] = -vmRadar[FVEC][Y];
-	vmRadar[UVEC] = po[FVEC];
-#else
+	vmsMatrix *po = &gameData.multiplayer.playerInit [gameData.multiplayer.nLocalPlayer].position.mOrient;
 	vmRadar.rVec.p.x = po->rVec.p.x;
 	vmRadar.rVec.p.y = po->rVec.p.y;
 	vmRadar.rVec.p.z = po->rVec.p.z;
@@ -342,86 +351,85 @@ if (gameStates.render.automap.bRadar && gameStates.render.bTopDownRadar) {
 	vmRadar.uVec.p.x = po->fVec.p.x;
 	vmRadar.uVec.p.y = po->fVec.p.y;
 	vmRadar.uVec.p.z = po->fVec.p.z;
-#endif
 	}
-if (bAutomapFrame) {
+GrClearCanvas (RGBA_PAL2 (0,0,0));
+if (!gameStates.render.automap.bRadar && (gameStates.render.cockpit.nMode != CM_FULL_SCREEN)) {
 	ShowFullscreenImage (&bmAutomapBackground);
-	fontManager.SetCurrent (HUGE_FONT);
-	fontManager.SetColorRGBi (GRAY_RGBA, 1, 0, 0);
+	GrSetCurFont (HUGE_FONT);
+	GrSetFontColorRGBi (GRAY_RGBA, 1, 0, 0);
 	GrPrintF (NULL, RESCALE_X (80), RESCALE_Y (36), TXT_AUTOMAP, HUGE_FONT);
-	fontManager.SetCurrent (SMALL_FONT);
-	fontManager.SetColorRGBi (GRAY_RGBA, 1, 0, 0);
-	GrPrintF (NULL, RESCALE_X (60), RESCALE_Y (
-6), TXT_TURN_SHIP);
+	GrSetCurFont (SMALL_FONT);
+	GrSetFontColorRGBi (GRAY_RGBA, 1, 0, 0);
+	GrPrintF (NULL, RESCALE_X (60), RESCALE_Y (426), TXT_TURN_SHIP);
 	GrPrintF (NULL, RESCALE_X (60), RESCALE_Y (443), TXT_SLIDE_UPDOWN);
 	GrPrintF (NULL, RESCALE_X (60), RESCALE_Y (460), TXT_VIEWING_DISTANCE);
 	//GrUpdate (0);
 	}
 G3StartFrame (gameStates.render.automap.bRadar || !gameOpts->render.automap.bTextured, 0); //!gameStates.render.automap.bRadar);
-if (bAutomapFrame)
+if (!gameStates.render.automap.bRadar && (gameStates.render.cockpit.nMode != CM_FULL_SCREEN))
 	OglViewport (RESCALE_X (27), RESCALE_Y (80), RESCALE_X (582), RESCALE_Y (334));
 RenderStartFrame ();
 if (gameStates.render.automap.bRadar && gameStates.render.bTopDownRadar) {
-	amData.viewPos = amData.viewTarget + vmRadar[FVEC] * (-amData.nViewDist);
-	G3SetViewMatrix(amData.viewPos, vmRadar, amData.nZoom * 2, 1);
+	VmVecScaleAdd (&amData.viewPos, &amData.viewTarget, &vmRadar.fVec, -amData.nViewDist);
+	G3SetViewMatrix (&amData.viewPos, &vmRadar, amData.nZoom * 2, 1);
 	}
 else {
-	amData.viewPos = amData.viewTarget + amData.viewMatrix[FVEC] * (gameStates.render.automap.bRadar ? -amData.nViewDist : -amData.nViewDist);
-	G3SetViewMatrix(amData.viewPos, amData.viewMatrix, gameStates.render.automap.bRadar ? (amData.nZoom * 3) / 2 : amData.nZoom, 1);
+	VmVecScaleAdd (&amData.viewPos, &amData.viewTarget, &amData.viewMatrix.fVec, gameStates.render.automap.bRadar ? -amData.nViewDist : -amData.nViewDist);
+	G3SetViewMatrix (&amData.viewPos, &amData.viewMatrix, gameStates.render.automap.bRadar ? (amData.nZoom * 3) / 2 : amData.nZoom, 1);
 	}
 if (!gameStates.render.automap.bRadar && gameOpts->render.automap.bTextured) {
 	gameData.render.mine.viewerEye = amData.viewPos;
-	RenderMine (gameData.objs.consoleP->info.nSegment, 0, 0);
-	RenderEffects (0);
+	RenderMine (gameData.objs.console->nSegment, 0, 0);
+	RenderItems ();
 	}
 else
 	DrawAllEdges ();
 	// Draw player...
 color = IsTeamGame ? GetTeam (gameData.multiplayer.nLocalPlayer) : gameData.multiplayer.nLocalPlayer;	// Note link to above if!
-CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (playerColors [color].r, playerColors [color].g, playerColors [color].b));
+GrSetColorRGBi (RGBA_PAL2 (playerColors [color].r, playerColors [color].g, playerColors [color].b));
 
 if (!gameOpts->render.automap.bTextured || gameStates.render.automap.bRadar) {
-	DrawPlayer (OBJECTS + LOCALPLAYER.nObject);
+	DrawPlayer (gameData.objs.objects + LOCALPLAYER.nObject);
 	if (!gameStates.render.automap.bRadar) {
 		DrawMarkers ();
 		if ((gameData.marker.nHighlight > -1) && (gameData.marker.szMessage [gameData.marker.nHighlight][0] != 0)) {
-			char msg [10 + MARKER_MESSAGE_LEN + 1];
-			sprintf (msg, TXT_MARKER_MSG, gameData.marker.nHighlight + 1,
-						gameData.marker.szMessage [(gameData.multiplayer.nLocalPlayer * 2) + gameData.marker.nHighlight]);
-			CCanvas::Current ()->SetColorRGB (196, 0, 0, 255);
-			ModexPrintF (5,20,msg,SMALL_FONT, automapColors.nDkGray);
+			char msg [10+MARKER_MESSAGE_LEN+1];
+			sprintf (msg, TXT_MARKER_MSG, gameData.marker.nHighlight+1,
+						gameData.marker.szMessage [ (gameData.multiplayer.nLocalPlayer*2)+gameData.marker.nHighlight]);
+			GrSetColorRGB (196, 0, 0, 255);
+			ModexPrintF (5,20,msg,SMALL_FONT,automapColors.nDkGray);
 			}
 		}			
-	// Draw CPlayerData (s)...
+	// Draw tPlayer (s)...
 	if (AM_SHOW_PLAYERS) {
 		for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
 			if ((i != gameData.multiplayer.nLocalPlayer) && AM_SHOW_PLAYER (i)) {
-				if (OBJECTS [gameData.multiplayer.players [i].nObject].info.nType == OBJ_PLAYER) {
+				if (gameData.objs.objects [gameData.multiplayer.players [i].nObject].nType == OBJ_PLAYER)	{
 					color = (gameData.app.nGameMode & GM_TEAM) ? GetTeam (i) : i;
-					CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (playerColors [color].r, playerColors [color].g, playerColors [color].b));
-					DrawPlayer (OBJECTS + gameData.multiplayer.players [i].nObject);
+					GrSetColorRGBi (RGBA_PAL2 (playerColors [color].r, playerColors [color].g, playerColors [color].b));
+					DrawPlayer (gameData.objs.objects + gameData.multiplayer.players [i].nObject);
 					}
 				}
 			}
 		}
-	objP = OBJECTS.Buffer ();
-	FORALL_OBJS (objP, i) {
-		size = objP->info.xSize;
-		switch (objP->info.nType) {
+	objP = gameData.objs.objects;
+	for (i = 0; i <= gameData.objs.nLastObject; i++, objP++) {
+		size = objP->size;
+		switch (objP->nType)	{
 			case OBJ_HOSTAGE:
-				CCanvas::Current ()->SetColorRGBi (automapColors.nHostage);
-				G3TransformAndEncodePoint(&spherePoint, objP->info.position.vPos);
+				GrSetColorRGBi (automapColors.nHostage);
+				G3TransformAndEncodePoint (&spherePoint,&objP->position.vPos);
 				G3DrawSphere (&spherePoint,size, !gameStates.render.automap.bRadar);
 				break;
 
 			case OBJ_MONSTERBALL:
-				CCanvas::Current ()->SetColorRGBi (automapColors.nMonsterball);
-				G3TransformAndEncodePoint(&spherePoint, objP->info.position.vPos);
+				GrSetColorRGBi (automapColors.nMonsterball);
+				G3TransformAndEncodePoint (&spherePoint,&objP->position.vPos);
 				G3DrawSphere (&spherePoint,size, !gameStates.render.automap.bRadar);
 				break;
 
 			case OBJ_ROBOT:
-				if (gameData.render.mine.bAutomapVisited [objP->info.nSegment] && AM_SHOW_ROBOTS) {
+				if (gameData.render.mine.bAutomapVisited [objP->nSegment] && AM_SHOW_ROBOTS) {
 					static int c = 0;
 					static int t = 0;
 					int h = SDL_GetTicks ();
@@ -429,44 +437,42 @@ if (!gameOpts->render.automap.bTextured || gameStates.render.automap.bRadar) {
 						t = h;
 						c = !c;
 						}
-					if (ROBOTINFO (objP->info.nId).companion)
+					if (ROBOTINFO (objP->id).companion)
 						if (c)
-							CCanvas::Current ()->SetColorRGB (0, 123, 151, 255); //gr_getcolor (47, 1, 47)); 
+							GrSetColorRGB (0, 123, 151, 255); //gr_getcolor (47, 1, 47)); 
 						else
-							CCanvas::Current ()->SetColorRGB (0, 78, 112, 255); //gr_getcolor (47, 1, 47)); 
+							GrSetColorRGB (0, 78, 112, 255); //gr_getcolor (47, 1, 47)); 
 					else
 						if (c)
-							CCanvas::Current ()->SetColorRGB (123, 0, 135, 255); //gr_getcolor (47, 1, 47)); 
+							GrSetColorRGB (123, 0, 135, 255); //gr_getcolor (47, 1, 47)); 
 						else
-							CCanvas::Current ()->SetColorRGB (78, 0, 96, 255); //gr_getcolor (47, 1, 47)); 
-					G3TransformAndEncodePoint(&spherePoint, objP->info.position.vPos);
-					//G3StartInstanceMatrix (&objP->info.position.vPos, &objP->info.position.mOrient);
+							GrSetColorRGB (78, 0, 96, 255); //gr_getcolor (47, 1, 47)); 
+					G3TransformAndEncodePoint (&spherePoint, &objP->position.vPos);
 					G3DrawSphere (&spherePoint, (size * 3) / 2, !gameStates.render.automap.bRadar);
-					//G3DoneInstance ();
 					}
 				break;
 
 			case OBJ_POWERUP:
 				if (AM_SHOW_POWERUPS (1) && 
-					(gameStates.render.bAllVisited || gameData.render.mine.bAutomapVisited [objP->info.nSegment]))	{
-					switch (objP->info.nId) {
+					(gameStates.render.bAllVisited || gameData.render.mine.bAutomapVisited [objP->nSegment]))	{
+					switch (objP->id) {
 						case POW_KEY_RED:	
-							CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (63, 5, 5));
+							GrSetColorRGBi (RGBA_PAL2 (63, 5, 5));
 							size *= 4;
 							break;
 						case POW_KEY_BLUE:
-							CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (5, 5, 63)); 
+							GrSetColorRGBi (RGBA_PAL2 (5, 5, 63)); 
 							size *= 4;
 							break;
 						case POW_KEY_GOLD:
-							CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (63, 63, 10)); 
+							GrSetColorRGBi (RGBA_PAL2 (63, 63, 10)); 
 							size *= 4;
 							break;
 						default:
-							CCanvas::Current ()->SetColorRGBi (ORANGE_RGBA); //orange
-							//Error ("Illegal key nType: %i", objP->info.nId);
+							GrSetColorRGBi (ORANGE_RGBA); //orange
+							//Error ("Illegal key nType: %i", objP->id);
 						}
-					G3TransformAndEncodePoint(&spherePoint, objP->info.position.vPos);
+					G3TransformAndEncodePoint (&spherePoint, &objP->position.vPos);
 					G3DrawSphere (&spherePoint, size, !gameStates.render.automap.bRadar);
 					}
 				break;
@@ -479,89 +485,96 @@ if (gameStates.render.automap.bRadar) {
 	gameStates.ogl.bEnableScissor = 0;
 	return;
 	}
-if (gameStates.app.bNostalgia || gameOpts->render.cockpit.bHUD) {
+if (gameOpts->render.cockpit.bHUD) {
 	int offs = amData.bHires ? 10 : 5;
 
 #if 1
-	CFont	*curFont = CCanvas::Current ()->Font ();
+	grsFont	*curFont = grdCurCanv->cvFont;
 	int		w, h, aw;
 
-	fontManager.SetCurrent (SMALL_FONT);
-	fontManager.SetColorRGBi (GREEN_RGBA, 1, 0, 0);
+	GrSetCurFont (SMALL_FONT);
+	GrSetFontColorRGBi (GREEN_RGBA, 1, 0, 0);
 	GrPrintF (NULL, offs, offs, amLevelNum);
-	FONT->StringSize (amLevelName, w, h, aw);
-	GrPrintF (NULL, CCanvas::Current ()->Width () - offs - w, offs, amLevelName);
-	fontManager.SetCurrent (curFont);
+	GrGetStringSize (amLevelName, &w, &h, &aw);
+	GrPrintF (NULL, grdCurCanv->cvBitmap.bmProps.w - offs - w, offs, amLevelName);
+	GrSetCurFont (curFont);
 #else
-	GrBitmapM (offs, offs, &levelNumCanv->Bitmap (), 2);
-	GrBitmapM (CCanvas::Current ()->Width () - offs - levelNameCanv->Width (), 
-				  offs, &levelNameCanv->Bitmap (), 2);
+	GrBitmapM (offs, offs, &levelNumCanv->cvBitmap, 2);
+	GrBitmapM (grdCurCanv->cvBitmap.bmProps.w - offs - levelNameCanv->cvBitmap.bmProps.w, 
+				  offs, &levelNameCanv->cvBitmap, 2);
 #endif
 	if (gameOpts->render.automap.bTextured)
 		ShowFrameRate ();
 	}
-PROF_END(ptFrame)
 OglSwapBuffers (0, 0);
 }
 
 #define LEAVE_TIME 0x4000
 
+#define WINDOW_WIDTH		288
+
+
 //------------------------------------------------------------------------------
 
 //print to canvas & float height
-CCanvas* PrintToCanvas (char *s, CFont *font, uint fc, uint bc, int doubleFlag)
+gsrCanvas *PrintToCanvas (char *s, grsFont *font, unsigned int fc, unsigned int bc, int doubleFlag)
 {
-	int		y;
-	ubyte		*data;
-	int		rs;
-	CCanvas	*canvP;
-	int		w,h,aw;
+	int y;
+	ubyte *data;
+	int rs;
+	gsrCanvas *temp_canv;
+	grsFont *save_font;
+	int w,h,aw;
+	gsrCanvas *save_canv;
+	save_canv = grdCurCanv;
 
-CCanvas::Push ();
-fontManager.SetCurrent (font);					//set the font we're going to use
-FONT->StringSize (s, w, h, aw);		//now get the string size
+save_font = grdCurCanv->cvFont;
+GrSetCurFont (font);					//set the font we're going to use
+GrGetStringSize (s,&w,&h,&aw);		//now get the string size
+GrSetCurFont (save_font);				//restore real font
 
-//canvP = GrCreateCanvas (font->width*strlen (s),font->height*2);
-canvP = CCanvas::Create (w, font->Height () * 2);
-canvP->SetPalette (paletteManager.Game ());
-CCanvas::SetCurrent (canvP);
-fontManager.SetCurrent (font);
-canvP->Clear (0);						//trans color
-fontManager.SetColorRGBi (fc, 1, bc, 1);
+//temp_canv = GrCreateCanvas (font->ftWidth*strlen (s),font->ftHeight*2);
+temp_canv = GrCreateCanvas (w,font->ftHeight*2);
+temp_canv->cvBitmap.bmPalette = gamePalette;
+GrSetCurrentCanvas (temp_canv);
+GrSetCurFont (font);
+GrClearCanvas (0);						//trans color
+GrSetFontColorRGBi (fc, 1, bc, 1);
 GrPrintF (NULL, 0, 0, s);
 //now float it, since we're drawing to 400-line modex screen
 if (doubleFlag) {
-	data = canvP->Buffer ();
-	rs = canvP->RowSize ();
+	data = temp_canv->cvBitmap.bmTexBuf;
+	rs = temp_canv->cvBitmap.bmProps.rowSize;
 
-	for (y=canvP->Height () / 2;y--;) {
-		memcpy (data + rs * y * 2, data+ rs * y, canvP->Width ());
-		memcpy (data + rs * (y * 2 + 1), data + rs *y, canvP->Width ());
+	for (y=temp_canv->cvBitmap.bmProps.h/2;y--;) {
+		memcpy (data+ (rs*y*2),data+ (rs*y),temp_canv->cvBitmap.bmProps.w);
+		memcpy (data+ (rs* (y*2+1)),data+ (rs*y),temp_canv->cvBitmap.bmProps.w);
 		}
 	}
-CCanvas::Pop ();
-return canvP;
+GrSetCurrentCanvas (save_canv);
+return temp_canv;
 }
 
 //------------------------------------------------------------------------------
 //print to buffer, float heights, and blit bitmap to screen
-void ModexPrintF (int x,int y,char *s,CFont *font, uint color)
+void ModexPrintF (int x,int y,char *s,grsFont *font, unsigned int color)
 {
-	CCanvas *canvP = PrintToCanvas (s, font, color, 0, !amData.bHires);
+	gsrCanvas *temp_canv;
 
-GrBitmapM (x, y, canvP, 2);
-canvP->Destroy ();
+temp_canv = PrintToCanvas (s, font, color, 0, !amData.bHires);
+GrBitmapM (x,y,&temp_canv->cvBitmap, 2);
+GrFreeCanvas (temp_canv);
 }
 
 //------------------------------------------------------------------------------
 //name for each group.  maybe move somewhere else
-const char *pszSystemNames [] = {
-	"Zeta Aquilae",
-	"Quartzon System",
-	"Brimspark System",
-	"Limefrost Spiral",
-	"Baloris Prime",
-	"Omega System"};
+char *pszSystemNames [] = {
+			"Zeta Aquilae",
+			"Quartzon System",
+			"Brimspark System",
+			"Limefrost Spiral",
+			"Baloris Prime",
+			"Omega System"};
 
 void CreateNameCanv (void)
 {
@@ -595,22 +608,22 @@ levelNameCanv = PrintToCanvas (amLevelName, SMALL_FONT, automapColors.nMedGreen,
 
 int SetSegmentDepths (int start_seg, ushort *pDepthBuf);
 
-#if !DBG
-const char	*pszMapBackgroundFilename [2] = {"\x01MAP.PCX", "\x01MAPB.PCX"};
+#ifndef _DEBUG
+char	*pszMapBackgroundFilename [2] = {"\x01MAP.PCX", "\x01MAPB.PCX"};
 
 #	define MAP_BACKGROUND_FILENAME pszMapBackgroundFilename [amData.bHires]
 #else
 char	*pszMapBackgroundFilename [2] = {"MAP.PCX", "MAPB.PCX"};
 
-#	define MAP_BACKGROUND_FILENAME pszMapBackgroundFilename [amData.bHires && CFile::Exist ("mapb.pcx",gameFolders.szDataDir,0)]
+#	define MAP_BACKGROUND_FILENAME pszMapBackgroundFilename [amData.bHires && CFExist ("mapb.pcx",gameFolders.szDataDir,0)]
 #endif
 
 
-int InitAutomap (int bPauseGame, fix *pxEntryTime, vmsAngVec& pvTAngles)
+int InitAutomap (int bPauseGame, fix *pxEntryTime, vmsAngVec *pvTAngles)
 {
 		int		i, nPCXError;
 		fix		t1, t2;
-		CObject	*playerP;
+		tObject	*playerP;
 
 gameStates.render.automap.bDisplay = 1;
 gameStates.ogl.nContrast = 8;
@@ -628,12 +641,12 @@ nMaxEdges = MAX_EDGES; //min (MAX_EDGES_FROM_VERTS (gameData.segs.nVertices), MA
 if (gameStates.render.automap.bRadar || (gameStates.video.nDisplayMode > 1)) {
 	//GrSetMode (gameStates.video.nLastScreenMode);
 	if (gameStates.render.automap.bRadar) {
-		automap_width = CCanvas::Current ()->Width ();
-		automap_height = CCanvas::Current ()->Height ();
+		automap_width = grdCurCanv->cvBitmap.bmProps.w;
+		automap_height = grdCurCanv->cvBitmap.bmProps.h;
 		}
 	else {
-		automap_width = screen.Canvas ()->Width ();
-		automap_height = screen.Canvas ()->Height ();
+		automap_width = grdCurScreen->scCanvas.cvBitmap.bmProps.w;
+		automap_height = grdCurScreen->scCanvas.cvBitmap.bmProps.h;
 		}
 	amData.bHires = 1;
 	 }
@@ -644,14 +657,14 @@ else {
 gameStates.render.fonts.bHires = gameStates.render.fonts.bHiresAvailable && amData.bHires;
 if (!gameStates.render.automap.bRadar) {
 	CreateNameCanv ();
-	paletteManager.ResetEffect ();
+	GrPaletteStepClear ();
 	}
 if (!gameStates.render.automap.bRadar) {
-	bmAutomapBackground.Init ();
+	GrInitBitmapData (&bmAutomapBackground);
 	nPCXError = PCXReadBitmap (MAP_BACKGROUND_FILENAME, &bmAutomapBackground, BM_LINEAR, 0);
 	if (nPCXError != PCX_ERROR_NONE)
 		Error ("File %s - PCX error: %s", MAP_BACKGROUND_FILENAME, pcx_errormsg (nPCXError));
-	bmAutomapBackground.Remap (NULL, -1, -1);
+	GrRemapBitmapGood (&bmAutomapBackground, NULL, -1, -1);
 	}
 if (gameStates.render.automap.bRadar || !gameOpts->render.automap.bTextured)
 	AutomapBuildEdgeList ();
@@ -659,17 +672,17 @@ if (gameStates.render.automap.bRadar)
 	amData.nViewDist = ZOOM_DEFAULT;
 else if (!amData.nViewDist)
 	amData.nViewDist = ZOOM_DEFAULT;
-playerP = OBJECTS + LOCALPLAYER.nObject;
-amData.viewMatrix = playerP->info.position.mOrient;
+playerP = gameData.objs.objects + LOCALPLAYER.nObject;
+amData.viewMatrix = playerP->position.mOrient;
 
-pvTAngles[PA] = PITCH_DEFAULT;
-pvTAngles[HA] = 0;
-pvTAngles[BA] = 0;
+pvTAngles->p = PITCH_DEFAULT;
+pvTAngles->h = 0;
+pvTAngles->b = 0;
 
-amData.viewTarget = playerP->info.position.vPos;
+amData.viewTarget = playerP->position.vPos;
 t1 = *pxEntryTime = TimerGetFixedSeconds ();
 t2 = t1;
-//Fill in gameData.render.mine.bAutomapVisited from OBJECTS [LOCALPLAYER.nObject].nSegment
+//Fill in gameData.render.mine.bAutomapVisited from gameData.objs.objects [LOCALPLAYER.nObject].nSegment
 if (gameStates.render.automap.bRadar) {
 	for (i = 0; i < gameData.segs.nSegments; i++)
 		gameData.render.mine.bAutomapVisible [i] = 1;
@@ -682,44 +695,42 @@ else
 	memcpy (gameData.render.mine.bAutomapVisible, 
 			  gameData.render.mine.bAutomapVisited, 
 			  sizeof (gameData.render.mine.bAutomapVisited));
-//gameData.render.mine.bAutomapVisited [OBJECTS [LOCALPLAYER.nObject].nSegment] = 1;
+//gameData.render.mine.bAutomapVisited [gameData.objs.objects [LOCALPLAYER.nObject].nSegment] = 1;
 gameStates.render.automap.nSegmentLimit =
 gameStates.render.automap.nMaxSegsAway = 
-	SetSegmentDepths (OBJECTS [LOCALPLAYER.nObject].info.nSegment, gameData.render.mine.bAutomapVisible);
+	SetSegmentDepths (gameData.objs.objects [LOCALPLAYER.nObject].nSegment, gameData.render.mine.bAutomapVisible);
 AdjustSegmentLimit (gameStates.render.automap.nSegmentLimit, gameData.render.mine.bAutomapVisible);
 return bPauseGame;
 }
 
 //------------------------------------------------------------------------------
 
-int UpdateAutomap (vmsAngVec& pvTAngles)
+int UpdateAutomap (vmsAngVec *pvTAngles)
 {
-	CObject		*playerP = OBJECTS + LOCALPLAYER.nObject;
+	tObject		*playerP = gameData.objs.objects + LOCALPLAYER.nObject;
 	vmsMatrix	m;
 
 if (Controls [0].firePrimaryDownCount)	{
 	// Reset orientation
 	amData.nViewDist = ZOOM_DEFAULT;
-	pvTAngles[PA] = PITCH_DEFAULT;
-	pvTAngles[HA] = 0;
-	pvTAngles[BA] = 0;
-	amData.viewTarget = playerP->info.position.vPos;
+	pvTAngles->p = PITCH_DEFAULT;
+	pvTAngles->h = 0;
+	pvTAngles->b = 0;
+	amData.viewTarget = playerP->position.vPos;
 	}
 if (Controls [0].forwardThrustTime)
-	amData.viewTarget += amData.viewMatrix[FVEC] * (Controls [0].forwardThrustTime * ZOOM_SPEED_FACTOR); 
-pvTAngles[PA] += (fixang) FixDiv (Controls [0].pitchTime, ROT_SPEED_DIVISOR);
-pvTAngles[HA] += (fixang) FixDiv (Controls [0].headingTime, ROT_SPEED_DIVISOR);
-pvTAngles[BA] += (fixang) FixDiv (Controls [0].bankTime, ROT_SPEED_DIVISOR*2);
+	VmVecScaleInc (&amData.viewTarget, &amData.viewMatrix.fVec, Controls [0].forwardThrustTime * ZOOM_SPEED_FACTOR); 
+pvTAngles->p += (fixang) FixDiv (Controls [0].pitchTime, ROT_SPEED_DIVISOR);
+pvTAngles->h += (fixang) FixDiv (Controls [0].headingTime, ROT_SPEED_DIVISOR);
+pvTAngles->b += (fixang) FixDiv (Controls [0].bankTime, ROT_SPEED_DIVISOR*2);
 
-m = vmsMatrix::Create(pvTAngles);
+VmAngles2Matrix (&m, pvTAngles);
 if (Controls [0].verticalThrustTime || Controls [0].sidewaysThrustTime)	{
-	// TODO MM
-	amData.viewMatrix = playerP->info.position.mOrient * m;
-	amData.viewTarget += amData.viewMatrix[UVEC] * (Controls [0].verticalThrustTime * SLIDE_SPEED);
-	amData.viewTarget += amData.viewMatrix[RVEC] * (Controls [0].sidewaysThrustTime * SLIDE_SPEED);
+	VmMatMul (&amData.viewMatrix, &playerP->position.mOrient, &m);
+	VmVecScaleInc (&amData.viewTarget, &amData.viewMatrix.uVec, Controls [0].verticalThrustTime * SLIDE_SPEED);
+	VmVecScaleInc (&amData.viewTarget, &amData.viewMatrix.rVec, Controls [0].sidewaysThrustTime * SLIDE_SPEED);
 	}
-// TODO MM
-amData.viewMatrix = playerP->info.position.mOrient * m;
+VmMatMul (&amData.viewMatrix, &playerP->position.mOrient, &m);
 if (amData.nViewDist < ZOOM_MIN_VALUE) 
 	amData.nViewDist = ZOOM_MIN_VALUE;
 if (amData.nViewDist > ZOOM_MAX_VALUE) 
@@ -749,7 +760,7 @@ while ((c = KeyInKey ())) {
 	if (!gameOpts->menus.nStyle)
 		MultiDoFrame();
 		switch (c) {
-#if DBG
+#ifdef _DEBUG
 		case KEY_BACKSP: Int3 (); 
 			break;
 #endif
@@ -765,7 +776,7 @@ while ((c = KeyInKey ())) {
 
 		case KEY_PRINT_SCREEN: {
 			if (amData.bHires)
-				CCanvas::SetCurrent (NULL);
+				GrSetCurrentCanvas (NULL);
 			gameStates.app.bSaveScreenshot = 1;
 			SaveScreenShot (NULL, 1);
 			break;
@@ -776,7 +787,7 @@ while ((c = KeyInKey ())) {
 				bDone = 1;
 			break;
 
-#if DBG
+#ifdef _DEBUG
 		case KEYDBGGED+KEY_F: {
 			int i;
 			for (i = 0; i <= gameData.segs.nLastSegment; i++)
@@ -784,7 +795,7 @@ while ((c = KeyInKey ())) {
 			AutomapBuildEdgeList ();
 			gameStates.render.automap.nSegmentLimit = 
 			gameStates.render.automap.nMaxSegsAway = 
-				SetSegmentDepths (OBJECTS [LOCALPLAYER.nObject].info.nSegment, gameData.render.mine.bAutomapVisible);
+				SetSegmentDepths (gameData.objs.objects [LOCALPLAYER.nObject].nSegment, gameData.render.mine.bAutomapVisible);
 			AdjustSegmentLimit (gameStates.render.automap.nSegmentLimit, gameData.render.mine.bAutomapVisible);
 			}
 			break;
@@ -837,14 +848,14 @@ while ((c = KeyInKey ())) {
 			break;
 
 		case KEY_ALTED + KEY_P:
-			gameStates.render.bShowProfiler = !gameStates.render.bShowProfiler;
+			renderItems.bDisplay = !renderItems.bDisplay;
 			break;
 
 		case KEY_ALTED + KEY_R:
-			gameStates.render.bShowFrameRate = ++gameStates.render.bShowFrameRate % (6 + (gameStates.render.bPerPixelLighting == 2));
+			gameStates.render.bShowFrameRate = ++gameStates.render.bShowFrameRate % (5 + gameStates.render.bPerPixelLighting);
 			break;
 
-#if DBG
+#ifdef _DEBUG
 		case KEY_COMMA:
 			if (gameData.marker.fScale > 0.5)
 				gameData.marker.fScale -= 0.5;
@@ -874,12 +885,12 @@ if (!bPauseGame)	{
 	ushort bWiggleSave;
 	controlInfoSave = Controls [0];				// Save controls so we can zero them
 	memset (&Controls, 0, sizeof (tControlInfo));	// Clear everything...
-	bWiggleSave = gameData.objs.consoleP->mType.physInfo.flags & PF_WIGGLE;	// Save old wiggle
-	gameData.objs.consoleP->mType.physInfo.flags &= ~PF_WIGGLE;		// Turn off wiggle
+	bWiggleSave = gameData.objs.console->mType.physInfo.flags & PF_WIGGLE;	// Save old wiggle
+	gameData.objs.console->mType.physInfo.flags &= ~PF_WIGGLE;		// Turn off wiggle
 	if (MultiMenuPoll ())
 		bDone = 1;
 	GameLoop (0, 0);		// Do game loop with no rendering and no reading controls.
-	gameData.objs.consoleP->mType.physInfo.flags |= bWiggleSave;	// Restore wiggle
+	gameData.objs.console->mType.physInfo.flags |= bWiggleSave;	// Restore wiggle
 	Controls [0] = controlInfoSave;
 	}
 return bDone;
@@ -904,7 +915,7 @@ void DoAutomap (int nKeyCode, int bRadar)
 gameStates.render.automap.nMaxSegsAway = 0;
 gameStates.render.automap.nSegmentLimit = 1;
 gameStates.render.automap.bRadar = bRadar;
-bPauseGame = InitAutomap (bPauseGame, &xEntryTime, vTAngles);
+bPauseGame = InitAutomap (bPauseGame, &xEntryTime, &vTAngles);
 bRedrawScreen = 0;
 if (bRadar) {
 	DrawAutomap ();
@@ -922,11 +933,11 @@ while (!bDone)	{
 	bDone = AMGameFrame (bPauseGame, bDone);
 	SongsCheckRedbookRepeat ();
 	bDone = ReadAutomapControls (nLeaveMode, bDone, &bPauseGame);
-	UpdateAutomap(vTAngles);
+	UpdateAutomap (&vTAngles);
 	DrawAutomap ();
 	if (bFirstTime) {
 		bFirstTime = 0;
-		paletteManager.LoadEffect ();
+		GrPaletteStepLoad (NULL);
 		}
 	t2 = TimerGetFixedSeconds ();
 	if (bPauseGame)
@@ -967,19 +978,18 @@ for (i = 0; i <= nHighestEdgeIndex; i++)	{
 
 //------------------------------------------------------------------------------
 
-void DrawAllEdges (void)
+void DrawAllEdges ()
 {
-	g3sCodes		cc;
-	int			i, j, nbright = 0;
-	ubyte			nfacing, nnfacing;
-	tEdgeInfo	*e;
-	CFixVector	*tv1;
-	fix			distance;
-	fix			minDistance = 0x7fffffff;
-	g3sPoint		*p1, *p2;
-	int			bUseTransform = gameStates.ogl.bUseTransform;
+	g3sCodes cc;
+	int i,j,nbright;
+	ubyte nfacing,nnfacing;
+	tEdgeInfo *e;
+	vmsVector *tv1;
+	fix distance;
+	fix minDistance = 0x7fffffff;
+	g3sPoint *p1, *p2;
 
-gameStates.ogl.bUseTransform = RENDERPATH;
+nbright = 0;
 for (i = 0; i <= nHighestEdgeIndex; i++)	{
 	//e = &Edges [Edge_used_list [i]];
 	e = Edges + i;
@@ -989,11 +999,11 @@ for (i = 0; i <= nHighestEdgeIndex; i++)	{
 		continue;
 	if (e->flags & EF_FRONTIER) {		// A line that is between what we have seen and what we haven't
 		if ((!(e->flags & EF_SECRET)) && (e->color == automapColors.walls.nNormal))
-			continue;		// If a line isn't secret and is Normal color, then don't draw it
+			continue;		// If a line isn't secret and is normal color, then don't draw it
 		}
 
 	cc = RotateVertexList (2,e->verts);
-	distance = gameData.segs.points [e->verts [1]].p3_vec[Z];
+	distance = gameData.segs.points [e->verts [1]].p3_z;
 	if (minDistance>distance)
 		minDistance = distance;
 	if (!cc.ccAnd) 	{	//all off screen?
@@ -1001,7 +1011,7 @@ for (i = 0; i <= nHighestEdgeIndex; i++)	{
 		tv1 = gameData.segs.vertices + e->verts [0];
 		j = 0;
 		while (j<e->num_faces && (nfacing==0 || nnfacing==0))	{
-			if (!G3CheckNormalFacing(*tv1, gameData.segs.segments [e->nSegment [j]].sides [e->sides [j]].normals [0]))
+			if (!G3CheckNormalFacing (tv1, &gameData.segs.segments [e->nSegment [j]].sides [e->sides [j]].normals [0]))
 				nfacing++;
 			else
 				nnfacing++;
@@ -1015,9 +1025,9 @@ for (i = 0; i <= nHighestEdgeIndex; i++)	{
 		else if (e->flags & (EF_DEFINING|EF_GRATE))	{
 			if (nfacing == 0)	{
 				if (e->flags & EF_NO_FADE)
-					CCanvas::Current ()->SetColorRGBi (e->color);
+					GrSetColorRGBi (e->color);
 				else
-					CCanvas::Current ()->SetColorRGBi (RGBA_FADE (e->color, 32.0 / 8.0));
+					GrSetColorRGBi (RGBA_FADE (e->color, 32.0 / 8.0));
 				G3DrawLine (gameData.segs.points + e->verts [0], gameData.segs.points + e->verts [1]);
 				}
 			else {
@@ -1044,11 +1054,11 @@ while (incr > 0) {
 			v1 = Edges [DrawingListBright [j]].verts [0];
 			v2 = Edges [DrawingListBright [j+incr]].verts [0];
 
-			if (gameData.segs.points [v1].p3_vec[Z] < gameData.segs.points [v2].p3_vec[Z]) {
+			if (gameData.segs.points [v1].p3_z < gameData.segs.points [v2].p3_z) {
 				// If not in correct order, them swap 'em
-				t = DrawingListBright [j+incr];
-				DrawingListBright [j+incr] = DrawingListBright [j];
-				DrawingListBright [j] = t;
+				t=DrawingListBright [j+incr];
+				DrawingListBright [j+incr]=DrawingListBright [j];
+				DrawingListBright [j]=t;
 				j -= incr;
 				}
 			else
@@ -1066,23 +1076,22 @@ for (i = 0; i < nbright; i++) {
 	e = Edges + DrawingListBright [i];
 	p1 = gameData.segs.points + e->verts [0];
 	p2 = gameData.segs.points + e->verts [1];
-	dist = p1->p3_vec[Z] - minDistance;
+	dist = p1->p3_z - minDistance;
 	// Make distance be 1.0 to 0.0, where 0.0 is 10 segments away;
 	if (dist < 0) 
-		dist = 0;
+		dist=0;
 	if (dist >= amData.nMaxDist) 
 		continue;
 
 	if (e->flags & EF_NO_FADE)
-		CCanvas::Current ()->SetColorRGBi (e->color);
+		GrSetColorRGBi (e->color);
 	else {
 		dist = F1_0 - FixDiv (dist, amData.nMaxDist);
-		color = X2I (dist*31);
-		CCanvas::Current ()->SetColorRGBi (RGBA_FADE (e->color, 32.0 / color));
+		color = f2i (dist*31);
+		GrSetColorRGBi (RGBA_FADE (e->color, 32.0 / color));
 		}
 	G3DrawLine (p1, p2);
 	}
-gameStates.ogl.bUseTransform = bUseTransform;
 }
 
 
@@ -1120,7 +1129,7 @@ return ret ? hash : -1;
 
 //------------------------------------------------------------------------------
 
-void AddOneEdge (int va, int vb, uint color, ubyte tSide, short nSegment, 
+void AddOneEdge (int va, int vb, unsigned int color, ubyte tSide, short nSegment, 
 					  int bHidden, int bGrate, int bNoFade)
 {
 	int found;
@@ -1150,7 +1159,7 @@ if (found == -1) {
 	e->verts [1] = vb;
 	e->color = color;
 	e->num_faces = 1;
-	e->flags = EF_USED | EF_DEFINING;			// Assume a Normal line
+	e->flags = EF_USED | EF_DEFINING;			// Assume a normal line
 	e->sides [0] = tSide;
 	e->nSegment [0] = nSegment;
 	//Edge_used_list [nNumEdges] = EDGE_IDX (e);
@@ -1197,10 +1206,10 @@ if (found != -1)
 
 //------------------------------------------------------------------------------
 
-void AddSegmentEdges (CSegment *segP)
+void AddSegmentEdges (tSegment *segP)
 {
 	int		 		bIsGrate, bNoFade;
-	uint	color;
+	unsigned int	color;
 	int				wn;
 	ubyte				sn;
 	short				nSegment = SEG_IDX (segP);
@@ -1262,7 +1271,7 @@ for (sn = 0; sn < MAX_SIDES_PER_SEGMENT; sn++) {
 					bNoFade = 1;
 					color = automapColors.walls.nDoorRed;
 					}
-				else if (!(gameData.walls.animP [wallP->nClip].flags & WCF_HIDDEN)) {
+				else if (!(gameData.walls.pAnims [wallP->nClip].flags & WCF_HIDDEN)) {
 					short	connected_seg = segP->children [sn];
 					if (connected_seg != -1) {
 						short connected_side = FindConnectedSide (segP, &gameData.segs.segments [connected_seg]);
@@ -1330,9 +1339,9 @@ addEdge:
 }
 
 //------------------------------------------------------------------------------
-// Adds all the edges from a CSegment we haven't visited yet.
+// Adds all the edges from a tSegment we haven't visited yet.
 
-void AddUnknownSegmentEdges (CSegment *segP)
+void AddUnknownSegmentEdges (tSegment *segP)
 {
 	int sn;
 	int nSegment = SEG_IDX (segP);
@@ -1408,7 +1417,7 @@ else {
 		for (e1 = 0; e1 < e->num_faces; e1++) {
 			for (e2 = 1; e2 < e->num_faces; e2++) {
 				if ((e1 != e2) && (e->nSegment [e1] != e->nSegment [e2]))	{
-					if (CFixVector::Dot(gameData.segs.segments [e->nSegment [e1]].sides [e->sides [e1]].normals [0], gameData.segs.segments [e->nSegment [e2]].sides [e->sides [e2]].normals [0]) > (F1_0- (F1_0/10)) )	{
+					if (VmVecDot (&gameData.segs.segments [e->nSegment [e1]].sides [e->sides [e1]].normals [0], &gameData.segs.segments [e->nSegment [e2]].sides [e->sides [e2]].normals [0]) > (F1_0- (F1_0/10)) )	{
 						e->flags &= (~EF_DEFINING);
 						break;
 					}

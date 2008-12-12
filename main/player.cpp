@@ -1,3 +1,5 @@
+/* $Id: player.c,v 1.3 2003/10/10 09:36:35 btb Exp $ */
+
 /*
  *
  * Player Stuff
@@ -9,35 +11,40 @@
 #endif
 
 #include "inferno.h"
+#include "multi.h"
 #include "input.h"
 #include "network.h"
 
+#ifdef RCS
+static char rcsid[] = "$Id: player.c,v 1.3 2003/10/10 09:36:35 btb Exp $";
+#endif
+
 //-------------------------------------------------------------------------
-// reads a CPlayerShip structure from a CFile
+// reads a tPlayerShip structure from a CFILE
  
-void PlayerShipRead (CPlayerShip *ps, CFile& cf)
+void PlayerShipRead (tPlayerShip *ps, CFILE *fp)
 {
 	int i;
 
-ps->nModel = cf.ReadInt ();
-ps->nExplVClip = cf.ReadInt ();
-ps->mass = cf.ReadFix ();
-ps->drag = cf.ReadFix ();
-ps->maxThrust = cf.ReadFix ();
-ps->reverseThrust = cf.ReadFix ();
-ps->brakes = cf.ReadFix ();
-ps->wiggle = cf.ReadFix ();
-ps->maxRotThrust = cf.ReadFix ();
+ps->nModel = CFReadInt (fp);
+ps->nExplVClip = CFReadInt (fp);
+ps->mass = CFReadFix (fp);
+ps->drag = CFReadFix (fp);
+ps->maxThrust = CFReadFix (fp);
+ps->reverseThrust = CFReadFix (fp);
+ps->brakes = CFReadFix (fp);
+ps->wiggle = CFReadFix (fp);
+ps->maxRotThrust = CFReadFix (fp);
 for (i = 0; i < N_PLAYER_GUNS; i++)
-	cf.ReadVector (ps->gunPoints[i]);
+	CFReadVector (ps->gunPoints + i, fp);
 }
 
 //-------------------------------------------------------------------------
 
-int EquippedPlayerGun (CObject *objP)
+int EquippedPlayerGun (tObject *objP)
 {
-if (objP->info.nType == OBJ_PLAYER) {
-		int		nPlayer = objP->info.nId;
+if (objP->nType == OBJ_PLAYER) {
+		int		nPlayer = objP->id;
 		int		nWeapon = gameData.multiplayer.weaponStates [nPlayer].nPrimary;
 
 	return (nWeapon || (gameData.multiplayer.weaponStates [nPlayer].nLaserLevel <= MAX_LASER_LEVEL)) ? nWeapon : SUPER_LASER_INDEX;
@@ -49,13 +56,13 @@ return 0;
 
 static int nBombIds [] = {SMART_INDEX, MEGA_INDEX, EARTHSHAKER_INDEX};
 
-int EquippedPlayerBomb (CObject *objP)
+int EquippedPlayerBomb (tObject *objP)
 {
-if (objP->info.nType == OBJ_PLAYER) {
-		int		nPlayer = objP->info.nId;
+if (objP->nType == OBJ_PLAYER) {
+		int		nPlayer = objP->id;
 		int		i, nWeapon = gameData.multiplayer.weaponStates [nPlayer].nSecondary;
 
-	for (i = 0; i < (int) sizeofa (nBombIds); i++)
+	for (i = 0; i < sizeofa (nBombIds); i++)
 		if (nWeapon == nBombIds [i])
 			return i + 1;
 	}
@@ -66,13 +73,13 @@ return 0;
 
 static int nMissileIds [] = {CONCUSSION_INDEX, HOMING_INDEX, FLASHMSL_INDEX, GUIDED_INDEX, MERCURY_INDEX};
 
-int EquippedPlayerMissile (CObject *objP, int *nMissiles)
+int EquippedPlayerMissile (tObject *objP, int *nMissiles)
 {
-if (objP->info.nType == OBJ_PLAYER) {
-		int		nPlayer = objP->info.nId;
+if (objP->nType == OBJ_PLAYER) {
+		int		nPlayer = objP->id;
 		int		i, nWeapon = gameData.multiplayer.weaponStates [nPlayer].nSecondary;
 
-	for (i = 0; i < (int) sizeofa (nMissileIds); i++)
+	for (i = 0; i < sizeofa (nMissileIds); i++)
 		if (nWeapon == nMissileIds [i]) {
 			*nMissiles = gameData.multiplayer.weaponStates [nPlayer].nMissiles;
 			return i + 1;
@@ -84,18 +91,16 @@ return 0;
 
 //-------------------------------------------------------------------------
 
-#if 0
 static inline int WIFireTicks (int nWeapon)
 {
 return 1000 * WI_fire_wait (nWeapon) / F1_0;
 }
-#endif
 
 //-------------------------------------------------------------------------
 
 void UpdateFiringSounds (void)
 {
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates;
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates;
 	tFiringData		*fP;
 	int				bGatling, bGatlingSound, i;
 
@@ -162,7 +167,7 @@ else if (gameData.weapons.firing [1].nDuration) {
 void UpdatePlayerWeaponInfo (void)
 {
 	int				i, bUpdate = 0;
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates + gameData.multiplayer.nLocalPlayer;
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates + gameData.multiplayer.nLocalPlayer;
 	tFiringData		*fP;
 
 if (gameStates.app.bPlayerIsDead)

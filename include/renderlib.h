@@ -1,3 +1,4 @@
+/* $Id: render.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -31,7 +32,7 @@ typedef struct tFaceProps {
 #if LIGHTMAPS
 	tUVL			uvl_lMaps [4];
 #endif
-	CFixVector	vNormal;
+	vmsVector	vNormal;
 	ubyte			nVertices;
 	ubyte			widFlags;
 	char			nType;
@@ -57,7 +58,6 @@ void FreeExtraImages (void);
 
 // Given a list of point numbers, rotate any that haven't been rotated
 // this frame
-g3sPoint *RotateVertex (int i);
 g3sCodes RotateVertexList (int nv, short *pointIndex);
 void RotateSideNorms (void);
 // Given a list of point numbers, project any that haven't been projected
@@ -73,13 +73,13 @@ int SetVertexColor (int nVertex, tFaceColor *pc);
 int SetVertexColors (tFaceProps *propsP);
 fix SetVertexLight (int nSegment, int nSide, int nVertex, tFaceColor *pc, fix light);
 int SetFaceLight (tFaceProps *propsP);
-void AdjustVertexColor (CBitmap *bmP, tFaceColor *pc, fix xLight);
+void AdjustVertexColor (grsBitmap *bmP, tFaceColor *pc, fix xLight);
 char IsColoredSegFace (short nSegment, short nSide);
 tRgbaColorf *ColoredSegmentColor (int nSegment, int nSide, char nColor);
 int IsMonitorFace (short nSegment, short nSide, int bForce);
 float WallAlpha (short nSegment, short nSide, short nWall, ubyte widFlags, int bIsMonitor, tRgbaColorf *pc, int *bCloaking, ubyte *bTextured);
-int SetupMonitorFace (short nSegment, short nSide, short nCamera, tFace *faceP);
-CBitmap *LoadFaceBitmap (short tMapNum, short nFrameNum);
+int SetupMonitorFace (short nSegment, short nSide, short nCamera, grsFace *faceP);
+grsBitmap *LoadFaceBitmap (short tMapNum, short nFrameNum);
 void DrawOutline (int nVertices, g3sPoint **pointList);
 int ToggleOutlineMode (void);
 int ToggleShowOnlyCurSide (void);
@@ -90,24 +90,23 @@ void BumpVisitedFlag (void);
 void BumpProcessedFlag (void);
 void BumpVisibleFlag (void);
 
-#if DBG
-void OutlineSegSide (CSegment *seg, int _side, int edge, int vert);
-void DrawWindowBox (uint color, short left, short top, short right, short bot);
+#ifdef _DEBUG
+void OutlineSegSide (tSegment *seg, int _side, int edge, int vert);
+void DrawWindowBox (unsigned int color, short left, short top, short right, short bot);
 #endif
 
 //------------------------------------------------------------------------------
 
-extern CBitmap *bmpCorona;
-extern CBitmap *bmpGlare;
-extern CBitmap *bmpHalo;
-extern CBitmap *bmpThruster [2];
-extern CBitmap *bmpShield;
-extern CBitmap *bmpExplBlast;
-extern CBitmap *bmpSparks;
+extern grsBitmap *bmpCorona;
+extern grsBitmap *bmpGlare;
+extern grsBitmap *bmpHalo;
+extern grsBitmap *bmpThruster [2];
+extern grsBitmap *bmpShield;
+extern grsBitmap *bmpExplBlast;
 
 extern tRgbaColorf segmentColors [4];
 
-#if DBG
+#ifdef _DEBUG
 extern short nDbgSeg;
 extern short nDbgSide;
 extern int nDbgVertex;
@@ -122,13 +121,6 @@ extern int bOutLineMode, bShowOnlyCurSide;
 static inline int IsTransparentFace (tFaceProps *propsP)
 {
 return IsTransparentTexture (gameData.segs.segments [propsP->segNum].sides [propsP->sideNum].nBaseTex);
-}
-
-//------------------------------------------------------------------------------
-
-static inline int IsWaterTexture (short nTexture)
-{
-return ((nTexture >= 399) && (nTexture <= 403));
 }
 
 //------------------------------------------------------------------------------

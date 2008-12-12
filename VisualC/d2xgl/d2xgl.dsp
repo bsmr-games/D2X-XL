@@ -54,7 +54,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib opengl32.lib glu32.lib winmm.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"\programs\d2\d2x-xl-win16.exe" /libpath:"C:\Programme\Microsoft Platform SDK for Windows XP SP2\Lib" /libpath:"\Projekte\SDL-1.2.11\VisualC\SDLmain\Release" /libpath:"\Projekte\SDL-1.2.13\VisualC\SDL\win16\Release" /libpath:"\Projekte\SDL_mixer-1.2.8\VisualC\win16\Release"
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib opengl32.lib glu32.lib winmm.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"d:\programs\d2\d2x-xl-win16.exe" /libpath:"C:\Programme\Microsoft Platform SDK for Windows XP SP2\Lib" /libpath:"\Projekte\SDL-1.2.11\VisualC\SDLmain\Release" /libpath:"\Projekte\SDL-1.2.13\VisualC\SDL\win16\Release" /libpath:"\Projekte\SDL_mixer-1.2.8\VisualC\win16\Release"
 # SUBTRACT LINK32 /debug
 
 !ELSEIF  "$(CFG)" == "d2xgl - Win32 Debug"
@@ -259,15 +259,15 @@ SOURCE=..\..\misc\hash.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mem\mem.cpp
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\misc\strio.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=..\..\misc\strutil.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\misc\timer.cpp
 # End Source File
 # End Group
 # Begin Group "main"
@@ -552,10 +552,6 @@ SOURCE=..\..\ai\aisave.cpp
 # Begin Source File
 
 SOURCE=..\..\ai\aisnipe.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\d1_ai.cpp
 # End Source File
 # Begin Source File
 
@@ -856,10 +852,6 @@ SOURCE=..\..\io\d_io.cpp
 # Begin Source File
 
 SOURCE=..\..\io\win32\findfile.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\io\hogfile.cpp
 # End Source File
 # End Group
 # Begin Group "lighting"

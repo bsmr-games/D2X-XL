@@ -1,3 +1,4 @@
+/* $Id: setup.c,v 1.5 2003/03/19 19:21:34 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -7,7 +8,7 @@ IN USING, DISPLAYING,  AND CREATING DERIVATIVE WORKS THEREOF, SO LONG AS
 SUCH USE, DISPLAY OR CREATION IS FOR NON-COMMERCIAL, ROYALTY OR REVENUE
 FREE PURPOSES.  IN NO EVENT SHALL THE END-USER USE THE COMPUTER CODE
 CONTAINED HEREIN FOR REVENUE-BEARING PURPOSES.  THE END-USER UNDERSTANDS
-AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
+AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.  
 COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
@@ -15,10 +16,13 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: setup.c,v 1.5 2003/03/19 19:21:34 btb Exp $";
+#endif
+
 #include <stdlib.h>
 
 #include "inferno.h"
-#include "globvars.h"
 #include "error.h"
 #include "3d.h"
 #include "globvars.h"
@@ -45,25 +49,27 @@ void G3StartFrame (int bFlat, int bResetColorBuf)
 	fix s;
 
 //set int w,h & fixed-point w,h/2
-xCanvW2 = (nCanvasWidth = CCanvas::Current ()->Width ()) << 15;
-xCanvH2 = (nCanvasHeight = CCanvas::Current ()->Height ()) << 15;
-fxCanvW2 = X2F (xCanvW2);
-fxCanvH2 = X2F (xCanvH2);
+xCanvW2 = (nCanvasWidth  = grdCurCanv->cvBitmap.bmProps.w) << 15;
+xCanvH2 = (nCanvasHeight = grdCurCanv->cvBitmap.bmProps.h) << 15;
+#ifdef __powerc
+fxCanvW2 = f2fl ((nCanvasWidth  = grdCurCanv->cvBitmap.bmProps.w) << 15);
+fxCanvH2 = f2fl ((nCanvasHeight = grdCurCanv->cvBitmap.bmProps.h) << 15);
+#endif
 //compute aspect ratio for this canvas
-s = FixMulDiv (screen.Aspect (), nCanvasHeight, nCanvasWidth);
+s = FixMulDiv (grdCurScreen->scAspect, nCanvasHeight, nCanvasWidth);
 if (s <= f1_0) {	   //scale x
-	viewInfo.windowScale [X] = s;
-	viewInfo.windowScale [Y] = f1_0;
+	viewInfo.windowScale.p.x = s;
+	viewInfo.windowScale.p.y = f1_0;
 	}
 else {
-	viewInfo.windowScale [Y] = FixDiv (f1_0, s);
-	viewInfo.windowScale [X] = f1_0;
+	viewInfo.windowScale.p.y = FixDiv (f1_0, s);
+	viewInfo.windowScale.p.x = f1_0;
 	}
-viewInfo.windowScale [Z] = f1_0;		//always 1
-InitFreePoints ();
+viewInfo.windowScale.p.z = f1_0;		//always 1
+init_free_points ();
 OglStartFrame (bFlat, bResetColorBuf);
-gameStates.render.bHeadlightOn = 1;
-if (RENDERPATH)
+gameStates.render.bHeadLightOn = 1;
+if (gameOpts->render.nPath)
 	gameOpts->render.bDepthSort = 1;
 }
 
@@ -72,8 +78,8 @@ if (RENDERPATH)
 void G3EndFrame(void)
 {
 OglEndFrame();
-//	Assert(nFreePoints==0);
-nFreePoints = 0;
+//	Assert(free_point_num==0);
+free_point_num = 0;
 }
 
 //------------------------------------------------------------------------------

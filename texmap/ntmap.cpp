@@ -1,3 +1,4 @@
+/* $Id: ntmap.c,v 1.8 2003/03/19 19:21:34 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -13,6 +14,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #ifdef HAVE_CONFIG_H
 #include <conf.h>
+#endif
+
+#ifdef RCS
+static char rcsid[] = "$Id: ntmap.c,v 1.8 2003/03/19 19:21:34 btb Exp $";
 #endif
 
 #define VESA 0
@@ -45,10 +50,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 // Temporary texture map, interface from Matt's 3d system to Mike's texture mapper.
 g3ds_tmap Tmap1;
 
-CBitmap Texmap_ptrs[NUM_TMAPS];
-CBitmap Texmap4_ptrs[NUM_TMAPS];
+grsBitmap Texmap_ptrs[NUM_TMAPS];
+grsBitmap Texmap4_ptrs[NUM_TMAPS];
 
-int	nCurrentSegDepth;		// HACK INTERFACE: how far away the current CSegment (& thus texture) is
+int	nCurrentSegDepth;		// HACK INTERFACE: how far away the current tSegment (& thus texture) is
 
 int nWindowClipLeft, nWindowClipTop, nWindowClipRight, nWindowClipBot;
 
@@ -56,7 +61,7 @@ int nWindowClipLeft, nWindowClipTop, nWindowClipRight, nWindowClipBot;
 //	They should be set only when they change, which is generally when the window bounds change.  And, even still, it's
 //	a pretty bad interface.
 int	bytes_per_row=-1;
-ubyte *write_buffer;
+unsigned char *write_buffer;
 int  	window_left;
 int	window_right;
 int	window_top;
@@ -75,7 +80,7 @@ int	bFixRecipTableComputed=0;
 
 fix fx_l, fx_u, fx_v, fx_z, fx_du_dx, fx_dv_dx, fx_dz_dx, fx_dl_dx;
 int fx_xleft, fx_xright, fx_y;
-ubyte * pixptr;
+unsigned char * pixptr;
 int per2Flag = 0;
 
 ubyte * tmap_flat_cthru_table;
@@ -104,19 +109,19 @@ void init_fix_recip_table(void)
 //	not at all.  I'm pretty sure these variables are only being used for range checking.
 void init_interface_vars_to_assembler(void)
 {
-	CBitmap	*bmP;
+	grsBitmap	*bp;
 
-	bmP = CCanvas::Current ();
+	bp = &grdCurCanv->cvBitmap;
 
-	Assert(bmP!=NULL);
-	Assert(bmP->Buffer ()!=NULL);
-	Assert(bmP->Height () <= MAX_Y_POINTERS);
+	Assert(bp!=NULL);
+	Assert(bp->bmTexBuf!=NULL);
+	Assert(bp->bmProps.h <= MAX_Y_POINTERS);
 
 	//	If bytes_per_row has changed, create new table of pointers.
-	if (bytes_per_row != (int) bmP->RowSize ()) {
+	if (bytes_per_row != (int) bp->bmProps.rowSize) {
 		int	y_val, i;
 
-		bytes_per_row = (int) bmP->RowSize ();
+		bytes_per_row = (int) bp->bmProps.rowSize;
 
 		y_val = 0;
 		for (i=0; i<MAX_Y_POINTERS; i++) {
@@ -125,20 +130,20 @@ void init_interface_vars_to_assembler(void)
 		}
 	}
 
-        write_buffer = reinterpret_cast<ubyte*> (bmP->Buffer ());
+        write_buffer = (unsigned char *) bp->bmTexBuf;
 
 	window_left = 0;
-	window_right = (int) bmP->Width ()-1;
+	window_right = (int) bp->bmProps.w-1;
 	window_top = 0;
-	window_bottom = (int) bmP->Height ()-1;
+	window_bottom = (int) bp->bmProps.h-1;
 
 	nWindowClipLeft = window_left;
 	nWindowClipRight = window_right;
 	nWindowClipTop = window_top;
 	nWindowClipBot = window_bottom;
 
-	window_width = bmP->Width ();
-	window_height = bmP->Height ();
+	window_width = bp->bmProps.w;
+	window_height = bp->bmProps.h;
 
 	if (!bFixRecipTableComputed)
 		init_fix_recip_table();
@@ -198,25 +203,25 @@ void compute_y_bounds(g3ds_tmap *t, int *vlt, int *vlb, int *vrt, int *vrb,int *
 	fix	min_x;
 
 	// Scan all vertices, set min_y_ind to vertex with smallest y coordinate.
-	min_y = X2I(t->verts[0].y2d);
+	min_y = f2i(t->verts[0].y2d);
 	max_y = min_y;
 	min_y_ind = 0;
-	min_x = X2I(t->verts[0].x2d);
+	min_x = f2i(t->verts[0].x2d);
 	*bottom_y_ind = 0;
 
 	for (i=1; i<t->nv; i++) {
-		if (X2I(t->verts[i].y2d) < min_y) {
-			min_y = X2I(t->verts[i].y2d);
+		if (f2i(t->verts[i].y2d) < min_y) {
+			min_y = f2i(t->verts[i].y2d);
 			min_y_ind = i;
-			min_x = X2I(t->verts[i].x2d);
-		} else if (X2I(t->verts[i].y2d) == min_y) {
-			if (X2I(t->verts[i].x2d) < min_x) {
+			min_x = f2i(t->verts[i].x2d);
+		} else if (f2i(t->verts[i].y2d) == min_y) {
+			if (f2i(t->verts[i].x2d) < min_x) {
 				min_y_ind = i;
-				min_x = X2I(t->verts[i].x2d);
+				min_x = f2i(t->verts[i].x2d);
 			}
 		}
-		if (X2I(t->verts[i].y2d) > max_y) {
-			max_y = X2I(t->verts[i].y2d);
+		if (f2i(t->verts[i].y2d) > max_y) {
+			max_y = f2i(t->verts[i].y2d);
 			*bottom_y_ind = i;
 		}
 	}
@@ -231,7 +236,7 @@ void compute_y_bounds(g3ds_tmap *t, int *vlt, int *vlb, int *vrt, int *vrb,int *
 //--removed mk, 11/27/94--		max_temp += t->nv;
 //--removed mk, 11/27/94--
 //--removed mk, 11/27/94--	for (i=min_y_ind; i<max_temp; i++) {
-//--removed mk, 11/27/94--		if (X2I(t->verts[i%t->nv].y2d) > X2I(t->verts[(i+1)%t->nv].y2d)) {
+//--removed mk, 11/27/94--		if (f2i(t->verts[i%t->nv].y2d) > f2i(t->verts[(i+1)%t->nv].y2d)) {
 //--removed mk, 11/27/94--			Int3();
 //--removed mk, 11/27/94--			t->verts[(i+1)%t->nv].y2d = t->verts[i%t->nv].y2d;
 //--removed mk, 11/27/94--		}
@@ -242,7 +247,7 @@ void compute_y_bounds(g3ds_tmap *t, int *vlt, int *vlb, int *vrt, int *vrb,int *
 //--removed mk, 11/27/94--		min_temp += t->nv;
 //--removed mk, 11/27/94--
 //--removed mk, 11/27/94--	for (i=*bottom_y_ind; i<min_temp; i++) {
-//--removed mk, 11/27/94--		if (X2I(t->verts[i%t->nv].y2d) < X2I(t->verts[(i+1)%t->nv].y2d)) {
+//--removed mk, 11/27/94--		if (f2i(t->verts[i%t->nv].y2d) < f2i(t->verts[(i+1)%t->nv].y2d)) {
 //--removed mk, 11/27/94--			Int3();
 //--removed mk, 11/27/94--			t->verts[(i+1)%t->nv].y2d = t->verts[i%t->nv].y2d;
 //--removed mk, 11/27/94--		}
@@ -261,7 +266,7 @@ void compute_y_bounds(g3ds_tmap *t, int *vlt, int *vlb, int *vrt, int *vrb,int *
 
 	original_vrt = *vrt;
 
-	while (X2I(t->verts[*vrt].y2d) == X2I(t->verts[*vrb].y2d)) {
+	while (f2i(t->verts[*vrt].y2d) == f2i(t->verts[*vrb].y2d)) {
 		if (succmod(*vrt,t->nv) == original_vrt) {
 			break;
 		}
@@ -279,7 +284,7 @@ void compute_y_bounds(g3ds_tmap *t, int *vlt, int *vlb, int *vrt, int *vrb,int *
 //--	int	dy;
 //--
 //--	// compute delta x with respect to y for any edge
-//--	dy = X2I(t->verts[bottom_vertex].y2d - t->verts[top_vertex].y2d) + 1;
+//--	dy = f2i(t->verts[bottom_vertex].y2d - t->verts[top_vertex].y2d) + 1;
 //--	if (dy)
 //--		return (t->verts[bottom_vertex].x2d - t->verts[top_vertex].x2d) / dy;
 //--	else
@@ -331,15 +336,15 @@ int Skip_shortFlag=0;
 // -------------------------------------------------------------------------------------
 //	Texture map current scanline in perspective.
 // -------------------------------------------------------------------------------------
-void ntmap_scanline_lighted(CBitmap *srcb, int y, fix xleft, fix xright, fix uleft, fix uright, fix vleft, fix vright, fix zleft, fix zright, fix lleft, fix lright)
+void ntmap_scanline_lighted(grsBitmap *srcb, int y, fix xleft, fix xright, fix uleft, fix uright, fix vleft, fix vright, fix zleft, fix zright, fix lleft, fix lright)
 {
 	fix	dx,recip_dx;
 
-	fx_xright = X2I(xright);
+	fx_xright = f2i(xright);
 	//edited 06/27/99 Matt Mueller - moved these tests up from within the switch so as not to do a bunch of needless calculations when we are just gonna return anyway.  Slight fps boost?
 	if (fx_xright < nWindowClipLeft)
 		return;
-	fx_xleft = X2I(xleft);
+	fx_xleft = f2i(xleft);
 	if (fx_xleft > nWindowClipRight)
 		return;
 	//end edit -MM
@@ -362,7 +367,7 @@ void ntmap_scanline_lighted(CBitmap *srcb, int y, fix xleft, fix xright, fix ule
 	fx_dv_dx = FixMul(vright - vleft,recip_dx);
 	fx_dz_dx = FixMul(zright - zleft,recip_dx);
 	fx_y = y;
-	pixptr = srcb->Buffer ();
+	pixptr = srcb->bmTexBuf;
 
 	switch (bLightingEnabled) {
 		case 0:
@@ -405,8 +410,8 @@ void ntmap_scanline_lighted(CBitmap *srcb, int y, fix xleft, fix xright, fix ule
 		}
 		case 2:
 #ifdef EDITOR_TMAP
-			fx_xright = X2I(xright);
-			fx_xleft = X2I(xleft);
+			fx_xright = f2i(xright);
+			fx_xleft = f2i(xleft);
 
 			tmap_flat_color = 1;
 			cur_tmap_scanline_flat();
@@ -425,7 +430,7 @@ int	Break_on_flat=0;
 // -------------------------------------------------------------------------------------
 //	Render a texture map with lighting using perspective interpolation in inner and outer loops.
 // -------------------------------------------------------------------------------------
-void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
+void ntexture_map_lighted(grsBitmap *srcb, g3ds_tmap *t)
 {
 	int	vlt,vrt,vlb,vrb;	// vertex left top, vertex right top, vertex left bottom, vertex right bottom
 	int	topy,boty,y, dy;
@@ -453,15 +458,15 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 	compute_y_bounds(t,&vlt,&vlb,&vrt,&vrb,&max_y_vertex);
 
 	// Set top and bottom (of entire texture map) y coordinates.
-	topy = X2I(v3d[vlt].y2d);
-	boty = X2I(v3d[max_y_vertex].y2d);
+	topy = f2i(v3d[vlt].y2d);
+	boty = f2i(v3d[max_y_vertex].y2d);
 	if (topy > nWindowClipBot)
 		return;
 	if (boty > nWindowClipBot)
 		boty = nWindowClipBot;
 
 	// Set amount to change x coordinate for each advance to next scanline.
-	dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+	dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dyl = fix_recip[dy];
 	else
@@ -472,7 +477,7 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 	dv_dy_left = compute_dv_dy(t,vlt,vlb, recip_dyl);
 	dz_dy_left = compute_dz_dy(t,vlt,vlb, recip_dyl);
 
-	dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+	dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dyr = fix_recip[dy];
 	else
@@ -504,8 +509,8 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 	vright = FixMul(v3d[vrt].v,zright);
 
 	// scan all rows in texture map from top through first break.
-	next_break_left = X2I(v3d[vlb].y2d);
-	next_break_right = X2I(v3d[vrb].y2d);
+	next_break_left = f2i(v3d[vlb].y2d);
+	next_break_right = f2i(v3d[vrb].y2d);
 
 	for (y = topy; y < boty; y++) {
 
@@ -517,13 +522,13 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 			// Handle problem of double points.  Search until y coord is different.  Cannot get
 			// hung in an infinite loop because we know there is a vertex with a lower y coordinate
 			// because in the for loop, we don't scan all spanlines.
-			while (y == X2I(v3d[vlb].y2d)) {
+			while (y == f2i(v3d[vlb].y2d)) {
 				vlt = vlb;
 				vlb = prevmod(vlb,t->nv);
 			}
-			next_break_left = X2I(v3d[vlb].y2d);
+			next_break_left = f2i(v3d[vlb].y2d);
 
-			dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+			dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
@@ -552,14 +557,14 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 		if (y == next_break_right) {
 			fix	recip_dy;
 
-			while (y == X2I(v3d[vrb].y2d)) {
+			while (y == f2i(v3d[vrb].y2d)) {
 				vrt = vrb;
 				vrb = succmod(vrb,t->nv);
 			}
 
-			next_break_right = X2I(v3d[vrb].y2d);
+			next_break_right = f2i(v3d[vrb].y2d);
 
-			dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+			dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
@@ -615,7 +620,7 @@ void ntexture_map_lighted(CBitmap *srcb, g3ds_tmap *t)
 // -------------------------------------------------------------------------------------
 //	Texture map current scanline using linear interpolation.
 // -------------------------------------------------------------------------------------
-void ntmap_scanline_lighted_linear(CBitmap *srcb, int y, fix xleft, fix xright, fix uleft, fix uright, fix vleft, fix vright, fix lleft, fix lright)
+void ntmap_scanline_lighted_linear(grsBitmap *srcb, int y, fix xleft, fix xright, fix uleft, fix uright, fix vleft, fix vright, fix lleft, fix lright)
 {
 	fix	u,v,l;
 	fix	dx,recip_dx;
@@ -626,7 +631,7 @@ void ntmap_scanline_lighted_linear(CBitmap *srcb, int y, fix xleft, fix xright, 
 	v = vleft;
 	l = lleft;
 
-	dx = X2I(xright) - X2I(xleft);
+	dx = f2i(xright) - f2i(xleft);
 	if ((dx < 0) || (xright < 0) || (xleft > xright))		// the (xleft > xright) term is not redundant with (dx < 0) because dx is computed using integers
 		return;
 
@@ -644,9 +649,9 @@ void ntmap_scanline_lighted_linear(CBitmap *srcb, int y, fix xleft, fix xright, 
 		fx_du_dx = du_dx;
 		fx_dv_dx = dv_dx;
 		fx_y = y;
-		fx_xright = X2I(xright);
-		fx_xleft = X2I(xleft);
-		pixptr = srcb->Buffer ();
+		fx_xright = f2i(xright);
+		fx_xleft = f2i(xleft);
+		pixptr = srcb->bmTexBuf;
 
 		switch (bLightingEnabled) {
 			case 0:
@@ -694,8 +699,8 @@ void ntmap_scanline_lighted_linear(CBitmap *srcb, int y, fix xleft, fix xright, 
 				break;
 			case 2:
 #ifdef EDITOR_TMAP
-				fx_xright = X2I(xright);
-				fx_xleft = X2I(xleft);
+				fx_xright = f2i(xright);
+				fx_xleft = f2i(xleft);
 				tmap_flat_color = 1;
 				cur_tmap_scanline_flat();
 #else
@@ -708,7 +713,7 @@ void ntmap_scanline_lighted_linear(CBitmap *srcb, int y, fix xleft, fix xright, 
 // -------------------------------------------------------------------------------------
 //	Render a texture map with lighting using perspective interpolation in inner and outer loops.
 // -------------------------------------------------------------------------------------
-void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
+void ntexture_map_lighted_linear(grsBitmap *srcb, g3ds_tmap *t)
 {
 	int	vlt,vrt,vlb,vrb;	// vertex left top, vertex right top, vertex left bottom, vertex right bottom
 	int	topy,boty,y, dy;
@@ -735,21 +740,21 @@ void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
 	compute_y_bounds(t,&vlt,&vlb,&vrt,&vrb,&max_y_vertex);
 
 	// Set top and bottom (of entire texture map) y coordinates.
-	topy = X2I(v3d[vlt].y2d);
-	boty = X2I(v3d[max_y_vertex].y2d);
+	topy = f2i(v3d[vlt].y2d);
+	boty = f2i(v3d[max_y_vertex].y2d);
 
 	if (topy > nWindowClipBot)
 		return;
 	if (boty > nWindowClipBot)
 		boty = nWindowClipBot;
 
-	dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+	dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dyl = fix_recip[dy];
 	else
 		recip_dyl = F1_0/dy;
 
-	dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+	dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dyr = fix_recip[dy];
 	else
@@ -783,8 +788,8 @@ void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
 	vright = v3d[vrt].v;
 
 	// scan all rows in texture map from top through first break.
-	next_break_left = X2I(v3d[vlb].y2d);
-	next_break_right = X2I(v3d[vrb].y2d);
+	next_break_left = f2i(v3d[vlb].y2d);
+	next_break_right = f2i(v3d[vrb].y2d);
 
 	for (y = topy; y < boty; y++) {
 
@@ -796,13 +801,13 @@ void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
 			// Handle problem of double points.  Search until y coord is different.  Cannot get
 			// hung in an infinite loop because we know there is a vertex with a lower y coordinate
 			// because in the for loop, we don't scan all spanlines.
-			while (y == X2I(v3d[vlb].y2d)) {
+			while (y == f2i(v3d[vlb].y2d)) {
 				vlt = vlb;
 				vlb = prevmod(vlb,t->nv);
 			}
-			next_break_left = X2I(v3d[vlb].y2d);
+			next_break_left = f2i(v3d[vlb].y2d);
 
-			dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+			dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
@@ -829,18 +834,18 @@ void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
 		if (y == next_break_right) {
 			fix	recip_dy;
 
-			while (y == X2I(v3d[vrb].y2d)) {
+			while (y == f2i(v3d[vrb].y2d)) {
 				vrt = vrb;
 				vrb = succmod(vrb,t->nv);
 			}
 
-			dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+			dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
 				recip_dy = F1_0/dy;
 
-			next_break_right = X2I(v3d[vrb].y2d);
+			next_break_right = f2i(v3d[vrb].y2d);
 			dx_dy_right = compute_dx_dy(t,vrt,vrb, recip_dy);
 
 			xright = v3d[vrt].x2d;
@@ -882,12 +887,12 @@ void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t)
 
 // fix	DivNum = F1_0*12;
 
-extern void DrawTexPolyFlat(CBitmap *bmP,int nverts,g3sPoint **vertbuf);
+extern void DrawTexPolyFlat(grsBitmap *bp,int nverts,g3sPoint **vertbuf);
 
 // -------------------------------------------------------------------------------------
 // Interface from Matt's data structures to Mike's texture mapper.
 // -------------------------------------------------------------------------------------
-void draw_tmap(CBitmap *bmP,int nverts,g3sPoint **vertbuf)
+void draw_tmap(grsBitmap *bp,int nverts,g3sPoint **vertbuf)
 {
 	int	i;
 
@@ -905,16 +910,16 @@ void draw_tmap(CBitmap *bmP,int nverts,g3sPoint **vertbuf)
 	// -- now called from G3StartFrame -- init_interface_vars_to_assembler();
 
 	//	If no transparency and seg depth is large, render as flat shaded.
-	if ((nCurrentSegDepth > gameStates.render.detail.nMaxLinearDepth) && ((bmP->Flags () & 3) == 0)) {
-		DrawTexPolyFlat(bmP, nverts, vertbuf);
+	if ((nCurrentSegDepth > gameStates.render.detail.nMaxLinearDepth) && ((bp->bmProps.flags & 3) == 0)) {
+		DrawTexPolyFlat(bp, nverts, vertbuf);
 		return;
 	}
 
-	if ( bmP->Flags () & BM_FLAG_RLE )
-		bmP = rle_expand_texture( bmP );		// Expand if rle'd
+	if ( bp->bmProps.flags & BM_FLAG_RLE )
+		bp = rle_expand_texture( bp );		// Expand if rle'd
 
-	gameStates.render.bTransparency = bmP->Flags () & BM_FLAG_TRANSPARENT;
-	if (bmP->Flags () & BM_FLAG_NO_LIGHTING)
+	gameStates.render.bTransparency = bp->bmProps.flags & BM_FLAG_TRANSPARENT;
+	if (bp->bmProps.flags & BM_FLAG_NO_LIGHTING)
 		gameStates.render.nLighting = 0;
 
 
@@ -927,18 +932,18 @@ void draw_tmap(CBitmap *bmP,int nverts,g3sPoint **vertbuf)
 		g3ds_vertex	*tvp = &Tmap1.verts[i];
 		g3sPoint	*vp = vertbuf[i];
 
-		tvp->x2d = I2X (vp->p3_screen.x);
-		tvp->y2d = I2X (vp->p3_screen.y);
+		tvp->x2d = vp->p3_screen.x;
+		tvp->y2d = vp->p3_screen.y;
 
 		//	Check for overflow on FixDiv.  Will overflow on vp->z <= something small.  Allow only as low as 256.
-		if (vp->p3_vec[Z] < 256) {
-			vp->p3_vec[Z] = 256;
+		if (vp->p3_z < 256) {
+			vp->p3_z = 256;
 			// Int3();		// we would overflow if we divided!
 		}
 
-		tvp->z = FixDiv(F1_0*12, vp->p3_vec[Z]);
-		tvp->u = vp->p3_uvl.u << 6; //* bmP->Width ();
-		tvp->v = vp->p3_uvl.v << 6; //* bmP->Height ();
+		tvp->z = FixDiv(F1_0*12, vp->p3_z);
+		tvp->u = vp->p3_uvl.u << 6; //* bp->bmProps.w;
+		tvp->v = vp->p3_uvl.v << 6; //* bp->bmProps.h;
 
 		Assert(gameStates.render.nLighting < 3);
 
@@ -955,21 +960,21 @@ void draw_tmap(CBitmap *bmP,int nverts,g3sPoint **vertbuf)
 			case 0:								// choose best interpolation
 				per2Flag = 1;
 				if (nCurrentSegDepth > gameStates.render.detail.nMaxPerspectiveDepth)
-					ntexture_map_lighted_linear(bmP, &Tmap1);
+					ntexture_map_lighted_linear(bp, &Tmap1);
 				else
-					ntexture_map_lighted(bmP, &Tmap1);
+					ntexture_map_lighted(bp, &Tmap1);
 				break;
 			case 1:								// linear interpolation
 				per2Flag = 1;
-				ntexture_map_lighted_linear(bmP, &Tmap1);
+				ntexture_map_lighted_linear(bp, &Tmap1);
 				break;
 			case 2:								// perspective every 8th pixel interpolation
 				per2Flag = 1;
-				ntexture_map_lighted(bmP, &Tmap1);
+				ntexture_map_lighted(bp, &Tmap1);
 				break;
 			case 3:								// perspective every pixel interpolation
 				per2Flag = 0;					// this hack means do divide every pixel
-				ntexture_map_lighted(bmP, &Tmap1);
+				ntexture_map_lighted(bp, &Tmap1);
 				break;
 			default:
 				Assert(0);				// Illegal value for gameStates.render.nInterpolationMethod, must be 0,1,2,3
@@ -979,21 +984,21 @@ void draw_tmap(CBitmap *bmP,int nverts,g3sPoint **vertbuf)
 			case 0:								// choose best interpolation
 				per2Flag = 1;
 				if (nCurrentSegDepth > gameStates.render.detail.nMaxPerspectiveDepth)
-					ntexture_map_lighted_linear(bmP, &Tmap1);
+					ntexture_map_lighted_linear(bp, &Tmap1);
 				else
-					ntexture_map_lighted(bmP, &Tmap1);
+					ntexture_map_lighted(bp, &Tmap1);
 				break;
 			case 1:								// linear interpolation
 				per2Flag = 1;
-				ntexture_map_lighted_linear(bmP, &Tmap1);
+				ntexture_map_lighted_linear(bp, &Tmap1);
 				break;
 			case 2:								// perspective every 8th pixel interpolation
 				per2Flag = 1;
-				ntexture_map_lighted(bmP, &Tmap1);
+				ntexture_map_lighted(bp, &Tmap1);
 				break;
 			case 3:								// perspective every pixel interpolation
 				per2Flag = 0;					// this hack means do divide every pixel
-				ntexture_map_lighted(bmP, &Tmap1);
+				ntexture_map_lighted(bp, &Tmap1);
 				break;
 			default:
 				Assert(0);				// Illegal value for gameStates.render.nInterpolationMethod, must be 0,1,2,3

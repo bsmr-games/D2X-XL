@@ -1,3 +1,4 @@
+/* $Id: tObject.c, v 1.9 2003/10/04 03:14:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,11 +25,14 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "newdemo.h"
 #include "network.h"
 #include "interp.h"
+#include "ogl_defs.h"
 #include "ogl_lib.h"
 #include "render.h"
+#include "renderlib.h"
 #include "transprender.h"
 #include "glare.h"
 #include "sphere.h"
+#include "flightpath.h"
 #include "marker.h"
 #include "fireball.h"
 #include "objsmoke.h"
@@ -36,31 +40,29 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "objeffects.h"
 #include "hiresmodels.h"
 
-#ifndef fabsf
-#	define fabsf(_f)	(float) fabs (_f)
-#endif
+#define fabsf(_f)	(float) fabs (_f)
 
 #define IS_TRACK_GOAL(_objP)	(((_objP) == gameData.objs.trackGoals [0]) || ((_objP) == gameData.objs.trackGoals [1]))
 
 // -----------------------------------------------------------------------------
 
-void RenderObjectHalo (CFixVector *vPos, fix xSize, float red, float green, float blue, float alpha, int bCorona)
+void RenderObjectHalo (vmsVector *vPos, fix xSize, float red, float green, float blue, float alpha, int bCorona)
 {
 if ((gameOpts->render.coronas.bShots && (bCorona ? LoadCorona () : LoadHalo ()))) {
 	tRgbaColorf	c = {red, green, blue, alpha};
 	glDepthMask (0);
-	G3DrawSprite(*vPos, xSize, xSize, bCorona ? bmpCorona : bmpHalo, &c, alpha * 4.0f / 3.0f, 1, 1);
+	G3DrawSprite (vPos, xSize, xSize, bCorona ? bmpCorona : bmpHalo, &c, alpha * 4.0f / 3.0f, 1);
 	glDepthMask (1);
 	}
 }
 
 // -----------------------------------------------------------------------------
 
-void RenderPowerupCorona (CObject *objP, float red, float green, float blue, float alpha)
+void RenderPowerupCorona (tObject *objP, float red, float green, float blue, float alpha)
 {
 	int	bAdditive = gameOpts->render.coronas.bAdditiveObjs;
 
-if ((IsEnergyPowerup (objP->info.nId) ? gameOpts->render.coronas.bPowerups : gameOpts->render.coronas.bWeapons) &&
+if ((IsEnergyPowerup (objP->id) ? gameOpts->render.coronas.bPowerups : gameOpts->render.coronas.bWeapons) &&
 	 (bAdditive ? LoadGlare () : LoadCorona ())) {
 	static tRgbaColorf keyColors [3] = {
 		{0.2f, 0.2f, 0.9f, 0.2f},
@@ -72,11 +74,11 @@ if ((IsEnergyPowerup (objP->info.nId) ? gameOpts->render.coronas.bPowerups : gam
 	fix			xSize;
 	float			fScale;
 	int			bDepthSort;
-	CBitmap		*bmP = bAdditive ? bmpGlare : bmpCorona;
+	grsBitmap	*bmP = bAdditive ? bmpGlare : bmpCorona;
 
 
-	if ((objP->info.nId >= POW_KEY_BLUE) && (objP->info.nId <= POW_KEY_GOLD)) {
-		int i = objP->info.nId - POW_KEY_BLUE;
+	if ((objP->id >= POW_KEY_BLUE) && (objP->id <= POW_KEY_GOLD)) {
+		int i = objP->id - POW_KEY_BLUE;
 
 		color = keyColors [(((i < 0) || (i > 2)) ? 3 : i)];
 		xSize = 12 * F1_0;
@@ -97,27 +99,29 @@ if ((IsEnergyPowerup (objP->info.nId) ? gameOpts->render.coronas.bPowerups : gam
 		}
 	bDepthSort = gameOpts->render.bDepthSort;
 	gameOpts->render.bDepthSort = -1;
-	G3DrawSprite (objP->info.position.vPos, xSize, xSize, bmP, &color, alpha, gameOpts->render.coronas.bAdditiveObjs, 5);
+	glDepthMask (0);
+	G3DrawSprite (&objP->position.vPos, xSize, xSize, bmP, &color, alpha, gameOpts->render.coronas.bAdditiveObjs);
+	glDepthMask (1);
 	gameOpts->render.bDepthSort = bDepthSort;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-void TransformHitboxf (CObject *objP, CFloatVector *vertList, int iSubObj)
+void TransformHitboxf (tObject *objP, fVector *vertList, int iSubObj)
 {
 
-	CFloatVector		hv;
+	fVector		hv;
 	tHitbox		*phb = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].hitboxes + iSubObj;
-	CFixVector	vMin = phb->vMin;
-	CFixVector	vMax = phb->vMax;
+	vmsVector	vMin = phb->vMin;
+	vmsVector	vMax = phb->vMax;
 	int			i;
 
 for (i = 0; i < 8; i++) {
-	hv [X] = X2F (hitBoxOffsets [i][X] ? vMin [X] : vMax [X]);
-	hv [Y] = X2F (hitBoxOffsets [i][Y] ? vMin [Y] : vMax [Y]);
-	hv [Z] = X2F (hitBoxOffsets [i][Z] ? vMin [Z] : vMax [Z]);
-	G3TransformPoint (vertList [i], hv, 0);
+	hv.p.x = f2fl (hitBoxOffsets [i].p.x ? vMin.p.x : vMax.p.x);
+	hv.p.y = f2fl (hitBoxOffsets [i].p.y ? vMin.p.y : vMax.p.y);
+	hv.p.z = f2fl (hitBoxOffsets [i].p.z ? vMin.p.z : vMax.p.z);
+	G3TransformPoint (vertList + i, &hv, 0);
 	}
 }
 
@@ -125,36 +129,36 @@ for (i = 0; i < 8; i++) {
 
 #if RENDER_HITBOX
 
-void RenderHitbox (CObject *objP, float red, float green, float blue, float alpha)
+void RenderHitbox (tObject *objP, float red, float green, float blue, float alpha)
 {
-	CFloatVector		vertList [8], v;
+	fVector		vertList [8], v;
 	tHitbox		*pmhb = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].hitboxes;
-	tCloakInfo	ci = {0, FADE_LEVELS, 0, 0, 0, 0, 0};
+	tCloakInfo	ci = {0, GR_ACTUAL_FADE_LEVELS, 0, 0, 0, 0, 0};
 	int			i, j, iBox, nBoxes, bHit = 0;
 	float			fFade;
 
 if (!SHOW_OBJ_FX)
 	return;
-if (objP->info.nType == OBJ_PLAYER) {
+if (objP->nType == OBJ_PLAYER) {
 	if (!EGI_FLAG (bPlayerShield, 0, 1, 0))
 		return;
-	if (gameData.multiplayer.players [objP->info.nId].flags & PLAYER_FLAGS_CLOAKED) {
+	if (gameData.multiplayer.players [objP->id].flags & PLAYER_FLAGS_CLOAKED) {
 		if (!GetCloakInfo (objP, 0, 0, &ci))
 			return;
-		fFade = (float) ci.nFadeValue / (float) FADE_LEVELS;
+		fFade = (float) ci.nFadeValue / (float) GR_ACTUAL_FADE_LEVELS;
 		red *= fFade;
 		green *= fFade;
 		blue *= fFade;
 		}
 
 	}
-else if (objP->info.nType == OBJ_ROBOT) {
+else if (objP->nType == OBJ_ROBOT) {
 	if (!gameOpts->render.effects.bRobotShields)
 		return;
 	if (objP->cType.aiInfo.CLOAKED) {
 		if (!GetCloakInfo (objP, 0, 0, &ci))
 			return;
-		fFade = (float) ci.nFadeValue / (float) FADE_LEVELS;
+		fFade = (float) ci.nFadeValue / (float) GR_ACTUAL_FADE_LEVELS;
 		red *= fFade;
 		green *= fFade;
 		blue *= fFade;
@@ -178,24 +182,24 @@ glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 glDisable (GL_TEXTURE_2D);
 glDepthMask (0);
 glColor4f (red, green, blue, alpha / 2);
-G3StartInstanceMatrix(objP->info.position.vPos, objP->info.position.mOrient);
+G3StartInstanceMatrix (&objP->position.vPos, &objP->position.mOrient);
 for (; iBox <= nBoxes; iBox++) {
 	if (iBox)
-		G3StartInstanceAngles(pmhb [iBox].vOffset, &vmsAngVec::ZERO);
+		G3StartInstanceAngles (&pmhb [iBox].vOffset, &avZero);
 	TransformHitboxf (objP, vertList, iBox);
 	glBegin (GL_QUADS);
 	for (i = 0; i < 6; i++) {
 		for (j = 0; j < 4; j++)
-			glVertex3fv (reinterpret_cast<GLfloat*> (vertList + hitboxFaceVerts [i][j]));
+			glVertex3fv ((GLfloat *) (vertList + hitboxFaceVerts [i][j]));
 		}
 	glEnd ();
 	glLineWidth (2);
 	for (i = 0; i < 6; i++) {
 		glBegin (GL_LINES);
-		v.SetZero();
+		v.p.x = v.p.y = v.p.z = 0;
 		for (j = 0; j < 4; j++) {
-			glVertex3fv (reinterpret_cast<GLfloat*> (vertList + hitboxFaceVerts [i][j]));
-			v += vertList [hitboxFaceVerts [i][j]];
+			glVertex3fv ((GLfloat *) (vertList + hitboxFaceVerts [i][j]));
+			VmVecInc (&v, vertList + hitboxFaceVerts [i][j]);
 			}
 		glEnd ();
 		}
@@ -204,13 +208,12 @@ for (; iBox <= nBoxes; iBox++) {
 		G3DoneInstance ();
 	}
 G3DoneInstance ();
-float r = X2F (VmVecDist (&pmhb->vMin, &pmhb->vMax) / 2);
 #if 0//def _DEBUG	//display collision point
 if (gameStates.app.nSDLTicks - gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].tHit < 500) {
-	CObject	o;
+	tObject	o;
 
 	o.position.vPos = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].vHit;
-	o.position.mOrient = objP->info.position.mOrient;
+	o.position.mOrient = objP->position.mOrient;
 	o.size = F1_0 * 2;
 	//SetRenderView (0, NULL);
 	DrawShieldSphere (&o, 1, 0, 0, 0.33f);
@@ -224,9 +227,9 @@ glDepthFunc (GL_LESS);
 
 // -----------------------------------------------------------------------------
 
-void RenderPlayerShield (CObject *objP)
+void RenderPlayerShield (tObject *objP)
 {
-	int			bStencil, dt = 0, i = objP->info.nId, nColor = 0;
+	int			bStencil, dt = 0, i = objP->id, nColor = 0;
 	float			alpha, scale = 1;
 	tCloakInfo	ci;
 
@@ -243,21 +246,21 @@ if (EGI_FLAG (bPlayerShield, 0, 1, 0)) {
 	if (gameData.multiplayer.players [i].flags & PLAYER_FLAGS_CLOAKED) {
 		if (!GetCloakInfo (objP, 0, 0, &ci))
 			return;
-		scale = (float) ci.nFadeValue / (float) FADE_LEVELS;
+		scale = (float) ci.nFadeValue / (float) GR_ACTUAL_FADE_LEVELS;
 		scale *= scale;
 		}
 	bStencil = StencilOff ();
-	gameData.render.shield.SetPulse (gameData.multiplayer.spherePulse + i);
+	UseSpherePulse (&gameData.render.shield, gameData.multiplayer.spherePulse + i);
 	if (gameData.multiplayer.bWasHit [i]) {
 		if (gameData.multiplayer.bWasHit [i] < 0) {
 			gameData.multiplayer.bWasHit [i] = 1;
 			gameData.multiplayer.nLastHitTime [i] = gameStates.app.nSDLTicks;
-			SetupSpherePulse (gameData.multiplayer.spherePulse + i, 0.1f, 0.5f);
+			SetSpherePulse (gameData.multiplayer.spherePulse + i, 0.1f, 0.5f);
 			dt = 0;
 			}
 		else if ((dt = gameStates.app.nSDLTicks - gameData.multiplayer.nLastHitTime [i]) >= 300) {
 			gameData.multiplayer.bWasHit [i] = 0;
-			SetupSpherePulse (gameData.multiplayer.spherePulse + i, 0.02f, 0.4f);
+			SetSpherePulse (gameData.multiplayer.spherePulse + i, 0.02f, 0.4f);
 			}
 		}
 	if (gameOpts->render.effects.bOnlyShieldHits && !gameData.multiplayer.bWasHit [i])
@@ -275,10 +278,10 @@ if (EGI_FLAG (bPlayerShield, 0, 1, 0)) {
 	else if (gameData.multiplayer.players [i].flags & PLAYER_FLAGS_INVULNERABLE)
 		alpha = 1;
 	else {
-		alpha = X2F (gameData.multiplayer.players [i].shields) / 100.0f;
+		alpha = f2fl (gameData.multiplayer.players [i].shields) / 100.0f;
 		scale *= alpha;
 		if (gameData.multiplayer.spherePulse [i].fSpeed == 0.0f)
-			SetupSpherePulse (gameData.multiplayer.spherePulse + i, 0.02f, 0.5f);
+			SetSpherePulse (gameData.multiplayer.spherePulse + i, 0.02f, 0.5f);
 		}
 #if RENDER_HITBOX
 	RenderHitbox (objP, shieldColors [nColor].red * scale, shieldColors [nColor].green * scale, shieldColors [nColor].blue * scale, alpha);
@@ -291,32 +294,32 @@ if (EGI_FLAG (bPlayerShield, 0, 1, 0)) {
 
 // -----------------------------------------------------------------------------
 
-void RenderRobotShield (CObject *objP)
+void RenderRobotShield (tObject *objP)
 {
 	static tRgbaColorf shieldColors [3] = {{0.75f, 0, 0.75f, 1}, {0, 0.5f, 1},{1, 0.5f, 0, 1}};
+
+	tCloakInfo	ci;
+	float			scale = 1;
+	fix			dt;
 
 #if RENDER_HITBOX
 RenderHitbox (objP, 0.5f, 0.0f, 0.6f, 0.4f);
 #else
-	float			scale = 1;
-	tCloakInfo	ci;
-	fix			dt;
-
 if (!gameOpts->render.effects.bRobotShields)
 	return;
-if ((objP->info.nType == OBJ_ROBOT) && objP->cType.aiInfo.CLOAKED) {
+if ((objP->nType == OBJ_ROBOT) && objP->cType.aiInfo.CLOAKED) {
 	if (!GetCloakInfo (objP, 0, 0, &ci))
 		return;
-	scale = (float) ci.nFadeValue / (float) FADE_LEVELS;
+	scale = (float) ci.nFadeValue / (float) GR_ACTUAL_FADE_LEVELS;
 	scale *= scale;
 	}
-dt = gameStates.app.nSDLTicks - objP->TimeLastHit ();
+dt = gameStates.app.nSDLTicks - gameData.objs.xTimeLastHit [OBJ_IDX (objP)];
 if (dt < 300) {
 	scale *= gameOpts->render.effects.bOnlyShieldHits ? (float) cos (sqrt ((double) dt / 300.0) * Pi / 2) : 1;
 	DrawShieldSphere (objP, shieldColors [2].red * scale, shieldColors [2].green * scale, shieldColors [2].blue * scale, 0.5f * scale);
 	}
 else if (!gameOpts->render.effects.bOnlyShieldHits) {
-	if ((objP->info.nType != OBJ_ROBOT) || ROBOTINFO (objP->info.nId).companion)
+	if ((objP->nType != OBJ_ROBOT) || ROBOTINFO (objP->id).companion)
 		DrawShieldSphere (objP, 0.0f, 0.5f * scale, 1.0f * scale, ObjectDamage (objP) / 2 * scale);
 	else
 		DrawShieldSphere (objP, 0.75f * scale, 0.0f, 0.75f * scale, ObjectDamage (objP) / 2 * scale);
@@ -326,7 +329,7 @@ else if (!gameOpts->render.effects.bOnlyShieldHits) {
 
 // -----------------------------------------------------------------------------
 
-static inline tRgbColorf *ObjectFrameColor (CObject *objP, tRgbColorf *pc)
+static inline tRgbColorf *ObjectFrameColor (tObject *objP, tRgbColorf *pc)
 {
 	static tRgbColorf	defaultColor = {0, 1.0f, 0};
 	static tRgbColorf	botDefColor = {1.0f, 0, 0};
@@ -336,15 +339,15 @@ static inline tRgbColorf *ObjectFrameColor (CObject *objP, tRgbColorf *pc)
 if (pc)
 	return pc;
 if (objP) {
-	if (objP->info.nType == OBJ_REACTOR)
+	if (objP->nType == OBJ_REACTOR)
 		return &reactorDefColor;
-	else if (objP->info.nType == OBJ_ROBOT) {
-		if (!ROBOTINFO (objP->info.nId).companion)
+	else if (objP->nType == OBJ_ROBOT) {
+		if (!ROBOTINFO (objP->id).companion)
 			return &botDefColor;
 		}
-	else if (objP->info.nType == OBJ_PLAYER) {
+	else if (objP->nType == OBJ_PLAYER) {
 		if (IsTeamGame)
-			return playerDefColors + GetTeam (objP->info.nId) + 1;
+			return playerDefColors + GetTeam (objP->id) + 1;
 		return playerDefColors;
 		}
 	}
@@ -353,10 +356,9 @@ return &defaultColor;
 
 // -----------------------------------------------------------------------------
 
-void RenderDamageIndicator (CObject *objP, tRgbColorf *pc)
+void RenderDamageIndicator (tObject *objP, tRgbColorf *pc)
 {
-	CFixVector	vPos;
-	CFloatVector		fPos, fVerts [4];
+	fVector		fPos, fVerts [4];
 	float			r, r2, w;
 	int			i, bStencil, bDrawArrays;
 
@@ -373,22 +375,21 @@ if (EGI_FLAG (bDamageIndicators, 0, 1, 0) &&
 	 (extraGameInfo [IsMultiGame].bTargetIndicators < 2)) {
 	bStencil = StencilOff ();
 	pc = ObjectFrameColor (objP, pc);
-	PolyObjPos (objP, &vPos);
-	fPos = vPos.ToFloat();
-	G3TransformPoint (fPos, fPos, 0);
-	r = X2F (objP->info.xSize);
+	VmVecFixToFloat (&fPos, &objP->position.vPos);
+	G3TransformPoint (&fPos, &fPos, 0);
+	r = f2fl (objP->size);
 	r2 = r / 10;
 	r = r2 * 9;
 	w = 2 * r;
-	fPos [X] -= r;
-	fPos [Y] += r;
+	fPos.p.x -= r;
+	fPos.p.y += r;
 	w *= ObjectDamage (objP);
-	fVerts [0][X] = fVerts [3][X] = fPos [X];
-	fVerts [1][X] = fVerts [2][X] = fPos [X] + w;
-	fVerts [0][Y] = fVerts [1][Y] = fPos [Y];
-	fVerts [2][Y] = fVerts [3][Y] = fPos [Y] - r2;
-	fVerts [0][Z] = fVerts [1][Z] = fVerts [2][Z] = fVerts [3][Z] = fPos [Z];
-	fVerts [0][W] = fVerts [1][W] = fVerts [2][W] = fVerts [3][W] = 1;
+	fVerts [0].p.x = fVerts [3].p.x = fPos.p.x;
+	fVerts [1].p.x = fVerts [2].p.x = fPos.p.x + w;
+	fVerts [0].p.y = fVerts [1].p.y = fPos.p.y;
+	fVerts [2].p.y = fVerts [3].p.y = fPos.p.y - r2;
+	fVerts [0].p.z = fVerts [1].p.z = fVerts [2].p.z = fVerts [3].p.z = fPos.p.z;
+	fVerts [0].p.w = fVerts [1].p.w = fVerts [2].p.w = fVerts [3].p.w = 1;
 	glColor4f (pc->red, pc->green, pc->blue, 2.0f / 3.0f);
 	glDisable (GL_TEXTURE_2D);
 #if 1
@@ -399,21 +400,21 @@ if (EGI_FLAG (bDamageIndicators, 0, 1, 0) &&
 	else {
 		glBegin (GL_QUADS);
 		for (i = 0; i < 4; i++)
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + i));
+			glVertex3fv ((GLfloat *) (fVerts + i));
 		glEnd ();
 		}
 #else
 	bDrawArrays = 0;
 	glBegin (GL_QUADS);
-	glVertex3f (fPos [X], fPos [Y], fPos [Z]);
-	glVertex3f (fPos [X] + w, fPos [Y], fPos [Z]);
-	glVertex3f (fPos [X] + w, fPos [Y] - r2, fPos [Z]);
-	glVertex3f (fPos [X], fPos [Y] - r2, fPos [Z]);
+	glVertex3f (fPos.p.x, fPos.p.y, fPos.p.z);
+	glVertex3f (fPos.p.x + w, fPos.p.y, fPos.p.z);
+	glVertex3f (fPos.p.x + w, fPos.p.y - r2, fPos.p.z);
+	glVertex3f (fPos.p.x, fPos.p.y - r2, fPos.p.z);
 	glEnd ();
 #endif
 	w = 2 * r;
-	fVerts [1][X] = fVerts [2][X] = fPos [X] + w;
-	glColor3fv (reinterpret_cast<GLfloat*> (pc));
+	fVerts [1].p.x = fVerts [2].p.x = fPos.p.x + w;
+	glColor3fv ((GLfloat *) pc);
 	if (bDrawArrays) {
 		glVertexPointer (4, GL_FLOAT, 0, fVerts);
 		glDrawArrays (GL_LINE_LOOP, 0, 4);
@@ -422,7 +423,7 @@ if (EGI_FLAG (bDamageIndicators, 0, 1, 0) &&
 	else {
 		glBegin (GL_LINE_LOOP);
 		for (i = 0; i < 4; i++)
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + i));
+			glVertex3fv ((GLfloat *) (fVerts + i));
 		glEnd ();
 		}
 	StencilOn (bStencil);
@@ -436,7 +437,7 @@ static int				nMslLockColor [2] = {0, 0};
 static int				nMslLockColorIncr [2] = {-1, -1};
 static float			fMslLockGreen [2] = {0.65f, 0.0f};
 
-void RenderMslLockIndicator (CObject *objP)
+void RenderMslLockIndicator (tObject *objP)
 {
 	#define INDICATOR_POSITIONS	60
 
@@ -445,10 +446,9 @@ void RenderMslLockIndicator (CObject *objP)
 	static int			nMslLockIndPos [2] = {0, 0};
 	static int			t0 [2] = {0, 0}, tDelay [2] = {25, 40};
 
-	CFixVector			vPos;
-	CFloatVector				fPos, fVerts [3];
+	fVector				fPos, fVerts [3];
 	float					r, r2;
-	int					nTgtInd, bHasDmg, bVertexArrays, bMarker = (objP->info.nType == OBJ_MARKER);
+	int					nTgtInd, bHasDmg, bVertexArrays, bMarker = (objP->nType == OBJ_MARKER);
 
 if (bMarker) {
 	if (objP != SpawnMarkerObject (-1))
@@ -468,10 +468,9 @@ if (gameStates.app.nSDLTicks - t0 [bMarker] > tDelay [bMarker]) {
 	trackGoalColor [bMarker].green = fMslLockGreen [bMarker] + (float) nMslLockColor [bMarker] / 100.0f;
 	nMslLockIndPos [bMarker] = (nMslLockIndPos [bMarker] + 1) % INDICATOR_POSITIONS;
 	}
-PolyObjPos (objP, &vPos);
-fPos = vPos.ToFloat();
-G3TransformPoint (fPos, fPos, 0);
-r = X2F (objP->info.xSize);
+VmVecFixToFloat (&fPos, &objP->position.vPos);
+G3TransformPoint (&fPos, &fPos, 0);
+r = f2fl (objP->size);
 if (bMarker)
 	r = 17 * r / 12;
 r2 = r / 4;
@@ -481,9 +480,9 @@ G3DisableClientStates (1, 1, 1, GL_TEXTURE0);
 bVertexArrays = G3EnableClientState (GL_VERTEX_ARRAY, GL_TEXTURE0);
 glActiveTexture (GL_TEXTURE0);
 glDisable (GL_TEXTURE_2D);
-glColor4fv (reinterpret_cast<GLfloat*> (trackGoalColor + bMarker));
+glColor4fv ((GLfloat *) (trackGoalColor + bMarker));
 if (bMarker || gameOpts->render.cockpit.bRotateMslLockInd) {
-	CFloatVector	rotVerts [3];
+	fVector	rotVerts [3];
 	fMatrix	mRot;
 	int		h, i, j;
 
@@ -491,35 +490,35 @@ if (bMarker || gameOpts->render.cockpit.bRotateMslLockInd) {
 		OglComputeSinCos (sizeofa (sinCosInd), sinCosInd);
 		bInitSinCos = 0;
 		}
-	mRot [RVEC][X] =
-	mRot [UVEC][Y] = sinCosInd [nMslLockIndPos [bMarker]].fCos;
-	mRot [UVEC][X] = sinCosInd [nMslLockIndPos [bMarker]].fSin;
-	mRot [RVEC][Y] = -mRot [UVEC][X];
-	mRot [RVEC][Z] =
-	mRot [UVEC][Z] =
-	mRot [FVEC][X] =
-	mRot [FVEC][Y] = 0;
-	mRot [FVEC][Z] = 1;
+	mRot.rVec.p.x =
+	mRot.uVec.p.y = sinCosInd [nMslLockIndPos [bMarker]].fCos;
+	mRot.uVec.p.x = sinCosInd [nMslLockIndPos [bMarker]].fSin;
+	mRot.rVec.p.y = -mRot.uVec.p.x;
+	mRot.rVec.p.z =
+	mRot.uVec.p.z =
+	mRot.fVec.p.x = 
+	mRot.fVec.p.y = 0;
+	mRot.fVec.p.z = 1;
 
-	fVerts [0][Z] =
-	fVerts [1][Z] =
-	fVerts [2][Z] = 0;
-	rotVerts [0][W] =
-	rotVerts [1][W] =
-	rotVerts [2][W] = 0;
-	fVerts [0][X] = -r2;
-	fVerts [1][X] = +r2;
-	fVerts [2][X] = 0;
-	fVerts [0][Y] =
-	fVerts [1][Y] = +r;
-	fVerts [2][Y] = +r - r2;
+	fVerts [0].p.z =
+	fVerts [1].p.z =
+	fVerts [2].p.z = 0;
+	rotVerts [0].p.w = 
+	rotVerts [1].p.w = 
+	rotVerts [2].p.w = 0;
+	fVerts [0].p.x = -r2;
+	fVerts [1].p.x = +r2;
+	fVerts [2].p.x = 0;
+	fVerts [0].p.y = 
+	fVerts [1].p.y = +r;
+	fVerts [2].p.y = +r - r2;
 	if (bVertexArrays)
-		glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), rotVerts);
+		glVertexPointer (3, GL_FLOAT, sizeof (fVector), rotVerts);
 	for (j = 0; j < 4; j++) {
 		for (i = 0; i < 3; i++) {
-			rotVerts [i] = mRot * fVerts [i];
+			VmVecRotate (rotVerts + i, fVerts + i, &mRot);
 			fVerts [i] = rotVerts [i];
-			rotVerts [i] += fPos;
+			VmVecInc (rotVerts + i, &fPos);
 			}
 		if (bMarker)
 			glLineWidth (2);
@@ -528,54 +527,54 @@ if (bMarker || gameOpts->render.cockpit.bRotateMslLockInd) {
 		else {
 			glBegin (bMarker ? GL_LINE_LOOP : GL_TRIANGLES);
 			for (h = 0; h < 3; h++)
-				glVertex3fv (reinterpret_cast<GLfloat*> (rotVerts + h));
+				glVertex3fv ((GLfloat *) (rotVerts + h));
 			glEnd ();
 			}
 		if (bMarker)
 			glLineWidth (1);
 		if (!j) {	//now rotate by 90 degrees
-			mRot [RVEC][X] =
-			mRot [UVEC][Y] = 0;
-			mRot [UVEC][X] = 1;
-			mRot [RVEC][Y] = -1;
+			mRot.rVec.p.x =
+			mRot.uVec.p.y = 0;
+			mRot.uVec.p.x = 1;
+			mRot.rVec.p.y = -1;
 			}
 		}
 	}
 else {
-	fVerts [0][Z] =
-	fVerts [1][Z] =
-	fVerts [2][Z] = fPos [Z];
-	fVerts [0][W] =
-	fVerts [1][W] =
-	fVerts [2][W] = 1;
-	fVerts [0][X] = fPos [X] - r2;
-	fVerts [1][X] = fPos [X] + r2;
-	fVerts [2][X] = fPos [X];
+	fVerts [0].p.z =
+	fVerts [1].p.z =
+	fVerts [2].p.z = fPos.p.z;
+	fVerts [0].p.w = 
+	fVerts [1].p.w = 
+	fVerts [2].p.w = 1;
+	fVerts [0].p.x = fPos.p.x - r2;
+	fVerts [1].p.x = fPos.p.x + r2;
+	fVerts [2].p.x = fPos.p.x;
 	glVertexPointer (4, GL_FLOAT, 0, fVerts);
 	nTgtInd = extraGameInfo [IsMultiGame].bTargetIndicators;
 	bHasDmg = !EGI_FLAG (bTagOnlyHitObjs, 0, 1, 0) | (ObjectDamage (objP) < 1);
 	if (!nTgtInd ||
 		 ((nTgtInd == 1) && (!EGI_FLAG (bDamageIndicators, 0, 1, 0) || !bHasDmg)) ||
 		 ((nTgtInd == 2) && !bHasDmg)) {
-		fVerts [0][Y] =
-		fVerts [1][Y] = fPos [Y] + r;
-		fVerts [2][Y] = fPos [Y] + r - r2;
+		fVerts [0].p.y = 
+		fVerts [1].p.y = fPos.p.y + r;
+		fVerts [2].p.y = fPos.p.y + r - r2;
 		glDrawArrays (GL_TRIANGLES, 0, 3);
 		}
-	fVerts [0][Y] =
-	fVerts [1][Y] = fPos [Y] - r;
-	fVerts [2][Y] = fPos [Y] - r + r2;
+	fVerts [0].p.y = 
+	fVerts [1].p.y = fPos.p.y - r;
+	fVerts [2].p.y = fPos.p.y - r + r2;
 	glDrawArrays (GL_TRIANGLES, 0, 3);
-	fVerts [0][X] =
-	fVerts [1][X] = fPos [X] + r;
-	fVerts [2][X] = fPos [X] + r - r2;
-	fVerts [0][Y] = fPos [Y] + r2;
-	fVerts [1][Y] = fPos [Y] - r2;
-	fVerts [2][Y] = fPos [Y];
+	fVerts [0].p.x = 
+	fVerts [1].p.x = fPos.p.x + r;
+	fVerts [2].p.x = fPos.p.x + r - r2;
+	fVerts [0].p.y = fPos.p.y + r2;
+	fVerts [1].p.y = fPos.p.y - r2;
+	fVerts [2].p.y = fPos.p.y;
 	glDrawArrays (GL_TRIANGLES, 0, 3);
-	fVerts [0][X] =
-	fVerts [1][X] = fPos [X] - r;
-	fVerts [2][X] = fPos [X] - r + r2;
+	fVerts [0].p.x = 
+	fVerts [1].p.x = fPos.p.x - r;
+	fVerts [2].p.x = fPos.p.x - r + r2;
 	glDrawArrays (GL_TRIANGLES, 0, 3);
 	}
 glDisableClientState (GL_VERTEX_ARRAY);
@@ -584,12 +583,11 @@ glEnable (GL_CULL_FACE);
 
 // -----------------------------------------------------------------------------
 
-void RenderTargetIndicator (CObject *objP, tRgbColorf *pc)
+void RenderTargetIndicator (tObject *objP, tRgbColorf *pc)
 {
-	CFixVector	vPos;
-	CFloatVector		fPos, fVerts [4];
+	fVector		fPos, fVerts [4];
 	float			r, r2, r3;
-	int			i, bStencil, bDrawArrays, nPlayer = (objP->info.nType == OBJ_PLAYER) ? objP->info.nId : -1;
+	int			i, bStencil, bDrawArrays, nPlayer = (objP->nType == OBJ_PLAYER) ? objP->id : -1;
 
 if (!SHOW_OBJ_FX)
 	return;
@@ -607,7 +605,7 @@ if (!EGI_FLAG (bCloakedIndicators, 0, 1, 0)) {
 		if ((gameData.multiplayer.players [nPlayer].flags & PLAYER_FLAGS_CLOAKED) && !GetCloakInfo (objP, 0, 0, NULL))
 			return;
 		}
-	else if (objP->info.nType == OBJ_ROBOT) {
+	else if (objP->nType == OBJ_ROBOT) {
 		if (objP->cType.aiInfo.CLOAKED && !GetCloakInfo (objP, 0, 0, NULL))
 			return;
 		}
@@ -625,36 +623,35 @@ if (EGI_FLAG (bTagOnlyHitObjs, 0, 1, 0) && (ObjectDamage (objP) >= 1.0f))
 if (EGI_FLAG (bTargetIndicators, 0, 1, 0)) {
 	bStencil = StencilOff ();
 	glDisable (GL_TEXTURE_2D);
-	pc = (EGI_FLAG (bMslLockIndicators, 0, 1, 0) && IS_TRACK_GOAL (objP) &&
-			!gameOpts->render.cockpit.bRotateMslLockInd && (extraGameInfo [IsMultiGame].bTargetIndicators != 1)) ?
-		  reinterpret_cast<tRgbColorf*> (&trackGoalColor [0]) : ObjectFrameColor (objP, pc);
-	PolyObjPos (objP, &vPos);
-	fPos = vPos.ToFloat();
-	G3TransformPoint (fPos, fPos, 0);
-	r = X2F (objP->info.xSize);
-	glColor3fv (reinterpret_cast<GLfloat*> (pc));
-	fVerts [0][W] = fVerts [1][W] = fVerts [2][W] = fVerts [3][W] = 1;
+	pc = (EGI_FLAG (bMslLockIndicators, 0, 1, 0) && IS_TRACK_GOAL (objP) && 
+			!gameOpts->render.cockpit.bRotateMslLockInd && (extraGameInfo [IsMultiGame].bTargetIndicators != 1)) ? 
+		  (tRgbColorf *) &trackGoalColor [0] : ObjectFrameColor (objP, pc);
+	VmVecFixToFloat (&fPos, &objP->position.vPos);
+	G3TransformPoint (&fPos, &fPos, 0);
+	r = f2fl (objP->size);
+	glColor3fv ((GLfloat *) pc);
+	fVerts [0].p.w = fVerts [1].p.w = fVerts [2].p.w = fVerts [3].p.w = 1;
 	glVertexPointer (4, GL_FLOAT, 0, fVerts);
 	if (extraGameInfo [IsMultiGame].bTargetIndicators == 1) {	//square brackets
 		r2 = r * 2 / 3;
-		fVerts [0][X] = fVerts [3][X] = fPos [X] - r2;
-		fVerts [1][X] = fVerts [2][X] = fPos [X] - r;
-		fVerts [0][Y] = fVerts [1][Y] = fPos [Y] - r;
-		fVerts [2][Y] = fVerts [3][Y] = fPos [Y] + r;
-		fVerts [0][Z] =
-		fVerts [1][Z] =
-		fVerts [2][Z] =
-		fVerts [3][Z] = fPos [Z];
+		fVerts [0].p.x = fVerts [3].p.x = fPos.p.x - r2;
+		fVerts [1].p.x = fVerts [2].p.x = fPos.p.x - r;
+		fVerts [0].p.y = fVerts [1].p.y = fPos.p.y - r;
+		fVerts [2].p.y = fVerts [3].p.y = fPos.p.y + r;
+		fVerts [0].p.z =
+		fVerts [1].p.z =
+		fVerts [2].p.z =
+		fVerts [3].p.z = fPos.p.z;
 		if ((bDrawArrays = G3EnableClientState (GL_VERTEX_ARRAY, GL_TEXTURE0)))
 			glDrawArrays (GL_LINE_STRIP, 0, 4);
 		else {
 			glBegin (GL_LINE_STRIP);
 			for (i = 0; i < 4; i++)
-				glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + i));
+				glVertex3fv ((GLfloat *) (fVerts + i));
 			glEnd ();
 			}
-		fVerts [0][X] = fVerts [3][X] = fPos [X] + r2;
-		fVerts [1][X] = fVerts [2][X] = fPos [X] + r;
+		fVerts [0].p.x = fVerts [3].p.x = fPos.p.x + r2;
+		fVerts [1].p.x = fVerts [2].p.x = fPos.p.x + r;
 		if (bDrawArrays) {
 			glDrawArrays (GL_LINE_STRIP, 0, 4);
 			glDisableClientState (GL_VERTEX_ARRAY);
@@ -662,27 +659,27 @@ if (EGI_FLAG (bTargetIndicators, 0, 1, 0)) {
 		else {
 			glBegin (GL_LINE_STRIP);
 			for (i = 0; i < 4; i++)
-				glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + i));
+				glVertex3fv ((GLfloat *) (fVerts + i));
 			glEnd ();
 			}
 		}
 	else {	//triangle
 		r2 = r / 3;
-		fVerts [0][X] = fPos [X] - r2;
-		fVerts [1][X] = fPos [X] + r2;
-		fVerts [2][X] = fPos [X];
-		fVerts [0][Y] = fVerts [1][Y] = fPos [Y] + r;
-		fVerts [2][Y] = fPos [Y] + r - r2;
-		fVerts [0][Z] =
-		fVerts [1][Z] =
-		fVerts [2][Z] = fPos [Z];
+		fVerts [0].p.x = fPos.p.x - r2;
+		fVerts [1].p.x = fPos.p.x + r2;
+		fVerts [2].p.x = fPos.p.x;
+		fVerts [0].p.y = fVerts [1].p.y = fPos.p.y + r;
+		fVerts [2].p.y = fPos.p.y + r - r2;
+		fVerts [0].p.z =
+		fVerts [1].p.z =
+		fVerts [2].p.z = fPos.p.z;
 		if ((bDrawArrays = G3EnableClientState (GL_VERTEX_ARRAY, GL_TEXTURE0)))
 			glDrawArrays (GL_LINE_LOOP, 0, 3);
 		else {
 			glBegin (GL_LINE_LOOP);
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts));
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + 1));
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + 2));
+			glVertex3fv ((GLfloat *) fVerts);
+			glVertex3fv ((GLfloat *) (fVerts + 1));
+			glVertex3fv ((GLfloat *) (fVerts + 2));
 			glEnd ();
 			}
 		if (EGI_FLAG (bDamageIndicators, 0, 1, 0)) {
@@ -690,11 +687,11 @@ if (EGI_FLAG (bTargetIndicators, 0, 1, 0)) {
 			if (r3 < 1.0f) {
 				if (r3 < 0.0f)
 					r3 = 0.0f;
-				fVerts [0][X] = fPos [X] - r2 * r3;
-				fVerts [1][X] = fPos [X] + r2 * r3;
-				fVerts [2][X] = fPos [X];
-				fVerts [0][Y] = fVerts [1][Y] = fPos [Y] + r - r2 * (1.0f - r3);
-				//fVerts [2][Y] = fPos [Y] + r - r2;
+				fVerts [0].p.x = fPos.p.x - r2 * r3;
+				fVerts [1].p.x = fPos.p.x + r2 * r3;
+				fVerts [2].p.x = fPos.p.x;
+				fVerts [0].p.y = fVerts [1].p.y = fPos.p.y + r - r2 * (1.0f - r3);
+				//fVerts [2].p.y = fPos.p.y + r - r2;
 				}
 			}
 		glColor4f (pc->red, pc->green, pc->blue, 2.0f / 3.0f);
@@ -705,7 +702,7 @@ if (EGI_FLAG (bTargetIndicators, 0, 1, 0)) {
 		else {
 			glBegin (GL_TRIANGLES);
 			for (i = 0; i < 3; i++)
-			glVertex3fv (reinterpret_cast<GLfloat*> (fVerts + i));
+			glVertex3fv ((GLfloat *) (fVerts + i));
 			glEnd ();
 			}
 		}
@@ -716,13 +713,13 @@ RenderDamageIndicator (objP, pc);
 
 // -----------------------------------------------------------------------------
 
-void RenderTowedFlag (CObject *objP)
+void RenderTowedFlag (tObject *objP)
 {
-	static CFloatVector fVerts [4] = {
-		CFloatVector::Create(0.0f, 2.0f / 3.0f, 0.0f, 1.0f),
-		CFloatVector::Create(0.0f, 2.0f / 3.0f, -1.0f, 1.0f),
-		CFloatVector::Create(0.0f, -(1.0f / 3.0f), -1.0f, 1.0f),
-		CFloatVector::Create(0.0f, -(1.0f / 3.0f), 0.0f, 1.0f)
+	static fVector fVerts [4] = {
+		{{0.0f, 2.0f / 3.0f, 0.0f, 1.0f}},
+		{{0.0f, 2.0f / 3.0f, -1.0f, 1.0f}},
+		{{0.0f, -(1.0f / 3.0f), -1.0f, 1.0f}},
+		{{0.0f, -(1.0f / 3.0f), 0.0f, 1.0f}}
 	};
 
 	static tTexCoord2f texCoordList [4] = {{{0.0f, -0.3f}}, {{1.0f, -0.3f}}, {{1.0f, 0.7f}}, {{0.0f, 0.7f}}};
@@ -734,14 +731,14 @@ if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 //	 (FAST_SHADOWS ? (gameStates.render.nShadowPass != 3) : (gameStates.render.nShadowPass != 1)))
 	return;
 #endif
-if (IsTeamGame && (gameData.multiplayer.players [objP->info.nId].flags & PLAYER_FLAGS_FLAG)) {
-		CFixVector		vPos = objP->info.position.vPos;
-		CFloatVector	vPosf;
-		tFlagData		*pf = gameData.pig.flags + !GetTeam (objP->info.nId);
-		tPathPoint		*pp = pf->path.GetPoint ();
+if (IsTeamGame && (gameData.multiplayer.players [objP->id].flags & PLAYER_FLAGS_FLAG)) {
+		vmsVector		vPos = objP->position.vPos;
+		fVector			vPosf;
+		tFlagData		*pf = gameData.pig.flags + !GetTeam (objP->id);
+		tPathPoint		*pp = GetPathPoint (&pf->path);
 		int				i, bStencil;
 		float				r;
-		CBitmap		*bmP;
+		grsBitmap		*bmP;
 
 	if (pp) {
 		bStencil = StencilOff ();
@@ -749,31 +746,31 @@ if (IsTeamGame && (gameData.multiplayer.players [objP->info.nId].flags & PLAYER_
 		glEnable (GL_TEXTURE_2D);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		PIGGY_PAGE_IN (pf->bmi.index, 0);
-		bmP = gameData.pig.tex.bitmapP + pf->vcP->frames [pf->vci.nCurFrame].index;
-		if (bmP->Bind (1, 2))
+		bmP = gameData.pig.tex.pBitmaps + pf->vcP->frames [pf->vci.nCurFrame].index;
+		if (OglBindBmTex (bmP, 1, 2))
 			return;
-		bmP = bmP->CurFrame (-1);
-		bmP->Texture ()->Wrap (GL_REPEAT);
-		vPos += objP->info.position.mOrient [FVEC] * (-objP->info.xSize);
-		r = X2F (objP->info.xSize);
-		G3StartInstanceMatrix (vPos, pp->mOrient);
+		bmP = BmCurFrame (bmP, -1);
+		OglTexWrap (bmP->glTexture, GL_REPEAT);
+		VmVecScaleInc (&vPos, &objP->position.mOrient.fVec, -objP->size);
+		r = f2fl (objP->size);
+		G3StartInstanceMatrix (&vPos, &pp->mOrient);
 		glBegin (GL_QUADS);
 		glColor3f (1.0f, 1.0f, 1.0f);
 		for (i = 0; i < 4; i++) {
-			vPosf [X] = 0;
-			vPosf [Y] = fVerts [i][Y] * r;
-			vPosf [Z] = fVerts [i][Z] * r;
-			G3TransformPoint (vPosf, vPosf, 0);
-			glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoordList + i));
-			glVertex3fv (reinterpret_cast<GLfloat*> (&vPosf));
+			vPosf.p.x = 0;
+			vPosf.p.y = fVerts [i].p.y * r;
+			vPosf.p.z = fVerts [i].p.z * r;
+			G3TransformPoint (&vPosf, &vPosf, 0);
+			glTexCoord2fv ((GLfloat *) (texCoordList + i));
+			glVertex3fv ((GLfloat *) &vPosf);
 			}
 		for (i = 3; i >= 0; i--) {
-			vPosf [X] = 0;
-			vPosf [Y] = fVerts [i][Y] * r;
-			vPosf [Z] = fVerts [i][Z] * r;
-			G3TransformPoint (vPosf, vPosf, 0);
-			glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoordList + i));
-			glVertex3fv (reinterpret_cast<GLfloat*> (&vPosf));
+			vPosf.p.x = 0;
+			vPosf.p.y = fVerts [i].p.y * r;
+			vPosf.p.z = fVerts [i].p.z * r;
+			G3TransformPoint (&vPosf, &vPosf, 0);
+			glTexCoord2fv ((GLfloat *) (texCoordList + i));
+			glVertex3fv ((GLfloat *) &vPosf);
 			}
 		glEnd ();
 		G3DoneInstance ();
@@ -788,26 +785,26 @@ if (IsTeamGame && (gameData.multiplayer.players [objP->info.nId].flags & PLAYER_
 #define	RING_SIZE		16
 #define	THRUSTER_SEGS	14
 
-static CFloatVector	vFlame [THRUSTER_SEGS][RING_SIZE];
+static fVector	vFlame [THRUSTER_SEGS][RING_SIZE];
 static int			bHaveFlame = 0;
 
-static CFloatVector	vRing [RING_SIZE] = {
-	CFloatVector::Create(-0.5f, -0.5f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.6533f, -0.2706f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.7071f, 0.0f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.6533f, 0.2706f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.5f, 0.5f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.2706f, 0.6533f, 0.0f, 1.0f),
-	CFloatVector::Create(0.0f, 0.7071f, 0.0f, 1.0f),
-	CFloatVector::Create(0.2706f, 0.6533f, 0.0f, 1.0f),
-	CFloatVector::Create(0.5f, 0.5f, 0.0f, 1.0f),
-	CFloatVector::Create(0.6533f, 0.2706f, 0.0f, 1.0f),
-	CFloatVector::Create(0.7071f, 0.0f, 0.0f, 1.0f),
-	CFloatVector::Create(0.6533f, -0.2706f, 0.0f, 1.0f),
-	CFloatVector::Create(0.5f, -0.5f, 0.0f, 1.0f),
-	CFloatVector::Create(0.2706f, -0.6533f, 0.0f, 1.0f),
-	CFloatVector::Create(0.0f, -0.7071f, 0.0f, 1.0f),
-	CFloatVector::Create(-0.2706f, -0.6533f, 0.0f, 1.0f)
+static fVector	vRing [RING_SIZE] = {
+	{{-0.5f, -0.5f, 0.0f, 1.0f}},
+	{{-0.6533f, -0.2706f, 0.0f, 1.0f}},
+	{{-0.7071f, 0.0f, 0.0f, 1.0f}},
+	{{-0.6533f, 0.2706f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f, 0.0f, 1.0f}},
+	{{-0.2706f, 0.6533f, 0.0f, 1.0f}},
+	{{0.0f, 0.7071f, 0.0f, 1.0f}},
+	{{0.2706f, 0.6533f, 0.0f, 1.0f}},
+	{{0.5f, 0.5f, 0.0f, 1.0f}},
+	{{0.6533f, 0.2706f, 0.0f, 1.0f}},
+	{{0.7071f, 0.0f, 0.0f, 1.0f}},
+	{{0.6533f, -0.2706f, 0.0f, 1.0f}},
+	{{0.5f, -0.5f, 0.0f, 1.0f}},
+	{{0.2706f, -0.6533f, 0.0f, 1.0f}},
+	{{0.0f, -0.7071f, 0.0f, 1.0f}},
+	{{-0.2706f, -0.6533f, 0.0f, 1.0f}}
 };
 
 static int		nStripIdx [] = {0,15,1,14,2,13,3,12,4,11,5,10,6,9,7,8};
@@ -815,35 +812,29 @@ static int		nStripIdx [] = {0,15,1,14,2,13,3,12,4,11,5,10,6,9,7,8};
 void CreateThrusterFlame (void)
 {
 if (!bHaveFlame) {
-		CFloatVector		*pv;
+		fVector		*pv;
 		int			i, j, m, n;
 		double		phi, sinPhi;
-		float			z = 0,
-						fScale = 2.0f / 3.0f,
+		float			z = 0, 
+						fScale = 2.0f / 3.0f, 
 						fStep [2] = {1.0f / 4.0f, 1.0f / 3.0f};
 
 	pv = &vFlame [0][0];
 	for (i = 0, phi = 0; i < 5; i++, phi += Pi / 8, z -= fStep [0]) {
 		sinPhi = (1 + sin (phi) / 2) * fScale;
 		for (j = 0; j < RING_SIZE; j++, pv++) {
-/*
-			pv->x() = vRing [j][X] * (float) sinPhi;
-			pv->y() = vRing [j][Y] * (float) sinPhi;
-*/
-			*pv = vRing [j] * (float)sinPhi;
-			(*pv) [Z] = z;
+			pv->p.x = vRing [j].p.x * (float) sinPhi;
+			pv->p.y = vRing [j].p.y * (float) sinPhi;
+			pv->p.z = z;
 			}
 		}
 	m = n = THRUSTER_SEGS - i + 1;
 	for (phi = Pi / 2; i < THRUSTER_SEGS; i++, phi += Pi / 8, z -= fStep [1], m--) {
 		sinPhi = (1 + sin (phi) / 2) * fScale * m / n;
 		for (j = 0; j < RING_SIZE; j++, pv++) {
-/*
-			pv->x() = vRing [j][X] * (float) sinPhi;
-			pv->y() = vRing [j][Y] * (float) sinPhi;
-*/
-			*pv = vRing [j] * (float)sinPhi;
-			(*pv) [Z] = z;
+			pv->p.x = vRing [j].p.x * (float) sinPhi;
+			pv->p.y = vRing [j].p.y * (float) sinPhi;
+			pv->p.z = z;
 			}
 		}
 	bHaveFlame = 1;
@@ -852,34 +843,34 @@ if (!bHaveFlame) {
 
 // -----------------------------------------------------------------------------
 
-void CalcShipThrusterPos (CObject *objP, CFixVector *vPos)
+void CalcShipThrusterPos (tObject *objP, vmsVector *vPos)
 {
-	tTransformation	*pPos = OBJPOS (objP);
+	tPosition	*pPos = OBJPOS (objP);
 
 if (gameOpts->render.bHiresModels) {
-	vPos [0] = pPos->vPos + pPos->mOrient [FVEC] * (-objP->info.xSize);
-	vPos [0] += pPos->mOrient [RVEC] * (-(8 * objP->info.xSize / 44));
-	vPos [1] = vPos [0] + pPos->mOrient [RVEC] * (8 * objP->info.xSize / 22);
+	VmVecScaleAdd (vPos, &pPos->vPos, &pPos->mOrient.fVec, -objP->size);
+	VmVecScaleInc (vPos, &pPos->mOrient.rVec, -(8 * objP->size / 44));
+	VmVecScaleAdd (vPos + 1, vPos, &pPos->mOrient.rVec, 8 * objP->size / 22);
 	}
 else {
-	vPos [0] = pPos->vPos + pPos->mOrient [FVEC] * (-objP->info.xSize / 10 * 9);
+	VmVecScaleAdd (vPos, &pPos->vPos, &pPos->mOrient.fVec, -objP->size / 10 * 9);
 	if (gameStates.app.bFixModels)
-		vPos [0] += pPos->mOrient [UVEC] * (objP->info.xSize / 40);
+		VmVecScaleInc (vPos, &pPos->mOrient.uVec, objP->size / 40);
 	else
-		vPos [0] += pPos->mOrient [UVEC] * (-objP->info.xSize / 20);
+		VmVecScaleInc (vPos, &pPos->mOrient.uVec, -objP->size / 20);
 	vPos [1] = vPos [0];
-	vPos [0] += pPos->mOrient [RVEC] * (-8 * objP->info.xSize / 49);
-	vPos [1] += pPos->mOrient [RVEC] * (8 * objP->info.xSize / 49);
+	VmVecScaleInc (vPos, &pPos->mOrient.rVec, -8 * objP->size / 49);
+	VmVecScaleInc (vPos + 1, &pPos->mOrient.rVec, 8 * objP->size / 49);
 	}
 }
 
 // -----------------------------------------------------------------------------
 
-int CalcThrusterPos (CObject *objP, tThrusterInfo *tiP, int bAfterburnerBlob)
+int CalcThrusterPos (tObject *objP, tThrusterInfo *tiP, int bAfterburnerBlob)
 {
 	tThrusterInfo		ti;
-	CThrusterData		*pt = NULL;
-	int					i, nThrusters,
+	tThrusterData		*pt = NULL;
+	int					i, nThrusters, 
 							bMissile = IS_MISSILE (objP),
 							bSpectate = SPECTATOR (objP);
 
@@ -887,10 +878,10 @@ ti = *tiP;
 ti.pp = NULL;
 ti.mtP = gameData.models.thrusters + objP->rType.polyObjInfo.nModel;
 nThrusters = ti.mtP->nCount;
-if (gameOpts->render.bHiresModels && (objP->info.nType == OBJ_PLAYER) && !ASEModel (objP->rType.polyObjInfo.nModel)) {
+if (gameOpts->render.bHiresModels && (objP->nType == OBJ_PLAYER) && !ASEModel (objP->rType.polyObjInfo.nModel)) {
 	if (!bSpectate) {
-		pt = gameData.render.thrusters + objP->info.nId;
-		ti.pp = pt->path.GetPoint ();
+		pt = gameData.render.thrusters + objP->id;
+		ti.pp = GetPathPoint (&pt->path);
 		}
 	ti.fSize = (ti.fLength + 1) / 2;
 	nThrusters = 2;
@@ -899,59 +890,57 @@ if (gameOpts->render.bHiresModels && (objP->info.nType == OBJ_PLAYER) && !ASEMod
 	}
 else if (bAfterburnerBlob || (bMissile && !nThrusters)) {
 		tHitbox	*phb = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].hitboxes;
-		fix		nObjRad = RENDERPATH ? (phb->vMax [Z] - phb->vMin [Z]) / 2 : 2 * (phb->vMax [Z] - phb->vMin [Z]) / 3;
+		fix		nObjRad = gameOpts->render.nPath ? (phb->vMax.p.z - phb->vMin.p.z) / 2 : 2 * (phb->vMax.p.z - phb->vMin.p.z) / 3;
 
 	if (bAfterburnerBlob)
 		nObjRad *= 2;
-	if (objP->info.nId == EARTHSHAKER_ID)
+	if (objP->id == EARTHSHAKER_ID)
 		ti.fSize = 1.0f;
-	else if ((objP->info.nId == MEGAMSL_ID) || (objP->info.nId == EARTHSHAKER_MEGA_ID))
+	else if ((objP->id == MEGAMSL_ID) || (objP->id == EARTHSHAKER_MEGA_ID))
 		ti.fSize = 0.8f;
-	else if (objP->info.nId == SMARTMSL_ID)
+	else if (objP->id == SMARTMSL_ID)
 		ti.fSize = 0.6f;
 	else
 		ti.fSize = 0.5f;
 	nThrusters = 1;
 	if (EGI_FLAG (bThrusterFlames, 1, 1, 0) == 2)
 		ti.fLength /= 2;
-	if (!gameData.models.vScale.IsZero ())
-		ti.vPos [0] *= gameData.models.vScale;
-	*ti.vPos = objP->info.position.vPos + objP->info.position.mOrient [FVEC] * (-nObjRad);
+	if (gameData.models.nScale)
+		VmVecScale (ti.vPos, gameData.models.nScale);
+	VmVecScaleAdd (ti.vPos, &objP->position.vPos, &objP->position.mOrient.fVec, -nObjRad);
 	ti.mtP = NULL;
 	}
-else if ((objP->info.nType == OBJ_PLAYER) ||
-			((objP->info.nType == OBJ_ROBOT) && !objP->cType.aiInfo.CLOAKED) ||
+else if ((objP->nType == OBJ_PLAYER) || 
+			((objP->nType == OBJ_ROBOT) && !objP->cType.aiInfo.CLOAKED) || 
 			bMissile) {
 	vmsMatrix	m, *viewP;
-	if (!bSpectate && (objP->info.nType == OBJ_PLAYER)) {
-		pt = gameData.render.thrusters + objP->info.nId;
-		ti.pp = pt->path.GetPoint ();
+	if (!bSpectate && (objP->nType == OBJ_PLAYER)) {
+		pt = gameData.render.thrusters + objP->id;
+		ti.pp = GetPathPoint (&pt->path);
 		}
 	if (!nThrusters) {
-		if (objP->info.nType != OBJ_PLAYER)
+		if (objP->nType != OBJ_PLAYER)
 			return 0;
 		if (!bSpectate) {
-			pt = gameData.render.thrusters + objP->info.nId;
-			ti.pp = pt->path.GetPoint ();
+			pt = gameData.render.thrusters + objP->id;
+			ti.pp = GetPathPoint (&pt->path);
 			}
 		ti.fSize = (ti.fLength + 1) / 2;
 		nThrusters = 2;
 		CalcShipThrusterPos (objP, ti.vPos);
 		}
 	else {
-		tTransformation *posP = OBJPOS (objP);
-		if (SPECTATOR (objP)) {
-			viewP = &m;
-			m = posP->mOrient.Transpose();
-		}
+		tPosition *posP = OBJPOS (objP);
+		if (SPECTATOR (objP))
+			VmCopyTransposeMatrix (viewP = &m, &posP->mOrient);
 		else
 			viewP = ObjectView (objP);
 		for (i = 0; i < nThrusters; i++) {
-			ti.vPos [i] = *viewP * ti.mtP->vPos [i];
-			if (!gameData.models.vScale.IsZero ())
-				ti.vPos [i] *= gameData.models.vScale;
-			ti.vPos [i] += posP->vPos;
-			ti.vDir [i] = *viewP * ti.mtP->vDir [i];
+			VmVecRotate (ti.vPos + i, ti.mtP->vPos + i, viewP);
+			if (gameData.models.nScale)
+				VmVecScale (ti.vPos + i, gameData.models.nScale);
+			VmVecInc (ti.vPos + i, &posP->vPos);
+			VmVecRotate (ti.vDir + i, ti.mtP->vDir + i, viewP);
 			}
 		ti.fSize = ti.mtP->fSize;
 		if (bMissile)
@@ -966,69 +955,14 @@ return nThrusters;
 
 // -----------------------------------------------------------------------------
 
-void CreateLightTrail (CFixVector& vPos, CFixVector &vDir, float fSize, float fLength, CBitmap *bmP, tRgbaColorf *colorP)
-{
-	static tTexCoord2f	tcCorona [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
-	static tTexCoord2f	tcTrail [3] = {{{0,0}},{{1,1}},{{1,0}}};
-	static CFloatVector	vEye = CFloatVector::ZERO;
-
-	CFloatVector	v, vPosf, vDirf, vNormf, vTrail [3], vCorona [4], fVecf;
-	float		c = 1/*0.7f + 0.03f * fPulse*/, dotTrail, dotCorona;
-	int		i;
-
-fVecf = vDir.ToFloat();
-vPosf = vPos.ToFloat();
-vTrail [2] = vPosf - fVecf * fLength;
-G3TransformPoint (vTrail [2], vTrail [2], 0);
-G3TransformPoint (vPosf, vPosf, 0);
-vNormf = CFloatVector::Normal (vTrail [2], vPosf, vEye);
-vTrail [0] = vPosf + vNormf * fSize;
-vTrail [1] = vPosf - vNormf * fSize;
-vNormf = CFloatVector::Normal (vTrail [0], vTrail [1], vTrail [2]);
-vCorona [0] = vTrail [0];
-vCorona [2] = vTrail [1];
-vCorona [1] = vPosf + vNormf * fSize;
-vCorona [3] = vPosf + vNormf * (-fSize);
-CFloatVector::Normalize (vPosf);
-v = vTrail [2]; 
-CFloatVector::Normalize (v);
-dotTrail = CFloatVector::Dot (vPosf, v);
-v = *vCorona; 
-CFloatVector::Normalize (v);
-dotCorona = CFloatVector::Dot (vPosf, v);
-if (gameOpts->render.bDepthSort > 0)
-	TIAddLightTrail (bmP, vCorona, tcCorona, (dotTrail < dotCorona) ? vTrail : NULL, tcTrail, colorP);
-else {
-	glDisable (GL_CULL_FACE);
-	glColor3f (c, c, c);
-	if (dotTrail < dotCorona) {
-		glBegin (GL_TRIANGLES);
-		for (i = 0; i < 3; i++) {
-			glTexCoord2fv (reinterpret_cast<GLfloat*> (tcTrail + i));
-			glVertex3fv (reinterpret_cast<GLfloat*> (vTrail + i));
-			}
-		glEnd ();
-		}
-	glBegin (GL_QUADS);
-	for (i = 0; i < 4; i++) {
-		glTexCoord2fv (reinterpret_cast<GLfloat*> (tcCorona + i));
-		glVertex3fv (reinterpret_cast<GLfloat*> (vCorona + i));
-		}
-	glEnd ();
-	glEnable (GL_CULL_FACE);
-	}
-}
-
-// -----------------------------------------------------------------------------
-
-void RenderThrusterFlames (CObject *objP)
+void RenderThrusterFlames (tObject *objP)
 {
 	int					h, i, j, k, l, nStyle, nThrusters, bStencil, bSpectate, bTextured;
 	tRgbaColorf			c [2];
 	tThrusterInfo		ti;
-	CFloatVector				v;
+	fVector				v;
 	float					fSpeed, fPulse, fFade [4];
-	CThrusterData		*pt = NULL;
+	tThrusterData		*pt = NULL;
 
 	static time_t		tPulse = 0;
 	static int			nPulse = 10;
@@ -1044,9 +978,9 @@ if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 if (!EGI_FLAG (bThrusterFlames, 1, 1, 0))
 	return;
 #endif
-if ((objP->info.nType == OBJ_PLAYER) && (gameData.multiplayer.players [objP->info.nId].flags & PLAYER_FLAGS_CLOAKED))
+if ((objP->nType == OBJ_PLAYER) && (gameData.multiplayer.players [objP->id].flags & PLAYER_FLAGS_CLOAKED))
 	return;
-fSpeed = X2F (objP->mType.physInfo.velocity.Mag());
+fSpeed = f2fl (VmVecMag (&objP->mType.physInfo.velocity));
 ti.fLength = fSpeed / 60.0f + 0.5f + (float) (rand () % 100) / 1000.0f;
 if (!pt || (fSpeed >= pt->fSpeed)) {
 	fFade [0] = 0.95f;
@@ -1081,24 +1015,24 @@ if (!LoadThruster ()) {
 	}
 else if (gameOpts->render.bDepthSort <= 0) {
 	glEnable (GL_TEXTURE_2D);
-	if (bmpThruster [nStyle]->Bind (1, -1)) {
+	if (OglBindBmTex (bmpThruster [nStyle], 1, -1)) {
 		extraGameInfo [IsMultiGame].bThrusterFlames = 2;
 		glDisable (GL_TEXTURE_2D);
 		}
 	else {
-		bmpThruster [nStyle]->Texture ()->Wrap (GL_CLAMP);
+		OglTexWrap (bmpThruster [nStyle]->glTexture, GL_CLAMP);
 		bTextured = 1;
 		}
 	}
 if (nThrusters > 1) {
-	CFixVector vRot [2];
+	vmsVector vRot [2];
 	for (i = 0; i < 2; i++)
-		G3RotatePoint (vRot [i], ti.vPos [i], 0);
-	if (vRot [0][Z] < vRot [1][Z]) {
-		CFixVector v = ti.vPos [0];
+		G3RotatePoint (vRot + i, ti.vPos + i, 0);
+	if (vRot [0].p.z < vRot [1].p.z) {
+		vmsVector v = ti.vPos [0];
 		ti.vPos [0] = ti.vPos [1];
 		ti.vPos [1] = v;
-		if (objP->info.nType == OBJ_ROBOT) {
+		if (objP->nType == OBJ_ROBOT) {
 			v = ti.vDir [0];
 			ti.vDir [0] = ti.vDir [1];
 			ti.vDir [1] = v;
@@ -1109,22 +1043,61 @@ glEnable (GL_BLEND);
 if (EGI_FLAG (bThrusterFlames, 1, 1, 0) == 1) {
 		static tTexCoord2f	tcThruster [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
 		static tTexCoord2f	tcFlame [3] = {{{0,0}},{{1,1}},{{1,0}}};
-		static tRgbaColorf	tcColor = {0.75f, 0.75f, 0.75f, 1.0f};
-		static CFloatVector	vEye = CFloatVector::ZERO;
+		static fVector	vEye = {{0, 0, 0}};
 
-		CFloatVector	/*vPosf, vNormf, vFlame [3], vThruster [4],*/ fVecf;
-		float		c = 1/*0.7f + 0.03f * fPulse, dotFlame, dotThruster*/;
+		fVector	vPosf, vNormf, vFlame [3], vThruster [4], fVecf;
+		float		c = 1/*0.7f + 0.03f * fPulse*/, dotFlame, dotThruster;
 
-	if (!gameData.models.vScale.IsZero ())
-		ti.fSize *= X2F (gameData.models.vScale [Z]);
+	if (gameData.models.nScale)
+		ti.fSize *= f2fl (gameData.models.nScale);
 	ti.fLength *= 4 * ti.fSize;
-	ti.fSize *= ((objP->info.nType == OBJ_PLAYER) && HaveHiresModel (objP->rType.polyObjInfo.nModel)) ? 1.2f : 1.5f;
+	ti.fSize *= ((objP->nType == OBJ_PLAYER) && HaveHiresModel (objP->rType.polyObjInfo.nModel)) ? 1.2f : 1.5f;
 #if 1
 	if (!ti.mtP)
-		fVecf = ti.pp ? ti.pp->mOrient [FVEC].ToFloat() : objP->info.position.mOrient [FVEC].ToFloat();
+		VmVecFixToFloat (&fVecf, ti.pp ? &ti.pp->mOrient.fVec : &objP->position.mOrient.fVec);
 #endif
-	for (h = 0; h < nThrusters; h++)
-		CreateLightTrail (ti.vPos [h], ti.vDir [h], ti.fSize, ti.fLength, bmpThruster [nStyle], &tcColor);
+	for (h = 0; h < nThrusters; h++) {
+		if (ti.mtP)
+			VmVecFixToFloat (&fVecf, ti.vDir + h);
+		VmVecFixToFloat (&vPosf, ti.vPos + h);
+		VmVecScaleAdd (vFlame + 2, &vPosf, &fVecf, -ti.fLength);
+		G3TransformPoint (vFlame + 2, vFlame + 2, 0);
+		G3TransformPoint (&vPosf, &vPosf, 0);
+		VmVecNormal (&vNormf, vFlame + 2, &vPosf, &vEye);
+		VmVecScaleAdd (vFlame, &vPosf, &vNormf, ti.fSize);
+		VmVecScaleAdd (vFlame + 1, &vPosf, &vNormf, -ti.fSize);
+		VmVecNormal (&vNormf, vFlame, vFlame + 1, vFlame + 2);
+		vThruster [0] = vFlame [0];
+		vThruster [2] = vFlame [1];
+		VmVecScaleAdd (vThruster + 1, &vPosf, &vNormf, ti.fSize);
+		VmVecScaleAdd (vThruster + 3, &vPosf, &vNormf, -ti.fSize);
+		VmVecNormalize (&vPosf, &vPosf);
+		VmVecNormalize (&v, vFlame + 2);
+		dotFlame = VmVecDot (&vPosf, &v);
+		VmVecNormalize (&v, vThruster);
+		dotThruster = VmVecDot (&vPosf, &v);
+		if (gameOpts->render.bDepthSort > 0)
+			RIAddThruster (bmpThruster [nStyle], vThruster, tcThruster, (dotFlame < dotThruster) ? vFlame : NULL, tcFlame);
+		else {
+			glDisable (GL_CULL_FACE);
+			glColor3f (c, c, c);
+			if (dotFlame < dotThruster) {
+				glBegin (GL_TRIANGLES);
+				for (i = 0; i < 3; i++) {
+					glTexCoord2fv ((GLfloat *) (tcFlame + i));
+					glVertex3fv ((GLfloat *) (vFlame + i));
+					}
+				glEnd ();
+				}
+			glBegin (GL_QUADS);
+			for (i = 0; i < 4; i++) {
+				glTexCoord2fv ((GLfloat *) (tcThruster + i));
+				glVertex3fv ((GLfloat *) (vThruster + i));
+				}
+			glEnd ();
+			glEnable (GL_CULL_FACE);
+			}
+		}
 	}
 else {
 	tTexCoord3f	tTexCoord2fl, tTexCoord2flStep;
@@ -1139,14 +1112,14 @@ else {
 			float c = 1; //0.8f + 0.02f * fPulse;
 			glColor3f (c, c, c); //, 0.9f);
 			}
-		else
+		else 
 			{
 			c [1].red = 0.5f + 0.05f * fPulse;
 			c [1].green = 0.45f + 0.045f * fPulse;
 			c [1].blue = 0.0f;
 			c [1].alpha = 0.9f;
 			}
-		G3StartInstanceMatrix (ti.vPos [h], (ti.pp && !bSpectate) ? ti.pp->mOrient : objP->info.position.mOrient);
+		G3StartInstanceMatrix (ti.vPos + h, (ti.pp && !bSpectate) ? &ti.pp->mOrient : &objP->position.mOrient);
 		for (i = 0; i < THRUSTER_SEGS - 1; i++) {
 #if 1
 			if (!bTextured) {
@@ -1161,17 +1134,17 @@ else {
 				tTexCoord2fl.v.u = j * tTexCoord2flStep.v.u;
 				for (l = 0; l < 2; l++) {
 					v = vFlame [i + l][k];
-					v [X] *= ti.fSize;
-					v [Y] *= ti.fSize;
-					v [Z] *= ti.fLength;
-					G3TransformPoint(v, v, 0);
+					v.p.x *= ti.fSize;
+					v.p.y *= ti.fSize;
+					v.p.z *= ti.fLength;
+					G3TransformPoint (&v, &v, 0);
 					if (bTextured) {
 						tTexCoord2fl.v.v = 0.25f + tTexCoord2flStep.v.v * (i + l);
-						glTexCoord2fv (reinterpret_cast<GLfloat*> (&tTexCoord2fl));
+						glTexCoord2fv ((GLfloat *) &tTexCoord2fl);
 						}
 					else
-						glColor4fv (reinterpret_cast<GLfloat*> (c + l)); // (c [l].red, c [l].green, c [l].blue, c [l].alpha);
-					glVertex3fv (reinterpret_cast<GLfloat*> (&v));
+						glColor4fv ((GLfloat *) (c + l)); // (c [l].red, c [l].green, c [l].blue, c [l].alpha);
+					glVertex3fv ((GLfloat *) &v);
 					}
 				}
 			glEnd ();
@@ -1180,15 +1153,15 @@ else {
 			glColor4f (c [1].red, c [1].green, c [1].blue, c [1].alpha);
 			for (j = 0; j < RING_SIZE; j++) {
 				G3TransformPoint (&v, vFlame [i] + j);
-				glVertex3fv (reinterpret_cast<GLfloat*> (&v));
+				glVertex3fv ((GLfloat *) &v);
 				}
 			glEnd ();
 #endif
 			}
 		glBegin (GL_TRIANGLE_STRIP);
 		for (j = 0; j < RING_SIZE; j++) {
-			G3TransformPoint(v, vFlame [0][nStripIdx [j]], 0);
-			glVertex3fv (reinterpret_cast<GLfloat*> (&v));
+			G3TransformPoint (&v, vFlame [0] + nStripIdx [j], 0);
+			glVertex3fv ((GLfloat *) &v);
 			}
 		glEnd ();
 		G3DoneInstance ();
@@ -1202,9 +1175,25 @@ StencilOn (bStencil);
 
 // -----------------------------------------------------------------------------
 
-void RenderLaserCorona (CObject *objP, tRgbaColorf *colorP, float alpha, float fScale)
+typedef struct tVertRef {
+	float	dot;
+	int	i;
+} tVertRef;
+
+typedef struct fEdge {
+	int	v0, v1;
+	int	f0, f1;
+	int	bContour;
+	int	nPred, nSucc;	//previous and next connected contour edge
+} fEdge;
+
+// -----------------------------------------------------------------------------
+
+#define EXPAND_CORONA	2
+
+void RenderLaserCorona (tObject *objP, tRgbaColorf *colorP, float alpha, float fScale)
 {
-	int	bAdditive = 1; //gameOpts->render.bAdditive
+	int	bAdditive = 1; //gameOpts->render.bAdditive 
 if (!SHOW_OBJ_FX)
 	return;
 #if SHADOWS
@@ -1215,43 +1204,43 @@ if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 if (gameOpts->render.coronas.bShots && (bAdditive ? LoadGlare () : LoadCorona ())) {
 	int			bStencil, bDrawArrays, i;
 	float			a1, a2;
-	CFloatVector		vCorona [4], vh [5], vPos, vNorm, vDir;
+	fVector		vCorona [4], vh [5], vPos, vNorm, vDir;
 	tHitbox		*phb = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].hitboxes;
-	float			fLength = X2F (phb->vMax [Z] - phb->vMin [Z]) / 2;
-	float			dx = X2F (phb->vMax [X] - phb->vMin [X]);
-	float			dy = X2F (phb->vMax [Y] - phb->vMin [Y]);
+	float			fLength = f2fl (phb->vMax.p.z - phb->vMin.p.z) / 2;
+	float			dx = f2fl (phb->vMax.p.x - phb->vMin.p.x);
+	float			dy = f2fl (phb->vMax.p.y - phb->vMin.p.y);
 	float			fRad = (float) (sqrt (dx * dx + dy * dy) / 2);
-	CBitmap	*bmP;
+	grsBitmap	*bmP;
 	tRgbaColorf	color;
 
-	static CFloatVector	vEye = CFloatVector::ZERO;
+	static fVector	vEye = {{0, 0, 0}};
 	static tTexCoord2f	tcCorona [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
 
 	bmP = bAdditive ? bmpGlare : bmpCorona;
 	colorP->alpha = alpha;
-	vDir = objP->info.position.mOrient [FVEC].ToFloat();
-	vPos = objP->info.position.vPos.ToFloat();
-	vCorona [0] = vPos + vDir * (fScale * fLength);
+	VmVecFixToFloat (&vDir, &objP->position.mOrient.fVec);
+	VmVecFixToFloat (&vPos, &objP->position.vPos);
+	VmVecScaleAdd (vCorona, &vPos, &vDir, fScale * fLength);
 	vh [4] = vCorona [0];
-	vCorona [3] = vPos + vDir * (-fScale * fLength);
-	G3TransformPoint (vPos, vPos, 0);
-	G3TransformPoint (vCorona [0], vCorona [0], 0);
-	G3TransformPoint (vCorona [3], vCorona [3], 0);
-	vNorm = CFloatVector::Normal(vPos, vCorona [0], vEye);
+	VmVecScaleAdd (vCorona + 3, &vPos, &vDir, -fScale * fLength);
+	G3TransformPoint (&vPos, &vPos, 0);
+	G3TransformPoint (vCorona, vCorona, 0);
+	G3TransformPoint (vCorona + 3, vCorona + 3, 0);
+	VmVecNormal (&vNorm, &vPos, vCorona, &vEye);
 	fScale *= fRad;
-	vCorona [0] += vNorm * fScale;
-	vCorona [1] = vCorona [0] + vNorm * (-2 * fScale);
-	vCorona [3] += vNorm * fScale;
-	vCorona [2] = vCorona [3] + vNorm * (-2 * fScale);
-	vNorm = CFloatVector::Normal(vCorona [0], vCorona [1], vCorona [2]);
-	vh [0] = vCorona [0] + vCorona [1] * 0.5f;
-	vh [2] = vCorona [3] + vCorona [2] * 0.5f;
-	vh [1] = vPos + vNorm * fScale;
-	vh [3] = vPos + vNorm * (-fScale);
+	VmVecScaleInc (vCorona, &vNorm, fScale);
+	VmVecScaleAdd (vCorona + 1, vCorona, &vNorm, -2 * fScale);
+	VmVecScaleInc (vCorona + 3, &vNorm, fScale);
+	VmVecScaleAdd (vCorona + 2, vCorona + 3, &vNorm, -2 * fScale);
+	VmVecNormal (&vNorm, vCorona, vCorona + 1, vCorona + 2);
+	VmVecScaleAdd (vh, vCorona, vCorona + 1, 0.5f);
+	VmVecScaleAdd (vh + 2, vCorona + 3, vCorona + 2, 0.5f);
+	VmVecScaleAdd (vh + 1, &vPos, &vNorm, fScale);
+	VmVecScaleAdd (vh + 3, &vPos, &vNorm, -fScale);
 	for (i = 0; i < 4; i++)
-		CFloatVector::Normalize(vh [i]);
-	a1 = (float) fabs (CFloatVector::Dot(vh [2], vh [0]));
-	a2 = (float) fabs (CFloatVector::Dot(vh [3], vh [1]));
+		VmVecNormalize (vh + i, vh + i);
+	a1 = (float) fabs (VmVecDot (vh + 2, vh));
+	a2 = (float) fabs (VmVecDot (vh + 3, vh + 1));
 #if 0
 	HUDMessage (0, "%1.2f %1.2f", a1, a2);
 	glLineWidth (2);
@@ -1259,10 +1248,10 @@ if (gameOpts->render.coronas.bShots && (bAdditive ? LoadGlare () : LoadCorona ()
 	glDisable (GL_TEXTURE_2D);
 	glBegin (GL_LINES);
 	for (i = 1; i < 3; i++)
-		glVertex3fv (reinterpret_cast<GLfloat*> (vh + i));
+		glVertex3fv ((GLfloat *) (vh + i));
 	glEnd ();
 	glLineWidth (1);
-	glColor4fv (reinterpret_cast<GLfloat*> (colorP));
+	glColor4fv ((GLfloat *) colorP);
 #endif
 	if (bAdditive) {
 		float fScale = coronaIntensities [gameOpts->render.coronas.nObjIntensity] / 2;
@@ -1273,31 +1262,31 @@ if (gameOpts->render.coronas.bShots && (bAdditive ? LoadGlare () : LoadCorona ()
 		color.blue *= fScale;
 		}
 	if (a2 < a1) {
-		fix xSize = F2X (fScale);
-		G3DrawSprite (objP->info.position.vPos, xSize, xSize, bmP, colorP, alpha, bAdditive, 1);
+		fix xSize = fl2f (fScale);
+		G3DrawSprite (&objP->position.vPos, xSize, xSize, bmP, colorP, alpha, bAdditive);
 		}
 	else {
 		bStencil = StencilOff ();
 		glDepthMask (0);
 		glEnable (GL_TEXTURE_2D);
 		glEnable (GL_BLEND);
-		glColor4fv (reinterpret_cast<GLfloat*> (colorP));
-		if (bmP->Bind (1, -1))
+		glColor4fv ((GLfloat *) colorP);
+		if (OglBindBmTex (bmP, 1, -1)) 
 			return;
-		bmP->Texture ()->Wrap (GL_CLAMP);
+		OglTexWrap (bmP->glTexture, GL_CLAMP);
 		if (bAdditive)
 			glBlendFunc (GL_ONE, GL_ONE);
 		if ((bDrawArrays = G3EnableClientStates (1, 0, 0, GL_TEXTURE0))) {
 			glTexCoordPointer (2, GL_FLOAT, 0, tcCorona);
-			glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), vCorona);
+			glVertexPointer (3, GL_FLOAT, sizeof (fVector), vCorona);
 			glDrawArrays (GL_QUADS, 0, 4);
 			G3DisableClientStates (1, 0, 0, -1);
 			}
 		else {
 			glBegin (GL_QUADS);
 			for (i = 0; i < 4; i++) {
-				glTexCoord2fv (reinterpret_cast<GLfloat*> (tcCorona + i));
-				glVertex3fv (reinterpret_cast<GLfloat*> (vCorona + i));
+				glTexCoord2fv ((GLfloat *) (tcCorona + i));
+				glVertex3fv ((GLfloat *) (vCorona + i));
 				}
 			glEnd ();
 			}
@@ -1309,7 +1298,7 @@ if (gameOpts->render.coronas.bShots && (bAdditive ? LoadGlare () : LoadCorona ()
 		glDisable (GL_TEXTURE_2D);
 		glBegin (GL_LINE_LOOP);
 		for (i = 0; i < 4; i++)
-			glVertex3fv (reinterpret_cast<GLfloat*> (vCorona + i));
+			glVertex3fv ((GLfloat *) (vCorona + i));
 		glEnd ();
 		glLineWidth (1);
 #endif
@@ -1333,31 +1322,23 @@ else if (nId == SPREADFIRE_ID)
 	return 1.25f;
 else if (nId == OMEGA_ID)
 	return 1.5f;
-else if (SMARTMSL_BLOB_ID)
-	return 2.25f;
-else if (ROBOT_SMARTMSL_BLOB_ID)
-	return 2.25f;
-else if (SMARTMINE_BLOB_ID)
-	return 2.25f;
-else if (ROBOT_SMARTMINE_BLOB_ID)
-	return 2.25f;
 else
 	return 1.0f;
 }
 
 // -----------------------------------------------------------------------------
 
-int RenderWeaponCorona (CObject *objP, tRgbaColorf *colorP, float alpha, fix xOffset,
-								float fScale, int bSimple, int bViewerOffset, int bDepthSort)
+void RenderWeaponCorona (tObject *objP, tRgbaColorf *colorP, float alpha, fix xOffset, 
+								 float fScale, int bSimple, int bViewerOffset, int bDepthSort)
 {
 if (!SHOW_OBJ_FX)
-	return 0;
+	return;
 #if SHADOWS
 if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 //	 (FAST_SHADOWS ? (gameStates.render.nShadowPass != 3) : (gameStates.render.nShadowPass != 1)))
-	return 0;
+	return;
 #endif
-if ((objP->info.nType == OBJ_WEAPON) && (objP->info.renderType == RT_POLYOBJ))
+if ((objP->nType == OBJ_WEAPON) && (objP->renderType == RT_POLYOBJ))
 	RenderLaserCorona (objP, colorP, alpha, fScale);
 else if (gameOpts->render.coronas.bShots && LoadCorona ()) {
 	int			bStencil;
@@ -1366,17 +1347,17 @@ else if (gameOpts->render.coronas.bShots && LoadCorona ()) {
 
 	static tTexCoord2f	tcCorona [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
 
-	CFixVector	vPos = objP->info.position.vPos;
-	xSize = (fix) (WeaponBlobSize (objP->info.nId) * fScale * F1_0);
+	vmsVector	vPos = objP->position.vPos;
+	xSize = (fix) (WeaponBlobSize (objP->id) * fScale * F1_0);
 	bDepthSort = bDepthSort && bSimple && (gameOpts->render.bDepthSort > 0);
 	if (xOffset) {
 		if (bViewerOffset) {
-			CFixVector o = gameData.render.mine.viewerEye - vPos;
-			CFixVector::Normalize(o);
-			vPos += o * xOffset;
+			vmsVector o;
+			VmVecNormalize (VmVecSub (&o, &gameData.render.mine.viewerEye /*&gameData.objs.console->position.vPos*/, &vPos));
+			VmVecScaleInc (&vPos, &o, xOffset);
 			}
 		else
-			vPos += objP->info.position.mOrient [FVEC] * xOffset;
+			VmVecScaleInc (&vPos, &objP->position.mOrient.fVec, xOffset);
 		}
 	if (xSize < F1_0)
 		xSize = F1_0;
@@ -1390,16 +1371,18 @@ else if (gameOpts->render.coronas.bShots && LoadCorona ()) {
 	color.green *= color.green;
 	color.blue *= color.blue;
 #endif
-	if (bDepthSort)
-		return TIAddSprite (bmpCorona, vPos, &color, FixMulDiv (xSize, bmpCorona->Width (), bmpCorona->Height ()), xSize, 0, 1, 3);
+	if (bDepthSort) {
+		RIAddSprite (bmpCorona, &vPos, &color, FixMulDiv (xSize, bmpCorona->bmProps.w, bmpCorona->bmProps.h), xSize, 0, 1);
+		return;
+		}
 	bStencil = StencilOff ();
 	glDepthMask (0);
 	glBlendFunc (GL_ONE, GL_ONE);
 	if (bSimple) {
-		G3DrawSprite (vPos, FixMulDiv (xSize, bmpCorona->Width (), bmpCorona->Height ()), xSize, bmpCorona, &color, alpha, 1, 3);
+		G3DrawSprite (&vPos, FixMulDiv (xSize, bmpCorona->bmProps.w, bmpCorona->bmProps.h), xSize, bmpCorona, &color, alpha, 1);
 		}
 	else {
-		CFloatVector	quad [4], verts [8], vCenter, vNormal, v;
+		fVector	quad [4], verts [8], vCenter, vNormal, v;
 		float		dot;
 		int		i, j;
 
@@ -1407,30 +1390,30 @@ else if (gameOpts->render.coronas.bShots && LoadCorona ()) {
 		glDepthFunc (GL_LEQUAL);
 		glDepthMask (0);
 		glEnable (GL_TEXTURE_2D);
-		if (bmpCorona->Bind (1, -1))
-			return 0;
-		bmpCorona->Texture ()->Wrap (GL_CLAMP);
-		G3StartInstanceMatrix (vPos, objP->info.position.mOrient);
+		if (OglBindBmTex (bmpCorona, 1, -1)) 
+			return;
+		OglTexWrap (bmpCorona->glTexture, GL_CLAMP);
+		G3StartInstanceMatrix (&vPos, &objP->position.mOrient);
 		TransformHitboxf (objP, verts, 0);
 		for (i = 0; i < 6; i++) {
-			vCenter.SetZero();
+			vCenter.p.x = vCenter.p.y = vCenter.p.z = 0;
 			for (j = 0; j < 4; j++) {
 				quad [j] = verts [hitboxFaceVerts [i][j]];
-				vCenter += quad [j];
+				VmVecInc (&vCenter, quad + j);
 				}
-			vCenter = vCenter * 0.25f;
-			vNormal = CFloatVector::Normal (quad [0], quad [1], quad [2]);
-			v = vCenter; CFloatVector::Normalize (v);
-			dot = CFloatVector::Dot (vNormal, v);
+			VmVecScale (&vCenter, &vCenter, 0.25f);
+			VmVecNormal (&vNormal, quad, quad + 1, quad + 2);
+			VmVecNormalize (&v, &vCenter);
+			dot = VmVecDot (&vNormal, &v);
 			if (dot >= 0)
 				continue;
 			glColor4f (colorP->red, colorP->green, colorP->blue, alpha * (float) sqrt (-dot));
 			glBegin (GL_QUADS);
 			for (j = 0; j < 4; j++) {
-				v = quad [j] - vCenter;
-				quad [j] += v * fScale;
- 				glTexCoord2fv (reinterpret_cast<GLfloat*> (tcCorona + j));
-				glVertex3fv (reinterpret_cast<GLfloat*> (quad + j));
+				VmVecSub (&v, quad + j, &vCenter);
+				VmVecScaleInc (quad + j, &v, fScale);
+ 				glTexCoord2fv ((GLfloat *) (tcCorona + j));
+				glVertex3fv ((GLfloat *) (quad + j));
 				}
 			glEnd ();
 			}
@@ -1443,14 +1426,13 @@ else if (gameOpts->render.coronas.bShots && LoadCorona ()) {
 	glDepthMask (1);
 	StencilOn (bStencil);
 	}
-return 0;
 }
 
 // -----------------------------------------------------------------------------
 
-//extern vmsAngVec vmsAngVec::ZERO;
+extern vmsAngVec avZero;
 
-void RenderShockwave (CObject *objP)
+void RenderShockwave (tObject *objP)
 {
 if (!SHOW_OBJ_FX)
 	return;
@@ -1459,25 +1441,25 @@ if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 //	 (FAST_SHADOWS ? (gameStates.render.nShadowPass != 3) : (gameStates.render.nShadowPass != 1)))
 	return;
 #endif
-if ((objP->info.nType == OBJ_WEAPON) && gameData.objs.bIsWeapon [objP->info.nId]) {
-		CFixVector	vPos;
+if ((objP->nType == OBJ_WEAPON) && gameData.objs.bIsWeapon [objP->id]) {
+		vmsVector	vPos;
 		int			bStencil;
 
-	vPos = objP->info.position.vPos + objP->info.position.mOrient [FVEC] * (objP->info.xSize / 2);
+	VmVecScaleAdd (&vPos, &objP->position.vPos, &objP->position.mOrient.fVec, objP->size / 2);
 	bStencil = StencilOff ();
-	if (EGI_FLAG (bShockwaves, 1, 1, 0) &&
-		 (objP->mType.physInfo.velocity [X] || objP->mType.physInfo.velocity [Y] || objP->mType.physInfo.velocity [Z])) {
-			CFloatVector			vPosf;
+	if (EGI_FLAG (bShockwaves, 1, 1, 0) && 
+		 (objP->mType.physInfo.velocity.p.x || objP->mType.physInfo.velocity.p.y || objP->mType.physInfo.velocity.p.z)) {
+			fVector			vPosf;
 			int				h, i, j, k, n;
 			float				r [4], l [4], alpha;
-			tRgbaColorf		*pc = gameData.weapons.color + objP->info.nId;
+			tRgbaColorf		*pc = gameData.weapons.color + objP->id;
 
-		G3StartInstanceMatrix (vPos, objP->info.position.mOrient);
+		G3StartInstanceMatrix (&vPos, &objP->position.mOrient);
 		glDepthMask (0);
 		glDisable (GL_TEXTURE_2D);
 		//OglCullFace (1);
-		glDisable (GL_CULL_FACE);
-		r [3] = X2F (objP->info.xSize);
+		glDisable (GL_CULL_FACE);	
+		r [3] = f2fl (objP->size);
 		if (r [3] >= 3.0f)
 			r [3] /= 1.5f;
 		else if (r [3] < 1)
@@ -1500,27 +1482,27 @@ if ((objP->info.nType == OBJ_WEAPON) && gameData.objs.bIsWeapon [objP->info.nId]
 					n = h + k;
 					glColor4f (pc->red, pc->green, pc->blue, (n == 3) ? 0.0f : alpha);
 					vPosf = vRing [j];
-					vPosf [X] *= r [n];
-					vPosf [Y] *= r [n];
-					vPosf [Z] = -l [n];
-					G3TransformPoint(vPosf, vPosf, 0);
-					glVertex3fv (reinterpret_cast<GLfloat*> (&vPosf));
+					vPosf.p.x *= r [n];
+					vPosf.p.y *= r [n];
+					vPosf.p.z = -l [n];
+					G3TransformPoint (&vPosf, &vPosf, 0);
+					glVertex3fv ((GLfloat *) &vPosf);
 					}
 				}
 			glEnd ();
 			}
-		glEnable (GL_CULL_FACE);
+		glEnable (GL_CULL_FACE);	
 		for (h = 0; h < 3; h += 2) {
 			glCullFace (h ? GL_FRONT : GL_BACK);
 			glColor4f (pc->red, pc->green, pc->blue, h ? 0.1f : alpha);
 			glBegin (GL_TRIANGLE_STRIP);
 			for (j = 0; j < RING_SIZE; j++) {
 				vPosf = vRing [nStripIdx [j]];
-				vPosf [X] *= r [h];
-				vPosf [Y] *= r [h];
-				vPosf [Z] = -l [h];
-				G3TransformPoint(vPosf, vPosf, 0);
-				glVertex3fv (reinterpret_cast<GLfloat*> (&vPosf));
+				vPosf.p.x *= r [h];
+				vPosf.p.y *= r [h];
+				vPosf.p.z = -l [h];
+				G3TransformPoint (&vPosf, &vPosf, 0);
+				glVertex3fv ((GLfloat *) &vPosf);
 				}
 			glEnd ();
 			}
@@ -1536,7 +1518,7 @@ if ((objP->info.nType == OBJ_WEAPON) && gameData.objs.bIsWeapon [objP->info.nId]
 
 #define TRACER_WIDTH	3
 
-void RenderTracers (CObject *objP)
+void RenderTracers (tObject *objP)
 {
 if (!SHOW_OBJ_FX)
 	return;
@@ -1546,32 +1528,32 @@ if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 	return;
 #endif
 if (EGI_FLAG (bTracers, 0, 1, 0) &&
-	 (objP->info.nType == OBJ_WEAPON) && ((objP->info.nId == VULCAN_ID) || (objP->info.nId == GAUSS_ID)
-	 /*&& !OBJECTS [objP->cType.laserInfo.parent.nObject].nTracers*/)) {
+	 (objP->nType == OBJ_WEAPON) && ((objP->id == VULCAN_ID) || (objP->id == GAUSS_ID)
+	 /*&& !gameData.objs.nTracers [objP->cType.laserInfo.nParentObj]*/)) {
 #if 0
 	objP->rType.polyObjInfo.nModel = gameData.weapons.info [SUPERLASER_ID + 1].nModel;
-	objP->info.xSize = FixDiv (gameData.models.polyModels [objP->rType.polyObjInfo.nModel].rad,
-								gameData.weapons.info [objP->info.nId].po_len_to_width_ratio) / 4;
-	gameData.models.vScale.Set (F1_0 / 4, F1_0 / 4, F1_0 / 4);
+	objP->size = FixDiv (gameData.models.polyModels [objP->rType.polyObjInfo.nModel].rad, 
+								gameData.weapons.info [objP->id].po_len_to_width_ratio) / 4;
+	gameData.models.nScale = F1_0 / 4;
 	DrawPolygonObject (objP, 0);
-	gameData.models.vScale.SetZero ();
+	gameData.models.nScale = 0;
 #else
-		CFloatVector			vPosf [2], vDirf;
+		fVector			vPosf [2], vDirf;
 		short				i;
 		int				bStencil;
 //		static short	patterns [] = {0x0603, 0x0203, 0x0103, 0x0202};
 
-	vPosf [0] = objP->info.position.vPos.ToFloat();
-	vPosf [1] = objP->info.vLastPos.ToFloat();
-	G3TransformPoint (vPosf [0], vPosf [0], 0);
-	G3TransformPoint (vPosf [1], vPosf [1], 0);
-	vDirf = vPosf [0] - vPosf [1];
-	if (vDirf.IsZero()) {
+	VmVecFixToFloat (vPosf, &objP->position.vPos);
+	VmVecFixToFloat (vPosf + 1, &objP->vLastPos);
+	G3TransformPoint (vPosf, vPosf, 0);
+	G3TransformPoint (vPosf + 1, vPosf + 1, 0);
+	VmVecSub (&vDirf, vPosf, vPosf + 1);
+	if (!(vDirf.p.x || vDirf.p.y || vDirf.p.z)) {
 		//return;
-		vPosf [1] = OBJECTS [objP->cType.laserInfo.parent.nObject].info.position.vPos.ToFloat();
-		G3TransformPoint(vPosf [1], vPosf [1], 0);
-		vDirf = vPosf [0] - vPosf [1];
-		if(vDirf.IsZero())
+		VmVecFixToFloat (vPosf + 1, &gameData.objs.objects [objP->cType.laserInfo.nParentObj].position.vPos);
+		G3TransformPoint (vPosf + 1, vPosf + 1, 0);
+		VmVecSub (&vDirf, vPosf, vPosf + 1);
+		if (!(vDirf.p.x || vDirf.p.y || vDirf.p.z))
 			return;
 		}
 	bStencil = StencilOff ();
@@ -1581,17 +1563,15 @@ if (EGI_FLAG (bTracers, 0, 1, 0) &&
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable (GL_LINE_SMOOTH);
 	glLineStipple (6, 0x003F); //patterns [h]);
-	vDirf *= TRACER_WIDTH / 20.0f;
-/*
-	vDirf [Y] *= TRACER_WIDTH / 20.0f;
-	vDirf [Z] *= TRACER_WIDTH / 20.0f;
-*/
+	vDirf.p.x *= TRACER_WIDTH / 20.0f;
+	vDirf.p.y *= TRACER_WIDTH / 20.0f;
+	vDirf.p.z *= TRACER_WIDTH / 20.0f;
 	for (i = 1; i < 5; i++) {
 		glLineWidth ((GLfloat) (TRACER_WIDTH * i));
 		glBegin (GL_LINES);
 		glColor4d (1, 1, 1, 0.5 / i);
-		glVertex3fv (reinterpret_cast<GLfloat*> (vPosf + 1));
-		glVertex3fv (reinterpret_cast<GLfloat*> (vPosf));
+		glVertex3fv ((GLfloat *) (vPosf + 1));
+		glVertex3fv ((GLfloat *) vPosf);
 #if 0
 		VmVecDec (vPosf, &vDirf);
 		VmVecDec (vPosf + 1, &vDirf);
@@ -1610,17 +1590,17 @@ if (EGI_FLAG (bTracers, 0, 1, 0) &&
 // -----------------------------------------------------------------------------
 // Draws a texture-mapped laser bolt
 #if 0
-void Laser_draw_one (int nObject, CBitmap * bmp)
+void Laser_draw_one (int nObject, grsBitmap * bmp)
 {
 	int t1, t2, t3;
 	g3sPoint p1, p2;
-	CObject *objP = OBJECTS + nObject;
-	CFixVector start_pos,vEndPos;
+	tObject *objP = gameData.objs.objects + nObject;
+	vmsVector start_pos,vEndPos;
 	fix Laser_length = gameData.models.polyModels [objP->rType.polyObjInfo.nModel].rad * 2;
 	fix Laser_width = Laser_length / 8;
 
-	start_pos = objP->info.position.vPos;
-	VmVecScaleAdd (&vEndPos,&start_pos,&objP->info.position.mOrient [FVEC],-Laser_length);
+	start_pos = objP->position.vPos;
+	VmVecScaleAdd (&vEndPos,&start_pos,&objP->position.mOrient.fVec,-Laser_length);
 
 	G3TransformAndEncodePoint (&p1,&start_pos);
 	G3TransformAndEncodePoint (&p2,&vEndPos);
@@ -1634,7 +1614,7 @@ void Laser_draw_one (int nObject, CBitmap * bmp)
 	gameStates.render.nInterpolationMethod = 1;	//Linear
 	gameStates.render.bTransparency = 1;
 #if 0
-	CCanvas::Current ()->SetColor (gr_getcolor (31,15,0);
+	GrSetColor (gr_getcolor (31,15,0);
 	g3_draw_line_ptrs (p1,p2);
 	g3_draw_rod (p1,0x2000,p2,0x2000);
 	g3_draw_rod (p1,Laser_width,p2,Laser_width);
@@ -1650,27 +1630,26 @@ void Laser_draw_one (int nObject, CBitmap * bmp)
 // -----------------------------------------------------------------------------
 
 #if 0
-static CFloatVector vTrailOffs [2][4] = {{{{0,0,0}},{{0,-10,-5}},{{0,-10,-50}},{{0,0,-50}}},
+static fVector vTrailOffs [2][4] = {{{{0,0,0}},{{0,-10,-5}},{{0,-10,-50}},{{0,0,-50}}},
 												{{{0,0,0}},{{0,10,-5}},{{0,10,-50}},{{0,0,-50}}}};
 #endif
 
-void RenderLightTrail (CObject *objP)
+void RenderLightTrail (tObject *objP)
 {
 	tRgbaColorf		color, *colorP;
-	int				nTrailItem = -1, nCoronaItem = -1, bGatling = 0, bAdditive = 1; //gameOpts->render.coronas.bAdditiveObjs;
+	int				bAdditive = 1; //gameOpts->render.coronas.bAdditiveObjs;
 
 if (!SHOW_OBJ_FX)
 	return;
-if (!gameData.objs.bIsWeapon [objP->info.nId])
+if (!gameData.objs.bIsWeapon [objP->id])
 	return;
 #if SHADOWS
 if (SHOW_SHADOWS && (gameStates.render.nShadowPass != 1))
 //	 (FAST_SHADOWS ? (gameStates.render.nShadowPass != 3) : (gameStates.render.nShadowPass != 1)))
 	return;
 #endif
-bGatling = (objP->info.nId == VULCAN_ID) || (objP->info.nId == GAUSS_ID);
-if (objP->info.renderType == RT_POLYOBJ)
-	colorP = gameData.weapons.color + objP->info.nId;
+if (objP->renderType == RT_POLYOBJ)
+	colorP = gameData.weapons.color + objP->id;
 else {
 	tRgbColorb	*pcb = VClipColor (objP);
 	color.red = pcb->red / 255.0f;
@@ -1679,38 +1658,53 @@ else {
 	colorP = &color;
 	}
 
-if (!gameData.objs.bIsSlowWeapon [objP->info.nId] && gameStates.app.bHaveExtraGameInfo [IsMultiGame] && EGI_FLAG (bLightTrails, 0, 0, 0)) {
-	if (gameOpts->render.particles.bPlasmaTrails)
-		;//DoObjectSmoke (objP);
-	else if (EGI_FLAG (bLightTrails, 1, 1, 0) && (objP->info.nType == OBJ_WEAPON) &&
-				!gameData.objs.bIsSlowWeapon [objP->info.nId] &&
-				(objP->mType.physInfo.velocity [X] || objP->mType.physInfo.velocity [Y] || objP->mType.physInfo.velocity [Z]) &&
+if (!gameData.objs.bIsSlowWeapon [objP->id] && gameStates.app.bHaveExtraGameInfo [IsMultiGame] && EGI_FLAG (bLightTrails, 0, 0, 0)) {
+	if (gameOpts->render.smoke.bPlasmaTrails)
+		DoObjectSmoke (objP);
+	else if (EGI_FLAG (bLightTrails, 1, 1, 0) && (objP->nType == OBJ_WEAPON) && 
+				!gameData.objs.bIsSlowWeapon [objP->id] &&
+				(objP->mType.physInfo.velocity.p.x || objP->mType.physInfo.velocity.p.y || objP->mType.physInfo.velocity.p.z) &&
 				(bAdditive ? LoadGlare () : LoadCorona ())) {
-			CFloatVector			vNormf, vOffsf, vTrailVerts [4];
+			fVector			vNormf, vOffsf, vTrailVerts [4];
 			int				i, bStencil, bDrawArrays, bDepthSort = (gameOpts->render.bDepthSort > 0);
 			float				l, r, dx, dy;
-			CBitmap		*bmP;
+			grsBitmap		*bmP;
 
-			static CFloatVector vEye = CFloatVector::ZERO;
+			static fVector vEye = {{0, 0, 0}};
 
 			static tRgbaColorf	trailColor = {0,0,0,0.33f};
 			static tTexCoord2f	tTexCoordTrail [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
-
-		if (objP->info.renderType == RT_POLYOBJ) {
+		
+		if (objP->renderType == RT_POLYOBJ) {
 			tHitbox	*phb = gameData.models.hitboxes [objP->rType.polyObjInfo.nModel].hitboxes;
-			l = X2F (phb->vMax [Z] - phb->vMin [Z]);
-			dx = X2F (phb->vMax [X] - phb->vMin [X]);
-			dy = X2F (phb->vMax [Y] - phb->vMin [Y]);
+			l = f2fl (phb->vMax.p.z - phb->vMin.p.z);
+			dx = f2fl (phb->vMax.p.x - phb->vMin.p.x);
+			dy = f2fl (phb->vMax.p.y - phb->vMin.p.y);
 			r = (float) (sqrt (dx * dx + dy * dy) / sqrt (2.0f));
-			if (objP->info.nId == FUSION_ID) {
+			if (objP->id == FUSION_ID) {
 				l *= 1.5f;
 				r /= 1.5f;
 				}
 			}
 		else {
-			r = WeaponBlobSize (objP->info.nId) / 1.5f;
+			r = WeaponBlobSize (objP->id) / 1.5f;
 			l = 4 * r;
 			}
+
+		VmVecFixToFloat (&vOffsf, &objP->position.mOrient.fVec);
+		VmVecFixToFloat (vTrailVerts, &objP->position.vPos);
+		VmVecScaleInc (vTrailVerts, &vOffsf, l);// * -0.75f);
+		VmVecScaleAdd (vTrailVerts + 2, vTrailVerts, &vOffsf, -100);
+		G3TransformPoint (vTrailVerts, vTrailVerts, 0);
+		G3TransformPoint (vTrailVerts + 2, vTrailVerts + 2, 0);
+		VmVecSub (&vOffsf, vTrailVerts + 2, vTrailVerts);
+		VmVecScale (&vOffsf, &vOffsf, r * 0.04f);
+		VmVecNormal (&vNormf, vTrailVerts, vTrailVerts + 2, &vEye);
+		VmVecScale (&vNormf, &vNormf, r * 4);
+		VmVecAdd (vTrailVerts + 1, vTrailVerts, &vNormf);
+		VmVecInc (vTrailVerts + 1, &vOffsf);
+		VmVecSub (vTrailVerts + 3, vTrailVerts, &vNormf);
+		VmVecInc (vTrailVerts + 3, &vOffsf);
 		bmP = bAdditive ? bmpGlare : bmpCorona;
 		memcpy (&trailColor, colorP, 3 * sizeof (float));
 		if (bAdditive) {
@@ -1719,22 +1713,8 @@ if (!gameData.objs.bIsSlowWeapon [objP->info.nId] && gameStates.app.bHaveExtraGa
 			trailColor.green *= fScale;
 			trailColor.blue *= fScale;
 			}
-		vOffsf = objP->info.position.mOrient [FVEC].ToFloat();
-		vTrailVerts [0] = objP->info.position.vPos.ToFloat();
-		vTrailVerts [0] += vOffsf * l;
-		vTrailVerts [2] = vTrailVerts [0] - vOffsf * 100;
-		G3TransformPoint (vTrailVerts [0], vTrailVerts [0], 0);
-		G3TransformPoint (vTrailVerts [2], vTrailVerts [2], 0);
-		vOffsf = vTrailVerts [2] - vTrailVerts [0];
-		vOffsf = vOffsf * (r * 0.04f);
-		vNormf = CFloatVector::Normal (vTrailVerts [0], vTrailVerts [2], vEye);
-		vNormf = vNormf * (r * 4);
-		vTrailVerts [1] = vTrailVerts [0] + vNormf;
-		vTrailVerts [1] += vOffsf;
-		vTrailVerts [3] = vTrailVerts [0] - vNormf;
-		vTrailVerts [3] += vOffsf;
 		if (bDepthSort) {
-			nTrailItem = TIAddPoly (NULL, NULL, bmP, vTrailVerts, 4, tTexCoordTrail, &trailColor, NULL, 1, 0, GL_QUADS, GL_CLAMP, bAdditive, -1);
+			RIAddPoly (NULL, NULL, bmP, vTrailVerts, 4, tTexCoordTrail, &trailColor, NULL, 1, 0, GL_QUADS, GL_CLAMP, bAdditive, -1);
 			}
 		else {
 			glEnable (GL_BLEND);
@@ -1742,26 +1722,26 @@ if (!gameData.objs.bIsSlowWeapon [objP->info.nId] && gameStates.app.bHaveExtraGa
 				glBlendFunc (GL_ONE, GL_ONE);
 			else
 				glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glColor4fv (reinterpret_cast<GLfloat*> (&trailColor));
+			glColor4fv ((GLfloat *) &trailColor);
 			bDrawArrays = G3EnableClientStates (1, 0, 0, GL_TEXTURE0);
 			bStencil = StencilOff ();
-			glDisable (GL_CULL_FACE);
+			glDisable (GL_CULL_FACE);	
 			glDepthMask (0);
 			glEnable (GL_TEXTURE_2D);
-			if (bmP->Bind (1, -1))
+			if (OglBindBmTex (bmP, 1, -1)) 
 				return;
-			bmP->Texture ()->Wrap (GL_CLAMP);
+			OglTexWrap (bmP->glTexture, GL_CLAMP);
 			if (bDrawArrays) {
 				glTexCoordPointer (2, GL_FLOAT, 0, tTexCoordTrail);
-				glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), vTrailVerts);
+				glVertexPointer (3, GL_FLOAT, sizeof (fVector), vTrailVerts);
 				glDrawArrays (GL_QUADS, 0, 4);
 				G3DisableClientStates (1, 0, 0, -1);
 				}
 			else {
 				glBegin (GL_QUADS);
 				for (i = 0; i < 4; i++) {
-					glTexCoord3fv (reinterpret_cast<GLfloat*> (tTexCoordTrail + i));
-					glVertex3fv (reinterpret_cast<GLfloat*> (vTrailVerts + i));
+					glTexCoord3fv ((GLfloat *) (tTexCoordTrail + i));
+					glVertex3fv ((GLfloat *) (vTrailVerts + i));
 					}
 				glEnd ();
 			if (bAdditive)
@@ -1771,7 +1751,7 @@ if (!gameData.objs.bIsSlowWeapon [objP->info.nId] && gameStates.app.bHaveExtraGa
 				glColor3d (1, 0, 0);
 				glBegin (GL_LINE_LOOP);
 				for (i = 0; i < 4; i++)
-					glVertex3fv (reinterpret_cast<GLfloat*> (vTrailVerts + i));
+					glVertex3fv ((GLfloat *) (vTrailVerts + i));
 				glEnd ();
 #endif
 				}
@@ -1782,59 +1762,59 @@ if (!gameData.objs.bIsSlowWeapon [objP->info.nId] && gameStates.app.bHaveExtraGa
 		}
 	RenderShockwave (objP);
 	}
-if ((objP->info.renderType != RT_POLYOBJ) || (objP->info.nId == FUSION_ID))
-	RenderWeaponCorona (objP, colorP, 0.5f, 0, 2.0f + X2F (d_rand() % (F1_0 / 8)), 1, 0, 1);
+if ((objP->renderType != RT_POLYOBJ) || (objP->id == FUSION_ID))
+	RenderWeaponCorona (objP, colorP, 0.5f, 0, 2, 1, 0, 1);
 else
-	RenderWeaponCorona (objP, colorP, 0.75f, 0, bGatling ? 1.0f : 2.0f, 0, 0, 0);
+	RenderWeaponCorona (objP, colorP, 0.75f, 0, 2, 0, 0, 0);
 }
 
 // -----------------------------------------------------------------------------
 
-void DrawDebrisCorona (CObject *objP)
+void DrawDebrisCorona (tObject *objP)
 {
 	static	tRgbaColorf	debrisGlow = {0.66f, 0, 0, 1};
 	static	tRgbaColorf	markerGlow = {0, 0.66f, 0, 1};
 	static	time_t t0 = 0;
 
-if (objP->info.nType == OBJ_MARKER)
+if (objP->nType == OBJ_MARKER)
 	RenderWeaponCorona (objP, &markerGlow, 0.75f, 0, 4, 1, 1, 0);
-#if DBG
-else if (objP->info.nType == OBJ_DEBRIS) {
+#ifdef _DEBUG
+else if (objP->nType == OBJ_DEBRIS) {
 #else
-else if ((objP->info.nType == OBJ_DEBRIS) && gameOpts->render.nDebrisLife) {
+else if ((objP->nType == OBJ_DEBRIS) && gameOpts->render.nDebrisLife) {
 #endif
-	float	h = (float) nDebrisLife [gameOpts->render.nDebrisLife] - X2F (objP->info.xLifeLeft);
+	float	h = (float) nDebrisLife [gameOpts->render.nDebrisLife] - f2fl (objP->lifeleft);
 	if (h < 0)
 		h = 0;
 	if (h < 10) {
 		h = (10 - h) / 20.0f;
 		if (gameStates.app.nSDLTicks - t0 > 50) {
 			t0 = gameStates.app.nSDLTicks;
-			debrisGlow.red = 0.5f + X2F (d_rand () % (F1_0 / 4));
-			debrisGlow.green = X2F (d_rand () % (F1_0 / 4));
+			debrisGlow.red = 0.5f + f2fl (d_rand () % (F1_0 / 4));
+			debrisGlow.green = f2fl (d_rand () % (F1_0 / 4));
 			}
-		RenderWeaponCorona (objP, &debrisGlow, h, 5 * objP->info.xSize, 1.5f, 1, 1, 0);
+		RenderWeaponCorona (objP, &debrisGlow, h, 5 * objP->size / 2, 1.5f, 1, 1, 0);
 		}
 	}
 }
 
 //------------------------------------------------------------------------------
 
-fix flashDist=F2X (.9);
+fix flashDist=fl2f (.9);
 
-//create flash for CPlayerData appearance
-void CreatePlayerAppearanceEffect (CObject *playerObjP)
+//create flash for tPlayer appearance
+void CreatePlayerAppearanceEffect (tObject *playerObjP)
 {
-	CFixVector	pos;
-	CObject		*effectObjP;
+	vmsVector	pos;
+	tObject		*effectObjP;
 
-if (playerObjP == gameData.objs.viewerP)
-	pos = playerObjP->info.position.vPos + playerObjP->info.position.mOrient [FVEC] * FixMul(playerObjP->info.xSize,flashDist);
+if (playerObjP == gameData.objs.viewer)
+	VmVecScaleAdd (&pos, &playerObjP->position.vPos, &playerObjP->position.mOrient.fVec, FixMul (playerObjP->size,flashDist));
 else
-	pos = playerObjP->info.position.vPos;
-effectObjP = ObjectCreateExplosion (playerObjP->info.nSegment, &pos, playerObjP->info.xSize, VCLIP_PLAYER_APPEARANCE);
+	pos = playerObjP->position.vPos;
+effectObjP = ObjectCreateExplosion (playerObjP->nSegment, &pos, playerObjP->size, VCLIP_PLAYER_APPEARANCE);
 if (effectObjP) {
-	effectObjP->info.position.mOrient = playerObjP->info.position.mOrient;
+	effectObjP->position.mOrient = playerObjP->position.mOrient;
 	if (gameData.eff.vClips [0][VCLIP_PLAYER_APPEARANCE].nSound > -1)
 		DigiLinkSoundToObject (gameData.eff.vClips [0][VCLIP_PLAYER_APPEARANCE].nSound, OBJ_IDX (effectObjP), 0, F1_0, SOUNDCLASS_PLAYER);
 	}

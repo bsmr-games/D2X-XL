@@ -1,3 +1,4 @@
+/* $Id: render.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -19,46 +20,47 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "transprender.h"
 #include "particles.h"
 
+typedef enum {
+	rtStaticVertLight,
+	rtComputeFaceLight,
+	rtSortFaces,
+	rtInitSegZRef,
+	rtSortSegZRef,
+	rtAnimateLightnings,
+	rtRenderLightnings,
+	rtUpdateParticles,
+	rtRenderParticles,
+	rtPolyModel
+} tRenderTask;
+
 typedef struct tRenderThreadInfo {
 	tRenderTask	nTask;
-	int					nMiddle;
-	int					nFaces;
-	int					zMax [2];
-	tLightning			*pl;
-	int					nLightnings;
-	CObject				*objP;
-	tG3Model				*pm;
-	tParticleEmitter	*particleEmitters [2];
-	int					nCurTime [2];
-	tThreadInfo			ti [2];
+	int			nMiddle;
+	int			nFaces;
+	int			zMax [2];
+	tLightning	*pl;
+	int			nLightnings;
+	tObject		*objP;
+	tG3Model		*pm;
+	tCloud		*clouds [2];
+	int			nCurTime [2];
+	tThreadInfo	ti [2];
 	} tRenderThreadInfo;
 
 extern tRenderThreadInfo tiRender;
+extern int bUseMultiThreading [];
 
-typedef struct tTranspItemThreadInfo {
-	tTranspItemData	itemData [2];
+typedef struct tRenderItemThreadInfo {
+	tRenderItemData	itemData [2];
 	tThreadInfo			ti [2];
-	} tTranspItemThreadInfo;
+	} tRenderItemThreadInfo;
 
-extern tTranspItemThreadInfo tiTranspItems;
-extern tThreadInfo tiEffects;
+extern tRenderItemThreadInfo tiRenderItems;
 
 int RunRenderThreads (int nTask);
 void StartRenderThreads (void);
 void EndRenderThreads (void);
-void StartTranspItemThread (void);
-void EndTranspItemThread (void);
-void WaitForRenderThreads (void);
-void StartEffectsThread (void);
-void EndEffectsThread (void);
-
-//------------------------------------------------------------------------------
-
-inline int RenderThreadsReady (void)
-{
-return !(gameStates.app.bMultiThreaded && (tiRender.ti [0].bExec || tiRender.ti [1].bExec));
-}
-
-//------------------------------------------------------------------------------
+void StartRenderItemThread (void);
+void EndRenderItemThread (void);
 
 #endif // _RENDERTHREADS_H

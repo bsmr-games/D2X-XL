@@ -22,7 +22,7 @@ static SDL_Surface *g_screen;
 #ifdef LANDSCAPE
 static SDL_Surface *real_screen;
 #endif
-static ubyte g_palette[768];
+static unsigned char g_palette[768];
 static int g_truecolor;
 
 static int doPlay(const char *filename);
@@ -68,12 +68,12 @@ void BlitRotatedSurface(SDL_Surface *from, SDL_Surface *to)
     int bpp = from->format->BytesPerPixel;
     int w=from->w, h=from->h, pitch=to->pitch;
     int i,j;
-    ubyte *pfrom, *pto, *to0;
+    Uint8 *pfrom, *pto, *to0;
 
     SDL_LockSurface(from);
     SDL_LockSurface(to);
-    pfrom=reinterpret_cast<ubyte*> (from->pixels);
-    to0=reinterpret_cast<ubyte*> (to->pixels) + pitch * (w - 1);
+    pfrom=(Uint8 *)from->pixels;
+    to0=(Uint8 *) to->pixels+pitch*(w-1);
     for (i=0; i<h; i++)
     {
         to0+=bpp;
@@ -81,10 +81,8 @@ void BlitRotatedSurface(SDL_Surface *from, SDL_Surface *to)
         for (j=0; j<w; j++)
         {
             if (bpp==1) *pto=*pfrom;
-            else if (bpp==2) 
-            	*reinterpret_cast<ushort*> (pto) = *reinterpret_cast<ushort*> (pfrom);
-            else if (bpp==4) 
-            	*reinterpret_cast<uint*> (pto) = *reinterpret_cast<uint*> (pfrom);
+            else if (bpp==2) *(Uint16 *)pto=*(Uint16 *)pfrom;
+            else if (bpp==4) *(Uint32 *)pto=*(Uint32 *)pfrom;
             else if (bpp==3)
                 {
                     pto[0]=pfrom[0];
@@ -101,21 +99,21 @@ void BlitRotatedSurface(SDL_Surface *from, SDL_Surface *to)
 #endif
 
 
-static uint fileRead(void *handle, void *buf, uint count)
+static unsigned int fileRead(void *handle, void *buf, unsigned int count)
 {
 	unsigned numread;
 
-	numread = fread(buf, 1, count, reinterpret_cast<FILE*> (handle));
+	numread = fread(buf, 1, count, (FILE *)handle);
 	return (numread == count);
 }
 
-static void showFrame(ubyte *buf, uint bufw, uint bufh,
-					  uint sx, uint sy,
-					  uint w, uint h,
-					  uint dstx, uint dsty)
+static void showFrame(unsigned char *buf, unsigned int bufw, unsigned int bufh,
+					  unsigned int sx, unsigned int sy,
+					  unsigned int w, unsigned int h,
+					  unsigned int dstx, unsigned int dsty)
 {
 	int i;
-	ubyte *pal;
+	unsigned char *pal;
 	SDL_Surface *sprite;
 	SDL_Rect srcRect, destRect;
 
@@ -132,7 +130,7 @@ static void showFrame(ubyte *buf, uint bufw, uint bufh,
 		{
 			sprite->format->palette->colors[i].r = (*pal++) << 2;
 			sprite->format->palette->colors[i].g = (*pal++) << 2;
-			sprite->format->palette->colors[i][BA] = (*pal++) << 2;
+			sprite->format->palette->colors[i].b = (*pal++) << 2;
 			sprite->format->palette->colors[i].unused = 0;
 		}
 	}
@@ -140,11 +138,11 @@ static void showFrame(ubyte *buf, uint bufw, uint bufh,
 	srcRect.x = sx;
 	srcRect.y = sy;
 	srcRect.w = w;
-	srcRect[HA] = h;
+	srcRect.h = h;
 	destRect.x = dstx;
 	destRect.y = dsty;
 	destRect.w = w;
-	destRect[HA] = h;
+	destRect.h = h;
 
 	SDL_BlitSurface(sprite, &srcRect, g_screen, &destRect);
 #ifdef LANDSCAPE
@@ -162,7 +160,7 @@ static void showFrame(ubyte *buf, uint bufw, uint bufh,
 	SDL_FreeSurface(sprite);
 }
 
-static void setPalette(ubyte *p, unsigned start, unsigned count)
+static void setPalette(unsigned char *p, unsigned start, unsigned count)
 {
 	//Set color 0 to be black
 	g_palette[0] = g_palette[1] = g_palette[2] = 0;
@@ -224,7 +222,7 @@ static int doPlay(const char *filename)
 	memset(g_palette, 0, 768);
 
 	MVE_sndInit(1);
-	MVE_memCallbacks(MVE_Alloc, MVE_Free);
+	MVE_memCallbacks(D2_ALLOC, D2_FREE);
 	MVE_ioCallbacks(fileRead);
 	MVE_sfCallbacks(showFrame);
 	MVE_palCallbacks(setPalette);

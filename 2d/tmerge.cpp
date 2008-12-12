@@ -1,3 +1,4 @@
+/* $Id: tmerge.c,v 1.4 2002/10/10 18:55:32 btb Exp $ */
 /*
  *
  * tmerge.c - C Texture merge routines for use with D1X

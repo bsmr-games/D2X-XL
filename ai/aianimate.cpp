@@ -1,3 +1,4 @@
+/* $Id: ai2.c,v 1.4 2003/10/04 03:14:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,61 +16,94 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: ai2.c,v 1.4 2003/10/04 03:14:47 btb Exp $";
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #include "inferno.h"
+#include "game.h"
+#include "mono.h"
+#include "3d.h"
+
+#include "u_mem.h"
+#include "object.h"
+#include "render.h"
 #include "error.h"
+#include "ai.h"
+#include "laser.h"
+#include "fvi.h"
+#include "polyobj.h"
+#include "bm.h"
+#include "weapon.h"
+#include "physics.h"
+#include "collide.h"
+#include "player.h"
+#include "wall.h"
+#include "vclip.h"
+#include "digi.h"
 #include "fireball.h"
+#include "morph.h"
+#include "effects.h"
+#include "timer.h"
+#include "sounds.h"
+#include "reactor.h"
+#include "multibot.h"
+#include "multi.h"
+#include "network.h"
+#include "loadgame.h"
+#include "key.h"
+#include "powerup.h"
+#include "gauges.h"
+#include "text.h"
 #include "gameseg.h"
+#include "escort.h"
 
 #ifdef EDITOR
 #include "editor/editor.h"
 #include "editor/kdefs.h"
 #endif
 //#define _DEBUG
-#if DBG
+#ifdef _DEBUG
 #include "string.h"
 #include <time.h>
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
-void AIIdleAnimation (CObject *objP)
+void AIIdleAnimation (tObject *objP)
 {
-#if DBG
-if (OBJ_IDX (objP) == nDbgObj)
-	nDbgObj = nDbgObj;
-#endif
 if (gameOpts->gameplay.bIdleAnims) {
 		int			h, i, j;
-		CSegment		*segP = gameData.segs.segments + objP->info.nSegment;
-		CFixVector	*vVertex, vVecToGoal, vGoal = gameData.objs.vRobotGoals [OBJ_IDX (objP)];
+		tSegment		*segP = gameData.segs.segments + objP->nSegment;
+		vmsVector	*vVertex, vVecToGoal, vGoal = gameData.objs.vRobotGoals [OBJ_IDX (objP)];
 
 	for (i = 0; i < 8; i++) {
 		vVertex = gameData.segs.vertices + segP->verts [i];
-		if ((vGoal[X] == (*vVertex)[X]) && (vGoal[Y] == (*vVertex)[Y]) && (vGoal[Z] == (*vVertex)[Z]))
+		if ((vGoal.p.x == vVertex->p.x) && (vGoal.p.y == vVertex->p.y) && (vGoal.p.z == vVertex->p.z))
 			break;
 		}
-	vVecToGoal = vGoal - objP->info.position.vPos; CFixVector::Normalize(vVecToGoal);
+	VmVecNormalize (VmVecSub (&vVecToGoal, &vGoal, &objP->position.vPos));
 	if (i == 8)
 		h = 1;
-	else if (AITurnTowardsVector (&vVecToGoal, objP, ROBOTINFO (objP->info.nId).turnTime [2]) < F1_0 - F1_0 / 5) {
-		if (CFixVector::Dot(vVecToGoal, objP->info.position.mOrient[FVEC]) > F1_0 - F1_0 / 5)
+	else if (AITurnTowardsVector (&vVecToGoal, objP, ROBOTINFO (objP->id).turnTime [2]) < F1_0 - F1_0 / 5) {
+		if (VmVecDot (&vVecToGoal, &objP->position.mOrient.fVec) > F1_0 - F1_0 / 5)
 			h = rand () % 2 == 0;
 		else
 			h = 0;
 		}
-	else if (MoveTowardsPoint (objP, &vGoal, objP->info.xSize * 3 / 2))
+	else if (MoveTowardsPoint (objP, &vGoal, objP->size * 3 / 2))
 		h = rand () % 8 == 0;
 	else
 		h = 1;
 	if (h && (rand () % 25 == 0)) {
 		j = rand () % 8;
 		if ((j == i) || (rand () % 3 == 0))
-			COMPUTE_SEGMENT_CENTER_I (&vGoal, objP->info.nSegment);
+			COMPUTE_SEGMENT_CENTER_I (&vGoal, objP->nSegment);
 		else
 			vGoal = gameData.segs.vertices [segP->verts [j]];
 		gameData.objs.vRobotGoals [OBJ_IDX (objP)] = vGoal;
@@ -84,19 +118,19 @@ int     nFlinchScale = 4;
 int     nAttackScale = 24;
 sbyte   xlatAnimation [] = {AS_REST, AS_REST, AS_ALERT, AS_ALERT, AS_FLINCH, AS_FIRE, AS_RECOIL, AS_REST};
 
-int DoSillyAnimation (CObject *objP)
+int DoSillyAnimation (tObject *objP)
 {
 	int				nObject = OBJ_IDX (objP);
 	tJointPos 		*jp_list;
-	int				robotType, nGun, robotState, nJointPositions;
+	int				robotType, nGun, robotState, num_joint_positions;
 	tPolyObjInfo	*polyObjInfo = &objP->rType.polyObjInfo;
-	tAIStaticInfo		*aiP = &objP->cType.aiInfo;
+	tAIStatic		*aiP = &objP->cType.aiInfo;
 	int				num_guns, at_goal;
 	int				attackType;
 	int				flinch_attack_scale = 1;
 
 	Assert (nObject >= 0);
-	robotType = objP->info.nId;
+	robotType = objP->id;
 	num_guns = ROBOTINFO (robotType).nGuns;
 	attackType = ROBOTINFO (robotType).attackType;
 
@@ -115,26 +149,26 @@ int DoSillyAnimation (CObject *objP)
 
 	at_goal = 1;
 	for (nGun=0; nGun <= num_guns; nGun++) {
-		int	nJoint;
+		int	joint;
 
-		nJointPositions = RobotGetAnimState (&jp_list, robotType, nGun, robotState);
+		num_joint_positions = robot_get_animState (&jp_list, robotType, nGun, robotState);
 
-		for (nJoint = 0; nJoint < nJointPositions; nJoint++) {
+		for (joint=0; joint<num_joint_positions; joint++) {
 			fix			delta_angle, delta_2;
-			int			jointnum = jp_list [nJoint].jointnum;
-			vmsAngVec	*jp = &jp_list [nJoint].angles;
+			int			jointnum = jp_list [joint].jointnum;
+			vmsAngVec	*jp = &jp_list [joint].angles;
 			vmsAngVec	*pObjP = &polyObjInfo->animAngles [jointnum];
 
 			if (jointnum >= gameData.models.polyModels [objP->rType.polyObjInfo.nModel].nModels) {
 				Int3 ();		// Contact Mike: incompatible data, illegal jointnum, problem in pof file?
 				continue;
 			}
-			if ((*jp)[PA] != (*pObjP)[PA]) {
+			if (jp->p != pObjP->p) {
 				if (nGun == 0)
 					at_goal = 0;
-				gameData.ai.localInfo [nObject].goalAngles [jointnum][PA] = (*jp)[PA];
+				gameData.ai.localInfo [nObject].goalAngles [jointnum].p = jp->p;
 
-				delta_angle = (*jp)[PA] - (*pObjP)[PA];
+				delta_angle = jp->p - pObjP->p;
 				if (delta_angle >= F1_0/2)
 					delta_2 = -ANIM_RATE;
 				else if (delta_angle >= 0)
@@ -147,15 +181,15 @@ int DoSillyAnimation (CObject *objP)
 				if (flinch_attack_scale != 1)
 					delta_2 *= flinch_attack_scale;
 
-				gameData.ai.localInfo [nObject].deltaAngles [jointnum][PA] = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
+				gameData.ai.localInfo [nObject].deltaAngles [jointnum].p = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
 			}
 
-			if ((*jp)[BA] != (*pObjP)[BA]) {
+			if (jp->b != pObjP->b) {
 				if (nGun == 0)
 					at_goal = 0;
-				gameData.ai.localInfo [nObject].goalAngles [jointnum][BA] = (*jp)[BA];
+				gameData.ai.localInfo [nObject].goalAngles [jointnum].b = jp->b;
 
-				delta_angle = (*jp)[BA] - (*pObjP)[BA];
+				delta_angle = jp->b - pObjP->b;
 				if (delta_angle >= F1_0/2)
 					delta_2 = -ANIM_RATE;
 				else if (delta_angle >= 0)
@@ -168,15 +202,15 @@ int DoSillyAnimation (CObject *objP)
 				if (flinch_attack_scale != 1)
 					delta_2 *= flinch_attack_scale;
 
-				gameData.ai.localInfo [nObject].deltaAngles [jointnum][BA] = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
+				gameData.ai.localInfo [nObject].deltaAngles [jointnum].b = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
 			}
 
-			if ((*jp)[HA] != (*pObjP)[HA]) {
+			if (jp->h != pObjP->h) {
 				if (nGun == 0)
 					at_goal = 0;
-				gameData.ai.localInfo [nObject].goalAngles [jointnum][HA] = (*jp)[HA];
+				gameData.ai.localInfo [nObject].goalAngles [jointnum].h = jp->h;
 
-				delta_angle = (*jp)[HA] - (*pObjP)[HA];
+				delta_angle = jp->h - pObjP->h;
 				if (delta_angle >= F1_0/2)
 					delta_2 = -ANIM_RATE;
 				else if (delta_angle >= 0)
@@ -189,13 +223,13 @@ int DoSillyAnimation (CObject *objP)
 				if (flinch_attack_scale != 1)
 					delta_2 *= flinch_attack_scale;
 
-				gameData.ai.localInfo [nObject].deltaAngles [jointnum][HA] = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
+				gameData.ai.localInfo [nObject].deltaAngles [jointnum].h = delta_2/DELTA_ANG_SCALE;		// complete revolutions per second
 			}
 		}
 
 		if (at_goal) {
-			//tAIStaticInfo	*aiP = &objP->cType.aiInfo;
-			tAILocalInfo		*ailP = gameData.ai.localInfo + OBJ_IDX (objP);
+			//tAIStatic	*aiP = &objP->cType.aiInfo;
+			tAILocal		*ailP = gameData.ai.localInfo + OBJ_IDX (objP);
 			ailP->achievedState [nGun] = ailP->goalState [nGun];
 			if (ailP->achievedState [nGun] == AIS_RECOVER)
 				ailP->goalState [nGun] = AIS_FIRE;
@@ -213,61 +247,61 @@ int DoSillyAnimation (CObject *objP)
 }
 
 //	------------------------------------------------------------------------------------------
-//	Move all sub-OBJECTS in an CObject towards their goals.
-//	Current orientation of CObject is at:	polyObjInfo.animAngles
-//	Goal orientation of CObject is at:		aiInfo.goalAngles
-//	Delta orientation of CObject is at:		aiInfo.deltaAngles
-void AIFrameAnimation (CObject *objP)
+//	Move all sub-gameData.objs.objects in an tObject towards their goals.
+//	Current orientation of tObject is at:	polyObjInfo.animAngles
+//	Goal orientation of tObject is at:		aiInfo.goalAngles
+//	Delta orientation of tObject is at:		aiInfo.deltaAngles
+void AIFrameAnimation (tObject *objP)
 {
 	int	nObject = OBJ_IDX (objP);
-	int	nJoint;
+	int	joint;
 	int	nJoints = gameData.models.polyModels [objP->rType.polyObjInfo.nModel].nModels;
 
-	for (nJoint=1; nJoint<nJoints; nJoint++) {
+	for (joint=1; joint<nJoints; joint++) {
 		fix			delta_to_goal;
 		fix			scaled_delta_angle;
-		vmsAngVec	*curangp = &objP->rType.polyObjInfo.animAngles [nJoint];
-		vmsAngVec	*goalangp = &gameData.ai.localInfo [nObject].goalAngles [nJoint];
-		vmsAngVec	*deltaangp = &gameData.ai.localInfo [nObject].deltaAngles [nJoint];
+		vmsAngVec	*curangp = &objP->rType.polyObjInfo.animAngles [joint];
+		vmsAngVec	*goalangp = &gameData.ai.localInfo [nObject].goalAngles [joint];
+		vmsAngVec	*deltaangp = &gameData.ai.localInfo [nObject].deltaAngles [joint];
 
 		Assert (nObject >= 0);
-		delta_to_goal = (*goalangp)[PA] - (*curangp)[PA];
+		delta_to_goal = goalangp->p - curangp->p;
 		if (delta_to_goal > 32767)
 			delta_to_goal = delta_to_goal - 65536;
 		else if (delta_to_goal < -32767)
 			delta_to_goal = 65536 + delta_to_goal;
 
 		if (delta_to_goal) {
-			scaled_delta_angle = FixMul ((*deltaangp)[PA], gameData.time.xFrame) * DELTA_ANG_SCALE;
-			(*curangp)[PA] += (fixang) scaled_delta_angle;
+			scaled_delta_angle = FixMul (deltaangp->p, gameData.time.xFrame) * DELTA_ANG_SCALE;
+			curangp->p += (fixang) scaled_delta_angle;
 			if (abs (delta_to_goal) < abs (scaled_delta_angle))
-				(*curangp)[PA] = (*goalangp)[PA];
+				curangp->p = goalangp->p;
 		}
 
-		delta_to_goal = (*goalangp)[BA] - (*curangp)[BA];
+		delta_to_goal = goalangp->b - curangp->b;
 		if (delta_to_goal > 32767)
 			delta_to_goal = delta_to_goal - 65536;
 		else if (delta_to_goal < -32767)
 			delta_to_goal = 65536 + delta_to_goal;
 
 		if (delta_to_goal) {
-			scaled_delta_angle = FixMul ((*deltaangp)[BA], gameData.time.xFrame) * DELTA_ANG_SCALE;
-			(*curangp)[BA] += (fixang) scaled_delta_angle;
+			scaled_delta_angle = FixMul (deltaangp->b, gameData.time.xFrame) * DELTA_ANG_SCALE;
+			curangp->b += (fixang) scaled_delta_angle;
 			if (abs (delta_to_goal) < abs (scaled_delta_angle))
-				(*curangp)[BA] = (*goalangp)[BA];
+				curangp->b = goalangp->b;
 		}
 
-		delta_to_goal = (*goalangp)[HA] - (*curangp)[HA];
+		delta_to_goal = goalangp->h - curangp->h;
 		if (delta_to_goal > 32767)
 			delta_to_goal = delta_to_goal - 65536;
 		else if (delta_to_goal < -32767)
 			delta_to_goal = 65536 + delta_to_goal;
 
 		if (delta_to_goal) {
-			scaled_delta_angle = FixMul ((*deltaangp)[HA], gameData.time.xFrame) * DELTA_ANG_SCALE;
-			(*curangp)[HA] += (fixang) scaled_delta_angle;
+			scaled_delta_angle = FixMul (deltaangp->h, gameData.time.xFrame) * DELTA_ANG_SCALE;
+			curangp->h += (fixang) scaled_delta_angle;
 			if (abs (delta_to_goal) < abs (scaled_delta_angle))
-				(*curangp)[HA] = (*goalangp)[HA];
+				curangp->h = goalangp->h;
 		}
 
 	}
@@ -276,30 +310,30 @@ void AIFrameAnimation (CObject *objP)
 
 //	----------------------------------------------------------------------
 //	General purpose robot-dies-with-death-roll-and-groan code.
-//	Return true if CObject just died.
+//	Return true if tObject just died.
 //	scale: F1_0*4 for boss, much smaller for much smaller guys
-int DoRobotDyingFrame (CObject *objP, fix StartTime, fix xRollDuration, sbyte *bDyingSoundPlaying, short deathSound, fix xExplScale, fix xSoundScale)
+int DoRobotDyingFrame (tObject *objP, fix StartTime, fix xRollDuration, sbyte *bDyingSoundPlaying, short deathSound, fix xExplScale, fix xSoundScale)
 {
 	fix	xRollVal, temp;
 	fix	xSoundDuration;
-	CDigiSound *soundP;
+	tDigiSound *soundP;
 
 if (!xRollDuration)
 	xRollDuration = F1_0/4;
 
 xRollVal = FixDiv (gameData.time.xGame - StartTime, xRollDuration);
 
-FixSinCos (FixMul (xRollVal, xRollVal), &temp, &objP->mType.physInfo.rotVel[X]);
-FixSinCos (xRollVal, &temp, &objP->mType.physInfo.rotVel[Y]);
-FixSinCos (xRollVal-F1_0/8, &temp, &objP->mType.physInfo.rotVel[Z]);
+FixSinCos (FixMul (xRollVal, xRollVal), &temp, &objP->mType.physInfo.rotVel.p.x);
+FixSinCos (xRollVal, &temp, &objP->mType.physInfo.rotVel.p.y);
+FixSinCos (xRollVal-F1_0/8, &temp, &objP->mType.physInfo.rotVel.p.z);
 
 temp = gameData.time.xGame - StartTime;
-objP->mType.physInfo.rotVel[X] = temp / 9;
-objP->mType.physInfo.rotVel[Y] = temp / 5;
-objP->mType.physInfo.rotVel[Z] = temp / 7;
+objP->mType.physInfo.rotVel.p.x = temp / 9;
+objP->mType.physInfo.rotVel.p.y = temp / 5;
+objP->mType.physInfo.rotVel.p.z = temp / 7;
 
 if (gameOpts->sound.digiSampleRate) {
-	soundP = gameData.pig.sound.soundP + DigiXlatSound (deathSound);
+	soundP = gameData.pig.sound.pSounds + DigiXlatSound (deathSound);
 	xSoundDuration = FixDiv (soundP->nLength [soundP->bHires], gameOpts->sound.digiSampleRate);
 	}
 else
@@ -324,7 +358,7 @@ return (StartTime + xRollDuration < gameData.time.xGame);
 
 //	----------------------------------------------------------------------
 
-void StartRobotDeathSequence (CObject *objP)
+void StartRobotDeathSequence (tObject *objP)
 {
 objP->cType.aiInfo.xDyingStartTime = gameData.time.xGame;
 objP->cType.aiInfo.bDyingSoundPlaying = 0;
@@ -334,17 +368,15 @@ objP->cType.aiInfo.SKIP_AI_COUNT = 0;
 
 //	----------------------------------------------------------------------
 
-int DoAnyRobotDyingFrame (CObject *objP)
+int DoAnyRobotDyingFrame (tObject *objP)
 {
 if (objP->cType.aiInfo.xDyingStartTime) {
-	int bDeathRoll = ROBOTINFO (objP->info.nId).bDeathRoll;
-	int rval = DoRobotDyingFrame (objP, objP->cType.aiInfo.xDyingStartTime, min (bDeathRoll / 2 + 1, 6) * F1_0, 
-											&objP->cType.aiInfo.bDyingSoundPlaying, ROBOTINFO (objP->info.nId).deathrollSound, 
-											bDeathRoll * F1_0 / 8, bDeathRoll * F1_0 / 2);
+	int bDeathRoll = ROBOTINFO (objP->id).bDeathRoll;
+	int rval = DoRobotDyingFrame (objP, objP->cType.aiInfo.xDyingStartTime, min (bDeathRoll/2+1,6)*F1_0, &objP->cType.aiInfo.bDyingSoundPlaying, ROBOTINFO (objP->id).deathrollSound, bDeathRoll*F1_0/8, bDeathRoll*F1_0/2); 
 	if (rval) {
 		ExplodeObject (objP, F1_0/4);
 		DigiLinkSoundToObject2 (SOUND_BADASS_EXPLOSION, OBJ_IDX (objP), 0, F2_0, F1_0*512, SOUNDCLASS_EXPLOSION);
-		if ((gameData.missions.nCurrentLevel < 0) && (ROBOTINFO (objP->info.nId).thief))
+		if ((gameData.missions.nCurrentLevel < 0) && (ROBOTINFO (objP->id).thief))
 			RecreateThief (objP);
 		}
 	return 1;

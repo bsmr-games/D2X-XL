@@ -1,3 +1,4 @@
+/* $Id: automap.h,v 1.4 2003/11/15 00:36:54 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -29,7 +30,7 @@ return IsMultiGame ? IsCoopGame ? MAX_DROP_COOP : MAX_DROP_MULTI : MAX_DROP_SING
 
 // -------------------------------------------------------------
 
-void DropBuddyMarker (CObject *objP);
+void DropBuddyMarker (tObject *objP);
 void DropSpawnMarker (void);
 void DrawMarkers (void);
 void DeleteMarker (int bForce);
@@ -39,9 +40,9 @@ int LastMarker (void);
 void InitMarkerInput (void);
 void MarkerInputMessage (int key);
 int SpawnMarkerIndex (int nPlayer);
-CObject *SpawnMarkerObject (int nPlayer);
-int IsSpawnMarkerObject (CObject *objP);
-int MoveSpawnMarker (tTransformation *posP, short nSegment);
+tObject *SpawnMarkerObject (int nPlayer);
+int IsSpawnMarkerObject (tObject *objP);
+int MoveSpawnMarker (tPosition *posP, short nSegment);
 
 // -------------------------------------------------------------
 

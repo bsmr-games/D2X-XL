@@ -1,3 +1,4 @@
+/* $Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -12,9 +13,21 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
 #ifdef HAVE_CONFIG_H
-#	include <conf.h>
+#include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $";
+#endif
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#	include <winsock.h>
+#else
+#	include <sys/socket.h>
+#endif
 #ifndef _WIN32
 #	include <arpa/inet.h>
 #	include <netinet/in.h> /* for htons & co. */
@@ -22,15 +35,65 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "strutil.h"
+#include "args.h"
+#include "timer.h"
+#include "mono.h"
 #include "ipx.h"
+#include "newmenu.h"
+#include "key.h"
+#include "gauges.h"
+#include "object.h"
+#include "objsmoke.h"
 #include "error.h"
+#include "laser.h"
+#include "gamesave.h"
+#include "gamemine.h"
+#include "player.h"
+#include "loadgame.h"
+#include "fireball.h"
 #include "network.h"
 #include "network_lib.h"
+#include "game.h"
+#include "multi.h"
+#include "endlevel.h"
+#include "palette.h"
+#include "reactor.h"
+#include "powerup.h"
+#include "menu.h"
+#include "sounds.h"
+#include "text.h"
+#include "highscores.h"
+#include "newdemo.h"
+#include "multibot.h"
+#include "wall.h"
+#include "bm.h"
+#include "effects.h"
+#include "physics.h"
+#include "switch.h"
+#include "automap.h"
+#include "byteswap.h"
 #include "netmisc.h"
+#include "kconfig.h"
+#include "playsave.h"
+#include "cfile.h"
 #include "autodl.h"
 #include "tracker.h"
-#include "text.h"
-#include "monsterball.h"
+#include "newmenu.h"
+#include "gamefont.h"
+#include "gameseg.h"
+#include "hudmsg.h"
+#include "vers_id.h"
+#include "netmenu.h"
+#include "banlist.h"
+#include "collide.h"
+#include "ipx.h"
+#ifdef _WIN32
+#	include "win32/include/ipx_udp.h"
+#	include "win32/include/ipx_drv.h"
+#else
+#	include "linux/include/ipx_udp.h"
+#	include "linux/include/ipx_drv.h"
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -39,14 +102,14 @@ void NetworkProcessMonitorVector (int vector)
 	int		i, j;
 	int		tm, ec, bm;
 	int		count = 0;
-	CSegment	*segP = gameData.segs.segments.Buffer ();
+	tSegment	*segP = gameData.segs.segments ;
 	tSide		*sideP;
 
 for (i = 0; i <= gameData.segs.nLastSegment; i++, segP++) {
 	for (j = 0, sideP = segP->sides; j < 6; j++, sideP++) {
 		if (((tm = sideP->nOvlTex) != 0) &&
-				((ec = gameData.pig.tex.tMapInfoP [tm].nEffectClip) != -1) &&
-				((bm = gameData.eff.effectP [ec].nDestBm) != -1)) {
+				((ec = gameData.pig.tex.pTMapInfo [tm].nEffectClip) != -1) &&
+				((bm = gameData.eff.pEffects [ec].nDestBm) != -1)) {
 			if (vector & (1 << count))
 				sideP->nOvlTex = bm;
 			count++;
@@ -61,7 +124,7 @@ for (i = 0; i <= gameData.segs.nLastSegment; i++, segP++) {
 void NetworkProcessGameInfo (ubyte *dataP)
 {
 	int i;
-	tNetgameInfo *newGame = reinterpret_cast<tNetgameInfo*> (dataP);
+	tNetgameInfo *newGame = (tNetgameInfo *) dataP;
 
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 	tNetgameInfo tmp_info;
@@ -94,7 +157,7 @@ if (i == networkData.nActiveGames) {
 networkData.bGamesChanged = 1;
 // MWA  memcpy (&activeNetGames [i], dataP, sizeof (tNetgameInfo);
 nLastNetGameUpdate [i] = SDL_GetTicks ();
-memcpy (activeNetGames + i, reinterpret_cast<ubyte*> (newGame), sizeof (tNetgameInfo));
+memcpy (activeNetGames + i, (ubyte *) newGame, sizeof (tNetgameInfo));
 memcpy (activeNetPlayers + i, tmpPlayersInfo, sizeof (tAllNetPlayersInfo));
 if (networkData.nSecurityCheck)
 #if SECURITY_CHECK
@@ -114,18 +177,18 @@ void NetworkProcessLiteInfo (ubyte *dataP)
 {
 	int				i;
 	tNetgameInfo	*actGameP;
-	tLiteInfo		*newInfo = reinterpret_cast<tLiteInfo*> (dataP);
+	tLiteInfo		*newInfo = (tLiteInfo *)dataP;
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 	tLiteInfo		tmp_info;
 
 if (gameStates.multi.nGameType >= IPX_GAME) {
-	ReceiveNetGamePacket (dataP, reinterpret_cast<tNetgameInfo*> (&tmp_info), 1);
+	ReceiveNetGamePacket (dataP, (tNetgameInfo *)&tmp_info, 1);
 	newInfo = &tmp_info;
 	}
 #endif
 
 networkData.bGamesChanged = 1;
-i = FindActiveNetGame (reinterpret_cast<tNetgameInfo*> (newInfo)->szGameName, reinterpret_cast<tNetgameInfo*> (newInfo)->nSecurity);
+i = FindActiveNetGame (((tNetgameInfo *) newInfo)->szGameName, ((tNetgameInfo *) newInfo)->nSecurity);
 if (i == MAX_ACTIVE_NETGAMES)
 	return;
 if (i == networkData.nActiveGames) {
@@ -134,7 +197,7 @@ if (i == networkData.nActiveGames) {
 	networkData.nActiveGames++;
 	}
 actGameP = activeNetGames + i;
-memcpy (actGameP, reinterpret_cast<ubyte*> (newInfo), sizeof (tLiteInfo));
+memcpy (actGameP, (ubyte *) newInfo, sizeof (tLiteInfo));
 nLastNetGameUpdate [i] = SDL_GetTicks ();
 // See if this is really a Hoard/Entropy/Monsterball game
 // If so, adjust all the dataP accordingly
@@ -229,9 +292,9 @@ void NetworkProcessPData (char *dataP)
 {
 Assert (gameData.app.nGameMode & GM_NETWORK);
 if (netGame.bShortPackets)
-	NetworkReadPDataShortPacket (reinterpret_cast<tFrameInfoShort*> (dataP));
+	NetworkReadPDataShortPacket ((tFrameInfoShort *)dataP);
 else
-	NetworkReadPDataPacket (reinterpret_cast<tFrameInfo*> (dataP));
+	NetworkReadPDataPacket ((tFrameInfo *)dataP);
 }
 
 //------------------------------------------------------------------------------
@@ -259,11 +322,11 @@ if (!gameData.multigame.bQuitGame && (nPlayer >= gameData.multiplayer.nPlayers))
 if (gameStates.app.bEndLevelSequence || (networkData.nStatus == NETSTAT_ENDLEVEL)) {
 	int old_Endlevel_sequence = gameStates.app.bEndLevelSequence;
 	gameStates.app.bEndLevelSequence = 1;
-	MultiProcessBigData (reinterpret_cast<char*> (dataP + 2), len - 2);
+	MultiProcessBigData ((char *) dataP+2, len-2);
 	gameStates.app.bEndLevelSequence = old_Endlevel_sequence;
 	return;
 	}
-MultiProcessBigData (reinterpret_cast<char*> (dataP + 2), len - 2);
+MultiProcessBigData ((char *) dataP+2, len-2);
  }
 
 //------------------------------------------------------------------------------
@@ -274,10 +337,10 @@ void NetworkProcessNamesReturn (char *dataP)
    char mtext [15][50], temp [50];
 	int i, l, nInMenu, gnum, num = 0, count = 5, nPlayers;
    
-if (networkData.nNamesInfoSecurity != *reinterpret_cast<int*> (dataP + 1)) {
+if (networkData.nNamesInfoSecurity != (*(int *) (dataP+1))) {
 #if 1			
   con_printf (CONDBG, "Bad security on names return!\n");
-  con_printf (CONDBG, "NIS=%d dataP=%d\n", networkData.nNamesInfoSecurity, *reinterpret_cast<int*> (dataP + 1));
+  con_printf (CONDBG, "NIS=%d dataP=%d\n", networkData.nNamesInfoSecurity, (*(int *) (dataP+1)));
 #endif
 	return;
 	}
@@ -292,7 +355,7 @@ if (nPlayers == 255) {
 Assert ((nPlayers > 0) && (nPlayers < MAX_NUM_NET_PLAYERS));
 memset (m, 0, sizeof (m));
 for (i = 0; i < 12; i++) {
-	m [i].text = reinterpret_cast<char*> (mtext + i);
+	m [i].text = (char *)(mtext + i);
 	m [i].nType = NM_TYPE_TEXT;	
 	}
 #if SECURITY_CHECK
@@ -343,13 +406,16 @@ void NetworkProcessMissingObjFrames (char *dataP)
 {
 	tMissingObjFrames	missingObjFrames;
 
-ReceiveMissingObjFramesPacket (reinterpret_cast<ubyte*> (dataP), &missingObjFrames);
-tNetworkSyncData *syncP = FindJoiningPlayer (missingObjFrames.nPlayer);
-if (syncP) {
-	syncP->objs.missingFrames = missingObjFrames;
-	syncP->objs.nCurrent = -1;				
-	syncP->nState = 3;
+ReceiveMissingObjFramesPacket (dataP, &missingObjFrames);
+if (!networkData.playerRejoining.player.connected)
+	networkData.playerRejoining.player.connected = missingObjFrames.nPlayer;
+if (missingObjFrames.nPlayer == networkData.playerRejoining.player.connected) {
+	networkData.missingObjFrames = missingObjFrames;
+	networkData.nSentObjs = -1;				
+	networkData.nSyncState = 3;
 	}
+else
+	networkData.missingObjFrames.nFrame = 0;
 }
 
 //------------------------------------------------------------------------------

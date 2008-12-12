@@ -1,3 +1,4 @@
+/* $Id: ai.c,v 1.7 2003/10/04 02:58:23 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -20,7 +21,41 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <time.h>
 
 #include "inferno.h"
+#include "game.h"
+#include "mono.h"
+#include "3d.h"
+
+#include "object.h"
+#include "render.h"
 #include "error.h"
+#include "ai.h"
+#include "laser.h"
+#include "fvi.h"
+#include "polyobj.h"
+#include "bm.h"
+#include "weapon.h"
+#include "physics.h"
+#include "collide.h"
+#include "player.h"
+#include "wall.h"
+#include "vclip.h"
+#include "fireball.h"
+#include "morph.h"
+#include "effects.h"
+#include "timer.h"
+#include "sounds.h"
+#include "reactor.h"
+#include "multibot.h"
+#include "multi.h"
+#include "network.h"
+#include "loadgame.h"
+#include "key.h"
+#include "powerup.h"
+#include "gauges.h"
+#include "text.h"
+#include "fuelcen.h"
+#include "controls.h"
+#include "input.h"
 #include "gameseg.h"
 
 #ifdef EDITOR
@@ -29,32 +64,32 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "string.h"
 //#define _DEBUG
-#if DBG
+#ifdef _DEBUG
 #include <time.h>
 #endif
 
 // --------------------------------------------------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Make a robot near the CPlayerData snipe.
+// Make a robot near the tPlayer snipe.
 #define	MNRS_SEG_MAX	70
 
 void MakeNearbyRobotSnipe (void)
 {
-	CObject		*objP;
+	tObject		*objP;
 	tRobotInfo	*botInfoP;
 	short			bfsList [MNRS_SEG_MAX];
 	int			nObject, nBfsLength, i;
 
-CreateBfsList (OBJSEG (gameData.objs.consoleP), bfsList, &nBfsLength, MNRS_SEG_MAX);
+CreateBfsList (OBJSEG (gameData.objs.console), bfsList, &nBfsLength, MNRS_SEG_MAX);
 for (i = 0; i < nBfsLength; i++) {
-	nObject = SEGMENTS [bfsList [i]].objects;
-	//Assert (nObject >= 0);
+	nObject = gameData.segs.segments [bfsList [i]].objects;
+	Assert (nObject >= 0);
 	while (nObject != -1) {
-		objP = OBJECTS + nObject;
-		botInfoP = &ROBOTINFO (objP->info.nId);
+		objP = gameData.objs.objects + nObject;
+		botInfoP = &ROBOTINFO (objP->id);
 
-		if ((objP->info.nType == OBJ_ROBOT) && (objP->info.nId != ROBOT_BRAIN) &&
+		if ((objP->nType == OBJ_ROBOT) && (objP->id != ROBOT_BRAIN) &&
 			 (objP->cType.aiInfo.behavior != AIB_SNIPE) && 
 			 (objP->cType.aiInfo.behavior != AIB_RUN_FROM) && 
 			 !botInfoP->bossFlag && 
@@ -63,21 +98,21 @@ for (i = 0; i < nBfsLength; i++) {
 			gameData.ai.localInfo [nObject].mode = AIM_SNIPE_ATTACK;
 			return;
 			}
-		nObject = objP->info.nNextInSeg;
+		nObject = objP->next;
 		}
 	}
 }
 
 //	-------------------------------------------------------------------------------------------------
 
-void DoSnipeWait (CObject *objP, tAILocalInfo *ailP)
+void DoSnipeWait (tObject *objP, tAILocal *ailP)
 {
 	fix xConnectedDist;
 
 if ((gameData.ai.xDistToPlayer > F1_0 * 50) && (ailP->nextActionTime > 0))
 	return;
 ailP->nextActionTime = SNIPE_WAIT_TIME;
-xConnectedDist = FindConnectedDistance (&objP->info.position.vPos, objP->info.nSegment, &gameData.ai.vBelievedPlayerPos, 
+xConnectedDist = FindConnectedDistance (&objP->position.vPos, objP->nSegment, &gameData.ai.vBelievedPlayerPos, 
 														 gameData.ai.nBelievedPlayerSeg, 30, WID_FLY_FLAG, 0);
 if (xConnectedDist < MAX_SNIPE_DIST) {
 	CreatePathToPlayer (objP, 30, 1);
@@ -88,7 +123,7 @@ if (xConnectedDist < MAX_SNIPE_DIST) {
 
 //	-------------------------------------------------------------------------------------------------
 
-void DoSnipeAttack (CObject *objP, tAILocalInfo *ailP)
+void DoSnipeAttack (tObject *objP, tAILocal *ailP)
 {
 if (ailP->nextActionTime < 0) {
 	ailP->mode = AIM_SNIPE_RETREAT;
@@ -107,11 +142,11 @@ else {
 
 //	-------------------------------------------------------------------------------------------------
 
-void DoSnipeFire (CObject *objP, tAILocalInfo *ailP)
+void DoSnipeFire (tObject *objP, tAILocal *ailP)
 {
 if (ailP->nextActionTime < 0) {
-	tAIStaticInfo	*aiP = &objP->cType.aiInfo;
-	CreateNSegmentPath (objP, 10 + d_rand () / 2048, OBJSEG (gameData.objs.consoleP));
+	tAIStatic	*aiP = &objP->cType.aiInfo;
+	CreateNSegmentPath (objP, 10 + d_rand () / 2048, OBJSEG (gameData.objs.console));
 	aiP->nPathLength = SmoothPath (objP, &gameData.ai.pointSegs [aiP->nHideIndex], aiP->nPathLength);
 	if (d_rand () < 8192)
 		ailP->mode = AIM_SNIPE_RETREAT_BACKWARDS;
@@ -123,7 +158,7 @@ if (ailP->nextActionTime < 0) {
 
 //	-------------------------------------------------------------------------------------------------
 
-void DoSnipeRetreat (CObject *objP, tAILocalInfo *ailP)
+void DoSnipeRetreat (tObject *objP, tAILocal *ailP)
 {
 if (ailP->nextActionTime < 0) {
 	ailP->mode = AIM_SNIPE_WAIT;
@@ -141,19 +176,19 @@ else {
 
 //	-------------------------------------------------------------------------------------------------
 
-#if defined(_WIN32) && !DBG
-typedef void __fastcall tAISnipeHandler (CObject *, tAILocalInfo *);
+#ifdef _WIN32
+typedef void __fastcall tAISnipeHandler (tObject *, tAILocal *);
 #else
-typedef void tAISnipeHandler (CObject *, tAILocalInfo *);
+typedef void tAISnipeHandler (tObject *, tAILocal *);
 #endif
 typedef tAISnipeHandler *pAISnipeHandler;
 
 pAISnipeHandler aiSnipeHandlers [] = {DoSnipeAttack, DoSnipeFire, DoSnipeRetreat, DoSnipeRetreat, DoSnipeWait};
 
-void DoSnipeFrame (CObject *objP)
+void DoSnipeFrame (tObject *objP)
 {
 if (gameData.ai.xDistToPlayer <= MAX_SNIPE_DIST) {
-	tAILocalInfo		*ailP = gameData.ai.localInfo + OBJ_IDX (objP);
+	tAILocal		*ailP = gameData.ai.localInfo + OBJ_IDX (objP);
 	int			i = ailP->mode;
 
 	if ((i >= AIM_SNIPE_ATTACK) && (i <= AIM_SNIPE_WAIT))

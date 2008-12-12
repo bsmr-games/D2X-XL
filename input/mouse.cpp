@@ -1,3 +1,4 @@
+/* $Id: mouse.c,v 1.8 2003/11/27 09:24:43 btb Exp $ */
 /*
  *
  * SDL mouse driver.

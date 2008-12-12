@@ -1,3 +1,4 @@
+/* $Id: render.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -16,34 +17,11 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 
-#define MAX_PATH_POINTS		20
+extern tFlightPath externalView;
 
-typedef struct tPathPoint {
-	CFixVector			vPos;
-	CFixVector			vOrgPos;
-	vmsMatrix			mOrient;
-} tPathPoint;
-
-class CFlightPath {
-	public:
-		CArray<tPathPoint>	m_path; // [MAX_PATH_POINTS];
-		tPathPoint*				m_posP;
-		int						m_nSize;
-		int						m_nStart;
-		int						m_nEnd;
-		time_t					m_tRefresh;
-		time_t					m_tUpdate;
-	public:
-		CFlightPath ();
-		void SetPoint (CObject *objP);
-		tPathPoint *GetPoint (void);
-		void GetViewPoint (void);
-		void Reset (int nSize, int nFPS);
-		tPathPoint* GetPos (void) { return m_posP; }
-		inline tPathPoint* Pos (void) { return m_posP; }
-		inline void SetPos (tPathPoint *posP) { m_posP = posP; }
-};
-
-extern CFlightPath externalView;
+void ResetFlightPath (tFlightPath *pPath, int nSize, int nFPS);
+void SetPathPoint (tFlightPath *pPath, tObject *objP);
+tPathPoint *GetPathPoint (tFlightPath *pPath);
+void GetViewPoint (void);
 
 #endif /* _FLIGHTPATH_H */

@@ -1,8 +1,6 @@
 #ifndef _CREATEMESH_H
 #define _CREATEMESH_H
 
-#include "carray.h"
-
 namespace mesh {
 
 	typedef struct tEdge {
@@ -26,15 +24,15 @@ namespace mesh {
 
 class CTriMeshBuilder {
 	private:
-		CArray<tEdge>		m_edges;
-		CArray<tTriangle>	m_triangles;
-		int					m_nEdges;
-		int					m_nFreeEdges;
-		int					m_nTriangles;
-		int					m_nMaxTriangles;
-		int					m_nMaxEdges;
-		int					m_nVertices;
-		int					m_nTris;
+		tEdge			*m_edges;
+		tTriangle	*m_triangles;
+		int			m_nEdges;
+		int			m_nFreeEdges;
+		int			m_nTriangles;
+		int			m_nMaxTriangles;
+		int			m_nMaxEdges;
+		int			m_nVertices;
+		int			m_nTris;
 
 	private:
 		void FreeData (void);
@@ -68,7 +66,7 @@ class CTriMeshBuilder {
 
 class CQuadMeshBuilder {
 	private:
-		tFace			*m_faceP;
+		grsFace			*m_faceP;
 		grsTriangle		*m_triP;
 		fVector3			*m_vertexP;
 		fVector3			*m_normalP;
@@ -77,7 +75,7 @@ class CQuadMeshBuilder {
 		tTexCoord2f		*m_lMapTexCoordP;
 		tRgbaColorf		*m_faceColorP;
 		tFaceColor		*m_colorP;
-		CSegment			*m_segP;
+		tSegment			*m_segP;
 		tSegFaces		*m_segFaceP;
 		tSide				*m_sideP;
 
@@ -97,21 +95,18 @@ class CQuadMeshBuilder {
 		void InitColoredFace (short nSegment);
 		void SplitIn2Tris (void);
 		void SplitIn4Tris (void);
-		void BuildSlidingFaceList (void);
 		int IsBigFace (short *m_sideVerts);
 		fVector3 *SetTriNormals (grsTriangle *triP, fVector3 *m_normalP);
 
 	public:
 		CQuadMeshBuilder (void) {};
 		~CQuadMeshBuilder (void) {};
-		void RebuildLightmapTexCoord (void);
+		void RebuildLightMapTexCoord (void);
 		int Build (int nLevel, bool bRebuild = false);
-		bool BuildVBOs ();
-		void DestroyVBOs ();
 	};
 
 }
 
-extern mesh::CQuadMeshBuilder meshBuilder;
+extern mesh::CQuadMeshBuilder quadMeshBuilder;
 
 #endif //_CREATEMESH_H

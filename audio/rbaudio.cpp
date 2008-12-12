@@ -1,3 +1,4 @@
+/* $Id: rbaudio.c,v 1.9 2004/04/14 08:32:49 btb Exp $ */
 /*
  *
  * SDL CD Audio functions
@@ -24,9 +25,11 @@
 #endif
 
 #include "inferno.h"
+#include "pstypes.h"
 #include "strutil.h"
 #include "error.h"
 #include "args.h"
+#include "cfile.h"
 #include "rbaudio.h"
 #include "text.h"
 
@@ -222,7 +225,7 @@ static int cddb_sum(int n)
 }
 
 
-uint RBAGetDiscID()
+unsigned int RBAGetDiscID()
 {
 	int i, t = 0, n = 0;
 

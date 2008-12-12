@@ -1,3 +1,4 @@
+/* $Id: gamecntl.c, v 1.23 2003/11/07 06:30:06 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -40,7 +41,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "escort.h"
 #include "switch.h"
 #include "key.h"
-#include "crypt.h"
 #include "slowmotion.h"
 
 //	Cheat functions ------------------------------------------------------------
@@ -54,7 +54,7 @@ char szCheatBuf[] = "AAAAAAAAAAAAAAA";
 
 void DoCheatPenalty ()
 {
-#if !DBG
+#ifndef _DEBUG
 DigiPlaySampleClass (SOUND_CHEATER, NULL, F1_0, SOUNDCLASS_PLAYER);
 gameStates.app.cheats.bEnabled = 1;
 LOCALPLAYER.score = 0;
@@ -66,9 +66,9 @@ LOCALPLAYER.score = 0;
 void MultiDoCheatPenalty ()
 {
 DoCheatPenalty ();
-LOCALPLAYER.shields = I2X (1);
+LOCALPLAYER.shields = i2f (1);
 MultiSendShields ();
-LOCALPLAYER.energy = I2X (1);
+LOCALPLAYER.energy = i2f (1);
 if (gameData.app.nGameMode & GM_MULTI) {
 	gameData.multigame.msg.nReceiver = 100;		// Send to everyone...
 	sprintf (gameData.multigame.msg.szMsg, TXT_CRIPPLED, LOCALPLAYER.callsign);
@@ -94,7 +94,7 @@ return 0;
 
 //------------------------------------------------------------------------------
 
-int MenuGetValues (const char *pszMsg, int *valueP, int nValues)
+int MenuGetValues (char *pszMsg, int *valueP, int nValues)
 {
 	tMenuItem	m;
 	char			text [20] = "", *psz;
@@ -117,15 +117,15 @@ return i;
 int KillAllBuddyBots (int bVerbose)
 {
 	int	i, nKilled = 0;
-	CObject *objP;
+	tObject *objP;
 	//int	boss_index = -1;
 
-FORALL_ROBOT_OBJS (objP, i)
-	if (IS_GUIDEBOT (objP)) {
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) && ROBOTINFO (objP->id).companion) {
 		if (gameStates.app.bNostalgia)
-			objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+			objP->flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 		else 
-			ApplyDamageToRobot (objP, objP->info.xShields + 1, -1);
+			ApplyDamageToRobot (objP, objP->shields + 1, -1);
 		if (bVerbose)
 			HUDInitMessage (TXT_BUDDY_TOASTED);
 		nKilled++;
@@ -140,18 +140,19 @@ return nKilled;
 void KillAllRobots (int bVerbose)
 {
 	int	i, nKilled = 0;
-	CObject *objP;
+	tObject *objP;
 	//int	boss_index = -1;
 
 // Kill all bots except for Buddy bot and boss.  However, if only boss and buddy left, kill boss.
-FORALL_ROBOT_OBJS (objP, i)
-	if (!(ROBOTINFO (objP->info.nId).companion || ROBOTINFO (objP->info.nId).bossFlag)) {
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) &&
+		 !(ROBOTINFO (objP->id).companion || ROBOTINFO (objP->id).bossFlag)) {
 		nKilled++;
 		if (gameStates.app.bNostalgia)
-			objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+			objP->flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 		else {
-			ApplyDamageToRobot (objP, objP->info.xShields + 1, -1);
-			objP->info.nFlags |= OF_ARMAGEDDON;
+			ApplyDamageToRobot (objP, objP->shields + 1, -1);
+			objP->flags |= OF_ARMAGEDDON;
 			}
 		}
 // Toast the buddy if nothing else toasted!
@@ -166,19 +167,19 @@ if (bVerbose)
 void KillAllBossRobots (int bVerbose)
 {
 	int		i, nKilled = 0;
-	CObject	*objP;
+	tObject	*objP;
 
 if (gameStates.gameplay.bKillBossCheat)
 	gameStates.gameplay.bKillBossCheat = 0;
 else {
-	FORALL_ROBOT_OBJS (objP, i)
-		if (ROBOTINFO (objP->info.nId).bossFlag) {
+	for (i = 0, objP = gameData.objs.objects; i<=gameData.objs.nLastObject; i++, objP++)
+		if ((objP->nType == OBJ_ROBOT) && ROBOTINFO (objP->id).bossFlag) {
 			nKilled++;
 			if (gameStates.app.bNostalgia)
-				objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+				objP->flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 			else {
-				ApplyDamageToRobot (objP, objP->info.xShields + 1, -1);
-				objP->info.nFlags |= OF_ARMAGEDDON;
+				ApplyDamageToRobot (objP, objP->shields + 1, -1);
+				objP->flags |= OF_ARMAGEDDON;
 				}
 			gameStates.gameplay.bKillBossCheat = 1;
 			}
@@ -189,25 +190,24 @@ if (bVerbose)
 
 //	--------------------------------------------------------------------------
 //	Detonate reactor.
-//	Award CPlayerData all powerups in mine.
-//	Place CPlayerData just outside exit.
+//	Award tPlayer all powerups in mine.
+//	Place tPlayer just outside exit.
 //	Kill all bots in mine.
 //	Yippee!!
 void KillEverything (int bVerbose)
 {
-	int     	i, j;
-	CObject	*objP;
+	int     i, j;
 
 if (bVerbose)
 	HUDInitMessage (TXT_KILL_ETC);
-FORALL_OBJS (objP, i) {
-	switch (objP->info.nType) {
+for (i = 0; i <= gameData.objs.nLastObject; i++) {
+	switch (gameData.objs.objects [i].nType) {
 		case OBJ_ROBOT:
 		case OBJ_REACTOR:
-			objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+			gameData.objs.objects [i].flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 			break;
 		case OBJ_POWERUP:
-			DoPowerup (objP, -1);
+			DoPowerup (gameData.objs.objects + i, -1);
 			break;
 		}
 	}
@@ -219,10 +219,10 @@ for (i = 0; i < gameData.trigs.nTriggers; i++) {
 		for (j = 0; j < gameData.walls.nWalls; j++) {
 			if (gameData.walls.walls [j].nTrigger == i) {
 				short nSegment = gameData.walls.walls [j].nSegment;
-				COMPUTE_SEGMENT_CENTER_I (&gameData.objs.consoleP->info.position.vPos, nSegment);
-				gameData.objs.consoleP->RelinkToSeg (nSegment);
-				gameData.objs.consoleP->info.position.mOrient[FVEC] = gameData.segs.segments [nSegment].sides [gameData.walls.walls [j].nSide].normals [0];
-				gameData.objs.consoleP->info.position.mOrient[FVEC].Neg();
+				COMPUTE_SEGMENT_CENTER_I (&gameData.objs.console->position.vPos, nSegment);
+				RelinkObject (OBJ_IDX (gameData.objs.console), nSegment);
+				gameData.objs.console->position.mOrient.fVec = gameData.segs.segments [nSegment].sides [gameData.walls.walls [j].nSide].normals [0];
+				VmVecNegate (&gameData.objs.console->position.mOrient.fVec);
 				return;
 				}
 			}
@@ -237,15 +237,15 @@ gameStates.gameplay.bKillBossCheat = 0;
 void KillThief (int bVerbose)
 {
 	int     i;
-	CObject *objP;
+	tObject *objP;
 
-FORALL_ROBOT_OBJS (objP, i)
-	if (IS_THIEF (objP)) {
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) && ROBOTINFO (objP->id).thief) {
 		if (gameStates.app.bNostalgia)
-			objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+			objP->flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 		else {
-			ApplyDamageToRobot (objP, objP->info.xShields + 1, -1);
-			objP->info.nFlags |= OF_ARMAGEDDON;
+			ApplyDamageToRobot (objP, objP->shields + 1, -1);
+			objP->flags |= OF_ARMAGEDDON;
 			}
 		if (bVerbose)
 			HUDInitMessage (TXT_THIEF_TOASTED);
@@ -254,18 +254,18 @@ FORALL_ROBOT_OBJS (objP, i)
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 
 void KillAllSnipers (int bVerbose)
 {
-	int		i, nKilled = 0;
-	CObject	*objP;
+	int     i, nKilled=0;
 
 //	Kill all snipers.
-FORALL_ROBOT_OBJS (objP, i)
-	if ((objP->info.nType == OBJ_ROBOT) && (objP->cType.aiInfo.behavior == AIB_SNIPE)) {
-		nKilled++;
-		objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+for (i = 0; i <= gameData.objs.nLastObject; i++)
+	if (gameData.objs.objects [i].nType == OBJ_ROBOT)
+		if (gameData.objs.objects [i].cType.aiInfo.behavior == AIB_SNIPE) {
+			nKilled++;
+			gameData.objs.objects [i].flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 		}
 if (bVerbose)
 	HUDInitMessage (TXT_BOTS_TOASTED, nKilled);
@@ -277,13 +277,13 @@ if (bVerbose)
 
 void KillBuddy (int bVerbose)
 {
-	int     	i;
-	CObject	*objP;
+	int     i;
+	tObject	*objP = gameData.objs.objects;
 
-//	Kill buddy.
-FORALL_ROBOT_OBJS (objP, i)
-	if (IS_GUIDEBOT (objP)) {
-		objP->info.nFlags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
+	//	Kill buddy.
+for (i = 0; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) && ROBOTINFO (objP->id).companion) {
+		gameData.objs.objects [i].flags |= OF_EXPLODING | OF_SHOULD_BE_DEAD;
 		if (bVerbose)
 			HUDInitMessage (TXT_BUDDY_TOASTED);
 		}
@@ -314,7 +314,7 @@ void AcidCheat (int bVerbose)
 if (gameStates.app.cheats.bAcid) {
 	gameStates.app.cheats.bAcid = 0;
 	gameStates.render.nInterpolationMethod = nInterpolationMethodSave;
-	gameStates.render.glFOV = DEFAULT_FOV;
+	OglSetFOV (DEFAULT_FOV);
 	if (bVerbose)
 		HUDInitMessage (TXT_COMING_DOWN);
 	}
@@ -322,7 +322,7 @@ else {
 	gameStates.app.cheats.bAcid = 1;
 	nInterpolationMethodSave=gameStates.render.nInterpolationMethod;
 	gameStates.render.nInterpolationMethod = 1;
-	gameStates.render.glFOV = FISHEYE_FOV;
+	OglSetFOV (FISHEYE_FOV);
 	if (bVerbose)
 		HUDInitMessage (TXT_GOING_UP);
 	}
@@ -372,7 +372,7 @@ void BlueOrbCheat (int bVerbose)
 if (BoostVal (&LOCALPLAYER.shields, MAX_SHIELDS)) {
 	MultiSendShields ();
 	PowerupBasic (0, 0, 15, SHIELD_SCORE, "%s %s %d", TXT_SHIELD, TXT_BOOSTED_TO, 
-						X2IR (LOCALPLAYER.shields));
+						f2ir (LOCALPLAYER.shields));
 	}
 else if (bVerbose)
 	HUDInitMessage (TXT_MAXED_OUT, TXT_SHIELD);
@@ -426,7 +426,7 @@ else if (LOCALPLAYER.cloakTime == 0x7fffffff)
 bCloaked = (LOCALPLAYER.flags & PLAYER_FLAGS_CLOAKED) != 0;
 if (bVerbose)
 	HUDInitMessage ("%s %s!", TXT_CLOAKED, bCloaked ? TXT_ON : TXT_OFF);
-LOCALPLAYER.cloakTime = bCloaked ? 0x7fffffff : 0; //gameData.time.xGame + I2X (1000);
+LOCALPLAYER.cloakTime = bCloaked ? 0x7fffffff : 0; //gameData.time.xGame + i2f (1000);
 }
 
 //------------------------------------------------------------------------------
@@ -453,7 +453,7 @@ void ElectroCheat (int bVerbose)
 {
 if (BoostVal (&LOCALPLAYER.energy, MAX_ENERGY))
 	 PowerupBasic (15, 15, 7, ENERGY_SCORE, "%s %s %d", TXT_ENERGY, TXT_BOOSTED_TO, 
-						 X2IR (LOCALPLAYER.energy));
+						 f2ir (LOCALPLAYER.energy));
 else if (bVerbose)
 	HUDInitMessage (TXT_MAXED_OUT, TXT_SHIELD);
 }
@@ -545,8 +545,8 @@ else if (LOCALPLAYER.invulnerableTime == 0x7fffffff)
 bInvul = (LOCALPLAYER.flags & PLAYER_FLAGS_INVULNERABLE) != 0;
 if (bVerbose)
 	HUDInitMessage ("%s %s!", TXT_INVULNERABILITY, bInvul ? TXT_ON : TXT_OFF);
-LOCALPLAYER.invulnerableTime = bInvul ? 0x7fffffff : 0; //gameData.time.xGame + I2X (1000);
-SetupSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+LOCALPLAYER.invulnerableTime = bInvul ? 0x7fffffff : 0; //gameData.time.xGame + i2f (1000);
+SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
 }
 
 //------------------------------------------------------------------------------
@@ -607,8 +607,7 @@ void LevelWarpCheat (int bVerbose)
 int nNewLevel;
 
 MenuGetValues (TXT_WARP_TO_LEVEL, &nNewLevel, 1);
-if (((nNewLevel > 0) && (nNewLevel <= gameData.missions.nLastLevel)) ||
-	 ((nNewLevel < 0) && (nNewLevel >= gameData.missions.nLastSecretLevel))) {
+if ((nNewLevel > 0) && (nNewLevel <= gameData.missions.nLastLevel)) {
 	DoCheatPenalty ();
 	StartNewLevel (nNewLevel, 0);
 	}
@@ -681,7 +680,7 @@ else
 
 void TriFusionCheat (int bVerbose)
 {
-	CPlayerData	*playerP = &LOCALPLAYER;
+	tPlayer	*playerP = &LOCALPLAYER;
 
 if (gameData.multiplayer.weaponStates [gameData.multiplayer.nLocalPlayer].bTripleFusion)
 	return;
@@ -812,7 +811,7 @@ else {
 	LOCALPLAYER.primaryWeaponFlags |= 1 << FUSION_INDEX;
 	gameData.weapons.bTripleFusion = 1;
 	gameStates.gameplay.bMineMineCheat = 1;
-	SetupSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+	SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
 	}
 }
 
@@ -834,7 +833,7 @@ typedef void tCheatFunc (int bVerbose);
 typedef tCheatFunc *pCheatFunc;
 
 typedef struct tCheat {
-	const char	*pszCheat;
+	char			*pszCheat;
 	pCheatFunc	cheatFunc;
 	char			bPunish;		//0: never punish, 1: always punish, -1: cheat function decides whether to punish
 	char			bEncrypted;
@@ -850,7 +849,7 @@ inline int Cheat (tCheat *pCheat)
 if (strcmp (pCheat->bEncrypted ? pszCheat : szCheatBuf + CHEATEND - strlen (pCheat->pszCheat), 
 				pCheat->pszCheat))
 	return 0;	// not this cheatcode
-#if !DBG
+#ifndef _DEBUG
 if (pCheat->bPunish && IsMultiGame &&
 	 !(gameStates.app.bHaveExtraGameInfo [1] && extraGameInfo [1].bEnableCheats)) {	//trying forbidden cheatcode in multiplayer
 	MultiDoCheatPenalty ();
@@ -875,6 +874,8 @@ return 1;
 }
 
 //------------------------------------------------------------------------------
+
+extern char *jcrypt (char *);
 
 #define N_LAMER_CHEATS (sizeof (LamerCheats) / sizeof (*LamerCheats))
 
@@ -997,7 +998,7 @@ for (pCheat = cheats; pCheat->pszCheat && !Cheat (pCheat); pCheat++)
 
 //------------------------------------------------------------------------------
 // Internal Cheat Menu
-#if DBG
+#ifdef _DEBUG
 void DoCheatMenu ()
 {
 	int mmn;
@@ -1007,49 +1008,49 @@ void DoCheatMenu ()
 	sprintf ( score_text, "%d", LOCALPLAYER.score );
 
 	memset (mm, 0, sizeof (mm));
-	mm[0].nType = NM_TYPE_CHECK; 
-	mm[0].value = LOCALPLAYER.flags & PLAYER_FLAGS_INVULNERABLE; 
-	mm[0].text = "Invulnerability";
-	mm[1].nType = NM_TYPE_CHECK; 
-	mm[1].value = LOCALPLAYER.flags & PLAYER_FLAGS_CLOAKED; 
-	mm[1].text = "Cloaked";
-	mm[2].nType = NM_TYPE_CHECK; 
-	mm[2].value = 0; 
-	mm[2].text = "All keys";
-	mm[3].nType = NM_TYPE_NUMBER; 
-	mm[3].value = X2I (LOCALPLAYER.energy); 
-	mm[3].text = "% Energy"; mm[3].minValue = 0; 
-	mm[3].maxValue = 200;
-	mm[4].nType = NM_TYPE_NUMBER; 
-	mm[4].value = X2I (LOCALPLAYER.shields); 
-	mm[4].text = "% Shields"; mm[4].minValue = 0; 
-	mm[4].maxValue = 200;
-	mm[5].nType = NM_TYPE_TEXT; 
-	mm[5].text  =  "Score:";
-	mm[6].nType = NM_TYPE_INPUT; 
-	mm[6].text_len  =  10; 
-	mm[6].text  =  score_text;
-	//mm[7].nType = NM_TYPE_RADIO; mm[7].value =  (LOCALPLAYER.laserLevel =  = 0); mm[7].group = 0; mm[7].text = "Laser level 1";
-	//mm[8].nType = NM_TYPE_RADIO; mm[8].value =  (LOCALPLAYER.laserLevel =  = 1); mm[8].group = 0; mm[8].text = "Laser level 2";
-	//mm[9].nType = NM_TYPE_RADIO; mm[9].value =  (LOCALPLAYER.laserLevel =  = 2); mm[9].group = 0; mm[9].text = "Laser level 3";
-	//mm[10].nType = NM_TYPE_RADIO; mm[10].value =  (LOCALPLAYER.laserLevel =  = 3); mm[10].group = 0; mm[10].text = "Laser level 4";
+	mm[0].nType=NM_TYPE_CHECK; 
+	mm[0].value=LOCALPLAYER.flags & PLAYER_FLAGS_INVULNERABLE; 
+	mm[0].text="Invulnerability";
+	mm[1].nType=NM_TYPE_CHECK; 
+	mm[1].value=LOCALPLAYER.flags & PLAYER_FLAGS_CLOAKED; 
+	mm[1].text="Cloaked";
+	mm[2].nType=NM_TYPE_CHECK; 
+	mm[2].value=0; 
+	mm[2].text="All keys";
+	mm[3].nType=NM_TYPE_NUMBER; 
+	mm[3].value=f2i (LOCALPLAYER.energy); 
+	mm[3].text="% Energy"; mm[3].minValue=0; 
+	mm[3].maxValue=200;
+	mm[4].nType=NM_TYPE_NUMBER; 
+	mm[4].value=f2i (LOCALPLAYER.shields); 
+	mm[4].text="% Shields"; mm[4].minValue=0; 
+	mm[4].maxValue=200;
+	mm[5].nType=NM_TYPE_TEXT; 
+	mm[5].text = "Score:";
+	mm[6].nType=NM_TYPE_INPUT; 
+	mm[6].text_len = 10; 
+	mm[6].text = score_text;
+	//mm[7].nType=NM_TYPE_RADIO; mm[7].value= (LOCALPLAYER.laserLevel==0); mm[7].group=0; mm[7].text="Laser level 1";
+	//mm[8].nType=NM_TYPE_RADIO; mm[8].value= (LOCALPLAYER.laserLevel==1); mm[8].group=0; mm[8].text="Laser level 2";
+	//mm[9].nType=NM_TYPE_RADIO; mm[9].value= (LOCALPLAYER.laserLevel==2); mm[9].group=0; mm[9].text="Laser level 3";
+	//mm[10].nType=NM_TYPE_RADIO; mm[10].value= (LOCALPLAYER.laserLevel==3); mm[10].group=0; mm[10].text="Laser level 4";
 
-	mm[7].nType = NM_TYPE_NUMBER; 
-	mm[7].value = LOCALPLAYER.laserLevel+1; 
-	mm[7].text = "Laser Level"; mm[7].minValue = 0; 
-	mm[7].maxValue = MAX_SUPER_LASER_LEVEL+1;
-	mm[8].nType = NM_TYPE_NUMBER; 
-	mm[8].value = LOCALPLAYER.secondaryAmmo [CONCUSSION_INDEX]; 
-	mm[8].text = "Missiles"; 
-	mm[8].minValue = 0; 
-	mm[8].maxValue = 200;
+	mm[7].nType=NM_TYPE_NUMBER; 
+	mm[7].value=LOCALPLAYER.laserLevel+1; 
+	mm[7].text="Laser Level"; mm[7].minValue=0; 
+	mm[7].maxValue=MAX_SUPER_LASER_LEVEL+1;
+	mm[8].nType=NM_TYPE_NUMBER; 
+	mm[8].value=LOCALPLAYER.secondaryAmmo [CONCUSSION_INDEX]; 
+	mm[8].text="Missiles"; 
+	mm[8].minValue=0; 
+	mm[8].maxValue=200;
 
 	mmn = ExecMenu ("Wimp Menu", NULL, 9, mm, NULL, NULL );
 
 	if (mmn > -1 )  {
 		if ( mm[0].value )  {
 			LOCALPLAYER.flags |= PLAYER_FLAGS_INVULNERABLE;
-			LOCALPLAYER.invulnerableTime = gameData.time.xGame+I2X (1000);
+			LOCALPLAYER.invulnerableTime = gameData.time.xGame+i2f (1000);
 		} else
 			LOCALPLAYER.flags &= ~PLAYER_FLAGS_INVULNERABLE;
 		if ( mm[1].value ) {
@@ -1063,8 +1064,8 @@ void DoCheatMenu ()
 			LOCALPLAYER.flags &= ~PLAYER_FLAGS_CLOAKED;
 
 		if (mm[2].value) LOCALPLAYER.flags |= PLAYER_FLAGS_BLUE_KEY | PLAYER_FLAGS_RED_KEY | PLAYER_FLAGS_GOLD_KEY;
-		LOCALPLAYER.energy=I2X (mm[3].value);
-		LOCALPLAYER.shields=I2X (mm[4].value);
+		LOCALPLAYER.energy=i2f (mm[3].value);
+		LOCALPLAYER.shields=i2f (mm[4].value);
 		LOCALPLAYER.score = atoi (mm[6].text);
 		//if (mm[7].value) LOCALPLAYER.laserLevel=0;
 		//if (mm[8].value) LOCALPLAYER.laserLevel=1;

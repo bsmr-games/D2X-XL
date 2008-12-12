@@ -27,38 +27,38 @@ hmp_file *hmp_open(const char *filename, int bUseD1Hog)
 	int i;
 	char buf [256];
 	long data = 0;
-	CFile cf;
+	CFILE cf;
 	hmp_file *hmp;
 	int num_tracks, midi_div;
-	ubyte *p;
+	unsigned char *p;
 
-	if (!cf.Open (reinterpret_cast<char*> (filename), gameFolders.szDataDir, "rb", bUseD1Hog))
+	if (!CFOpen(&cf, (char *)filename, gameFolders.szDataDir, "rb", bUseD1Hog))
 		return NULL;
-	hmp = new hmp_file;
+	hmp = (hmp_file *) D2_ALLOC(sizeof(hmp_file));
 	if (!hmp) {
-		cf.Close();
+		CFClose(&cf);
 		return NULL;
 	}
 	memset(hmp, 0, sizeof(*hmp));
-	if ((cf.Read (buf, 1, 8) != 8) || (memcmp(buf, "HMIMIDIP", 8)))
+	if ((CFRead (buf, 1, 8, &cf) != 8) || (memcmp(buf, "HMIMIDIP", 8)))
 		goto err;
-	if (cf.Seek (0x30, SEEK_SET))
+	if (CFSeek (&cf, 0x30, SEEK_SET))
 		goto err;
-	if (cf.Read (&num_tracks, 4, 1) != 1)
+	if (CFRead (&num_tracks, 4, 1, &cf) != 1)
 		goto err;
-	if (cf.Seek (0x38, SEEK_SET))
+	if (CFSeek (&cf, 0x38, SEEK_SET))
 		goto err;
-	if (cf.Read (&midi_div, 4, 1) != 1)
+	if (CFRead (&midi_div, 4, 1, &cf) != 1)
 		goto err;
 	if ((num_tracks < 1) || (num_tracks > HMP_TRACKS))
 		goto err;
 	hmp->num_trks = num_tracks;
 	hmp->midi_division = midi_div;
    hmp->tempo = 120;
-	if (cf.Seek(0x308, SEEK_SET))
+	if (CFSeek(&cf, 0x308, SEEK_SET))
 		goto err;
     for (i = 0; i < num_tracks; i++) {
-		if ((cf.Seek(4, SEEK_CUR)) || (cf.Read(&data, 4, 1) != 1))
+		if ((CFSeek(&cf, 4, SEEK_CUR)) || (CFRead(&data, 4, 1, &cf) != 1))
 			goto err;
 		data -= 12;
 #if 0
@@ -66,7 +66,7 @@ hmp_file *hmp_open(const char *filename, int bUseD1Hog)
 		    data += sizeof(hmp_tempo);
 #endif
 		hmp->trks [i].len = data;
-		if (!(p = hmp->trks [i].data = new ubyte [data]))
+		if (!(p = hmp->trks [i].data = (unsigned char *) D2_ALLOC(data)))
 			goto err;
 #if 0
 		if (i == 0) { /* track 0: add tempo */
@@ -76,14 +76,14 @@ hmp_file *hmp_open(const char *filename, int bUseD1Hog)
 		}
 #endif
 					     /* finally, read track data */
-		if ((cf.Seek(4, SEEK_CUR)) || (cf.Read(p, data, 1) != 1))
+		if ((CFSeek(&cf, 4, SEEK_CUR)) || (CFRead(p, data, 1, &cf) != 1))
             goto err;
    }
-   cf.Close();
+   CFClose(&cf);
    return hmp;
 
 err:
-   cf.Close();
+   CFClose(&cf);
    hmp_close(hmp);
    return NULL;
 }
@@ -97,10 +97,10 @@ void hmp_close(hmp_file *hmp)
 #ifdef _WIN32
 	hmp_stop(hmp);
 #endif
-for (i = 0; i < hmp->num_trks; i++)
-	if (hmp->trks [i].data)
-		delete[] hmp->trks [i].data;
-delete hmp;
+	for (i = 0; i < hmp->num_trks; i++)
+		if (hmp->trks [i].data)
+			D2_FREE(hmp->trks [i].data);
+	D2_FREE(hmp);
 }
 
 //------------------------------------------------------------------------------
@@ -123,8 +123,7 @@ void hmp_stop(hmp_file *hmp)
 	while ((mhdr = hmp->evbuf)) {
 		midiOutUnprepareHeader((HMIDIOUT)hmp->hmidi, mhdr, sizeof(MIDIHDR));
 		hmp->evbuf = mhdr->lpNext;
-		delete[] mhdr;
-		mhdr = NULL;
+		D2_FREE(mhdr);
 	}
 
 	if (hmp->hmidi) {
@@ -137,10 +136,10 @@ void hmp_stop(hmp_file *hmp)
 /*
  * read a HMI nType variable length number
  */
-static int get_var_num_hmi(ubyte *data, int datalen, ulong *value) 
+static int get_var_num_hmi(unsigned char *data, int datalen, unsigned long *value) 
 {
-	ubyte *p;
-	ulong v = 0;
+	unsigned char *p;
+	unsigned long v = 0;
 	int shift = 0;
 
 	p = data;
@@ -160,10 +159,10 @@ static int get_var_num_hmi(ubyte *data, int datalen, ulong *value)
 /*
  * read a MIDI nType variable length number
  */
-static int get_var_num(ubyte *data, int datalen, ulong *value) 
+static int get_var_num(unsigned char *data, int datalen, unsigned long *value) 
 {
-	ubyte *orgdata = data;
-	ulong v = 0;
+	unsigned char *orgdata = data;
+	unsigned long v = 0;
 
 	while ((datalen > 0) && (*data & 0x80))
 		v = (v << 7) + (*(data++) & 0x7f);
@@ -179,8 +178,8 @@ static int get_var_num(ubyte *data, int datalen, ulong *value)
 static int get_event(hmp_file *hmp, event *ev) 
 {
     static int cmdlen [7] ={3,3,3,3,2,2,3};
-	ulong got;
-	ulong mindelta, delta;
+	unsigned long got;
+	unsigned long mindelta, delta;
 	int i, ev_num;
 	hmp_track *trk, *fndtrk;
 
@@ -229,7 +228,8 @@ static int get_event(hmp_file *hmp, event *ev)
 	} else if (ev_num == 0xff) {
 		ev->msg [1] = *(trk->cur++);
 		trk->left--;
-		if (!(got = get_var_num(ev->data = trk->cur, trk->left, reinterpret_cast<ulong*> (&ev->datalen))))
+		if (!(got = get_var_num(ev->data = trk->cur, 
+			trk->left, (unsigned long *)&ev->datalen)))
 			return HMP_INVALID_FILE;
 	    trk->cur += ev->datalen;
 		if (trk->left <= ev->datalen)
@@ -245,9 +245,9 @@ static int get_event(hmp_file *hmp, event *ev)
 static int fill_buffer(hmp_file *hmp) 
 {
 	MIDIHDR *mhdr = hmp->evbuf;
-	uint *p = reinterpret_cast<uint*> (mhdr->lpData + mhdr->dwBytesRecorded);
-	uint *pend = reinterpret_cast<uint*> (mhdr->lpData + mhdr->dwBufferLength);
-	uint i;
+	unsigned int *p = (unsigned int *)(mhdr->lpData + mhdr->dwBytesRecorded);
+	unsigned int *pend = (unsigned int *)(mhdr->lpData + mhdr->dwBufferLength);
+	unsigned int i;
 	event ev;
 
 	while (p + 4 <= pend) {
@@ -257,12 +257,12 @@ static int fill_buffer(hmp_file *hmp)
 				i = hmp->pending_size;
 			*(p++) = hmp->pending_event | i;
 			*(p++) = 0;
-			memcpy (p, hmp->pending, i);
+			memcpy((unsigned char *)p, hmp->pending, i);
 			hmp->pending_size -= i;
 			p += (i + 3) / 4;
 		} else {
 			if ((i = get_event(hmp, &ev))) {
-            mhdr->dwBytesRecorded = (int) (reinterpret_cast<ubyte*> (p) - reinterpret_cast<ubyte*> (mhdr->lpData));
+            mhdr->dwBytesRecorded = (int) (((unsigned char *)p) - ((unsigned char *)mhdr->lpData));
 				return i;
 			}
 			if (ev.datalen) {
@@ -279,7 +279,7 @@ static int fill_buffer(hmp_file *hmp)
 			}
 		}
 	}
-        mhdr->dwBytesRecorded = (int) (reinterpret_cast<ubyte*> (p) - reinterpret_cast<ubyte*> (mhdr->lpData));
+        mhdr->dwBytesRecorded = (int) (((unsigned char *)p) - ((unsigned char *)mhdr->lpData));
 	return 0;
 }
 
@@ -292,10 +292,10 @@ static int setup_buffers(hmp_file *hmp)
 
 	lastbuf = NULL;
 	for (i = 0; i < HMP_BUFFERS; i++) {
-		if (!(buf = reinterpret_cast<MIDIHDR*> (new ubyte [HMP_BUFSIZE + sizeof(MIDIHDR)])))
+		if (!(buf = D2_ALLOC(HMP_BUFSIZE + sizeof(MIDIHDR))))
 			return HMP_OUT_OF_MEM;
 		memset(buf, 0, sizeof(MIDIHDR));
-		buf->lpData = reinterpret_cast<ubyte*> (buf + 1);
+		buf->lpData = (unsigned char *)buf + sizeof(MIDIHDR);
 		buf->dwBufferLength = HMP_BUFSIZE;
 		buf->dwUser = (DWORD)(size_t)hmp;
 		buf->lpNext = lastbuf;
@@ -330,9 +330,9 @@ static void _stdcall midi_callback(HMIDISTRM hms, UINT uMsg, DWORD dwUser, DWORD
 	if (uMsg != MOM_DONE)
 		return;
 
-	mhdr = (reinterpret_cast<MIDIHDR*> ((size_t) dw1);
+	mhdr = ((MIDIHDR *)(size_t)dw1);
 	mhdr->dwBytesRecorded = 0;
-	hmp = reinterpret_cast<hmp_file*> (mhdr->dwUser);
+	hmp = (hmp_file *)(mhdr->dwUser);
 	mhdr->lpNext = hmp->evbuf;
 	hmp->evbuf = mhdr;
 	hmp->bufs_in_mm--;
@@ -358,11 +358,11 @@ static void _stdcall midi_callback(HMIDISTRM hms, UINT uMsg, DWORD dwUser, DWORD
 
 //------------------------------------------------------------------------------
 
-static void setup_tempo(hmp_file *hmp, ulong tempo) 
+static void setup_tempo(hmp_file *hmp, unsigned long tempo) 
 {
 	MIDIHDR *mhdr = hmp->evbuf;
 if (mhdr) {
-	uint *p = reinterpret_cast<uint*> ((mhdr->lpData + mhdr->dwBytesRecorded);
+	unsigned int *p = (unsigned int *)(mhdr->lpData + mhdr->dwBytesRecorded);
 	*(p++) = 0;
 	*(p++) = 0;
 	*(p++) = (((DWORD)MEVT_TEMPO)<<24) | tempo;
@@ -377,7 +377,7 @@ int hmp_play(hmp_file *hmp, int bLoop)
 	int rc;
 	MIDIPROPTIMEDIV mptd;
 #if 1
-        uint    numdevs;
+        unsigned int    numdevs;
         int i=0;
 
         numdevs=midiOutGetNumDevs();
@@ -413,8 +413,7 @@ int hmp_play(hmp_file *hmp, int bLoop)
 	}
 
 	reset_tracks(hmp);
-	setup_tempo(hmp, 0x0f
-40);
+	setup_tempo(hmp, 0x0f4240);
 
 	hmp->stop = 0;
 	while (hmp->evbuf) {
@@ -455,7 +454,7 @@ static int hmp_track_to_midi (ubyte* track, int size, FILE *f)
 {
 	ubyte *pt = track;
 	ubyte lc1 = 0,lastcom = 0;
-	uint t = 0, d;
+	unsigned int t = 0, d;
 	int n1, n2;
 	int startOffs = ftell (f);
 

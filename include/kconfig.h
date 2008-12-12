@@ -1,3 +1,4 @@
+/* $Id $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -81,7 +82,7 @@ typedef struct ext_control_info {
 	//vmsAngVec heading;   	    // for version >=1.0
 	//char oem_message[64];     	// for version >=1.0
 
-	//CFixVector ship_pos           // for version >=2.0
+	//vmsVector ship_pos           // for version >=2.0
 	//vmsMatrix ship_orient        // for version >=2.0
 
 	//ubyte cyclePrimaryCount     // for version >=3.0
@@ -98,7 +99,7 @@ typedef struct ext_control_info {
 	//ubyte Primary_weapon_selected
 	//ubyte Secondary_weapon_selected
 
-	//CFixVector force_vector
+	//vmsVector force_vector
 	//vmsMatrix force_matrix
 	//int joltinfo[3]
 	//int x_vibrate_info[2]
@@ -145,7 +146,7 @@ typedef struct advanced_ext_control_info {
 
 	// everything below this line is for version >=2.0
 
-	CFixVector ship_pos;
+	vmsVector ship_pos;
 	vmsMatrix ship_orient;
 
 	// everything below this line is for version >=3.0
@@ -162,7 +163,7 @@ typedef struct advanced_ext_control_info {
 	ubyte currentPrimary_weapon;
 	ubyte currentSecondary_weapon;
 
-	CFixVector force_vector;
+	vmsVector force_vector;
 	vmsMatrix force_matrix;
 	int joltinfo[3];
 	int x_vibrate_info[2];
@@ -190,7 +191,7 @@ typedef struct kcItem {
 	short w2;
 	short u,d,l,r;
         //short text_num1;
-   const char 	*text;
+   char 	*text;
 	int   textId;
 	ubyte nType;
 	ubyte value;		// what key,button,etc
@@ -230,7 +231,7 @@ extern int kconfig_is_axes_used(int axis);
 extern void KCInitExternalControls(int intno, int address);
 
 extern ubyte nExtGameStatus;
-void KConfig(int n, const char *pszTitle);
+void KConfig(int n, char *title);
 void SetControlType (void);
 
 extern ubyte system_keys [];

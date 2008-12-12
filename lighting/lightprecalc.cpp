@@ -1,3 +1,4 @@
+/* $Id: gamemine.c, v 1.26 2003/10/22 15:00:37 schaffner Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,6 +16,10 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: gamemine.c, v 1.26 2003/10/22 15:00:37 schaffner Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -25,28 +30,53 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "text.h"
+#include "segment.h"
+#include "textures.h"
+#include "wall.h"
+#include "object.h"
 #include "gamemine.h"
 #include "error.h"
+#include "gameseg.h"
+#include "switch.h"
+#include "ogl_defs.h"
+#include "oof.h"
 #include "lightmap.h"
 #include "render.h"
 #include "gameseg.h"
+
+#include "game.h"
 #include "menu.h"
-#include "key.h"
-#include "u_mem.h"
-#include "paging.h"
-#include "light.h"
-#include "dynlight.h"
+#include "newmenu.h"
 
 #ifdef EDITOR
-#	include "editor/editor.h"
+#include "editor/editor.h"
 #endif
+
+#include "cfile.h"
+#include "fuelcen.h"
+
+#include "hash.h"
+#include "key.h"
+#include "piggy.h"
+
+#include "byteswap.h"
+#include "gamesave.h"
+#include "u_mem.h"
+#include "vecmat.h"
+#include "gamepal.h"
+#include "paging.h"
+#include "maths.h"
+#include "network.h"
+#include "light.h"
+#include "dynlight.h"
+#include "renderlib.h"
 
 //------------------------------------------------------------------------------
 
-#define LIGHT_DATA_VERSION 10
+#define LIGHT_DATA_VERSION 9
 
 #define	VERTVIS(_nSegment, _nVertex) \
-	(gameData.segs.bVertVis.Buffer () ? gameData.segs.bVertVis [(_nSegment) * VERTVIS_FLAGS + ((_nVertex) >> 3)] & (1 << ((_nVertex) & 7)) : 0)
+	(gameData.segs.bVertVis ? gameData.segs.bVertVis [(_nSegment) * VERTVIS_FLAGS + ((_nVertex) >> 3)] & (1 << ((_nVertex) & 7)) : 0)
 
 //------------------------------------------------------------------------------
 
@@ -74,8 +104,8 @@ typedef struct tLightDist {
 
 void QSortLightDist (tLightDist *pDist, int left, int right)
 {
-	int			l = left,
-					r = right,
+	int			l = left, 
+					r = right, 
 					m = pDist [(l + r) / 2].nDist;
 	tLightDist	h;
 
@@ -102,7 +132,7 @@ if (left < r)
 
 //------------------------------------------------------------------------------
 
-static inline int IsLightVert (int nVertex, tFace *faceP)
+static inline int IsLightVert (int nVertex, grsFace *faceP)
 {
 ushort *pv = (gameStates.render.bTriangleMesh ? faceP->triIndex : faceP->index);
 for (int i = faceP->nVerts; i; i--, pv++)
@@ -115,16 +145,16 @@ return 0;
 
 int ComputeNearestSegmentLights (int i)
 {
-	CSegment				*segP;
-	CDynLight			*pl;
+	tSegment				*segP;
+	tDynLight			*pl;
 	int					h, j, k, l, m, n, nMaxLights;
-	CFixVector			center;
+	vmsVector			center;
 	struct tLightDist	*pDists;
 
 PrintLog ("computing nearest segment lights (%d)\n", i);
 if (!gameData.render.lights.dynamic.nLights)
 	return 0;
-if (!(pDists = new tLightDist [gameData.render.lights.dynamic.nLights])) {
+if (!(pDists = (tLightDist *) D2_ALLOC (gameData.render.lights.dynamic.nLights * sizeof (tLightDist)))) {
 	gameOpts->render.nLightingMethod = 0;
 	gameData.render.shadows.nLights = 0;
 	return 0;
@@ -138,10 +168,10 @@ for (segP = gameData.segs.segments + i; i < j; i++, segP++) {
 	COMPUTE_SEGMENT_CENTER (&center, segP);
 	pl = gameData.render.lights.dynamic.lights;
 	for (l = n = 0; l < gameData.render.lights.dynamic.nLights; l++, pl++) {
-		m = (pl->info.nSegment < 0) ? OBJECTS [pl->info.nObject].info.nSegment : pl->info.nSegment;
+		m = (pl->info.nSegment < 0) ? gameData.objs.objects [pl->info.nObject].nSegment : pl->info.nSegment;
 		if (!SEGVIS (m, i))
 			continue;
-		h = (int) (CFixVector::Dist (center, pl->info.vPos) - F2X (pl->info.fRad) / 10.0f);
+		h = (int) (VmVecDist (&center, &pl->info.vPos) - fl2f (pl->info.fRad) / 10.0f);
 		if (h > MAX_LIGHT_RANGE * pl->info.fRange)
 			continue;
 		pDists [n].nDist = h;
@@ -152,73 +182,73 @@ for (segP = gameData.segs.segments + i; i < j; i++, segP++) {
 	h = (nMaxLights < n) ? nMaxLights : n;
 	k = i * MAX_NEAREST_LIGHTS;
 	for (l = 0; l < h; l++)
-		gameData.render.lights.dynamic.nearestSegLights [k + l] = pDists [l].nIndex;
+		gameData.render.lights.dynamic.nNearestSegLights [k + l] = pDists [l].nIndex;
 	for (; l < MAX_NEAREST_LIGHTS; l++)
-		gameData.render.lights.dynamic.nearestSegLights [k + l] = -1;
+		gameData.render.lights.dynamic.nNearestSegLights [k + l] = -1;
 	}
-delete[] pDists;
+D2_FREE (pDists);
 return 1;
 }
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 extern int nDbgVertex;
 #endif
 
 int ComputeNearestVertexLights (int nVertex)
 {
-	CFixVector			*vertP;
-	CDynLight			*pl;
+	vmsVector			*vertP;
+	tDynLight			*pl;
 	tSide					*sideP;
 	int					h, j, k, l, n, nMaxLights;
-	CFixVector			vLightToVert;
+	vmsVector			vLightToVert;
 	struct tLightDist	*pDists;
 
 PrintLog ("computing nearest vertex lights (%d)\n", nVertex);
 if (!gameData.render.lights.dynamic.nLights)
 	return 0;
-if (!(pDists = new tLightDist [gameData.render.lights.dynamic.nLights])) {
+if (!(pDists = (tLightDist *) D2_ALLOC (gameData.render.lights.dynamic.nLights * sizeof (tLightDist)))) {
 	gameOpts->render.nLightingMethod = 0;
 	gameData.render.shadows.nLights = 0;
 	return 0;
 	}
-#if DBG
+#ifdef _DEBUG
 if (nVertex == nDbgVertex)
 	nDbgVertex = nDbgVertex;
 #endif
 nMaxLights = MAX_NEAREST_LIGHTS;
-if (gameStates.app.bMultiThreaded)
+if (gameStates.app.bMultiThreaded) 
 	j = nVertex ? gameData.segs.nVertices : gameData.segs.nVertices / 2;
 else
 	INIT_PROGRESS_LOOP (nVertex, j, gameData.segs.nVertices);
 for (vertP = gameData.segs.vertices + nVertex; nVertex < j; nVertex++, vertP++) {
-#if DBG
+#ifdef _DEBUG
 	if (nVertex == nDbgVertex)
 		nVertex = nVertex;
 #endif
 	pl = gameData.render.lights.dynamic.lights;
 	for (l = n = 0; l < gameData.render.lights.dynamic.nLights; l++, pl++) {
-#if DBG
+#ifdef _DEBUG
 		if (pl->info.nSegment == nDbgSeg)
 			nDbgSeg = nDbgSeg;
 #endif
-		if (IsLightVert (nVertex, pl->info.faceP))
+		if (IsLightVert (nVertex, pl->info.faceP)) 
 			h = 0;
 		else {
-			h = (pl->info.nSegment < 0) ? OBJECTS [pl->info.nObject].info.nSegment : pl->info.nSegment;
+			h = (pl->info.nSegment < 0) ? gameData.objs.objects [pl->info.nObject].nSegment : pl->info.nSegment;
 			if (!VERTVIS (h, nVertex))
 				continue;
-			vLightToVert = *vertP - pl->info.vPos;
-			h = CFixVector::Normalize(vLightToVert) - (int) (pl->info.fRad * 6553.6f);
+			VmVecSub (&vLightToVert, vertP, &pl->info.vPos);
+			h = VmVecNormalize (&vLightToVert) - (int) (pl->info.fRad * 6553.6f);
 			if (h > MAX_LIGHT_RANGE * pl->info.fRange)
 				continue;
 			if ((pl->info.nSegment >= 0) && (pl->info.nSide >= 0)) {
 				sideP = SEGMENTS [pl->info.nSegment].sides + pl->info.nSide;
-				if ((CFixVector::Dot(sideP->normals[0], vLightToVert) < -F1_0 / 6) &&
-					 ((sideP->nType == SIDE_IS_QUAD) || (CFixVector::Dot(sideP->normals[1], vLightToVert) < -F1_0 / 6)))
+				if ((VmVecDot (sideP->normals, &vLightToVert) < -F1_0 / 6) && 
+					 ((sideP->nType == SIDE_IS_QUAD) || (VmVecDot (sideP->normals + 1, &vLightToVert) < -F1_0 / 6)))
 					continue;
-				}
+				}	
 			}
 		pDists [n].nDist = h;
 		pDists [n].nIndex = l;
@@ -229,11 +259,11 @@ for (vertP = gameData.segs.vertices + nVertex; nVertex < j; nVertex++, vertP++) 
 	h = (nMaxLights < n) ? nMaxLights : n;
 	k = nVertex * MAX_NEAREST_LIGHTS;
 	for (l = 0; l < h; l++)
-		gameData.render.lights.dynamic.nearestVertLights [k + l] = pDists [l].nIndex;
+		gameData.render.lights.dynamic.nNearestVertLights [k + l] = pDists [l].nIndex;
 	for (; l < MAX_NEAREST_LIGHTS; l++)
-		gameData.render.lights.dynamic.nearestVertLights [k + l] = -1;
+		gameData.render.lights.dynamic.nNearestVertLights [k + l] = -1;
 	}
-delete[] pDists;
+D2_FREE (pDists);
 return 1;
 }
 
@@ -246,7 +276,7 @@ inline int SetVertVis (short nSegment, short nVertex, ubyte b)
 if (bSemaphore)
 	return 0;
 bSemaphore = 1;
-if (gameData.segs.bVertVis.Buffer ())
+if (gameData.segs.bVertVis)
 	gameData.segs.bVertVis [nSegment * VERTVIS_FLAGS + (nVertex >> 3)] |= (1 << (nVertex & 7));
 bSemaphore = 0;
 return 1;
@@ -291,12 +321,12 @@ while (!SetSegVis (nStartSeg, nSegment))
 	;
 
 	tSegFaces	*segFaceP = SEGFACES + nSegment;
-	tFace		*faceP;
+	grsFace		*faceP;
 	grsTriangle	*triP;
 	int			i, nFaces, nTris;
 
 for (nFaces = segFaceP->nFaces, faceP = segFaceP->pFaces; nFaces; nFaces--, faceP++) {
-#if DBG
+#ifdef _DEBUG
 if ((nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide == nDbgSide)))
 	nSegment = nSegment;
 #endif
@@ -310,36 +340,35 @@ if ((nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide == nDbgSide)))
 		for (i = 0; i < 4; i++)
 			while (!SetVertVis (nStartSeg, faceP->index [i], 1))
 				;
-		}
+		}	
 	}
 }
 
 //------------------------------------------------------------------------------
 // Check segment to segment visibility by calling the renderer's visibility culling routine
-// Do this for each side of the current segment, using the side Normal(s) as forward vector
+// Do this for each side of the current segment, using the side normal(s) as forward vector
 // of the viewer
 
 void ComputeSingleSegmentVisibility (short nStartSeg)
 {
-	CSegment		*segP, *childP;
+	tSegment		*segP, *childP;
 	tSide			*sideP;
 	short			nSegment, nSide, nChildSeg, nChildSide, i;
-	CFixVector	vNormal;
+	vmsVector	vNormal;
 	vmsAngVec	vAngles;
-	CObject		viewer;
+	tObject		viewer;
 
 //PrintLog ("computing visibility of segment %d\n", nStartSeg);
 gameStates.ogl.bUseTransform = 1;
-#if DBG
+#ifdef _DEBUG
 if (nStartSeg == nDbgSeg)
 	nDbgSeg = nDbgSeg;
 #endif
-gameData.objs.viewerP = &viewer;
-viewer.info.nSegment = nStartSeg;
-COMPUTE_SEGMENT_CENTER_I (&viewer.info.position.vPos, nStartSeg);
+gameData.objs.viewer = &viewer;
+viewer.nSegment = nStartSeg;
+COMPUTE_SEGMENT_CENTER_I (&viewer.position.vPos, nStartSeg);
 segP = SEGMENTS + nStartSeg;
 for (sideP = segP->sides, nSide = 0; nSide < 6; nSide++, sideP++) {
-#if 1
 	if (gameStates.render.bPerPixelLighting) {
 		if (0 <= (nChildSeg = segP->children [nSide])) {
 			while (!SetSegVis (nStartSeg, nChildSeg))
@@ -353,21 +382,20 @@ for (sideP = segP->sides, nSide = 0; nSide < 6; nSide++, sideP++) {
 				}
 			}
 		}
-	vNormal = sideP->normals[0] + sideP->normals[1];
-	vNormal *= (-F1_0 / 2);
-	vAngles = vNormal.ToAnglesVec();
-	viewer.info.position.mOrient = vmsMatrix::Create(vAngles);
-	G3StartFrame(0, 0);
-	RenderStartFrame();
-	G3SetViewMatrix (viewer.info.position.vPos, viewer.info.position.mOrient, gameStates.render.xZoom, 1);
-#endif
-	BuildRenderSegList (nStartSeg, 0);
+	VmVecAdd (&vNormal, sideP->normals, sideP->normals + 1);
+	VmVecScale (&vNormal, -F1_0 / 2);
+	VmExtractAnglesVector (&vAngles, &vNormal);
+	VmAngles2Matrix (&viewer.position.mOrient, &vAngles);
+	G3StartFrame (0, 0);
+	RenderStartFrame ();
+	G3SetViewMatrix (&viewer.position.vPos, &viewer.position.mOrient, gameStates.render.xZoom, 1);
+	BuildRenderSegList (nStartSeg, 0);	
 	G3EndFrame ();
 	//PrintLog ("   flagging visible segments\n");
 	for (i = 0; i < gameData.render.mine.nRenderSegs; i++) {
 		if (0 > (nSegment = gameData.render.mine.nSegRenderList [i]))
 			continue;
-#if DBG
+#ifdef _DEBUG
 		if (nSegment >= gameData.segs.nSegments)
 			continue;
 #endif
@@ -386,10 +414,11 @@ void ComputeSegmentVisibility (int startI)
 
 PrintLog ("computing segment visibility (%d)\n", startI);
 if (startI <= 0) {
-	i = sizeof (gameData.segs.bVertVis [0]) * gameData.segs.nVertices * VERTVIS_FLAGS;
-	if (!gameData.segs.bVertVis.Create (i))
+	i = sizeof (*gameData.segs.bVertVis) * gameData.segs.nVertices * VERTVIS_FLAGS;
+	if (!(gameData.segs.bVertVis = (ubyte *) D2_ALLOC (i)))
 		return;
-	gameData.segs.bVertVis.Clear ();
+	memset (gameData.segs.bVertVis, 0, i);
+	memset (gameData.segs.bSegVis, 0, sizeof (*gameData.segs.bSegVis) * gameData.segs.nSegments * SEGVIS_FLAGS);
 	}
 else if (!gameData.segs.bVertVis)
 	return;
@@ -407,9 +436,9 @@ for (i = startI; i < endI; i++)
 
 //------------------------------------------------------------------------------
 
-static int SortLightsPoll (int nItems, tMenuItem *m, int *key, int nCurItem)
+static void SortLightsPoll (int nItems, tMenuItem *m, int *key, int cItem)
 {
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 if (loadOp == 0) {
 	ComputeSegmentVisibility (loadIdx);
 	loadIdx += PROGRESS_INCR;
@@ -436,14 +465,13 @@ else if (loadOp == 2) {
 	}
 if (loadOp == 3) {
 	*key = -2;
-	paletteManager.LoadEffect  ();
-	return nCurItem;
+	GrPaletteStepLoad (NULL);
+	return;
 	}
 m [0].value++;
 m [0].rebuild = 1;
 *key = 0;
-paletteManager.LoadEffect  ();
-return nCurItem;
+GrPaletteStepLoad (NULL);
 }
 
 //------------------------------------------------------------------------------
@@ -454,7 +482,7 @@ if (gameStates.app.bNostalgia)
 	return 0;
 if (gameStates.app.bMultiThreaded)
 	return 0;
-if (!(gameOpts->render.nLightingMethod ||
+if (!(gameOpts->render.nLightingMethod || 
 	  (gameStates.render.bAmbientColor && !gameStates.render.bColored) ||
 	   gameStates.app.bEnableShadows))
 	return 0;
@@ -478,33 +506,33 @@ return GameDataFilename (pszFilename, "light", nLevel, -1);
 
 int LoadLightData (int nLevel)
 {
-	CFile					cf;
+	CFILE					cf;
 	tLightDataHeader	ldh;
 	int					bOk;
 	char					szFilename [FILENAME_LEN];
 
 if (!gameStates.app.bCacheLights)
 	return 0;
-if (!cf.Open (LightDataFilename (szFilename, nLevel), gameFolders.szCacheDir, "rb", 0))
+if (!CFOpen (&cf, LightDataFilename (szFilename, nLevel), gameFolders.szTempDir, "rb", 0))
 	return 0;
-bOk = (cf.Read (&ldh, sizeof (ldh), 1) == 1);
+bOk = (CFRead (&ldh, sizeof (ldh), 1, &cf) == 1);
 if (bOk)
-	bOk = (ldh.nVersion == LIGHT_DATA_VERSION) &&
-			(ldh.nSegments == gameData.segs.nSegments) &&
-			(ldh.nVertices == gameData.segs.nVertices) &&
-			(ldh.nLights == gameData.render.lights.dynamic.nLights) &&
+	bOk = (ldh.nVersion == LIGHT_DATA_VERSION) && 
+			(ldh.nSegments == gameData.segs.nSegments) && 
+			(ldh.nVertices == gameData.segs.nVertices) && 
+			(ldh.nLights == gameData.render.lights.dynamic.nLights) && 
 			(ldh.nMaxLightRange == MAX_LIGHT_RANGE) &&
 			(ldh.nMethod = LightingMethod () &&
-			((ldh.bPerPixelLighting != 0) == (gameStates.render.bPerPixelLighting != 0)));
+			(ldh.bPerPixelLighting == gameStates.render.bPerPixelLighting));
 if (bOk)
-	bOk =
-			(cf.Read (gameData.segs.bSegVis.Buffer (), sizeof (ubyte) * ldh.nSegments * SEGVIS_FLAGS, 1) == 1) &&
+	bOk = 
+			(CFRead (gameData.segs.bSegVis, sizeof (ubyte) * ldh.nSegments * SEGVIS_FLAGS, 1, &cf) == 1) &&
 #if 0
-			(cf.Read (gameData.segs.bVertVis.Buffer (), sizeof (ubyte) * ldh.nVertices * VERTVIS_FLAGS, 1) == 1) &&
+			(CFRead (gameData.segs.bVertVis, sizeof (ubyte) * ldh.nVertices * VERTVIS_FLAGS, 1, &cf) == 1) &&
 #endif
-			(cf.Read (gameData.render.lights.dynamic.nearestSegLights.Buffer (), sizeof (short) * ldh.nSegments * MAX_NEAREST_LIGHTS, 1) == 1) &&
-			(cf.Read (gameData.render.lights.dynamic.nearestVertLights.Buffer (), sizeof (short) * ldh.nVertices * MAX_NEAREST_LIGHTS, 1) == 1);
-cf.Close ();
+			(CFRead (gameData.render.lights.dynamic.nNearestSegLights, sizeof (short) * ldh.nSegments * MAX_NEAREST_LIGHTS, 1, &cf) == 1) &&
+			(CFRead (gameData.render.lights.dynamic.nNearestVertLights, sizeof (short) * ldh.nVertices * MAX_NEAREST_LIGHTS, 1, &cf) == 1);
+CFClose (&cf);
 return bOk;
 }
 
@@ -512,29 +540,29 @@ return bOk;
 
 int SaveLightData (int nLevel)
 {
-	CFile				cf;
-	tLightDataHeader ldh = {LIGHT_DATA_VERSION,
-								   gameData.segs.nSegments,
-								   gameData.segs.nVertices,
-								   gameData.render.lights.dynamic.nLights,
+	CFILE				cf;
+	tLightDataHeader ldh = {LIGHT_DATA_VERSION, 
+								   gameData.segs.nSegments, 
+								   gameData.segs.nVertices, 
+								   gameData.render.lights.dynamic.nLights, 
 									MAX_LIGHT_RANGE,
-									LightingMethod (),
+									LightingMethod (), 
 									gameStates.render.bPerPixelLighting};
 	int				bOk;
 	char				szFilename [FILENAME_LEN];
 
 if (!gameStates.app.bCacheLights)
 	return 0;
-if (!cf.Open (LightDataFilename (szFilename, nLevel), gameFolders.szCacheDir, "wb", 0))
+if (!CFOpen (&cf, LightDataFilename (szFilename, nLevel), gameFolders.szTempDir, "wb", 0))
 	return 0;
-bOk = (cf.Write (&ldh, sizeof (ldh), 1) == 1) &&
-		(cf.Write (gameData.segs.bSegVis.Buffer (), sizeof (ubyte) * ldh.nSegments * SEGVIS_FLAGS, 1) == 1) &&
+bOk = (CFWrite (&ldh, sizeof (ldh), 1, &cf) == 1) &&
+		(CFWrite (gameData.segs.bSegVis, sizeof (ubyte) * ldh.nSegments * SEGVIS_FLAGS, 1, &cf) == 1) &&
 #if 0
-		(cf.Write (gameData.segs.bVertVis.Buffer (), sizeof (ubyte) * ldh.nVertices * VERTVIS_FLAGS, 1) == 1) &&
+		(CFWrite (gameData.segs.bVertVis, sizeof (ubyte) * ldh.nVertices * VERTVIS_FLAGS, 1, &cf) == 1) &&
 #endif
-		(cf.Write (gameData.render.lights.dynamic.nearestSegLights.Buffer (), sizeof (short) * ldh.nSegments * MAX_NEAREST_LIGHTS, 1) == 1) &&
-		(cf.Write (gameData.render.lights.dynamic.nearestVertLights.Buffer (), sizeof (short) * ldh.nVertices * MAX_NEAREST_LIGHTS, 1) == 1);
-cf.Close ();
+		(CFWrite (gameData.render.lights.dynamic.nNearestSegLights, sizeof (short) * ldh.nSegments * MAX_NEAREST_LIGHTS, 1, &cf) == 1) &&
+		(CFWrite (gameData.render.lights.dynamic.nNearestVertLights, sizeof (short) * ldh.nVertices * MAX_NEAREST_LIGHTS, 1, &cf) == 1);
+CFClose (&cf);
 return bOk;
 }
 
@@ -548,7 +576,7 @@ static tThreadInfo	ti [2];
 
 int _CDECL_ SegLightsThread (void *pThreadId)
 {
-	int		nId = *(reinterpret_cast<int*> (pThreadId));
+	int		nId = *((int *) pThreadId);
 
 ComputeNearestSegmentLights (nId ? gameData.segs.nSegments / 2 : 0);
 SDL_SemPost (ti [nId].done);
@@ -560,7 +588,7 @@ return 0;
 
 int _CDECL_ VertLightsThread (void *pThreadId)
 {
-	int		nId = *(reinterpret_cast<int*> (pThreadId));
+	int		nId = *((int *) pThreadId);
 
 ComputeNearestVertexLights (nId ? gameData.segs.nVertices / 2 : 0);
 SDL_SemPost (ti [nId].done);
@@ -601,7 +629,7 @@ void ComputeNearestLights (int nLevel)
 {
 if (gameStates.app.bNostalgia)
 	return;
-if (!(SHOW_DYN_LIGHT ||
+if (!(SHOW_DYN_LIGHT || 
 	  (gameStates.render.bAmbientColor && !gameStates.render.bColored) ||
 	   (gameStates.app.bEnableShadows && !COMPETITION)))
 	return;
@@ -610,7 +638,7 @@ loadIdx = 0;
 PrintLog ("Looking for precompiled light data\n");
 if (LoadLightData (nLevel))
 	return;
-else
+else 
 #if MULTI_THREADED_PRECALC
 if (gameStates.app.bMultiThreaded && (gameData.segs.nSegments > 15)) {
 	gameData.physics.side.bCache = 0;
@@ -627,9 +655,9 @@ else {
 	gameStates.app.bMultiThreaded = 0;
 #endif
 	if (gameStates.app.bProgressBars && gameOpts->menus.nStyle)
-		NMProgressBar (TXT_PREP_DESCENT,
-							LoadMineGaugeSize () + PagingGaugeSize (),
-							LoadMineGaugeSize () + PagingGaugeSize () + SortLightsGaugeSize (), SortLightsPoll);
+		NMProgressBar (TXT_PREP_DESCENT, 
+							LoadMineGaugeSize () + PagingGaugeSize (), 
+							LoadMineGaugeSize () + PagingGaugeSize () + SortLightsGaugeSize (), SortLightsPoll); 
 	else {
 		PrintLog ("Computing segment visibility\n");
 		ComputeSegmentVisibility (-1);
@@ -640,7 +668,7 @@ else {
 		}
 	gameStates.app.bMultiThreaded = bMultiThreaded;
 	}
-gameData.segs.bVertVis.Destroy ();
+D2_FREE (gameData.segs.bVertVis);
 PrintLog ("Saving precompiled light data\n");
 SaveLightData (nLevel);
 }

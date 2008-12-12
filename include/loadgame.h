@@ -1,3 +1,4 @@
+/* $Id: loadgame.h,v 1.3 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,6 +25,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 extern int LastLevel, Last_secretLevel, Last_mission;   //set by mission code
 
+
 // CurrentLevel_num starts at 1 for the first level
 // -1,-2,-3 are secret levels
 // 0 means not a real level loaded
@@ -34,7 +36,7 @@ extern tObjPosition Player_init[MAX_PLAYERS];
 extern int bPlayerIsTyping [MAX_PLAYERS];
 extern int nTypingTimeout;
 #endif
-// This is the highest level the CPlayerData has ever reached
+// This is the highest level the tPlayer has ever reached
 extern int Player_highestLevel;
 
 //
@@ -51,25 +53,22 @@ void StartLevel(int randomFlag);
 // Actually does the work to start new level
 int StartNewLevelSub(int nLevel, int bPageInTextures, int bSecret, int bRestore);
 
-void InitMultiPlayerObject (void);            //make sure CPlayerData's CObject set up
+void InitMultiPlayerObject (void);            //make sure tPlayer's tObject set up
 void InitPlayerStatsGame (void);      //clear all stats
-void GameStartInitNetworkPlayers (void);
 
 // starts a resumed game loaded from disk
 void ResumeSavedGame(int startLevel);
 
-// called when the CPlayerData has finished a level
+// called when the tPlayer has finished a level
 // if secret flag is true, advance to secret level, else next normal level
 void PlayerFinishedLevel(int secretFlag);
 
-// called when the CPlayerData has died
+// called when the tPlayer has died
 void DoPlayerDead (void);
 
-void SetPosFromReturnSegment (int bRelink);
 // load a level off disk. level numbers start at 1.
 // Secret levels are -1,-2,-3
 int LoadLevel (int nLevel, int bPageInTextures, int bRestore);
-void AddPlayerLoadout (void);
 
 void GameStartRemoveUnusedPlayers ();
 
@@ -80,7 +79,7 @@ extern void UpdatePlayerStats();
 
 void show_high_scores(int place);
 void draw_high_scores(int place);
-int add_player_to_high_scores(CPlayerData *playerP);
+int add_player_to_high_scores(tPlayer *playerP);
 void input_name (int place);
 int reset_high_scores();
 void InitPlayerStatsLevel(int secretFlag);
@@ -101,15 +100,13 @@ void DoEndLevelScoreGlitz(int network);
 extern int MaxNumNetPlayers;
 extern int NumNetPlayerPositions;
 
-void BashToShield(int, const char *);
-void BashToEnergy(int, const char *);
+void BashToShield(int, char *);
+void BashToEnergy(int, char *);
 
-fix RobotDefaultShields (CObject *objP);
+fix RobotDefaultShields (tObject *objP);
 
 char *LevelName (int nLevel);
 char *LevelSongName (int nLevel);
-char *MakeLevelFilename (int nLevel, char *pszFilename, const char *pszFileExt);
-
-int GetRandomPlayerPosition (void);
+char *MakeLevelFilename (int nLevel, char *pszFilename, char *pszFileExt);
 
 #endif /* _LOADGAME_H */

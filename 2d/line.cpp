@@ -1,3 +1,4 @@
+/* $Id: line.c,v 1.5 2002/10/10 18:55:32 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -268,8 +269,8 @@ void gr_universal_uline(int a1, int b1, int a2, int b2)
 int gr_uline(fix _a1, fix _b1, fix _a2, fix _b2)
 {
 	int a1,b1,a2,b2;
-	a1 = X2I(_a1); b1 = X2I(_b1); a2 = X2I(_a2); b2 = X2I(_b2);
-	switch(MODE)
+	a1 = f2i(_a1); b1 = f2i(_b1); a2 = f2i(_a2); b2 = f2i(_b2);
+	switch(TYPE)
 	{
 	case BM_OGL:
 		OglULineC(a1,b1,a2,b2,&COLOR);
@@ -283,7 +284,7 @@ int gr_uline(fix _a1, fix _b1, fix _a2, fix _b2)
 		modex_line_y1 = b1+YOFFSET;
 		modex_line_x2 = a2+XOFFSET;
 		modex_line_y2 = b2+YOFFSET;
-		modex_line_Color = CCanvas::Current ()->Color ();
+		modex_line_Color = grdCurCanv->cvColor;
 		gr_modex_line();
 		return 0;
 	default:
@@ -302,10 +303,10 @@ int GrLine(fix a1, fix b1, fix a2, fix b2)
 	int x1, y1, x2, y2;
 	int clipped=0;
 
-	x1 = I2X(MINX);
-	y1 = I2X(MINY);
-	x2 = I2X(MAXX);
-	y2 = I2X(MAXY);
+	x1 = i2f(MINX);
+	y1 = i2f(MINY);
+	x2 = i2f(MAXX);
+	y2 = i2f(MAXY);
 
 	CLIPLINE(a1,b1,a2,b2,x1,y1,x2,y2,return 2,clipped=1, FSCALE );
 

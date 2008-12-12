@@ -1,3 +1,5 @@
+/* $Id: hudmsg.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
+
 /*
  *
  * d1x style hud - not implemented yet
@@ -29,7 +31,7 @@
 #define MSGC_PLAYERMESSAGES	(~(MSGC_PICKUP_TOOMUCH | MSGC_PICKUP_ALREADY | MSGC_PICKUP_OK))
 
 #define HUD_MESSAGE_LENGTH	150
-#if !DBG
+#ifndef _DEBUG
 #	define HUD_MAX_MSGS 4 // 80 //max to display in scrollback mode (and as such, the max to store, period)
 #else
 #	define HUD_MAX_MSGS 4
@@ -45,16 +47,16 @@ extern int MSG_Noredundancy;
 //end kill -MM
 
 #ifdef __GNUC__
-void HUDMessage(int msgClass, const char *format, ...)
+void HUDMessage(int msgClass, char *format, ...)
 	__attribute__ ((format (printf, 2, 3)));
-int _CDECL_ HUDInitMessage(const char *format, ... )
+int _CDECL_ HUDInitMessage(char *format, ... )
 	__attribute__ ((format (printf, 1, 2)));
-void _CDECL_ HUDPlayerMessage(const char *format, ... )
+void _CDECL_ HUDPlayerMessage(char *format, ... )
 	 __attribute__ ((format (printf, 1, 2)));
 #else
-void _CDECL_ HUDMessage(int msgClass, const char *format, ...);
-int _CDECL_ HUDInitMessage(const char *format, ... );
-void _CDECL_ HUDPlayerMessage(const char *format, ... );
+void _CDECL_ HUDMessage(int msgClass, char *format, ...);
+int _CDECL_ HUDInitMessage(char *format, ... );
+void _CDECL_ HUDPlayerMessage(char *format, ... );
 #endif
 
 

@@ -1,3 +1,4 @@
+/* $Id: newdemo.h,v 1.4 2003/10/04 02:58:23 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -33,8 +34,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 // Functions called during recording process...
 void NDRecordStartDemo();
 void NDRecordStartFrame(int frame_number, fix frameTime );
-void NDRecordRenderObject(CObject * obj);
-void NDRecordViewerObject(CObject * obj);
+void NDRecordRenderObject(tObject * obj);
+void NDRecordViewerObject(tObject * obj);
 void NDRecordSound3D( int soundno, int angle, int volume );
 void NDRecordSound3DOnce( int soundno, int angle, int volume );
 void newdemo_recordSound_once( int soundno );
@@ -53,7 +54,7 @@ void NDRecordPlayerEnergy(int, int);
 void NDRecordPlayerShields(int, int);
 void NDRecordPlayerFlags(uint, uint);
 void NDRecordPlayerWeapon(int, int);
-void NDRecordEffectBlowup(short, int, CFixVector *);
+void NDRecordEffectBlowup(short, int, vmsVector *);
 void NDRecordHomingDistance(fix);
 void NDRecordLetterbox(void);
 void NDRecordRearView(void);

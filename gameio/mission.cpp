@@ -25,7 +25,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "inferno.h"
 #include "pstypes.h"
 #include "cfile.h"
-#include "hogfile.h"
 #include "strutil.h"
 #include "mission.h"
 #include "loadgame.h"
@@ -59,7 +58,7 @@ int load_mission_d1(int nMission)
 {
 	int i;
 
-	hogFileManager.UseD1 ("descent.hog");
+	CFUseD1HogFile("descent.hog");
 
 	gameData.missions.nCurrentMission = nMission;
 	gameStates.app.szCurrentMissionFile = gameData.missions.list [nMission].filename;
@@ -210,12 +209,12 @@ return 1;
 
 //------------------------------------------------------------------------------
 //strips damn newline from end of line
-char *MsnGetS (char *s, int n, CFile& cf)
+char *MsnGetS (char *s, int n, CFILE *cfp)
 {
 	char *r;
 	int	l;
 
-r = cf.GetS (s, n);
+r = CFGetS (s, n, cfp);
 if (r) {
 	l = (int) strlen (s) - 1;
 	if (s [l] == '\n')
@@ -226,7 +225,7 @@ return r;
 
 //------------------------------------------------------------------------------
 //compare a string for a token. returns true if match
-int MsnIsTok (char *buf, const char *tok)
+int MsnIsTok (char *buf,char *tok)
 {
 return !strnicmp (buf, tok, strlen (tok));
 }
@@ -259,15 +258,16 @@ return NULL;		//error!
 
 //------------------------------------------------------------------------------
 //reads a line, returns ptr to value of passed parm.  returns NULL if none
-char *GetParmValue (const char *parm, CFile& cf)
+char *GetParmValue (char *parm,CFILE *f)
 {
 	static char buf [80];
 
-if (!MsnGetS (buf, 80, cf))
+if (!MsnGetS(buf,80,f))
 	return NULL;
-if (MsnIsTok (buf, parm))
-	return MsnGetValue (buf);
-return NULL;
+if (MsnIsTok (buf,parm))
+	return MsnGetValue(buf);
+else
+	return NULL;
 }
 
 //------------------------------------------------------------------------------
@@ -293,10 +293,10 @@ return (*s1 == '[') ? -1 : 1;
 extern char CDROM_dir [];
 
 //returns 1 if file read ok, else 0
-int ReadMissionFile (const char *filename, int count, int location)
+int ReadMissionFile (char *filename, int count, int location)
 {
 	char	filename2 [100];
-	CFile cf;
+	CFILE cf;
 	char	*p, temp [FILENAME_LEN],*t;
 
 switch (location) {
@@ -318,7 +318,7 @@ switch (location) {
 		break;
 }
 strcat(filename2, filename);
-if (!cf.Open (filename2, "", "rb", 0))
+if (!CFOpen (&cf, filename2, "", "rb", 0))
 	return 0;
 
 strcpy(temp,filename);
@@ -327,22 +327,22 @@ if ((t = strchr(temp, '.')) == NULL)
 gameData.missions.list [count].nDescentVersion = (t [3] == '2') ? 2 : 1;
 *t = '\0';
 // look if it's .mn2 or .msn
-strcpy (gameData.missions.list [count].filename, temp);
+strcpy( gameData.missions.list [count].filename, temp);
 gameData.missions.list [count].bAnarchyOnly = 0;
 gameData.missions.list [count].location = location;
 
-p = GetParmValue("name", cf);
+p = GetParmValue("name",&cf);
 if (!p) {		//try enhanced mission
-	cf.Seek (0, SEEK_SET);
-	p = GetParmValue ("xname", cf);
+	CFSeek(&cf,0,SEEK_SET);
+	p = GetParmValue ("xname", &cf);
 	}
 if (!p) {       //try super-enhanced mission!
-	cf.Seek (0, SEEK_SET);
-	p = GetParmValue ("zname", cf);
+	CFSeek(&cf,0,SEEK_SET);
+	p = GetParmValue( "zname", &cf);
 	}
 if (!p && (gameStates.app.bNostalgia < 3)) {       //try super-enhanced mission!
-	cf.Seek (0, SEEK_SET);
-	p = GetParmValue ("d2x-name", cf);
+	CFSeek(&cf,0,SEEK_SET);
+	p = GetParmValue ("d2x-name", &cf);
 	}
 
 if (p) {
@@ -358,17 +358,17 @@ if (p) {
 		strcat (temp, filename);
 		}
 	else
-		strcpy (gameData.missions.list [count].szMissionName,p);
+		strcpy(gameData.missions.list [count].szMissionName,p);
 	}
 else {
-	cf.Close ();
+	CFClose(&cf);
 	return 0;
 	}
-p = GetParmValue ("nType", cf);
+p = GetParmValue("nType",&cf);
 //get mission nType
 if (p)
 	gameData.missions.list [count].bAnarchyOnly = MsnIsTok (p,"anarchy");
-cf.Close ();
+CFClose(&cf);
 return 1;
 }
 
@@ -376,11 +376,9 @@ return 1;
 
 void AddBuiltinD1MissionToList (int *count)
 {
-	CFile	cf;
-
-if (!cf.Exist ("descent.hog", gameFolders.szDataDir, 1))
+if (!CFExist("descent.hog", gameFolders.szDataDir, 1))
 	return;
-gameData.missions.nD1BuiltinHogSize = cf.Size ("descent.hog", gameFolders.szDataDir, 0);
+gameData.missions.nD1BuiltinHogSize = CFSize("descent.hog",gameFolders.szDataDir, 0);
 switch (gameData.missions.nD1BuiltinHogSize) {
 	case D1_SHAREWARE_MISSION_HOGSIZE:
 	case D1_SHAREWARE_10_MISSION_HOGSIZE:
@@ -428,9 +426,7 @@ switch (gameData.missions.nD1BuiltinHogSize) {
 
 void AddBuiltinD2XMissionToList (int *count)
 {
-	CFile	cf;
-
-if (cf.Exist ("d2x.hog", gameFolders.szMissionDir, 0)) {
+if (CFExist ("d2x.hog", gameFolders.szMissionDir, 0)) {
 	strcpy(gameData.missions.list [*count].filename,"d2x");
 	if (gameOpts->menus.bShowLevelVersion)
 		strcpy (gameData.missions.list [*count].szMissionName,"[2] Descent 2: Vertigo");
@@ -447,11 +443,9 @@ if (cf.Exist ("d2x.hog", gameFolders.szMissionDir, 0)) {
 
 void AddBuiltinMissionToList (int *count)
 {
-	CFile	cf;
-
-gameData.missions.nBuiltinHogSize = cf.Size ("descent2.hog", gameFolders.szDataDir, 0);
+gameData.missions.nBuiltinHogSize = CFSize ("descent2.hog", gameFolders.szDataDir, 0);
 if (gameData.missions.nBuiltinHogSize == -1)
-	gameData.missions.nBuiltinHogSize = cf.Size ("d2demo.hog", gameFolders.szDataDir, 0);
+	gameData.missions.nBuiltinHogSize = CFSize ("d2demo.hog", gameFolders.szDataDir, 0);
 
 switch (gameData.missions.nBuiltinHogSize) {
 	case SHAREWARE_MISSION_HOGSIZE:
@@ -495,20 +489,18 @@ int nBuiltIns = 0;
 void AddMissionsToList 
 	(int *count, int anarchy_mode, int bD1Mission, int bSubFolder, int bHaveSubFolders, int nLocation)
 {
-	CFile	cf;
 	FFS	ffs;
 	int 	c = *count;
 	char lvlName [255];
 	char searchName [255];
-	const char *lvlExt = ".hog";
+	char *lvlExt = ".hog";
+	char *altLvlExt [2] = {".rdl", ".rl2"};
 	int	bFindDirs;
 
-	static const char *altLvlExt [2] = {".rdl", ".rl2"};
-
 #ifdef _WIN32
-	static const char *pszExt [2][2] = {{"*.mn2", "*.msn"},{"*", "*"}};
+	static char *pszExt [2][2] = {{"*.mn2", "*.msn"},{"*", "*"}};
 #else
-	static const char *pszExt [2][2] = {{"*.mn2", "*.msn"},{"*", "*"}};
+	static char *pszExt [2][2] = {{"*.mn2", "*.msn"},{"*", "*"}};
 #endif
 
 	if (c + bSubFolder >= MAX_MISSIONS) 
@@ -534,9 +526,9 @@ void AddMissionsToList
 				else {
 					sprintf (lvlName, "%s%s", gameFolders.szMissionDirs [nLocation], ffs.name);
 					memcpy (lvlName + strlen (lvlName) - 4, lvlExt, sizeof (lvlExt));
-					if (cf.Exist (lvlName, "", 0))
+					if (CFExist (lvlName, "", 0))
 						memcpy (lvlName + strlen (lvlName) - 4, altLvlExt [bD1Mission], sizeof (altLvlExt [bD1Mission]));
-					if (!cf.Exist (lvlName, "", 0)) {
+					if (!CFExist (lvlName, "", 0)) {
 						if (ReadMissionFile (ffs.name, c, nLocation) &&
 							 (anarchy_mode || !gameData.missions.list [c].bAnarchyOnly))
 							c++;
@@ -559,7 +551,7 @@ void AddMissionsToList
 
 //------------------------------------------------------------------------------
 /* move <szMissionName> to <place> on mission list, increment <place> */
-void PromoteMission (const char * szMissionName, int * nTopPlace, int nMissionCount)
+void PromoteMission (char * szMissionName, int * nTopPlace, int nMissionCount)
 {
 	int i;
 	char name [FILENAME_LEN], * t;
@@ -682,7 +674,7 @@ if (count > nTopPlace)
 	qsort(gameData.missions.list + nTopPlace,
 		   count - nTopPlace,
 		   sizeof(*gameData.missions.list),
-		   (int (_CDECL_ *) (const void *, const void * )) MLSortFunc);
+		   (int (_CDECL_ *)( const void *, const void * ))MLSortFunc);
 
 //LoadMission(0);   //set built-in mission as default
 nMissionCount = count;
@@ -698,7 +690,7 @@ char *MsnTrimComment (char *buf)
 if ((ps = strchr (buf, ';'))) {
 	while (ps > buf) {
 		--ps;
-		if (!::isspace ((ubyte) *ps)) {
+		if (!::isspace ((unsigned char) *ps)) {
 			++ps;
 			break;
 			}
@@ -710,7 +702,7 @@ return buf;
 
 //------------------------------------------------------------------------------
 
-int ParseMissionFile (CFile& cf)
+int ParseMissionFile (CFILE *cfp)
 {
 	int	i;
 	char	*t, *v;
@@ -721,7 +713,7 @@ gameData.missions.nLastLevel = 0;
 gameData.missions.nLastSecretLevel = 0;
 *gameData.missions.szBriefingFilename = '\0';
 *gameData.missions.szEndingFilename = '\0';
-while (MsnGetS (buf, 80, cf)) {
+while (MsnGetS (buf, 80, cfp)) {
 	PrintLog ("      '%s'\n", buf);
 	MsnTrimComment (buf);
 	if (MsnIsTok (buf, "name"))
@@ -745,7 +737,7 @@ while (MsnGetS (buf, 80, cf)) {
 			;
 		while (*bufP == ' ')
 			bufP++;
-		hogFileManager.UseAlt (bufP);
+		CFUseAltHogFile (bufP);
 		}
 	else if (MsnIsTok (buf, "briefing")) {
 		if ((v = MsnGetValue (buf))) {
@@ -770,7 +762,7 @@ while (MsnGetS (buf, 80, cf)) {
 			int nLevels = atoi (v);
 			if (nLevels)
 				PrintLog ("      parsing level list\n");
-			for (i = 0; (i < nLevels) && MsnGetS (buf, 80, cf); i++) {
+			for (i = 0; (i < nLevels) && MsnGetS (buf, 80, cfp); i++) {
 				PrintLog ("         '%s'\n", buf);
 				MsnTrimComment (buf);
 				MsnAddStrTerm (buf);
@@ -788,7 +780,7 @@ while (MsnGetS (buf, 80, cf)) {
 		if ((v = MsnGetValue (buf))) {
 			gameData.missions.nSecretLevels = atoi (v);
 			Assert(gameData.missions.nSecretLevels <= MAX_SECRET_LEVELS_PER_MISSION);
-			for (i = 0; (i < gameData.missions.nSecretLevels) && MsnGetS (buf, 80, cf); i++) {
+			for (i = 0; (i < gameData.missions.nSecretLevels) && MsnGetS (buf, 80, cfp); i++) {
 				PrintLog ("         '%s'\n", buf);
 				MsnTrimComment (buf);
 				if (!(t = strchr (buf, ','))) {
@@ -820,18 +812,18 @@ return 1;
 
 void LoadSongList (char *szFile)
 {
-	CFile	cf;
+	CFILE	cf;
 	char	pn [FILENAME_LEN], fn [FILENAME_LEN] = {'\x01'};
 	int	i;
 
 memset (gameData.missions.szSongNames, 0, sizeof (gameData.missions.szSongNames));
-CFile::SplitPath (szFile, pn, fn + 1, NULL);
+CFSplitPath (szFile, pn, fn + 1, NULL);
 strcat (fn, ".sng");
-if (!cf.Open (fn, pn, "rb", 0))
+if (!CFOpen (&cf, fn, pn, "rb", 0))
 	return;
-for (i = 0; cf.GetS (gameData.missions.szSongNames [i], SHORT_FILENAME_LEN) && (i < MAX_LEVELS_PER_MISSION); i++)
+for (i = 0; CFGetS (gameData.missions.szSongNames [i], SHORT_FILENAME_LEN, &cf) && (i < MAX_LEVELS_PER_MISSION); i++)
 	;
-cf.Close ();
+CFClose (&cf);
 }
 
 //------------------------------------------------------------------------------
@@ -845,13 +837,13 @@ void InitExtraRobotMovie (char *filename);
 //Returns true if mission loaded ok, else false.
 int LoadMission (int nMission)
 {
-	CFile		cf;
+	CFILE		cf;
 	char		szFolder [FILENAME_LEN] = {'\0'}, szFile [FILENAME_LEN] = {'\0'};
 	int		i, bFoundHogFile = 0;
 
 gameData.missions.nEnhancedMission = 0;
 if (nMission == gameData.missions.nD1BuiltinMission) {
-	hogFileManager.UseD1 ("descent.hog");
+	CFUseD1HogFile ("descent.hog");
 	switch (gameData.missions.nD1BuiltinHogSize) {
 	default:
 		Int3(); // fall through
@@ -917,30 +909,30 @@ sprintf (szFile, "%s%s",
 			gameData.missions.list [nMission].filename,
 			(gameData.missions.list [nMission].nDescentVersion == 2) ? ".mn2" : ".msn");
 strlwr (szFile);
-if (!cf.Open (szFile, szFolder, "rb", 0)) {
+if (!CFOpen (&cf, szFile, szFolder, "rb", 0)) {
 	gameData.missions.nCurrentMission = -1;
 	return 0;		//error!
 	}
-i = ParseMissionFile (cf);
-cf.Close ();
+i = ParseMissionFile (&cf);
+CFClose(&cf);
 if (!i) {
 	gameData.missions.nCurrentMission = -1;
 	ExecMessageBox (TXT_ERROR, NULL, 1, TXT_OK, TXT_MSNFILE_ERROR);
 	return 0;
 	}
 //for non-builtin missions, load HOG
-hogFileManager.UseAlt ("");
+CFUseAltHogFile ("");
 if (!strcmp (gameData.missions.list [nMission].filename, gameData.missions.szBuiltinMissionFilename)) 
 	bFoundHogFile = 1;
 else {
 	sprintf (szFile, "%s%s.hog", szFolder, gameData.missions.list [nMission].filename);
 	strlwr (szFile);
-	bFoundHogFile = hogFileManager.UseAlt (szFile);
+	bFoundHogFile = CFUseAltHogFile (szFile);
 	if (bFoundHogFile) {
 		// for Descent 1 missions, load descent.hog
 		if ((gameData.missions.list [nMission].nDescentVersion == 1) && 
 			 strcmp (gameData.missions.list [nMission].filename, "descent"))
-			if (!hogFileManager.UseD1 ("descent.hog"))
+			if (!CFUseD1HogFile ("descent.hog"))
 				Warning (TXT_NO_HOG);
 		}
 	else {
@@ -949,15 +941,15 @@ else {
 					gameData.missions.list [nMission].filename,
 					(gameData.missions.list [nMission].nDescentVersion == 2) ? ".rl2" : ".rdl");
 		strlwr (szFile);
-		bFoundHogFile = hogFileManager.UseAlt (szFile);
+		bFoundHogFile = CFUseAltHogFile (szFile);
 		if (bFoundHogFile) {
-			strcpy (gameData.missions.szLevelNames [0], hogFileManager.AltFiles ().files [0].name);
+			strcpy (gameData.missions.szLevelNames [0], gameHogFiles.AltHogFiles.files [0].name);
 			gameData.missions.nLastLevel = 1;
 			}
 		else {
 			sprintf (szFile, "%s%s", szFolder, gameData.missions.szLevelNames [0]);
 			strlwr (szFile);
-			bFoundHogFile = hogFileManager.UseAlt (szFile);
+			bFoundHogFile = CFUseAltHogFile (szFile);
 			}
 		}
 	}

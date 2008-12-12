@@ -8,19 +8,31 @@
 #endif
 //#include  "oof.h
 #include "inferno.h"
+#include "cfile.h"
 #include "args.h"
 #include "u_mem.h"
+#include "gr.h"
 #include "error.h"
+#include "globvars.h"
+#include "3d.h"
 #include "light.h"
 #include "dynlight.h"
+#include "ogl_defs.h"
 #include "ogl_lib.h"
 #include "ogl_color.h"
 #include "network.h"
+#include "vecmat.h"
 #include "render.h"
 #include "strutil.h"
+#include "hudmsg.h"
+#include "tga.h"
+#include "oof.h"
 
 //------------------------------------------------------------------------------
 
+#define OOF_MEM_OPT	1
+#define GL_G3_INFINITY	0
+#define SHADOW_TEST	0
 #define NORM_INF		1
 
 #ifdef __unix
@@ -51,6 +63,8 @@ static tOOF_vector vPos;
 static tOOF_vector vrLightPos;
 static tOOF_matrix mView;
 
+int G3GetFaceWinding (tOOF_vector *v0, tOOF_vector *v1, tOOF_vector *v2);
+
 //------------------------------------------------------------------------------
 
 int OOF_FacingPoint (tOOF_vector *pv, tOOF_vector *pn, tOOF_vector *pp)
@@ -78,8 +92,8 @@ return OOF_FacingPoint (pv, pn, &vrLightPos);
 
 tOOF_vector *OOF_CalcFacePerp (tOOF_subObject *pso, tOOF_face *pf)
 {
-	tOOF_vector		*pv = pso->verts;
-	tOOF_faceVert	*pfv = pf->verts;
+	tOOF_vector		*pv = pso->pvVerts;
+	tOOF_faceVert	*pfv = pf->pVerts;
 
 #if 0
 OOF_CalcFaceNormal (pso, pf);
@@ -96,7 +110,7 @@ return pf->bFacingLight =
 #if 1
 	OOF_FacingLight (&pf->vRotCenter, &pf->vRotNormal); 
 #else
-	OOF_FacingLight (pso->rotVerts + pf->verts->nIndex, &pf->vRotNormal); //OOF_CalcFacePerp (pso, pf)); 
+	OOF_FacingLight (pso->pvRotVerts + pf->pVerts->nIndex, &pf->vRotNormal); //OOF_CalcFacePerp (pso, pf)); 
 #endif
 }
 
@@ -107,7 +121,7 @@ int OOF_FrontFace (tOOF_subObject *pso, tOOF_face *pf)
 #if 0
 return OOF_FacingViewer (&pf->vRotCenter, &pf->vRotNormal);
 #else
-return OOF_FacingViewer (pso->rotVerts + pf->verts->nIndex, &pf->vRotNormal);	//OOF_CalcFacePerp (pso, pf));
+return OOF_FacingViewer (pso->pvRotVerts + pf->pVerts->nIndex, &pf->vRotNormal);	//OOF_CalcFacePerp (pso, pf));
 #endif
 }
 
@@ -118,7 +132,7 @@ int OOF_GetLitFaces (tOOF_subObject *pso)
 	tOOF_face		*pf;
 	int				i;
 
-for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
+for (i = pso->faces.nFaces, pf = pso->faces.pFaces; i; i--, pf++) {
 	pf->bFacingLight = OOF_LitFace (pso, pf);
 #if 0
 	if (bSWCulling)
@@ -137,7 +151,7 @@ int OOF_GetSilhouette (tOOF_subObject *pso)
 	int				h, i, j;
 
 OOF_GetLitFaces (pso);
-pv = pso->rotVerts;
+pv = pso->pvRotVerts;
 for (h = j = 0, i = pso->edges.nEdges, pe = pso->edges.pEdges; i; i--, pe++) {
 	if (pe->pf [0] && pe->pf [1]) {
 		if ((pe->bContour = (pe->pf [0]->bFacingLight != pe->pf [1]->bFacingLight)))
@@ -155,6 +169,10 @@ for (h = j = 0, i = pso->edges.nEdges, pe = pso->edges.pEdges; i; i--, pe++) {
 	}
 return pso->edges.nContourEdges = h;
 }
+
+//------------------------------------------------------------------------------
+
+extern tRgbaColorf shadowColor [2], modelColor [2];
 
 //------------------------------------------------------------------------------
 
@@ -202,10 +220,10 @@ if (!bShadowVolume)
 if (bShadowTest > 3)
 	return 1;
 if (bShadowTest < 2)
-	glColor4fv (reinterpret_cast<GLfloat*> (shadowColor + bCullFront));
+	glColor4fv ((GLfloat *) (shadowColor + bCullFront));
 #endif
 OOF_SetCullAndStencil (bCullFront);
-pv = pso->rotVerts;
+pv = pso->pvRotVerts;
 #if DBG_SHADOWS
 if (bShadowTest < 2)
 	glBegin (GL_QUADS);
@@ -218,7 +236,7 @@ for (i = pso->edges.nContourEdges, pe = pso->edges.pEdges; i; pe++)
 #if DBG_SHADOWS
 		if (bShadowTest < 2) {
 			if (bShadowTest)
-				glColor4fv (reinterpret_cast<GLfloat*> (shadowColor + bCullFront));
+				glColor4fv ((GLfloat *) (shadowColor + bCullFront));
 #endif
 			j = (pe->pf [1] && pe->pf [1]->bFacingLight);
 			if (pe->pf [j]->bReverse)
@@ -236,23 +254,23 @@ for (i = pso->edges.nContourEdges, pe = pso->edges.pEdges; i; pe++)
 #endif
 			OOF_VecInc (v+2, v+1);
 			OOF_VecInc (v+3, v);
-#if !DBG
+#ifndef _DEBUG
 			glEnableClientState (GL_VERTEX_ARRAY);
 			glVertexPointer (3, GL_FLOAT, 0, v);
 			glDrawArrays (GL_QUADS, 0, 4);
 			glDisableClientState (GL_VERTEX_ARRAY);
 #else
-			glVertex3fv (reinterpret_cast<GLfloat*> (v));
-			glVertex3fv (reinterpret_cast<GLfloat*> (v+1));
-			glVertex3fv (reinterpret_cast<GLfloat*> (v+2));
-			glVertex3fv (reinterpret_cast<GLfloat*> (v+3));
+			glVertex3fv ((GLfloat *) v);
+			glVertex3fv ((GLfloat *) (v+1));
+			glVertex3fv ((GLfloat *) (v+2));
+			glVertex3fv ((GLfloat *) (v+3));
 #endif
 #if DBG_SHADOWS
 			}
 		else {
 			glColor4f (1.0f, 1.0f, 1.0f, 1.0f);
-			glVertex3fv (reinterpret_cast<GLfloat*> (pv + pe->v0 [0]));
-			glVertex3fv (reinterpret_cast<GLfloat*> (pv + pe->v1 [0]));
+			glVertex3fv ((GLfloat *) (pv + pe->v0 [0]));
+			glVertex3fv ((GLfloat *) (pv + pe->v1 [0]));
 			}
 #endif
 		}
@@ -277,20 +295,20 @@ if (bZPass)
 	return 1;
 if (bShadowTest > 4)
 	return 1;
-glColor4fv (reinterpret_cast<GLfloat*> (modelColor));
+glColor4fv ((GLfloat *) modelColor);
 #endif
-pv = pso->rotVerts;
+pv = pso->pvRotVerts;
 OOF_SetCullAndStencil (bCullFront);
 if (bCullFront) {
 #if DBG_SHADOWS
 	if (!bRearCap)
 		return 1;
 #endif
-	for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
+	for (i = pso->faces.nFaces, pf = pso->faces.pFaces; i; i--, pf++) {
 		if (pf->bReverse)
 			glFrontFace (GL_CCW);
 		glBegin (GL_TRIANGLE_FAN);
-		for (j = pf->nVerts, pfv = pf->verts; j; j--, pfv++) {
+		for (j = pf->nVerts, pfv = pf->pVerts; j; j--, pfv++) {
 			v0 = pv [pfv->nIndex];
 			OOF_VecSub (&v1, &v0, &vrLightPos);
 #	if NORM_INF
@@ -299,7 +317,7 @@ if (bCullFront) {
 			OOF_VecScale (&v1, G3_INFINITY);
 #	endif
 			OOF_VecInc (&v1, &v0);
-			glVertex3fv (reinterpret_cast<GLfloat*> (&v1));
+			glVertex3fv ((GLfloat *) &v1);
 			}
 		glEnd ();
 		if (pf->bReverse)
@@ -313,12 +331,12 @@ else {
 	if (!bFrontCap)
 		return 1;
 #endif
-	for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
+	for (i = pso->faces.nFaces, pf = pso->faces.pFaces; i; i--, pf++) {
 		if (pf->bReverse)
 			glFrontFace (GL_CCW);
 		glBegin (GL_TRIANGLE_FAN);
-		for (j = pf->nVerts, pfv = pf->verts; j; j--, pfv++) {
-			glVertex3fv (reinterpret_cast<GLfloat*> (pv + pfv->nIndex));
+		for (j = pf->nVerts, pfv = pf->pVerts; j; j--, pfv++) {
+			glVertex3fv ((GLfloat *) (pv + pfv->nIndex));
 			}
 		glEnd ();
 		if (pf->bReverse)
@@ -340,13 +358,13 @@ return OOF_DrawShadowVolume (po, pso, 0) &&
 
 //------------------------------------------------------------------------------
 
-int OOF_DrawSubObject (CObject *objP, tOOFObject *po, tOOF_subObject *pso, float *fLight)
+int OOF_DrawSubObject (tObject *objP, tOOFObject *po, tOOF_subObject *pso, float *fLight)
 {
 	tOOF_face		*pf;
 	tOOF_faceVert	*pfv;
 	tOOF_vector		*pv, *pvn, *phv;
 	tFaceColor		*pvc, vc, sc = {{1,1,1,1}};
-	CBitmap			*bmP;
+	grsBitmap		*bmP;
 	int				h, i, j;
 	int				bBright = EGI_FLAG (bBrightObjects, 0, 1, 0);
 	int				bDynLighting = gameStates.render.bApplyDynLight;
@@ -356,28 +374,28 @@ int OOF_DrawSubObject (CObject *objP, tOOFObject *po, tOOF_subObject *pso, float
 if (bShadowTest && (bShadowTest < 4))
 	return 1;
 #endif
-pv = pso->rotVerts;
-pvn = pso->normals;
-pvc = pso->vertColors;
+pv = pso->pvRotVerts;
+pvn = pso->pvNormals;
+pvc = pso->pVertColors;
 //memset (pvc, 0, pso->nVerts * sizeof (tFaceColor));
 glEnable (GL_CULL_FACE);
 OglCullFace (0);
 glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 if (!bDynLighting) {
-	sc = *AvgSgmColor (objP->info.nSegment, &objP->info.position.vPos);
+	sc = *AvgSgmColor (objP->nSegment, &objP->position.vPos);
 	if (sc.index != gameStates.render.nFrameFlipFlop + 1)
 		sc.color.red = sc.color.green = sc.color.blue = 1;
 	}
-for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
+for (i = pso->faces.nFaces, pf = pso->faces.pFaces; i; i--, pf++) {
 	if (pf->bReverse)
 		glFrontFace (GL_CCW);
-	pfv = pf->verts;
+	pfv = pf->pVerts;
 #if 0
 	if (!(gameStates.ogl.bUseTransform || OOF_FrontFace (pso, pf)))
 		continue;
 #endif
 	if (pf->bTextured) {
-#if DBG
+#ifdef _DEBUG
 		fl = OOF_VecDot (&pf->vNormal, &mView.f);
 		fl = 0.75f + 0.25f * fl;
 		fl = fl * *fLight;
@@ -387,12 +405,12 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 		if (fl > 1)
 			fl = 1;
 //		fl = 1.0f;
-		bmP = po->textures.m_bitmaps + pf->texProps.nTexId;
-		if (bmP->Texture () && ((int) bmP->Texture ()->Handle () < 0))
-			bmP->Texture ()->SetHandle (0);
-		if (bmP->Bind (1, 0))
+		bmP = po->textures.pBitmaps + pf->texProps.nTexId;
+		if (bmP->glTexture && ((int) bmP->glTexture->handle < 0))
+			bmP->glTexture->handle = 0;
+		if (OglBindBmTex (bmP, 1, 0))
 			return 0;
-		bmP->Texture ()->Wrap (GL_REPEAT);
+		OglTexWrap (bmP->glTexture, GL_REPEAT);
 		if (pso->nFlags & (bDynLighting ? OOF_SOF_THRUSTER : (OOF_SOF_GLOW | OOF_SOF_THRUSTER))) {
 			glColor4f (fl * pso->glowInfo.color.r, 
 						  fl * pso->glowInfo.color.g, 
@@ -417,7 +435,7 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 			phv = pv + (h = pfv->nIndex);
 			if (bDynLighting) {
 				if (pvc [h].index != gameStates.render.nFrameFlipFlop + 1)
-					G3VertexColor (reinterpret_cast<fVector3*> (pvn + h), reinterpret_cast<fVector3*> (phv), -1, pvc + h, NULL, 1, 0, 0);
+					G3VertexColor ((fVector3 *) (pvn + h), (fVector3 *) phv, -1, pvc + h, NULL, 1, 0, 0);
 				vc.color.red = (float) sqrt (pvc [h].color.red);
 				vc.color.green = (float) sqrt (pvc [h].color.green);
 				vc.color.blue = (float) sqrt (pvc [h].color.blue);
@@ -435,7 +453,7 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 				OglColor4sf (vc.color.red, vc.color.green, vc.color.blue, pso->pfAlpha [pfv->nIndex] * fAlpha);
 				}
 			glTexCoord2f (pfv->fu, pfv->fv);
-			glVertex3fv (reinterpret_cast<GLfloat*> (phv));
+			glVertex3fv ((GLfloat *) phv);
 			//glVertex4f (phv->x, phv->y, phv->z, 0.5);
 			}
 		glEnd ();
@@ -447,18 +465,18 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 			glColor4f (1.0f, 0.0f, 0.5f, 1.0f);
 			glBegin (GL_LINES);
 			fv0 = pf->vRotCenter;
-			glVertex3fv (reinterpret_cast<GLfloat*> (&fv0));
+			glVertex3fv ((GLfloat *) &fv0);
 			fv0.x += pf->vRotNormal.x * 1;
 			fv0.y += pf->vRotNormal.y * 1;
 			fv0.z += pf->vRotNormal.z * 1;
-			glVertex3fv (reinterpret_cast<GLfloat*> (&fv0));
+			glVertex3fv ((GLfloat *) &fv0);
 			glEnd ();
 			glColor4f (0.0f, 1.0f, 0.5f, 1.0f);
 			glBegin (GL_LINES);
 			fv0 = pf->vRotCenter;
-			glVertex3fv (reinterpret_cast<GLfloat*> (&fv0));
+			glVertex3fv ((GLfloat *) &fv0);
 			fv0 = vrLightPos;
-			glVertex3fv (reinterpret_cast<GLfloat*> (&fv0));
+			glVertex3fv ((GLfloat *) &fv0);
 			glEnd ();
 			glLineWidth (1);
 			}
@@ -471,8 +489,8 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 		b = fl * (float) pf->texProps.color.b / 255.0f;
 		glColor4f (r, g, b, pso->pfAlpha [pfv->nIndex] * fAlpha);
 		glBegin (GL_TRIANGLE_FAN);
-		for (j = pf->nVerts, pfv = pf->verts; j; j--, pfv++) {
-			glVertex3fv (reinterpret_cast<GLfloat*> (pv + pfv->nIndex));
+		for (j = pf->nVerts, pfv = pf->pVerts; j; j--, pfv++) {
+			glVertex3fv ((GLfloat *) (pv + pfv->nIndex));
 			}
 		glEnd ();
 		}
@@ -505,9 +523,9 @@ void OOF_RotModelVerts (tOOF_subObject *pso, tOOF_vector vo)
 	tOOF_face	*pf;
 	int			i;
 
-for (i = pso->nVerts, pv = pso->verts, prv = pso->rotVerts; i; i--, pv++, prv++)
+for (i = pso->nVerts, pv = pso->pvVerts, prv = pso->pvRotVerts; i; i--, pv++, prv++)
 	OOF_RotVert (prv, pv, &vo);
-for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
+for (i = pso->faces.nFaces, pf = pso->faces.pFaces; i; i--, pf++) {
 #if 0
 	OOF_CalcFacePerp (pso, pf);
 	pf->vNormal = pf->vRotNormal;
@@ -530,7 +548,7 @@ for (i = pso->faces.nFaces, pf = pso->faces.faces; i; i--, pf++) {
 
 //------------------------------------------------------------------------------
 
-int OOF_RenderSubObject (CObject *objP, tOOFObject *po, tOOF_subObject *pso, tOOF_vector vo, 
+int OOF_RenderSubObject (tObject *objP, tOOFObject *po, tOOF_subObject *pso, tOOF_vector vo, 
 								 int nIndex, float *fLight)
 {
 	tOOF_subObject	*psc;
@@ -560,16 +578,16 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int OOF_RenderModel (CObject *objP, tOOFObject *po, float *fLight)
+int OOF_RenderModel (tObject *objP, tOOFObject *po, float *fLight)
 {
 	tOOF_subObject	*pso;
 	int				r = 1, i;
 	tOOF_vector		vo = {0.0f,0.0f,0.0f};
 
-G3StartInstanceMatrix(objP->info.position.vPos, objP->info.position.mOrient);
+G3StartInstanceMatrix (&objP->position.vPos, &objP->position.mOrient);
 if (!gameStates.ogl.bUseTransform)
-	OOF_MatVms2Oof (&mView, viewInfo.view[0]);
-OOF_VecVms2Oof (&vPos, viewInfo.pos);
+	OOF_MatVms2Oof (&mView, viewInfo.view);
+OOF_VecVms2Oof (&vPos, &viewInfo.pos);
 if (IsMultiGame && netGame.BrightPlayers)
 	*fLight = 1.0f;
 OglActiveTexture (GL_TEXTURE0, 0);
@@ -588,17 +606,17 @@ return r;
 
 //------------------------------------------------------------------------------
 
-int OOF_RenderShadow (CObject *objP, tOOFObject *po, float *fLight)
+int OOF_RenderShadow (tObject *objP, tOOFObject *po, float *fLight)
 {
-	short			i, *pnl = gameData.render.lights.dynamic.nearestSegLights + gameData.objs.consoleP->info.nSegment * MAX_NEAREST_LIGHTS;
+	short			i, *pnl = gameData.render.lights.dynamic.nNearestSegLights + gameData.objs.console->nSegment * MAX_NEAREST_LIGHTS;
 
 gameData.render.shadows.nLight = 0; 
 for (i = 0; (gameData.render.shadows.nLight < gameOpts->render.shadows.nLights) && (*pnl >= 0); i++, pnl++) {
-	gameData.render.shadows.lights = gameData.render.lights.dynamic.shader.lights + *pnl;
-	if (!gameData.render.shadows.lights [0].info.bState)
+	gameData.render.shadows.pLight = gameData.render.lights.dynamic.shader.lights + *pnl;
+	if (!gameData.render.shadows.pLight->info.bState)
 		continue;
 	gameData.render.shadows.nLight++;
-	memcpy (&vrLightPos, gameData.render.shadows.lights [0].vPosf + 1, sizeof (tOOF_vector));
+	memcpy (&vrLightPos, gameData.render.shadows.pLight->vPosf + 1, sizeof (tOOF_vector));
 	if (!OOF_RenderModel (objP, po, fLight))
 		return 0;
 	if (FAST_SHADOWS)
@@ -609,7 +627,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int OOF_Render (CObject *objP, tOOFObject *po, float *fLight, int bCloaked)
+int OOF_Render (tObject *objP, tOOFObject *po, float *fLight, int bCloaked)
 {
 	float	dt;
 

@@ -5,8 +5,10 @@
 #include "inferno.h"
 #include "text.h"
 #include "error.h"
+#include "cfile.h"
 #include "u_mem.h"
 #include "interp.h"
+#include "oof.h"
 #include "newmenu.h"
 #include "hiresmodels.h"
 
@@ -154,8 +156,7 @@ tReplacementModel replacementModels [] = {
 	{"smartmsl", NULL, 134, 0, 1, -1}, 
 	{NULL, NULL, 162, 0, 1, -1}, 
 	{"mega", NULL, 135, 0, 1, -1}, 
-	{NULL, NULL, 1
-, 0, 1, -1}, 
+	{NULL, NULL, 142, 0, 1, -1}, 
 	{"flashmsl", NULL, 151, 0, 1, -1}, 
 	{NULL, NULL, 158, 0, 1, -1}, 
 	{NULL, NULL, 165, 0, 1, -1}, 
@@ -224,26 +225,26 @@ memset (gameData.models.modelToPOL, 0, sizeof (gameData.models.modelToPOL));
 
 short LoadLoresModel (short i)
 {
-	CFile			cf;
+	CFILE			cf;
 	tPolyModel	*pm;
 	short			nModel, j = sizeofa (replacementModels);
 	char			szModel [FILENAME_LEN];
 
 sprintf (szModel, "model%d.pol", replacementModels [i].nModel);
 if (!(replacementModels [i].pszLores && 
-	  (cf.Open (replacementModels [i].pszLores, gameFolders.szDataDir, "rb", 0) ||
-	   cf.Open (szModel, gameFolders.szDataDir, "rb", 0))))
+	  (CFOpen (&cf, replacementModels [i].pszLores, gameFolders.szDataDir, "rb", 0) ||
+	   CFOpen (&cf, szModel, gameFolders.szDataDir, "rb", 0))))
 	return ++i;
 nModel = replacementModels [i].nModel;
 pm = ((gameStates.app.bFixModels && gameStates.app.bAltModels) ? gameData.models.altPolyModels : gameData.models.polyModels) + nModel;
-if (!ReadPolyModel (pm, 1, cf)) {
-	cf.Close ();
+if (!PolyModelRead (pm, &cf, 1)) {
+	CFClose (&cf);
 	return ++i;
 	}
-pm->modelData.SetBuffer (NULL); 
-pm->modelData.SetBuffer (NULL);
-ReadPolyModelData (pm, nModel, gameData.models.defPolyModels + nModel, cf);
-cf.Close ();
+pm->modelData = 
+pm->modelData = NULL;
+PolyModelDataRead (pm, nModel, gameData.models.defPolyModels + nModel, &cf);
+CFClose (&cf);
 pm->rad = G3PolyModelSize (pm, nModel);
 do {
 	gameData.models.modelToPOL [nModel] = pm;
@@ -263,7 +264,7 @@ sprintf (szModel [0], "\001model%d.oof", replacementModels [i].nModel);
 if (replacementModels [i].pszHires)
 	sprintf (szModel [1], "\001%s.oof", replacementModels [i].pszHires);
 else
-	szModel [1][!bCustom] = '\0';
+	szModel [1][0] = '\0';
 if (!(OOF_ReadFile (szModel [1] + !bCustom, po, replacementModels [i].nModel, replacementModels [i].nType, replacementModels [i].bFlipV, bCustom) || 
 	   OOF_ReadFile (szModel [0] + !bCustom, po, replacementModels [i].nModel, replacementModels [i].nType, replacementModels [i].bFlipV, bCustom)))
 	return 0;
@@ -286,7 +287,7 @@ sprintf (szModel [0], "\001model%d.ase", replacementModels [i].nModel);
 if (replacementModels [i].pszHires)
 	sprintf (szModel [1], "\001%s.ase", replacementModels [i].pszHires);
 else
-	szModel [1][!bCustom] = '\0';
+	szModel [1][0] = '\0';
 #if 0//def _DEBUG
 while (!ASE_ReadFile (szModel [1] + !bCustom, pa, replacementModels [i].nType, bCustom))
 	;
@@ -326,29 +327,28 @@ return bCustom ? ++i : LoadLoresModel (i);
 static int loadIdx;
 static int loadOp = 0;
 
-static int LoadModelsPoll (int nItems, tMenuItem *m, int *key, int nCurItem)
+static void LoadModelsPoll (int nItems, tMenuItem *m, int *key, int cItem)
 {
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 if (loadOp == 0) {
 	loadIdx = LoadHiresModel (gameData.models.nHiresModels, loadIdx, 0);
-	if (loadIdx >= (int) sizeofa (replacementModels)) {
+	if (loadIdx >= sizeofa (replacementModels)) {
 		loadOp = 1;
 		loadIdx = 0;
 		}
 	}
 else if (loadOp == 1) {
 	loadIdx = LoadLoresModel (loadIdx);
-	if (loadIdx >= (int) sizeofa (replacementModels)) {
+	if (loadIdx >= sizeofa (replacementModels)) {
 		*key = -2;
-		paletteManager.LoadEffect  ();
-		return nCurItem;
+		GrPaletteStepLoad (NULL);
+		return;
 		}
 	}
 m [0].value++;
 m [0].rebuild = 1;
 *key = 0;
-paletteManager.LoadEffect  ();
-return nCurItem;
+GrPaletteStepLoad (NULL);
 }
 
 //------------------------------------------------------------------------------

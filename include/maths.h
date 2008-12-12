@@ -1,4 +1,4 @@
-/* Maths[HA] library header file */
+/* Maths.h library header file */
 
 #ifndef _MATHS_H
 #define _MATHS_H
@@ -7,7 +7,6 @@
 #define ALT_SQRT 2
 
 #include <stdlib.h>
-#include <cmath>
 #include "pstypes.h"
 
 #define D_RAND_MAX 32767
@@ -22,25 +21,26 @@
 typedef int32_t fix;		//16 bits int, 16 bits frac
 typedef int16_t fixang;		//angles
 
-typedef struct tQuadInt {// integer 64 bit, previously called "quad"
-	u_int32_t low;
-   int32_t high;
-} tQuadInt;
+typedef struct tQuadInt // integer 64 bit, previously called "quad"
+  {
+    u_int32_t low;
+    int32_t high;
+  }
+tQuadInt;
 
 //Convert an int to a fix
-#define I2X(i) (((fix) (i)) * 65536)
+#define i2f(i) (((fix) (i)) << 16)
 
 //Get the int part of a fix
-#define X2I(_f) ((_f) / 65536)
+#define f2i(f) ((f)>>16)
 
 //Get the int part of a fix, with rounding
-#define X2IR(_f) (((_f) + f0_5) / 65536)
+#define f2ir(f) (((f)+f0_5)>>16)
 
 //Convert fix to double and double to fix
-#define X2F(_f) (((float) (_f)) / (float) 65536)
-#define X2D(_f) (((double) (_f)) / (double) 65536)
-//#define F2FX(_f) ((_f) * 65536)
-#define F2X(_f) ((fix) ((_f) * 65536))
+#define f2fl(f) (((float)  (f)) / (float) 65536)
+#define f2db(f) (((double) (f)) / (double) 65536)
+#define fl2f(f) ((fix) ((f) * 65536))
 
 //Some handy constants
 #define f0_0	0
@@ -49,8 +49,8 @@ typedef struct tQuadInt {// integer 64 bit, previously called "quad"
 #define f3_0	0x30000
 #define f10_0	0xa0000
 
-#define f0_5	0x8000
-#define f0_1	0x199a
+#define f0_5 0x8000
+#define f0_1 0x199a
 
 #define F0_0	f0_0
 #define F1_0	f1_0
@@ -82,7 +82,7 @@ ushort LongSqrt (int32_t a);
 extern int nMathFormat;
 extern int nDefMathFormat;
 
-uint sqrt64 (unsigned QLONG a);
+unsigned int sqrt64 (unsigned QLONG a);
 
 #define mul64(_a,_b)	((QLONG) (_a) * (QLONG) (_b))
 
@@ -108,19 +108,19 @@ fixang FixACos (fix v);
 
 //given cos & sin of an angle, return that angle.
 //parms need not be normalized, that is, the ratio of the parms cos/sin must
-//equal the ratio of the actual cos & sin for the result angle, but the parms
-//need not be the actual cos & sin.
+//equal the ratio of the actual cos & sin for the result angle, but the parms 
+//need not be the actual cos & sin.  
 //NOTE: this is different from the standard C atan2, since it is left-handed.
 fixang FixAtan2 (fix cos, fix sin);
 
-//for passed value a, returns 1/sqrt(a)
+//for passed value a, returns 1/sqrt(a) 
 fix FixISqrt (fix a);
 
-//#define fabsf(_f)	(float) fabs (_f)
+#define fabsf(_f)	(float) fabs (_f)
 
 //-----------------------------------------------------------------------------
 
-static inline void d_srand (uint seed)
+static inline void d_srand (unsigned int seed)
 {
 srand(seed);
 }

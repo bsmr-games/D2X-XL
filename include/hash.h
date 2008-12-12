@@ -11,29 +11,23 @@ AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
 COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
+
+
 #ifndef _HASH_H
 #define _HASH_H
 
-class CHashTable {
-	public:
-		int 						m_bitSize;
-		int						m_andMask;
-		int						m_size;
-		int						m_nItems;
-		CArray<const char*>	m_key;
-		CArray<int>				m_value;
+typedef struct hashtable {
+	int 				bitsize;
+	int				and_mask;
+	int				size;
+	int				nitems;
+	char				**key;
+	int				*value;
+} hashtable;
 
-	public:
-		CHashTable () { Init (); }
-		void Init (void);
-		int Create (int size);
-		void Destroy ();
-		int Search (const char *key);
-		void Insert (const char *key, int value);
-
-	private:
-		int GetKey (const char *key);
-
-};
+int hashtable_init( hashtable *ht, int size );
+void hashtable_free( hashtable *ht );
+int hashtable_search( hashtable *ht, char *key );
+void hashtable_insert( hashtable *ht, char *key, int value );
 
 #endif

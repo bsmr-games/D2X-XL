@@ -1,3 +1,4 @@
+/* $Id: gauges.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -238,7 +239,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define PRIMARY_W_BOX_LEFT_H		121
 #define PRIMARY_W_BOX_TOP_H		364
 #define PRIMARY_W_BOX_RIGHT_H		242
-
 #define PRIMARY_W_BOX_BOT_H		 (PRIMARY_W_BOX_TOP_H+N_LEFT_WINDOW_SPANS_H-1)		//470
 										
 #define PRIMARY_W_BOX_LEFT		 (gameStates.video.nDisplayMode?PRIMARY_W_BOX_LEFT_H:PRIMARY_W_BOX_LEFT_L)
@@ -338,7 +338,7 @@ extern int bHaveGaugeCanvases;
 
 //	-----------------------------------------------------------------------------
 
-int _CDECL_ HUDPrintF (int *idP, int x, int y, const char *pszFmt, ...);
+int _CDECL_ HUDPrintF (int *idP, int x, int y, char *pszFmt, ...);
 void DrawAmmoInfo (int x, int y, int ammoCount, int primary);
 void DrawPlayerShip (int nCloakState, int nOldCloakState, int x, int y);
 void DrawInvulnerableShip (void);
@@ -380,13 +380,13 @@ PIGGY_PAGE_IN (gameStates.render.fonts.bHires ? gameData.cockpit.gauges [0][x].i
 
 //	-----------------------------------------------------------------------------
 
-static inline void HUDStretchBlt (int x, int y, CBitmap *bmP, int scale, int orient, double xScale, double yScale)
+static inline void HUDStretchBlt (int x, int y, grsBitmap *bmP, int scale, int orient, double xScale, double yScale)
 {
 OglUBitMapMC (
 	 (x < 0) ? -x : HUD_SCALE_X (x), 
 	 (y < 0) ? -y : HUD_SCALE_Y (y), 
-	HUD_SCALE_X ((int) (bmP->Width () * xScale + 0.5)), 
-	HUD_SCALE_Y ((int) (bmP->Height () * yScale + 0.5)), 
+	HUD_SCALE_X ((int) (bmP->bmProps.w * xScale + 0.5)), 
+	HUD_SCALE_Y ((int) (bmP->bmProps.h * yScale + 0.5)), 
 	bmP, 
 	NULL, 
 	scale, 

@@ -1,3 +1,4 @@
+/* $Id: multi.h,v 1.13 2003/10/21 09:50:56 schaffner Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -75,15 +76,14 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define MULTI_SAVE_GAME					33
 #define MULTI_RESTORE_GAME				34
 
-#define MULTI_REQ_PLAYER				35  // Someone requests my CPlayerData structure
-#define MULTI_SEND_PLAYER				36  // Sending someone my CPlayerData structure
+#define MULTI_REQ_PLAYER				35  // Someone requests my tPlayer structure
+#define MULTI_SEND_PLAYER				36  // Sending someone my tPlayer structure
 #define MULTI_MARKER						37
 #define MULTI_DROP_WEAPON				38
 #define MULTI_GUIDED						39
 #define MULTI_STOLEN_ITEMS				40
 #define MULTI_WALL_STATUS				41  // send to new players
 #define MULTI_HEARTBEAT					42
-
 #define MULTI_KILLGOALS					43
 #define MULTI_SEISMIC					44
 #define MULTI_LIGHT						45
@@ -143,7 +143,6 @@ void ResetNetworkObjects ();
 void MultiInitObjects (void);
 void MultiShowPlayerList (void);
 void MultiDoFrame (void);
-void MultiCapObjects (void);
 
 void MultiSendPlayerWeapons (int nPlayer);
 void MultiSendFlags (char);
@@ -162,12 +161,12 @@ void MultiSendRemObj (int nObject);
 void MultiSendQuit (int why);
 void MultiSendDoorOpen (int nSegment, int tSide,ubyte flag);
 void MultiSendCreateExplosion (int nPlayer);
-void MultiSendCtrlcenFire (CFixVector *to_target, int nGun, int nObject);
+void MultiSendCtrlcenFire (vmsVector *to_target, int nGun, int nObject);
 void MultiSendInvul (void);
 void MultiSendDeInvul (void);
 void MultiSendCloak (void);
 void MultiSendDeCloak (void);
-void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, CFixVector *pos);
+void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, vmsVector *pos);
 void MultiSendPlaySound (int nSound, fix volume);
 void MultiSendAudioTaunt (int taunt_num);
 void MultiSendScore (void);
@@ -176,8 +175,8 @@ void MultiSendObjTrigger (int tTrigger);
 void MultiSendHostageDoorStatus (int wallnum);
 void MultiSendNetPlayerStatsRequest (ubyte nPlayer);
 void MultiSendDropWeapon (int nObject,int seed);
-void MultiSendDropMarker (int nPlayer,CFixVector position,char messagenum,char text[]);
-void MultiSendGuidedInfo (CObject *miss,char);
+void MultiSendDropMarker (int nPlayer,vmsVector position,char messagenum,char text[]);
+void MultiSendGuidedInfo (tObject *miss,char);
 void MultiSendReturnFlagHome (short nObject);
 void MultiSendCaptureBonus (char pnum);
 void MultiSendShields (void);
@@ -236,7 +235,7 @@ extern void MultiAddLifetimeKills (void);
 
 extern void MultiSendTeleport (char pnum, short nSegment, char nSide);
 
-extern int controlInvulTime;
+extern int control_invulTime;
 
 #define N_PLAYER_SHIP_TEXTURES 6
 
@@ -394,20 +393,20 @@ typedef struct tNetgameInfo {
 	short DoFlash:1;
 #endif
 
-	char    szTeamName [2][CALLSIGN_LEN+1];		// 18 bytes
-	int     locations [MAX_PLAYERS];				// 32 bytes
-	short   kills [MAX_PLAYERS][MAX_PLAYERS];	// 128 bytes
+	char    team_name[2][CALLSIGN_LEN+1];		// 18 bytes
+	int     locations[MAX_PLAYERS];				// 32 bytes
+	short   kills[MAX_PLAYERS][MAX_PLAYERS];	// 128 bytes
 	ushort  nSegmentCheckSum;						// 2 bytes
-	short   teamKills [2];							// 4 bytes
-	short   killed [MAX_PLAYERS];					// 16 bytes
-	short   playerKills [MAX_PLAYERS];			// 16 bytes
+	short   teamKills[2];							// 4 bytes
+	short   killed[MAX_PLAYERS];					// 16 bytes
+	short   playerKills[MAX_PLAYERS];			// 16 bytes
 	int     KillGoal;									// 4 bytes
 	fix     xPlayTimeAllowed;						// 4 bytes
 	fix     xLevelTime;								// 4 bytes
-	int     controlInvulTime;						// 4 bytes
-	int     monitorVector;							// 4 bytes
-	int     playerScore [MAX_PLAYERS];			// 32 bytes
-	ubyte   playerFlags [MAX_PLAYERS];			// 8 bytes
+	int     control_invulTime;						// 4 bytes
+	int     monitor_vector;							// 4 bytes
+	int     player_score[MAX_PLAYERS];			// 32 bytes
+	ubyte   playerFlags[MAX_PLAYERS];			// 8 bytes
 	short   nPacketsPerSec;							// 2 bytes
 	ubyte   bShortPackets;							// 1 bytes
 // 279 bytes
@@ -440,6 +439,10 @@ void ChangeSegmentTexture (int nSegment, int oldOwner);
 #define MISSILE_ADJUST  100
 #define FLARE_ADJUST    127
 
+int FindPlayerInBanList (char *szPlayer);
+int LoadBanList (void);
+int SaveBanList (void);
+void FreeBanList (void);
 int PingPlayer (int n);
 int MultiProtectGame (void);
 void SwitchTeam (int nPlayer, int bForce);
@@ -461,9 +464,7 @@ void MultiSendDoorOpenSpecific (int nPlayer, int nSegment, int tSide, ubyte flag
 void MultiSendWallStatusSpecific (int nPlayer, int wallnum, ubyte nType, ubyte flags, ubyte state);
 void MultiSendLightSpecific (int nPlayer, int nSegment, ubyte val);
 void MultiSendTriggerSpecific (char nPlayer, ubyte trig);
-void MultiResetObjectTexture (CObject *objP);
+void MultiResetObjectTexture (tObject *objP);
 void MultiSendSeismic (fix start, fix end);
-
-void InitDefaultPlayerShip (void);
 
 #endif /* _MULTI_H */

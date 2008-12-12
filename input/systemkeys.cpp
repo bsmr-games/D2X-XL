@@ -1,3 +1,4 @@
+/* $Id: gamecntl.c, v 1.23 2003/11/07 06:30:06 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -25,57 +26,115 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #	include <unistd.h>
 #endif
 
+#include "pstypes.h"
+#include "console.h"
 #include "inferno.h"
+#include "game.h"
+#include "player.h"
 #include "key.h"
+#include "object.h"
 #include "menu.h"
 #include "physics.h"
 #include "error.h"
 #include "joy.h"
 #include "mono.h"
 #include "iff.h"
+#include "pcx.h"
 #include "timer.h"
 #include "render.h"
 #include "transprender.h"
+#include "laser.h"
 #include "screens.h"
+#include "textures.h"
 #include "slew.h"
 #include "gauges.h"
 #include "texmap.h"
+#include "3d.h"
+#include "effects.h"
 #include "gameseg.h"
+#include "wall.h"
+#include "ai.h"
+#include "digi.h"
+#include "ibitblt.h"
 #include "u_mem.h"
+#include "palette.h"
+#include "morph.h"
 #include "light.h"
+#include "dynlight.h"
+#include "headlight.h"
 #include "newdemo.h"
+#include "weapon.h"
+#include "sounds.h"
+#include "args.h"
+#include "loadgame.h"
 #include "automap.h"
 #include "text.h"
 #include "gamerend.h"
+#include "powerup.h"
+#include "newmenu.h"
+#include "network.h"
 #include "network_lib.h"
 #include "gamefont.h"
 #include "gamepal.h"
+#include "endlevel.h"
 #include "joydefs.h"
 #include "kconfig.h"
 #include "mouse.h"
 #include "briefings.h"
+#include "gr.h"
+#include "playsave.h"
+#include "movie.h"
+#include "scores.h"
 #include "gamecntl.h"
 #include "systemkeys.h"
-#include "state.h"
-#include "escort.h"
-#include "cheats.h"
-#include "input.h"
-#include "marker.h"
 
 #if defined (TACTILE)
-#	include "tactile.h"
+#include "tactile.h"
 #endif
 
+#include "pa_enabl.h"
+#include "multi.h"
+#include "desc_id.h"
+#include "reactor.h"
+#include "pcx.h"
+#include "state.h"
+#include "piggy.h"
+#include "multibot.h"
+#include "ai.h"
+#include "rbaudio.h"
+#include "switch.h"
+#include "escort.h"
+#include "collide.h"
+#include "ogl_defs.h"
+#include "object.h"
+#include "sphere.h"
+#include "cheats.h"
+#include "input.h"
+#include "render.h"
+#include "marker.h"
+
 #ifdef EDITOR
-#	include "editor/editor.h"
+#include "editor/editor.h"
 #endif
 
 //#define _MARK_ON 1
 #ifdef __WATCOMC__
 #if __WATCOMC__ < 1000
-#include <wsample.h>		//should come after inferno[HA] to get mark setting
+#include <wsample.h>		//should come after inferno.h to get mark setting
 #endif
 #endif
+
+#ifdef SDL_INPUT
+#ifdef __macosx__
+# include <SDL/SDL.h>
+#else
+# include <SDL.h>
+#endif
+#endif
+
+void FullPaletteSave(void);
+
+void SetFunctionMode (int);
 
 // Global Variables -----------------------------------------------------------
 
@@ -126,6 +185,9 @@ else if ((gameData.demo.nVcrState == ND_STATE_FASTFORWARD) || (gameData.demo.nVc
 
 char *Pause_msg;
 
+extern void GameRenderFrame();
+extern void show_extraViews();
+
 //------------------------------------------------------------------------------
 
 void HandleEndlevelKey(int key)
@@ -149,7 +211,7 @@ void HandleEndlevelKey(int key)
 		gameStates.render.cockpit.nLastDrawn[1] = -1;
 		return;
 	}
-#if DBG
+#ifdef _DEBUG
 	if (key == KEY_BACKSP)
 		Int3();
 #endif
@@ -190,7 +252,7 @@ void HandleDeathKey(int key)
 	}
 
 	if (key == KEY_ESC) {
-		if (gameData.objs.consoleP->info.nFlags & OF_EXPLODING)
+		if (gameData.objs.console->flags & OF_EXPLODING)
 			gameStates.app.bDeathSequenceAborted = 1;
 	}
 
@@ -291,7 +353,7 @@ switch (key) {
 		break;
 		}
 
-	#if DBG
+	#ifdef _DEBUG
 	case KEY_BACKSP:
 		Int3();
 		break;
@@ -425,12 +487,12 @@ switch (key) {
 		if ((IsMultiGame && !IsCoopGame) || !gameStates.app.bEnableFreeCam)
 			return 0;
 		if ((gameStates.app.bFreeCam = !gameStates.app.bFreeCam)) {
-			gameStates.app.playerPos = gameData.objs.viewerP->info.position;
-			gameStates.app.nPlayerSegment = gameData.objs.viewerP->info.nSegment;
+			gameStates.app.playerPos = gameData.objs.viewer->position;
+			gameStates.app.nPlayerSegment = gameData.objs.viewer->nSegment;
 			}
 		else {
-			gameData.objs.viewerP->info.position = gameStates.app.playerPos;
-			gameData.objs.viewerP->RelinkToSeg (gameStates.app.nPlayerSegment);
+			gameData.objs.viewer->position = gameStates.app.playerPos;
+			RelinkObject (OBJ_IDX (gameData.objs.viewer), gameStates.app.nPlayerSegment);
 			}
 		break;
 
@@ -449,14 +511,13 @@ switch (key) {
 			int bScanlineSave = bScanlineDouble;
 
 			if (!IsMultiGame) {
-				paletteManager.SaveEffect(); 
-				paletteManager.ResetEffect (); 
-				saveGameHandler.Save (0, 0, 0, NULL);
-				paletteManager.LoadEffect (); 
+				PaletteSave(); 
+				ResetPaletteAdd(); 
+				GrPaletteStepLoad (NULL); 
 				}
 			ConfigMenu();
 			if (!IsMultiGame) 
-				paletteManager.LoadEffect ();
+				PaletteRestore();
 			if (bScanlineSave != bScanlineDouble)   
 				InitCockpit();	// reset the cockpit after changing...
 			break;
@@ -471,9 +532,9 @@ switch (key) {
 		break;
 
 	case KEY_F7+KEY_SHIFTED: 
-		paletteManager.SaveEffect(); 
+		PaletteSave(); 
 		JoyDefsCalibrate(); 
-		paletteManager.LoadEffect (); 
+		PaletteRestore(); 
 		break;
 
 	case KEY_SHIFTED+KEY_MINUS:
@@ -486,14 +547,6 @@ switch (key) {
 	case KEY_EQUAL:		
 		GrowWindow();  
 		bScreenChanged=1; 
-		break;
-		
-	case KEY_CTRLED+KEY_F5:
-		saveGameHandler.Save (0, 0, 1, 0);
-		break;
-
-	case KEY_CTRLED+KEY_F9:
-		saveGameHandler.Load (0, 0, 1, 0);
 		break;
 
 #if 1//ndef _DEBUG
@@ -545,11 +598,11 @@ switch (key) {
 		break;
 
 	case KEY_ALTED + KEY_F12:
-#if !DBG	
+#ifndef _DEBUG	
 		if (!IsMultiGame || IsCoopGame || EGI_FLAG (bEnableCheats, 0, 0, 0))
 #endif		
 			gameStates.render.bExternalView = !gameStates.render.bExternalView;
-		externalView.Reset (-1, -1);
+		ResetFlightPath (&externalView, -1, -1);
 		break;
 
 	case KEY_SHIFTED + KEY_F9:
@@ -562,17 +615,24 @@ switch (key) {
 
 	case KEY_ALTED+KEY_F2:
 		if (!gameStates.app.bPlayerIsDead && !(IsMultiGame && !IsCoopGame)) {
-			paletteManager.SaveEffectAndReset ();
-			paletteManager.SetEffect (); // get only the effect color back
-			saveGameHandler.Save (0, 0, 0, NULL);
-			paletteManager.LoadEffect ();
+			int     rsave, gsave, bsave;
+			rsave = gameStates.ogl.palAdd.red;
+			gsave = gameStates.ogl.palAdd.green;
+			bsave = gameStates.ogl.palAdd.blue;
+
+			FullPaletteSave();
+			gameStates.ogl.palAdd.red = rsave;
+			gameStates.ogl.palAdd.green = gsave;
+			gameStates.ogl.palAdd.blue = bsave;
+			StateSaveAll( 0, 0, NULL );
+			PaletteRestore();
 		}
 		break;  // 0 means not between levels.
 
 	case KEY_ALTED+KEY_F3:
 		if (!gameStates.app.bPlayerIsDead && (!IsMultiGame || IsCoopGame)) {
-			paletteManager.SaveEffectAndReset ();
-			saveGameHandler.Load (1, 0, 0, NULL);
+			FullPaletteSave ();
+			StateRestoreAll (1, 0, NULL);
 			if (gameData.app.bGamePaused)
 				DoGamePause();
 		}
@@ -650,7 +710,7 @@ void HandleVRKey(int key)
 			if ( gameStates.render.vr.nRenderMode != VR_NONE )	{
 				VRResetParams();
 				HUDInitMessage( TXT_VR_RESET );
-				HUDInitMessage( TXT_VR_SEPARATION, X2F(gameStates.render.vr.xEyeWidth) );
+				HUDInitMessage( TXT_VR_SEPARATION, f2fl(gameStates.render.vr.xEyeWidth) );
 				HUDInitMessage( TXT_VR_BALANCE, (double)gameStates.render.vr.nEyeOffset/30.0 );
 			}
 			break;
@@ -691,16 +751,16 @@ void HandleVRKey(int key)
 			if ( gameStates.render.vr.nRenderMode != VR_NONE )	{
 				gameStates.render.vr.xEyeWidth -= F1_0/10;
 				if ( gameStates.render.vr.xEyeWidth < 0 ) gameStates.render.vr.xEyeWidth = 0;
-				HUDInitMessage( TXT_VR_SEPARATION, X2F(gameStates.render.vr.xEyeWidth) );
-				HUDInitMessage( TXT_VR_DEFAULT, X2F(VR_SEPARATION) );
+				HUDInitMessage( TXT_VR_SEPARATION, f2fl(gameStates.render.vr.xEyeWidth) );
+				HUDInitMessage( TXT_VR_DEFAULT, f2fl(VR_SEPARATION) );
 			}
 			break;
 		case KEY_ALTED+KEY_F10:
 			if ( gameStates.render.vr.nRenderMode != VR_NONE )	{
 				gameStates.render.vr.xEyeWidth += F1_0/10;
 				if ( gameStates.render.vr.xEyeWidth > F1_0*4 )    gameStates.render.vr.xEyeWidth = F1_0*4;
-				HUDInitMessage( TXT_VR_SEPARATION, X2F(gameStates.render.vr.xEyeWidth) );
-				HUDInitMessage( TXT_VR_DEFAULT, X2F(VR_SEPARATION) );
+				HUDInitMessage( TXT_VR_SEPARATION, f2fl(gameStates.render.vr.xEyeWidth) );
+				HUDInitMessage( TXT_VR_DEFAULT, f2fl(VR_SEPARATION) );
 			}
 			break;
 
@@ -796,19 +856,8 @@ void HandleGameKey(int key)
 			HUDMessage (0, "multi-threading %s", gameStates.app.bMultiThreaded ? "ON" : "OFF");
 			break;
 
-		case KEY_ALTED + KEY_P:
-#if PROFILING
-			if ((gameStates.render.bShowProfiler = !gameStates.render.bShowProfiler))
-				memset (&gameData.profiler, 0, sizeof (gameData.profiler));
-#endif
-			break;
-
 		case KEY_ALTED + KEY_R:
-			gameStates.render.bShowFrameRate = ++gameStates.render.bShowFrameRate % (6 + (gameStates.render.bPerPixelLighting == 2));
-			break;
-
-		case KEY_ALTED + KEY_T:
-			gameStates.render.bShowTime = !gameStates.render.bShowTime;
+			gameStates.render.bShowFrameRate = ++gameStates.render.bShowFrameRate % (5 + gameStates.render.bPerPixelLighting);
 			break;
 
 		case KEY_CTRLED + KEY_ALTED + KEY_R:
@@ -877,8 +926,9 @@ void HandleGameKey(int key)
 //	--------------------------------------------------------------------------
 
 void toggle_movie_saving(void);
+extern char Language[];
 
-#if DBG
+#ifdef _DEBUG
 
 void HandleTestKey(int key)
 {
@@ -988,7 +1038,7 @@ void HandleTestKey(int key)
 			SetScreenMode(SCREEN_GAME);
 			ResetCockpit();
 			memcpy(grPalette, pal_save, 768);
-			paletteManager.LoadEffect  ();
+			GrPaletteStepLoad (NULL);
 			break;
 		}
 		case KEY_C + KEY_SHIFTED + KEYDBGGED:
@@ -1010,7 +1060,7 @@ void HandleTestKey(int key)
 		// case KEY_UP:		ft_preference=FP_UP; break;
 		// case KEY_DOWN:		ft_preference=FP_DOWN; break;
 
-#if DBG
+#ifdef _DEBUG
 		case KEYDBGGED+KEY_LAPOSTRO: 
 			ShowView_textTimer = 0x30000; 
 			ObjectGotoNextViewer(); 
@@ -1021,10 +1071,10 @@ void HandleTestKey(int key)
 			break;
 #endif
 		case KEYDBGGED+KEY_SHIFTED+KEY_LAPOSTRO: 
-			gameData.objs.viewerP=gameData.objs.consoleP; 
+			gameData.objs.viewer=gameData.objs.console; 
 			break;
 
-	#if DBG
+	#ifdef _DEBUG
 		case KEYDBGGED+KEY_O: 
 			ToggleOutlineMode(); 
 			break;
@@ -1048,8 +1098,8 @@ void HandleTestKey(int key)
 
 		case KEYDBGGED +KEY_F4: {
 			//tFVIData hit_data;
-			//CFixVector p0 = {-0x1d99a7, -0x1b20000, 0x186ab7f};
-			//CFixVector p1 = {-0x217865, -0x1b20000, 0x187de3e};
+			//vmsVector p0 = {-0x1d99a7, -0x1b20000, 0x186ab7f};
+			//vmsVector p1 = {-0x217865, -0x1b20000, 0x187de3e};
 			//FindVectorIntersection(&hit_data, &p0, 0x1b9, &p1, 0x40000, 0x0, NULL, -1);
 			break;
 		}
@@ -1066,9 +1116,9 @@ void HandleTestKey(int key)
 			break;
 
 		case KEYDBGGED + KEY_C:
-			paletteManager.SaveEffectAndReset();
+			FullPaletteSave();
 			DoCheatMenu();
-			paletteManager.LoadEffect ();
+			PaletteRestore();
 			break;
 
 		case KEYDBGGED + KEY_SHIFTED + KEY_A:
@@ -1094,11 +1144,11 @@ void HandleTestKey(int key)
 		case KEYDBGGED+KEY_SPACEBAR:		//KEY_F7:				// Toggle physics flying
 			slew_stop();
 			GameFlushInputs();
-			if ( gameData.objs.consoleP->info.controlType != CT_FLYING ) {
-				FlyInit(gameData.objs.consoleP);
+			if ( gameData.objs.console->controlType != CT_FLYING ) {
+				FlyInit(gameData.objs.console);
 				gameStates.app.bGameSuspended &= ~SUSP_ROBOTS;	//robots move
 			} else {
-				slew_init(gameData.objs.consoleP);			//start CPlayerData slewing
+				slew_init(gameData.objs.console);			//start tPlayer slewing
 				gameStates.app.bGameSuspended |= SUSP_ROBOTS;	//robots don't move
 			}
 			break;
@@ -1113,6 +1163,13 @@ void HandleTestKey(int key)
 		case KEYDBGGED+KEY_P+KEY_SHIFTED: 
 			Debug_pause = 1; 
 			break;
+
+#ifdef _DEBUG
+		case KEYDBGGED+KEY_D:
+			if ((bGameDoubleBuffer = !bGameDoubleBuffer))
+				InitCockpit();
+			break;
+#endif
 
 		#ifdef EDITOR
 		case KEYDBGGED+KEY_Q:
@@ -1149,9 +1206,9 @@ void HandleTestKey(int key)
 		}
 
 		case KEYDBGGED+KEY_ALTED+KEY_F5:
-			gameData.time.xGame = I2X(0x7fff - 840);		//will overflow in 14 minutes
+			gameData.time.xGame = i2f(0x7fff - 840);		//will overflow in 14 minutes
 #if TRACE
-			con_printf (CONDBG, "gameData.time.xGame bashed to %d secs\n", X2I(gameData.time.xGame));
+			con_printf (CONDBG, "gameData.time.xGame bashed to %d secs\n", f2i(gameData.time.xGame));
 #endif
 			break;
 
@@ -1160,7 +1217,7 @@ void HandleTestKey(int key)
 			break;
 	}
 }
-#endif		//#if DBG
+#endif		//#ifdef _DEBUG
 
 //	Cheat functions ------------------------------------------------------------
 
@@ -1186,14 +1243,14 @@ if (!gameStates.app.bEndLevelSequence && !gameStates.app.bPlayerIsDead) {
 	CheckRearView();
 	//	If automap key pressed, enable automap unless you are in network mode, control center destroyed and < 10 seconds left
 	if (Controls [0].automapDownCount && 
-		 !gameData.objs.speedBoost [OBJ_IDX (gameData.objs.consoleP)].bBoosted && 
+		 !gameData.objs.speedBoost [OBJ_IDX (gameData.objs.console)].bBoosted && 
 		 !(IsMultiGame && gameData.reactor.bDestroyed && (gameData.reactor.countdown.nSecsLeft < 10)))
 		gameStates.render.automap.bDisplay = 1;
 	DoWeaponStuff();
 	}
-if (gameStates.app.bPlayerExploded) { //gameStates.app.bPlayerIsDead && (gameData.objs.consoleP->flags & OF_EXPLODING) ) {
+if (gameStates.app.bPlayerExploded) { //gameStates.app.bPlayerIsDead && (gameData.objs.console->flags & OF_EXPLODING) ) {
 	if (!explodingFlag)  {
-		explodingFlag = 1;			// When CPlayerData starts exploding, clear all input devices...
+		explodingFlag = 1;			// When tPlayer starts exploding, clear all input devices...
 		GameFlushInputs();
 		}
 	else {
@@ -1222,7 +1279,7 @@ if ( IsMultiGame && (gameData.multigame.msg.bSending || gameData.multigame.msg.b
 	MultiMsgInputSub (key);
 	continue;		//get next key
 	}
-#if DBG
+#ifdef _DEBUG
 if ((key&KEYDBGGED) && IsMultiGame) {
 	gameData.multigame.msg.nReceiver = 100;		// Send to everyone...
 	sprintf( gameData.multigame.msg.szMsg, "%s %s", TXT_I_AM_A, TXT_CHEATER);
@@ -1238,7 +1295,7 @@ if (gameStates.app.bPlayerIsDead)
 		HandleEndlevelKey(key);
 	else if (gameData.demo.nState == ND_STATE_PLAYBACK ) {
 		HandleDemoKey(key);
-#if DBG
+#ifdef _DEBUG
 		HandleTestKey(key);
 #endif
 		}
@@ -1247,7 +1304,7 @@ if (gameStates.app.bPlayerIsDead)
 		HandleSystemKey(key);
 		HandleVRKey(key);
 		HandleGameKey(key);
-#if DBG
+#ifdef _DEBUG
 		HandleTestKey(key);
 #endif
 		}

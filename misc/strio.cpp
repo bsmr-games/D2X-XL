@@ -1,3 +1,4 @@
+/* $Id: strio.c,v 1.4 2003/06/16 06:57:34 btb Exp $ */
 /*
  * strio.c: string/file manipulation functions by Victor Rachels
  */
@@ -15,26 +16,23 @@
 #include "u_mem.h"
 //end additions - adb
 
-char *fsplitword (CFile& cf, char splitchar)
+char *fsplitword (CFILE *f, char splitchar)
 {
 	int	i, mem;
 	char	c, *buf;
 
 mem = 256;
-buf = new char [mem];
-c = cf.GetC ();
-for (i = 0; (c != splitchar) && !cf.EoF (); i++) {
+buf = (char *) D2_ALLOC (sizeof (char) * mem);
+c = CFGetC (f);
+for (i = 0; (c != splitchar) && !CFEoF (f); i++) {
 	if (i == mem) {
-		char* newBuf = new char [mem + 256];
-		memcpy (newBuf, buf, mem);
 		mem += 256;
-		delete[] buf;
-		buf = newBuf;
+		buf = (char *) D2_REALLOC (buf, mem);
 		}
 	buf [i] = c;
-	c = cf.GetC ();
+	c = CFGetC (f);
 	}
-if (cf.EoF () && (c != splitchar))
+if (CFEoF (f) && (c != splitchar))
 	buf [i++] = c;
 buf [i] = 0;
 return buf;
@@ -49,7 +47,7 @@ char *splitword (char *s, char splitchar)
 l = (int) strlen (s);
 p = strchr (s, splitchar);
 lw = p ? (int) (p - s) : l;
-buf = new char [lw + 1];
+buf = (char *) D2_ALLOC (lw + 1);
 memcpy (buf, s, lw + 1);
 buf [lw] = '\0';
 if (p)

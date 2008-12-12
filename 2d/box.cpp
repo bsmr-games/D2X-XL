@@ -1,3 +1,4 @@
+/* $Id: box.c,v 1.4 2002/07/17 21:55:19 bradleyb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -25,8 +26,8 @@ void gr_ubox0(int left,int top,int right,int bot)
 {
 	int i, d, c = COLOR.index;
 
-	ubyte * ptr1;
-	ubyte * ptr2;
+	unsigned char * ptr1;
+	unsigned char * ptr2;
 
 	ptr1 = DATA + ROWSIZE *top+left;
 
@@ -88,11 +89,11 @@ gr_ubox12(left, top, right, bot );
 
 void GrUBox(int left,int top,int right,int bot)
 {
-	if (MODE==BM_LINEAR)
+	if (TYPE==BM_LINEAR)
 		gr_ubox0( left, top, right, bot );
 
 #ifdef __DJGPP__
-	else if ( MODE == BM_MODEX )
+	else if ( TYPE == BM_MODEX )
 		gr_ubox12( left, top, right, bot );
 #endif
 
@@ -102,11 +103,11 @@ void GrUBox(int left,int top,int right,int bot)
 
 void gr_box(int left,int top,int right,int bot)
 {
-	if (MODE==BM_LINEAR)
+	if (TYPE==BM_LINEAR)
 		gr_box0( left, top, right, bot );
 
 #ifdef __DJGPP__
-	else if ( MODE == BM_MODEX )
+	else if ( TYPE == BM_MODEX )
 		gr_box12( left, top, right, bot );
 #endif
     

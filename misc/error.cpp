@@ -1,3 +1,4 @@
+/* $Id: error.c,v 1.6 2003/04/08 00:59:17 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,6 +16,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: error.c,v 1.6 2003/04/08 00:59:17 btb Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -28,7 +33,6 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "gr.h"
 #include "text.h"
 #include "cfile.h"
-#include "u_mem.h"
 #ifdef __macosx__
 #	include "MacErrorMsg.h"
 #endif
@@ -41,16 +45,16 @@ FILE *fErr = NULL;
 int err_initialized=0;
 //end edit -MM
 
-static void (*ErrorPrintFunc) (const char *);
+static void (*ErrorPrintFunc)(char *);
 
 char szExitMsg[MAX_MSG_LEN]="";
 char szWarnMsg[MAX_MSG_LEN];
 
-extern void ShowInGameWarning(const char *s);
+extern void ShowInGameWarning(char *s);
 
 //------------------------------------------------------------------------------
 //takes string in register, calls //printf with string on stack
-void warn_printf(const char *s)
+void warn_printf(char *s)
 {
 #if TRACE
 	con_printf(CON_URGENT, "%s\n",s);
@@ -58,21 +62,21 @@ void warn_printf(const char *s)
 }
 
 #ifdef _WIN32
-void (*pWarnFunc)(const char *s) = NULL;
+void (*pWarnFunc)(char *s) = NULL;
 #else
-void (*pWarnFunc)(const char *s) = warn_printf;
+void (*pWarnFunc)(char *s) = warn_printf;
 #endif
 
 //------------------------------------------------------------------------------
 //provides a function to call with warning messages
-void SetWarnFunc(void (*f)(const char *s))
+void SetWarnFunc(void (*f)(char *s))
 {
 pWarnFunc = f;
 }
 
 //------------------------------------------------------------------------------
 //uninstall warning function - install default //printf
-void ClearWarnFunc (void (*f)(const char *s))
+void ClearWarnFunc (void (*f)(char *s))
 {
 #ifdef _WIN32
 pWarnFunc = NULL;
@@ -83,7 +87,7 @@ pWarnFunc = warn_printf;
 
 //------------------------------------------------------------------------------
 
-void _CDECL_ set_exit_message(const char *fmt,...)
+void _CDECL_ set_exit_message(char *fmt,...)
 {
 	va_list arglist;
 	int len;
@@ -97,7 +101,7 @@ if (len==-1 || len>MAX_MSG_LEN)
 
 //------------------------------------------------------------------------------
 
-void _Assert(int expr, const char *expr_text, const char *filename, int linenum)
+void _Assert(int expr,char *expr_text,char *filename,int linenum)
 {
 if (!(expr)) {
 #if defined (_DEBUG) && defined (_WIN32)
@@ -134,13 +138,13 @@ if (*szExitMsg) {
 #	define MB_ICONERROR 0
 #endif
 
-void D2MsgBox (const char *pszMsg, uint nType)
+void D2MsgBox (char *pszMsg, unsigned int nType)
 {
 gameData.app.bGamePaused = 1;
-if (screen.Width () && screen.Height () && pWarnFunc)
+if (grdCurScreen && pWarnFunc)
 	(*pWarnFunc)(pszMsg);
 #if defined (WIN32)
-else 
+else
 	MessageBox (NULL, pszMsg, "D2X-XL", nType | MB_OK);
 #elif defined (__linux__)
 	fprintf (stderr, "D2X-XL: %s\n", pszMsg);
@@ -152,11 +156,11 @@ gameData.app.bGamePaused = 0;
 
 //------------------------------------------------------------------------------
 //terminates with error code 1, printing message
-void _CDECL_ Error (const char *fmt,...)
+void _CDECL_ Error (char *fmt,...)
 {
 	va_list arglist;
 
-#if !DBG
+#ifndef _DEBUG
 strcpy (szExitMsg, TXT_TITLE_ERROR); // don't put the new line in for dialog output
 #else
 sprintf (szExitMsg, "\n%s", TXT_TITLE_ERROR);
@@ -165,20 +169,18 @@ va_start (arglist,fmt);
 vsprintf (szExitMsg + strlen (szExitMsg), fmt, arglist);
 va_end(arglist);
 PrintLog ("ERROR: %s\n", szExitMsg);
-gameStates.app.bShowError = 1;
 D2MsgBox (szExitMsg, MB_ICONERROR);
-gameStates.app.bShowError = 0;
 Int3();
 if (!err_initialized) 
 	print_exit_message();
-#if !DBG
+#ifndef _DEBUG
 exit (1);
 #endif
 }
 
 //------------------------------------------------------------------------------
 
-void _CDECL_ PrintLog (const char *fmt, ...)
+void _CDECL_ PrintLog (char *fmt, ...)
 {
  if (fErr) {
 		va_list arglist;
@@ -194,7 +196,7 @@ void _CDECL_ PrintLog (const char *fmt, ...)
 
 //------------------------------------------------------------------------------
 //print out warning message to user
-void _CDECL_ Warning (const char *fmt, ...)
+void _CDECL_ Warning (char *fmt, ...)
 {
 	va_list arglist;
 
@@ -203,14 +205,12 @@ va_start (arglist, fmt);
 vsprintf (szWarnMsg + strlen (szWarnMsg), fmt, arglist);
 va_end (arglist);
 	//PrintLog (szWarnMsg);
-gameStates.app.bShowError = 1;
 D2MsgBox (szWarnMsg, MB_ICONWARNING);
-gameStates.app.bShowError = 0;
 }
 
 //------------------------------------------------------------------------------
 //initialize error handling system, and set default message. returns 0=ok
-int _CDECL_ error_init (void (*func)(const char *), const char *fmt, ...)
+int _CDECL_ error_init(void (*func)(char *), char *fmt, ...)
 {
 	va_list arglist;
 	int len;
@@ -245,7 +245,7 @@ int nDbgOvlTex = -1;
 
 #endif
 
-#if DBG
+#ifdef _DEBUG
 
 int TrapSeg (short nSegment)
 {
@@ -270,9 +270,9 @@ return 0;
 }
 
 
-int TrapBmp (CBitmap *bmP, char *pszName)
+int TrapBmp (grsBitmap *bmP, char *pszName)
 {
-if (strstr (bmP->Name (), pszName))
+if (strstr (bmP->szName, pszName))
 	return 1;
 return 0;
 }

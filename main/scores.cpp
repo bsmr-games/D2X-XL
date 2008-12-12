@@ -1,3 +1,4 @@
+/* $Id: scores.c,v 1.5 2003/10/04 02:58:23 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -18,20 +19,31 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "inferno.h"
 #include "scores.h"
 #include "error.h"
+#include "gr.h"
+#include "mono.h"
 #include "key.h"
+#include "palette.h"
+#include "game.h"
 #include "gamefont.h"
 #include "u_mem.h"
+#include "songs.h"
 #include "newmenu.h"
+#include "menu.h"
+#include "player.h"
 #include "screens.h"
+#include "gamefont.h"
 #include "mouse.h"
 #include "joy.h"
 #include "timer.h"
 #include "text.h"
+#include "d_io.h"
 #include "strutil.h"
+#include "ogl_defs.h"
 
 #define VERSION_NUMBER 		1
 #define SCORES_FILENAME 	"descent.hi"
@@ -74,7 +86,7 @@ char scores_filename[128];
 
 char *GetScoresFilename ()
 {
-#if DBG
+#ifdef _DEBUG
 	// Only use the MINER variable for internal developement
 	char *p;
 	p=getenv ("MINER");
@@ -94,13 +106,13 @@ char *GetScoresFilename ()
 
 void scores_read ()
 {
-	CFile cf;
+	CFILE cf;
 	int fsize;
 
 	// clear score array...
 	memset (&Scores, 0, sizeof (all_scores));
 
-	if (!cf.Open (GetScoresFilename (), gameFolders.szDataDir, "rb", 0)) {
+	if (!CFOpen (&cf, GetScoresFilename (), gameFolders.szDataDir, "rb", 0)) {
 		int i;
 	 	// No error message needed, code will work without a scores file
 		sprintf (Scores.cool_saying, COOL_SAYING);
@@ -120,15 +132,15 @@ void scores_read ()
 		return;
 	}
 	
-	fsize = cf.Length ();
+	fsize = CFLength (&cf,0);
 
 	if (fsize != sizeof (all_scores))	{
-		cf.Close ();
+		CFClose (&cf);
 		return;
 	}
 	// Read 'em in...
-	cf.Read (&Scores, sizeof (all_scores), 1);
-	cf.Close ();
+	CFRead (&Scores, sizeof (all_scores), 1, &cf);
+	CFClose (&cf);
 
 	if ((Scores.version!=VERSION_NUMBER)|| (Scores.nSignature[0]!='D')|| (Scores.nSignature[1]!='H')|| (Scores.nSignature[2]!='S'))	{
 		memset (&Scores, 0, sizeof (all_scores));
@@ -140,9 +152,9 @@ void scores_read ()
 
 void scores_write ()
 {
-	CFile cf;
+	CFILE cf;
 
-if (!cf.Open (GetScoresFilename (), gameFolders.szDataDir, "wb", 0)) {
+if (!CFOpen (&cf, GetScoresFilename (), gameFolders.szDataDir, "wb", 0)) {
 	ExecMessageBox (TXT_WARNING, NULL, 1, TXT_OK, "%s\n'%s'", TXT_UNABLE_TO_OPEN, GetScoresFilename () );
 	return;
 	}
@@ -151,8 +163,8 @@ Scores.nSignature[0]='D';
 Scores.nSignature[1]='H';
 Scores.nSignature[2]='S';
 Scores.version = VERSION_NUMBER;
-cf.Write (&Scores,sizeof (all_scores),1);
-cf.Close ();
+CFWrite (&Scores,sizeof (all_scores),1, &cf);
+CFClose (&cf);
 }
 
 //------------------------------------------------------------------------------
@@ -202,7 +214,7 @@ void scores_fill_struct (stats_info * stats)
 		else
 			stats->hostage_ratio = 0;
 
-		stats->seconds = X2I (LOCALPLAYER.timeTotal)+ (LOCALPLAYER.hoursTotal*3600);
+		stats->seconds = f2i (LOCALPLAYER.timeTotal)+ (LOCALPLAYER.hoursTotal*3600);
 
 		stats->diffLevel = gameStates.app.nDifficultyLevel;
 		stats->startingLevel = LOCALPLAYER.startingLevel;
@@ -247,11 +259,8 @@ void MaybeAddPlayerScore (int abortFlag)
 		memset (m, 0, sizeof (m));
 		if (position==0)	{
 			strcpy (text1,  "");
-			m [0].nType = NM_TYPE_TEXT; 
-			m [0].text = const_cast<char*> (TXT_COOL_SAYING);
-			m [1].nType = NM_TYPE_INPUT; 
-			m [1].text = text1; 
-			m [1].text_len = COOL_MESSAGE_LEN - 5;
+			m[0].nType = NM_TYPE_TEXT; m[0].text = TXT_COOL_SAYING;
+			m[1].nType = NM_TYPE_INPUT; m[1].text = text1; m[1].text_len = COOL_MESSAGE_LEN-5;
 			ExecMenu (TXT_HIGH_SCORE, TXT_YOU_PLACED_1ST, 2, m, NULL, NULL);
 			strncpy (Scores.cool_saying, text1, COOL_MESSAGE_LEN);
 			if (strlen (Scores.cool_saying)<1)
@@ -275,7 +284,7 @@ void MaybeAddPlayerScore (int abortFlag)
 
 //------------------------------------------------------------------------------
 
-void _CDECL_ scores_rprintf (int x, int y, const char * format, ...)
+void _CDECL_ scores_rprintf (int x, int y, char * format, ...)
 {
 	va_list args;
 	char buffer[128];
@@ -291,7 +300,7 @@ void _CDECL_ scores_rprintf (int x, int y, const char * format, ...)
 		if (*p=='1') 
 			*p= (char)132;
 
-	FONT->StringSize (buffer, w, h, aw);
+	GrGetStringSize (buffer, &w, &h, &aw);
 
 	GrString (LHX (x)-w+xOffs, LHY (y)+yOffs, buffer, NULL);
 }
@@ -339,14 +348,13 @@ void scores_draw_item (int  i, stats_info * stats)
 			s = stats->seconds%3600;
 			m = s / 60;
 			s = s % 60;
-			scores_rprintf (311-
-+XX, y+YY, "%d:%02d:%02d", h, m, s);
+			scores_rprintf (311-42+XX, y+YY, "%d:%02d:%02d", h, m, s);
 		}
 }
 
 //------------------------------------------------------------------------------
 
-void ScoresView (int nCurItem)
+void ScoresView (int citem)
 {
 	fix t0 = 0, t1;
 	int c,i,done,looper;
@@ -359,9 +367,9 @@ void ScoresView (int nCurItem)
 ReshowScores:
 	scores_read ();
 	SetScreenMode (SCREEN_MENU);
- 	CCanvas::SetCurrent (NULL);
-	xOffs = (CCanvas::Current ()->Width () - 640) / 2;
-	yOffs = (CCanvas::Current ()->Height () - 480) / 2;
+ 	GrSetCurrentCanvas (NULL);
+	xOffs = (grdCurCanv->cvBitmap.bmProps.w - 640) / 2;
+	yOffs = (grdCurCanv->cvBitmap.bmProps.h - 480) / 2;
 	if (xOffs < 0)
 		xOffs = 0;
 	if (yOffs < 0)
@@ -375,55 +383,54 @@ ReshowScores:
 	while (!done)	{
 		if (!bRedraw || gameOpts->menus.nStyle) {
 			NMDrawBackground (&bg,xOffs, yOffs, xOffs + 640, xOffs + 480, bRedraw);
-			fontManager.SetCurrent (MEDIUM3_FONT);
+			grdCurCanv->cvFont = MEDIUM3_FONT;
 
 			GrString (0x8000, yOffs + LHY (15), TXT_HIGH_SCORES, NULL);
-			fontManager.SetCurrent (SMALL_FONT);
-			fontManager.SetColorRGBi (RGBA_PAL (31,26,5), 1, 0, 0);
+			grdCurCanv->cvFont = SMALL_FONT;
+			GrSetFontColorRGBi (RGBA_PAL (31,26,5), 1, 0, 0);
 			GrString ( xOffs + LHX (31+33+XX), yOffs + LHY (46+7+YY), TXT_NAME, NULL);
 			GrString ( xOffs + LHX (82+33+XX), yOffs + LHY (46+7+YY), TXT_SCORE, NULL);
 			GrString (xOffs + LHX (127+33+XX), yOffs + LHY (46+7+YY), TXT_SKILL, NULL);
 			GrString (xOffs + LHX (170+33+XX), yOffs + LHY (46+7+YY), TXT_LEVELS, NULL);
 		//	GrString (202, 46, "Kills");
 		//	GrString (234, 46, "Rescues");
-			GrString (xOffs + LHX (288-
-+XX), yOffs + LHY (46+7+YY), TXT_TIME, NULL);
-			if (nCurItem < 0)
+			GrString (xOffs + LHX (288-42+XX), yOffs + LHY (46+7+YY), TXT_TIME, NULL);
+			if (citem < 0)
 				GrString (0x8000, yOffs + LHY (175), TXT_PRESS_CTRL_R, NULL);
-			fontManager.SetColorRGBi (RGBA_PAL (28,28,28), 1, 0, 0);
+			GrSetFontColorRGBi (RGBA_PAL (28,28,28), 1, 0, 0);
 			//GrPrintF (NULL, 0x8000, yOffs + LHY (31), "%c%s%c  - %s", 34, Scores.cool_saying, 34, Scores.stats[0].name);
 			for (i = 0; i < MAX_HIGH_SCORES; i++) {
 				//@@if (i==0)	{
-				//@@	fontManager.SetColorRGBi (RGBA_PAL (28,28,28), 1, 0, 0);
+				//@@	GrSetFontColorRGBi (RGBA_PAL (28,28,28), 1, 0, 0);
 				//@@} else {
-				//@@	fontManager.SetColor (paletteManager.FadeTable ()[BM_XRGB (28,28,28)+ ((28-i*2)*256)], 1, 0, 0);
+				//@@	GrSetFontColor (grFadeTable[BM_XRGB (28,28,28)+ ((28-i*2)*256)], 1, 0, 0);
 				//@@}														 
 				c = 28 - i * 2;
-				fontManager.SetColorRGBi (RGBA_PAL (c, c, c), 1, 0, 0);
+				GrSetFontColorRGBi (RGBA_PAL (c, c, c), 1, 0, 0);
 				scores_draw_item (i, Scores.stats + i);
 			}
 
-			paletteManager.FadeIn ();
+			GrPaletteFadeIn (NULL,32, 0);
 
-			if (nCurItem < 0)
+			if (citem < 0)
 				GrUpdate (0);
 			bRedraw = 1;
 			}
-		if (nCurItem > -1)	{
+		if (citem > -1)	{
 
 			t1	= TimerGetFixedSeconds ();
 			//if (t1 - t0 >= F1_0/128) 
 			{
 				t0 = t1;
-				//@@fontManager.SetColor (paletteManager.FadeTable ()[fades[looper]*256+BM_XRGB (28,28,28)], -1);
+				//@@GrSetFontColor (grFadeTable[fades[looper]*256+BM_XRGB (28,28,28)], -1);
 				c = 7 + fades [looper];
-				fontManager.SetColorRGBi (RGBA_PAL (c, c, c), 1, 0, 0);
+				GrSetFontColorRGBi (RGBA_PAL (c, c, c), 1, 0, 0);
 				if (++looper > 63) 
 				 looper=0;
-				if (nCurItem ==  MAX_HIGH_SCORES)
+				if (citem ==  MAX_HIGH_SCORES)
 					scores_draw_item (MAX_HIGH_SCORES, &Last_game);
 				else
-					scores_draw_item (nCurItem, Scores.stats + nCurItem);
+					scores_draw_item (citem, Scores.stats + citem);
 				}
 			GrUpdate (0);
 		}
@@ -439,11 +446,11 @@ ReshowScores:
 		k = KeyInKey ();
 		switch (k)	{
 		case KEY_CTRLED+KEY_R:	
-			if (nCurItem < 0)		{
+			if (citem < 0)		{
 				// Reset scores...
 				if (ExecMessageBox (NULL, NULL, 2,  TXT_NO, TXT_YES, TXT_RESET_HIGH_SCORES)==1)	{
-					CFile::Delete (GetScoresFilename (), gameFolders.szDataDir);
-					paletteManager.FadeOut ();
+					CFDelete (GetScoresFilename (), gameFolders.szDataDir);
+					GrPaletteFadeOut (NULL, 32, 0);
 					goto ReshowScores;
 				}
 			}
@@ -465,8 +472,8 @@ ReshowScores:
 		}
 	}
 // Restore background and exit
-paletteManager.FadeOut ();
-CCanvas::SetCurrent (NULL);
+GrPaletteFadeOut (NULL, 32, 0);
+GrSetCurrentCanvas (NULL);
 GameFlushInputs ();
 NMRemoveBackground (&bg);
 }

@@ -1,3 +1,4 @@
+/* $Id: render.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -52,7 +53,7 @@ int ToggleShowOnlyCurSide(void);
 
 // When any render function needs to know what's looking at it, it
 // should access RenderViewerObject members.
-extern fix xRenderZoom;     // the CPlayerData's zoom factor
+extern fix xRenderZoom;     // the tPlayer's zoom factor
 
 // This is used internally to RenderFrame(), but is included here so AI
 // can use it for its own purposes.
@@ -63,7 +64,7 @@ extern short nRenderList [MAX_SEGMENTS_D2X];
 extern int Render_only_bottom;
 #endif
 
-// Set the following to turn on CPlayerData head turning
+// Set the following to turn on tPlayer head turning
 // If the above flag is set, these angles specify the orientation of the head
 extern vmsAngVec Player_head_angles;
 
@@ -77,11 +78,10 @@ void SetRenderView (fix nEyeOffset, short *pnStartSeg, int bOglScale);
 
 void RenderMine (short nStartSeg, fix xExeOffset, int nWindow);
 void RenderShadowQuad (int bWhite);
-int RenderShadowMap (CDynLight *pLight);
-void UpdateRenderedData (int window_num, CObject *viewer, int rearViewFlag, int user);
+int RenderShadowMap (tDynLight *pLight);
+void UpdateRenderedData (int window_num, tObject *viewer, int rearViewFlag, int user);
 void RenderObjList (int nListPos, int nWindow);
 void RenderMineSegment (int nn);
-void RenderEffects (int nWindow);
 
 void InitSegZRef (int i, int j, int nThread);
 void QSortSegZRef (short left, short right);
@@ -93,27 +93,22 @@ void CloseDynLighting (void);
 
 //------------------------------------------------------------------------------
 
-static inline bool GuidedMslView (CObject ** objPP)
+static inline tObject *GuidedMslView (void)
 {
-	CObject *objP = gameData.objs.guidedMissile [gameData.multiplayer.nLocalPlayer].objP;
+	tObject *objP;
 
-*objPP = objP;
-return objP && 
-		 (objP->info.nType == OBJ_WEAPON) && 
-		 (objP->info.nId == GUIDEDMSL_ID) && 
-		 (objP->info.nSignature == gameData.objs.guidedMissile [gameData.multiplayer.nLocalPlayer].nSignature);
+return (objP = gameData.objs.guidedMissile [gameData.multiplayer.nLocalPlayer]) && 
+		 (objP->nType == OBJ_WEAPON) && 
+		 (objP->id == GUIDEDMSL_ID) && 
+		 (objP->nSignature == gameData.objs.guidedMissileSig [gameData.multiplayer.nLocalPlayer]) ?
+	objP : NULL;
 }
 
 //------------------------------------------------------------------------------
 
-static inline CObject *GuidedInMainView (void)
+static inline tObject *GuidedInMainView (void)
 {
-if (!gameOpts->render.cockpit.bGuidedInMainView)
-	return NULL;
-
-CObject *objP;
-
-return GuidedMslView (&objP) ? objP : NULL;
+return gameOpts->render.cockpit.bGuidedInMainView ? GuidedMslView () : NULL;
 }
 
 //------------------------------------------------------------------------------

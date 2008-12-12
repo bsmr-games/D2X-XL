@@ -1,3 +1,4 @@
+/* $Id: rect.c,v 1.4 2002/10/10 18:55:32 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -31,7 +32,7 @@ void GrURect(int left,int top,int right,int bot)
 {
 	int i;
 
-	if (MODE == BM_OGL) {
+	if (TYPE == BM_OGL) {
 		OglURect(left,top,right,bot);
 		return;
 	}
@@ -43,7 +44,7 @@ void GrRect(int left,int top,int right,int bot)
 {
 	int i;
 
-	if (MODE == BM_OGL) {
+	if (TYPE == BM_OGL) {
 		OglURect(left,top,right,bot);
 		return;
 	}

@@ -1,3 +1,4 @@
+/* $Id: mglobal.c,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,20 +16,32 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #	include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: mglobal.c,v 1.4 2003/10/10 09:36:35 btb Exp $";
+#endif
+
 #include "inferno.h"
+#include "fix.h"
+#include "vecmat.h"
+#include "segment.h"
+#include "object.h"
+#include "bm.h"
+#include "3d.h"
+#include "game.h"
+
 
 // Global array of vertices, common to one mine.
 //	This is the global mine which create_new_mine returns.
 //lsegment	Lsegments[MAX_SEGMENTS];
 
 // Number of vertices in current mine (ie, gameData.segs.vertices, pointed to by Vp)
-//	Translate table to get opposite tSide of a face on a CSegment.
+//	Translate table to get opposite tSide of a face on a tSegment.
 char	sideOpposite[MAX_SIDES_PER_SEGMENT] = {WRIGHT, WBOTTOM, WLEFT, WTOP, WFRONT, WBACK};
 
-#ifdef PASSWORD
-#	define TOLOWER(c) ((((c)>='A') && ((c)<='Z'))?((c)+('a'-'A')):(c))
+#define TOLOWER(c) ((((c)>='A') && ((c)<='Z'))?((c)+('a'-'A')):(c))
 
-#	define encrypt(a,b,c,d)	a ^ TOLOWER((((int) PASSWORD)>>24)&255), \
+#ifdef PASSWORD
+#define encrypt(a,b,c,d)	a ^ TOLOWER((((int) PASSWORD)>>24)&255), \
 									b ^ TOLOWER((((int) PASSWORD)>>16)&255), \
 									c ^ TOLOWER((((int) PASSWORD)>>8)&255), \
 									d ^ TOLOWER((((int) PASSWORD))&255)

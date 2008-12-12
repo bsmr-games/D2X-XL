@@ -1,3 +1,4 @@
+/* $Id: gr.c,v 1.16 2003/11/27 04:59:49 btb Exp $ */
 /*
  *
  * OGL video functions. - Added 9/15/99 Matthew Mueller
@@ -46,6 +47,8 @@ void GrPaletteStepClear(void); // Function prototype for GrInit;
 void ResetHoardData (void);
 
 extern int screenShotIntervals [];
+
+int curDrawBuffer = -1;
 
 //------------------------------------------------------------------------------
 
@@ -107,7 +110,7 @@ tDisplayModeInfo displayModeInfo [NUM_DISPLAY_MODES + 1] = {
 void GrUpdate (int bClear)
 {
 if (gameStates.ogl.bInitialized) {
-	if ((gameStates.ogl.nDrawBuffer == GL_FRONT) || (!gameOpts->menus.nStyle && gameStates.menus.nInMenu))
+	if ((curDrawBuffer == GL_FRONT) || (!gameOpts->menus.nStyle && gameStates.menus.nInMenu))
 		glFlush ();
 	else
 		OglSwapBuffers (1, bClear);
@@ -125,7 +128,8 @@ return OglVideoModeOK (SM_W (mode), SM_H (mode)); // platform specific code
 
 int GrSetMode (u_int32_t mode)
 {
-	uint w, h;
+	unsigned int w, h;
+	unsigned char *gr_bm_data;
 	//int bForce = (nCurrentVGAMode < 0);
 
 if (mode <= 0)
@@ -133,20 +137,25 @@ if (mode <= 0)
 w = SM_W (mode);
 h = SM_H (mode);
 nCurrentVGAMode = mode;
-screen.Destroy ();
-screen.Init ();
-screen.SetMode (mode);
-screen.SetWidth (w);
-screen.SetHeight (h);
-//screen.Aspect () = FixDiv(screen.Width ()*3,screen.Height ()*4);
-screen.SetAspect (FixDiv (screen.Width (), (fix) (screen.Height () * ((double) w / (double) h))));
-screen.Canvas ()->CBitmap::Init (BM_OGL, 0, 0, w, h, 1, NULL);
-screen.Canvas ()->CreateBuffer ();
-screen.Canvas ()->SetPalette (paletteManager.Default ()); //just need some valid palette here
-//screen.Canvas ()->props.rowSize = screen->pitch;
-//screen.Canvas ()->Buffer () = reinterpret_cast<ubyte*> (screen->pixels);
-CCanvas::SetCurrent (NULL);
-CCanvas::Current ()->SetFont (fontManager.Current ());
+gr_bm_data = grdCurScreen->scCanvas.cvBitmap.bmTexBuf;//since we use realloc, we want to keep this pointer around.
+memset (grdCurScreen, 0, sizeof(grsScreen));
+grdCurScreen->scMode = mode;
+grdCurScreen->scWidth = w;
+grdCurScreen->scHeight = h;
+//grdCurScreen->scAspect = FixDiv(grdCurScreen->scWidth*3,grdCurScreen->scHeight*4);
+grdCurScreen->scAspect = FixDiv (grdCurScreen->scWidth, (fix) (grdCurScreen->scHeight * ((double) w / (double) h)));
+grdCurScreen->scCanvas.cvBitmap.bmProps.x = 0;
+grdCurScreen->scCanvas.cvBitmap.bmProps.y = 0;
+grdCurScreen->scCanvas.cvBitmap.bmProps.w = w;
+grdCurScreen->scCanvas.cvBitmap.bmProps.h = h;
+grdCurScreen->scCanvas.cvBitmap.bmBPP = 1;
+grdCurScreen->scCanvas.cvBitmap.bmPalette = defaultPalette; //just need some valid palette here
+//grdCurScreen->scCanvas.cvBitmap.bmProps.rowSize = screen->pitch;
+grdCurScreen->scCanvas.cvBitmap.bmProps.rowSize = w;
+grdCurScreen->scCanvas.cvBitmap.bmProps.nType = BM_OGL;
+//grdCurScreen->scCanvas.cvBitmap.bmTexBuf = (unsigned char *)screen->pixels;
+grdCurScreen->scCanvas.cvBitmap.bmTexBuf = (ubyte *) D2_REALLOC (gr_bm_data, w * h);
+GrSetCurrentCanvas (NULL);
 /***/PrintLog ("   initializing OpenGL window\n");
 if (!OglInitWindow (w, h, 0))	//platform specific code
 	return 0;
@@ -161,21 +170,25 @@ return 0;
 
 //------------------------------------------------------------------------------
 
+void GrRemapMonoFonts ();
+
 void ResetTextures (int bReload, int bGame)
 {
 if (gameStates.app.bInitialized && gameStates.ogl.bInitialized) {
-	textureManager.Destroy (); 
-	if (lightmapManager.HaveLightmaps ())
-		lightmapManager.Release ();
+	OglSmashTextureListInternal (); 
+#if LIGHTMAPS
+	if (HaveLightMaps ())
+		OglDestroyLightMaps ();
+#endif
 	DestroyGlareDepthTexture ();
 	NMFreeAltBg (1);
 	if (bReload)
-		fontManager.RemapMono ();
+		GrRemapMonoFonts ();
 	if (bGame) {
 		FreeInventoryIcons ();
 		FreeObjTallyIcons ();
 		ResetHoardData ();
-		particleImageManager.FreeAll ();
+		FreeParticleImages ();
 		FreeExtraImages ();
 		LoadExtraImages ();
 		FreeStringPool ();
@@ -188,19 +201,6 @@ if (gameStates.app.bInitialized && gameStates.ogl.bInitialized) {
 			}
 		}
 	}
-}
-
-//------------------------------------------------------------------------------
-
-int FindDisplayMode (int nScrSize)
-{
-	tDisplayModeInfo *dmiP = displayModeInfo;
-	int w = nScrSize >> 16, h = nScrSize & 0xffff;
-
-for (int j = sizeofa (displayModeInfo), i = 0; i < j; i++, dmiP++)
-	if ((dmiP->w == w) && (dmiP->h == h))
-		return i;
-return -1;
 }
 
 //------------------------------------------------------------------------------
@@ -235,24 +235,40 @@ if ((t = FindArg("-fullscreen"))) {
 	//GrToggleFullScreen();
 	}
 SetRenderQuality ();
-if ((t=FindArg ("-gl_reticle")))
+if ((t=FindArg ("-gl_vidmem"))){
+	nOglMemTarget=atoi(pszArgList[t+1])*1024*1024;
+}
+if ((t=FindArg ("-gl_reticle"))){
 	gameStates.ogl.nReticle=atoi(pszArgList[t+1]);
+}
 /***/PrintLog ("   initializing internal texture list\n");
-textureManager.Init ();
+OglInitTextureListInternal();
 /***/PrintLog ("   allocating screen buffer\n");
-screen.Canvas ()->SetBuffer (NULL);
+MALLOC (grdCurScreen, grsScreen, 1);
+memset (grdCurScreen, 0, sizeof (grsScreen));
+grdCurScreen->scCanvas.cvBitmap.bmTexBuf = NULL;
 
 // Set the mode.
 for (t = 0; scrSizes [t].x && scrSizes [t].y; t++)
 	if (FindArg (ScrSizeArg (scrSizes [t].x, scrSizes [t].y))) {
 		gameStates.gfx.bOverride = 1;
-		gameStates.gfx.nStartScrSize =
+		gameStates.gfx.nStartScrSize = t;
+		gameStates.gfx.nStartScrMode =
 		mode = SM (scrSizes [t].x, scrSizes [t].y);
-		gameStates.gfx.nStartScrMode = FindDisplayMode (mode);
 		break;
 		}
 if ((retcode = GrSetMode (mode)))
 	return retcode;
+
+grdCurScreen->scCanvas.cvColor.index = 0;
+grdCurScreen->scCanvas.cvColor.rgb = 0;
+grdCurScreen->scCanvas.cvDrawMode = 0;
+grdCurScreen->scCanvas.cvFont = NULL;
+grdCurScreen->scCanvas.cvFontFgColor.index = 0;
+grdCurScreen->scCanvas.cvFontBgColor.index = 0;
+grdCurScreen->scCanvas.cvFontFgColor.rgb = 0;
+grdCurScreen->scCanvas.cvFontBgColor.rgb = 0;
+GrSetCurrentCanvas (&grdCurScreen->scCanvas);
 
 gameStates.gfx.bInstalled = 1;
 InitGammaRamp ();
@@ -261,7 +277,7 @@ InitGammaRamp ();
 OglInitExtensions ();
 OglDestroyDrawBuffer ();
 OglCreateDrawBuffer ();
-OglSetDrawBuffer (GL_BACK, 1);
+OglDrawBuffer (GL_BACK, 1);
 return 0;
 }
 
@@ -271,7 +287,11 @@ void _CDECL_ GrClose (void)
 {
 PrintLog ("shutting down graphics subsystem\n");
 OglClose();//platform specific code
-screen.Destroy ();
+if (grdCurScreen) {
+	if (grdCurScreen->scCanvas.cvBitmap.bmTexBuf)
+		D2_FREE (grdCurScreen->scCanvas.cvBitmap.bmTexBuf);
+	D2_FREE (grdCurScreen);
+	}
 #ifdef OGL_RUNTIME_LOAD
 if (ogl_rt_loaded)
 	OpenGL_LoadLibrary(false);
@@ -298,7 +318,7 @@ if (i && (i < nArgCount)) {
 	gameStates.gfx.bOverride = 1; 
 	gameData.render.window.w = x;
 	gameData.render.window.h = y;
-	return gameStates.gfx.nStartScrSize = GetDisplayMode (SM (x, y)); 
+	return gameStates.gfx.nStartScrMode = GetDisplayMode (SM (x, y)); 
 	}
 return -1;
 }
@@ -372,16 +392,14 @@ return -1;
 #   define VR_NONE 0		//make sure VR_NONE is defined and 0 here
 #endif
 
-
 void SetDisplayMode (int nMode, int bOverride)
 {
-	tDisplayModeInfo *dmiP;
+	tDisplayModeInfo *tDisplayModeInfo;
 
 if ((gameStates.video.nDisplayMode == -1) || (gameStates.render.vr.nRenderMode != VR_NONE))	//special VR nMode
-	return;	//...don't change
-if (bOverride && gameStates.gfx.bOverride) {
-	gameStates.gfx.nStartScrMode = nMode;
-	}
+	return;								//...don't change
+if (bOverride && gameStates.gfx.bOverride)
+	nMode = gameStates.gfx.nStartScrSize;
 else
 	gameStates.gfx.bOverride = 0;
 if (!gameStates.menus.bHiresAvailable && (nMode != 1))
@@ -389,9 +407,9 @@ if (!gameStates.menus.bHiresAvailable && (nMode != 1))
 if (!GrVideoModeOK (displayModeInfo [nMode].VGA_mode))		//can't do nMode
 	nMode = 0;
 gameStates.video.nDisplayMode = nMode;
-dmiP = displayModeInfo + nMode;
+tDisplayModeInfo = displayModeInfo + nMode;
 if (gameStates.video.nDisplayMode != -1) {
-	GameInitRenderBuffers (dmiP->VGA_mode, dmiP->w, dmiP->h, dmiP->render_method, dmiP->flags);
+	GameInitRenderBuffers (tDisplayModeInfo->VGA_mode, tDisplayModeInfo->w, tDisplayModeInfo->h, tDisplayModeInfo->render_method, tDisplayModeInfo->flags);
 	gameStates.video.nDefaultDisplayMode = gameStates.video.nDisplayMode;
 	}
 gameStates.video.nScreenMode = -1;		//force screen reset
@@ -417,10 +435,10 @@ int SetMenuScreenMode (u_int32_t sm)
 gameStates.menus.bHires = gameStates.menus.bHiresAvailable;		//do highres if we can
 nMenuMode = 
 	gameStates.gfx.bOverride ?
-		gameStates.gfx.nStartScrSize
+		gameStates.gfx.nStartScrMode
 		: gameStates.menus.bHires ?
-			 (gameStates.render.vr.nScreenSize >= SM (640,480)) ?
-				gameStates.render.vr.nScreenSize
+			 (gameStates.render.vr.nScreenMode >= SM (640,480)) ?
+				gameStates.render.vr.nScreenMode
 				: SM (640,480)
 			: SM (320,200);
 gameStates.video.nLastScreenMode = -1;
@@ -428,17 +446,17 @@ if (nCurrentVGAMode != nMenuMode) {
 	if (GrSetMode (nMenuMode))
 		Error ("Cannot set screen mode for menu");
 	if (!gameStates.render.bPaletteFadedOut)
-		paletteManager.LoadEffect ();
+		GrPaletteStepLoad (NULL);
 	gameStates.menus.bInitBG = 1;
 	RebuildRenderContext (gameStates.app.bGameRunning);
 	}
 
-screen.Canvas ()->SetupPane (
-	gameStates.render.vr.buffers.screenPages, 0, 0, 
-	screen.Width (), screen.Height ());
-screen.Canvas ()->SetupPane (
-	gameStates.render.vr.buffers.screenPages + 1, 0, 0, 
-	screen.Width (), screen.Height ());
+GrInitSubCanvas (
+	gameStates.render.vr.buffers.screenPages, &grdCurScreen->scCanvas, 0, 0, 
+	grdCurScreen->scWidth, grdCurScreen->scHeight);
+GrInitSubCanvas (
+	gameStates.render.vr.buffers.screenPages + 1, &grdCurScreen->scCanvas, 0, 0, 
+	grdCurScreen->scWidth, grdCurScreen->scHeight);
 gameStates.render.fonts.bHires = gameStates.render.fonts.bHiresAvailable && gameStates.menus.bHires;
 return 1;
 }
@@ -447,8 +465,8 @@ return 1;
 
 int SetGameScreenMode (u_int32_t sm)
 {
-if (nCurrentVGAMode != gameStates.render.vr.nScreenSize) {
-	if (GrSetMode (gameStates.render.vr.nScreenSize))	{
+if (nCurrentVGAMode != gameStates.render.vr.nScreenMode) {
+	if (GrSetMode (gameStates.render.vr.nScreenMode))	{
 		Error ("Cannot set desired screen mode for game!");
 		//we probably should do something else here, like select a standard mode
 		}
@@ -458,8 +476,8 @@ if (nCurrentVGAMode != gameStates.render.vr.nScreenSize) {
 #endif
 	ResetCockpit ();
 	}
-gameData.render.window.wMax = screen.Width ();
-gameData.render.window.hMax = screen.Height ();
+gameData.render.window.wMax = grdCurScreen->scWidth;
+gameData.render.window.hMax = grdCurScreen->scHeight;
 if (!gameData.render.window.h || (gameData.render.window.h > gameData.render.window.hMax) || 
 	 !gameData.render.window.w || (gameData.render.window.w > gameData.render.window.wMax)) {
 	gameData.render.window.w = gameData.render.window.wMax;
@@ -468,22 +486,22 @@ if (!gameData.render.window.h || (gameData.render.window.h > gameData.render.win
 InitCockpit ();
 //	Define screen pages for game mode
 // If we designate through screenFlags to use paging, then do so.
-screen.Canvas ()->SetupPane (&gameStates.render.vr.buffers.screenPages[0], 
-										0, 0, screen.Width (), screen.Height ());
+GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[0], &grdCurScreen->scCanvas, 
+					  0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight);
 
 if (gameStates.render.vr.nScreenFlags&VRF_USE_PAGING) {
-	screen.Canvas ()->SetupPane (&gameStates.render.vr.buffers.screenPages[1], 0, 
-											screen.Height (), screen.Width (), screen.Height ());
+	GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[1], &grdCurScreen->scCanvas, 0, 
+						  grdCurScreen->scHeight, grdCurScreen->scWidth, grdCurScreen->scHeight);
 	}
 else {
-	screen.Canvas ()->SetupPane (&gameStates.render.vr.buffers.screenPages[1], 
-											0, 0, screen.Width (), screen.Height ());
+	GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[1], &grdCurScreen->scCanvas, 
+						  0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight);
 	}
 InitCockpit ();
 gameStates.render.fonts.bHires = gameStates.render.fonts.bHiresAvailable && (gameStates.menus.bHires = (gameStates.video.nDisplayMode > 1));
 if (gameStates.render.vr.nRenderMode != VR_NONE) {
 	// for 640x480 or higher, use hires font.
-	if (gameStates.render.fonts.bHiresAvailable && (screen.Height () > 400))
+	if (gameStates.render.fonts.bHiresAvailable && (grdCurScreen->scHeight > 400))
 		gameStates.render.fonts.bHires = 1;
 	else
 		gameStates.render.fonts.bHires = 0;
@@ -498,19 +516,19 @@ return 1;
 
 int SetEditorScreenMode (u_int32_t sm)
 {
-if (screen.scMode != SM (800,600))	{
+if (grdCurScreen->scMode != SM (800,600))	{
 	int gr_error = GrSetMode (SM (800,600);
 	if (gr_error { //force into game scrren
 		Warning ("Cannot init editor screen (error=%d)",gr_error);
 		return 0;
 		}
 	}
-paletteManager.LoadEffect  ();
-GrInitSubCanvas (&gameStates.render.vr.buffers.editorCanvas, screen.Canvas (), 0, 0, screen.Width (), screen.Height ());
+GrPaletteStepLoad (NULL);
+GrInitSubCanvas (&gameStates.render.vr.buffers.editorCanvas, &grdCurScreen->scCanvas, 0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight);
 Canv_editor = &gameStates.render.vr.buffers.editorCanvas;
-GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[0], Canv_editor, 0, 0, Canv_editor->bm.Width (), Canv_editor->bm.Height ());
-GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[1], Canv_editor, 0, 0, Canv_editor->bm.Width (), Canv_editor->bm.Height ());
-CCanvas::SetCurrent (Canv_editor);
+GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[0], Canv_editor, 0, 0, Canv_editor->cv_w, Canv_editor->cv_h);
+GrInitSubCanvas (&gameStates.render.vr.buffers.screenPages[1], Canv_editor, 0, 0, Canv_editor->cv_w, Canv_editor->cv_h);
+GrSetCurrentCanvas (Canv_editor);
 init_editor_screen ();   //setup other editor stuff
 return 1;
 }
@@ -523,18 +541,15 @@ return 1;
 //mode if cannot init requested mode)
 int SetScreenMode (u_int32_t sm)
 {
-#if 0
-	GLint nError = glGetError ();
-#endif
 #ifdef EDITOR
 if ((sm == SCREEN_MENU) && (gameStates.video.nScreenMode == SCREEN_EDITOR)) {
-	CCanvas::SetCurrent (Canv_editor);
+	GrSetCurrentCanvas (Canv_editor);
 	return 1;
 	}
 #endif
-if ((gameStates.video.nScreenMode == sm) && (nCurrentVGAMode == gameStates.render.vr.nScreenSize) && 
-		(screen.Mode () == gameStates.render.vr.nScreenSize)) {
-	CCanvas::SetCurrent (gameStates.render.vr.buffers.screenPages + gameStates.render.vr.nCurrentPage);
+if ((gameStates.video.nScreenMode == sm) && (nCurrentVGAMode == gameStates.render.vr.nScreenMode) && 
+		(grdCurScreen->scMode == gameStates.render.vr.nScreenMode)) {
+	GrSetCurrentCanvas (gameStates.render.vr.buffers.screenPages + gameStates.render.vr.nCurrentPage);
 	OglSetScreenMode ();
 	return 1;
 	}
@@ -562,7 +577,9 @@ if ((gameStates.video.nScreenMode == sm) && (nCurrentVGAMode == gameStates.rende
 		Error ("Invalid screen mode %d",sm);
 	}
 gameStates.render.vr.nCurrentPage = 0;
-CCanvas::SetCurrent (&gameStates.render.vr.buffers.screenPages [gameStates.render.vr.nCurrentPage]);
+GrSetCurrentCanvas (&gameStates.render.vr.buffers.screenPages[gameStates.render.vr.nCurrentPage]);
+if (gameStates.render.vr.nScreenFlags&VRF_USE_PAGING)
+	GrShowCanvas (&gameStates.render.vr.buffers.screenPages[gameStates.render.vr.nCurrentPage]);
 OglSetScreenMode ();
 return 1;
 }
@@ -582,7 +599,7 @@ int GrToggleFullScreenGame (void)
 int i = GrToggleFullScreen ();
 FlushInput ();
 if (gameStates.app.bGameRunning) {
-	HUDMessage (MSGC_GAME_FEEDBACK, i ? reinterpret_cast<char*> ("toggling fullscreen mode on") : reinterpret_cast<char*> ("toggling fullscreen mode off"));
+	HUDMessage (MSGC_GAME_FEEDBACK, i ? (char *) "toggling fullscreen mode on" : (char *) "toggling fullscreen mode off");
 	StopPlayerMovement ();
 	}
 return i;

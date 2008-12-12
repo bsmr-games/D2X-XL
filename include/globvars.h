@@ -36,27 +36,29 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 extern int nCanvasWidth,nCanvasHeight;	//the actual width & height
 extern fix xCanvW2,xCanvH2;				//fixed-point width,height/2
+
+#ifdef __powerc
 extern double fxCanvW2, fxCanvH2;
+#endif
 
-typedef struct CViewInfo {
-	CFixVector		pos;
-	vmsAngVec		playerHeadAngles;
-	int				bUsePlayerHeadAngles;
-	vmsMatrix		view [2];
-	CFixVector		scale;
-	CFloatVector	scalef;
-	CFixVector		windowScale;		//scaling for window aspect
-	CFloatVector	posf;
-	fMatrix			viewf [2];
-	fix				zoom;
-	float				glZoom;
-	float				glPosf [4];
-	float				glViewf [16];
-} CViewInfo;
+typedef struct tViewInfo {
+	vmsVector	pos;
+	vmsAngVec	playerHeadAngles;
+	int			bUsePlayerHeadAngles;
+	vmsMatrix	view [2];
+	vmsVector	scale;
+	vmsVector	windowScale;		//scaling for window aspect
+	fVector		posf;
+	fMatrix		viewf [2];
+	fix			zoom;
+	float			glZoom;
+	float			glPosf [4];
+	float			glViewf [16];
+} tViewInfo;
 
-extern CViewInfo	viewInfo;
+extern tViewInfo	viewInfo;
 
-extern int nFreePoints;
+extern int free_point_num;
 
 //vertex buffers for polygon drawing and clipping
 //list of 2d coords

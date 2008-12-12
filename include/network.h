@@ -1,3 +1,4 @@
+/* $Id: network.h,v 1.12 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -57,7 +58,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define PID_GAME_INFO					57 // 0x39 here's a game i've started
 #define PID_PING_SEND					58
 #define PID_PING_RETURN					59
-#define PID_GAME_UPDATE					60 // inform about new CPlayerData/team change
+#define PID_GAME_UPDATE					60 // inform about new tPlayer/team change
 #define PID_ENDLEVEL_SHORT				61
 #define PID_NAKED_PDATA					62
 #define PID_GAME_PLAYERS				63
@@ -72,7 +73,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define PID_TRACKER_ADD_SERVER		'S'
 #define PID_TRACKER_GET_SERVERLIST	'R'
 
-#if DBG
+#ifdef _DEBUG
 #	define UDP_SAFEMODE	0
 #else
 #	define UDP_SAFEMODE	0
@@ -106,18 +107,18 @@ typedef struct tSequencePacket {
 typedef struct tFrameInfo {
 	ubyte       nType;                   // What nType of packet
 	ubyte       pad[3];                 // Pad out length of tFrameInfo packet
-	int         nPackets;
-	CFixVector	objPos;
-	vmsMatrix	objOrient;
-	CFixVector	physVelocity;
-	CFixVector	physRotVel;
-	short       nObjSeg;
-	ushort      dataSize;          // Size of data appended to the net packet
+	int         numpackets;
+	vmsVector	obj_pos;
+	vmsMatrix	obj_orient;
+	vmsVector	phys_velocity;
+	vmsVector	phys_rotvel;
+	short       obj_segnum;
+	ushort      data_size;          // Size of data appended to the net packet
 	ubyte       nPlayer;
-	ubyte       objRenderType;
-	ubyte       nLevel;
+	ubyte       obj_renderType;
+	ubyte       level_num;
 	ubyte       data [NET_XDATA_SIZE];   // extra data to be tacked on the end
-} tFrameInfo;
+} __pack__ tFrameInfo;
 
 // tFrameInfoShort is not aligned -- 01/18/96 -- MWA
 // won't align because of tShortPos.  Shortpos needs
@@ -126,12 +127,12 @@ typedef struct tFrameInfo {
 typedef struct tFrameInfoShort {
 	ubyte       nType;                   // What nType of packet
 	ubyte       pad[3];                 // Pad out length of tFrameInfo packet
-	int         nPackets;
-	tShortPos   objPos;
-	ushort      dataSize;          // Size of data appended to the net packet
+	int         numpackets;
+	tShortPos   thepos;
+	ushort      data_size;          // Size of data appended to the net packet
 	ubyte       nPlayer;
-	ubyte       objRenderType;
-	ubyte       nLevel;
+	ubyte       obj_renderType;
+	ubyte       level_num;
 	ubyte       data [NET_XDATA_SIZE];   // extra data to be tacked on the end
 } __pack__ tFrameInfoShort;
 
@@ -167,11 +168,11 @@ typedef struct tMonsterballInfo {
 	tMonsterballForce forces [MAX_MONSTERBALL_FORCES];
 } tMonsterballInfo;
 
-typedef struct tHeadlightInfo {
+typedef struct tHeadLightInfo {
 	int bAvailable;
 	int bDrainPower;
 	int bBuiltIn;
-}  tHeadlightInfo;
+}  tHeadLightInfo;
 
 typedef struct tLoadoutInfo {
 	uint					nGuns;
@@ -214,7 +215,7 @@ typedef struct tExtraGameInfo {
 	char		nWeaponIcons;
 	char		bSafeUDP;
 	char		bFastPitch;
-	char		bUseParticles;
+	char		bUseSmoke;
 	char		bUseLightnings;
 	char		bDamageExplosions;
 	char		bThrusterFlames;
@@ -235,7 +236,6 @@ typedef struct tExtraGameInfo {
 	char		bTowFlags;
 	char		bUseHitAngles;
 	char		bLightTrails;
-	char		bGatlingTrails;
 	char		bTracers;
 	char		bShockwaves;
 	char		bCompetition;
@@ -261,7 +261,7 @@ typedef struct tExtraGameInfo {
 	tMonsterballInfo	monsterball;
 	char		szGameName [NETGAME_NAME_LEN + 1];
 	int		nSecurity;
-	tHeadlightInfo	headlight;
+	tHeadLightInfo	headlight;
 	tLoadoutInfo	loadout;
 } __pack__ tExtraGameInfo;
 
@@ -304,18 +304,18 @@ typedef struct tNetworkObjInfo {
 
 static inline int EGIFlag (char bLocalFlag, char bMultiFlag, char bDefault, int bAllowLocalFlagOn, int bAllowLocalFlagOff)
 {
-if (!IsMultiGame || IsCoopGame)
+if (!IsMultiGame)
 	return bLocalFlag;
 if (!gameStates.app.bHaveExtraGameInfo [1])	//host doesn't use d2x-xl or runs in pure D2 mode
 	return bDefault;
 if (bLocalFlag == bMultiFlag)
 	return bMultiFlag;
 if (bLocalFlag) {
-	if (bAllowLocalFlagOn)
+	if (bAllowLocalFlagOn || IsCoopGame)
 		return bLocalFlag;
 	}
 else {
-	if (bAllowLocalFlagOff)
+	if (bAllowLocalFlagOff || IsCoopGame)
 		return bLocalFlag;
 	}
 return bMultiFlag;
@@ -343,7 +343,7 @@ int NetworkStartGame();
 void NetworkRejoinGame();
 void NetworkLeaveGame();
 int NetworkEndLevel(int *secret);
-int NetworkEndLevelPoll2(int nitems, struct tMenuItem * menus, int * key, int nCurItem);
+void NetworkEndLevelPoll2(int nitems, struct tMenuItem * menus, int * key, int citem);
 
 extern tExtraGameInfo extraGameInfo [2];
 
@@ -353,6 +353,7 @@ void NetworkSendEndLevelPacket();
 
 int network_delete_extraObjects();
 int network_find_max_net_players();
+int NetworkObjnumIsPast(int nObject);
 char * NetworkGetPlayerName(int nObject);
 void NetworkSendEndLevelSub(int player_num);
 void NetworkDisconnectPlayer(int playernum);
@@ -374,8 +375,8 @@ extern int Network_status;
 extern fix LastPacketTime[MAX_PLAYERS];
 
 // By putting an up-to-20-char-message into Network_message and
-// setting Network_message_reciever to the CPlayerData num you want to
-// send it to (100 for broadcast) the next frame the CPlayerData will
+// setting Network_message_reciever to the tPlayer num you want to
+// send it to (100 for broadcast) the next frame the tPlayer will
 // get your message.
 
 // Call once at the beginning of a frame
@@ -398,7 +399,7 @@ typedef struct tPingStats {
 extern tPingStats pingStats [MAX_PLAYERS];
 extern fix xPingReturnTime;
 extern int bShowPingStats, tLastPingStat;
-extern const char *pszRankStrings[];
+extern char *pszRankStrings[];
 
 void ResetPingStats (void);
 void InitExtraGameInfo (void);
@@ -421,7 +422,7 @@ int InitAutoNetGame (void);
 #define NETSECURITY_WAIT_FOR_GAMEINFO   2
 #define NETSECURITY_WAIT_FOR_SYNC       3
 /* The networkData.nSecurityNum and the "nSecurity" field of the network structs
- * identifies a netgame. It is a Random number chosen by the network master
+ * identifies a netgame. It is a random number chosen by the network master
  * (the one that did "start netgame").
  */
 
@@ -434,7 +435,7 @@ typedef struct tEndLevelInfo {
 	ubyte                               nPlayer;
 	sbyte                               connected;
 	ubyte                               seconds_left;
-	short											killMatrix [MAX_PLAYERS][MAX_PLAYERS];
+	short											killMatrix [MAX_PLAYERS] [MAX_PLAYERS];
 	short                               kills;
 	short                               killed;
 } tEndLevelInfo;
@@ -502,13 +503,10 @@ void DeleteTimedOutNetGames (void);
 void InitMonsterballSettings (tMonsterballInfo *monsterballP);
 void InitEntropySettings (int i);
 void NetworkSendExtraGameInfo (tSequencePacket *their);
-void NetworkResetSyncStates (void);
-void NetworkResetObjSync (short nObject);
-void DeleteSyncData (short nConnection);
 char *iptos (char *pszIP, char *addr);
 
 #define DUMP_CLOSED     0 // no new players allowed after game started
-#define DUMP_FULL       1 // CPlayerData cound maxed out
+#define DUMP_FULL       1 // tPlayer cound maxed out
 #define DUMP_ENDLEVEL   2
 #define DUMP_DORK       3
 #define DUMP_ABORTED    4

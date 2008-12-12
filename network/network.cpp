@@ -1,3 +1,4 @@
+/* $Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,6 +16,12 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $";
+#endif
+
+#define PATCH12
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,22 +36,64 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #endif
 
 #include "inferno.h"
-#include "byteswap.h"
+#include "strutil.h"
+#include "args.h"
 #include "timer.h"
-#include "error.h"
-#include "objeffects.h"
+#include "mono.h"
 #include "ipx.h"
+#include "newmenu.h"
+#include "key.h"
+#include "gauges.h"
+#include "object.h"
+#include "objsmoke.h"
+#include "error.h"
+#include "laser.h"
+#include "gamesave.h"
+#include "gamemine.h"
+#include "player.h"
+#include "loadgame.h"
+#include "fireball.h"
+#include "objeffects.h"
 #include "network.h"
 #include "network_lib.h"
-#include "netmisc.h"
+#include "game.h"
+#include "multi.h"
+#include "endlevel.h"
+#include "palette.h"
+#include "reactor.h"
+#include "powerup.h"
+#include "menu.h"
+#include "sounds.h"
+#include "text.h"
+#include "highscores.h"
+#include "newdemo.h"
 #include "multibot.h"
-#include "netmenu.h"
+#include "wall.h"
+#include "bm.h"
+#include "effects.h"
+#include "physics.h"
+#include "switch.h"
+#include "automap.h"
+#include "byteswap.h"
+#include "netmisc.h"
+#include "kconfig.h"
+#include "playsave.h"
+#include "cfile.h"
 #include "autodl.h"
 #include "tracker.h"
-#include "playsave.h"
-#include "text.h"
-
-#ifndef _WIN32
+#include "newmenu.h"
+#include "gamefont.h"
+#include "gameseg.h"
+#include "hudmsg.h"
+#include "vers_id.h"
+#include "netmenu.h"
+#include "banlist.h"
+#include "collide.h"
+#include "ipx.h"
+#ifdef _WIN32
+#	include "win32/include/ipx_udp.h"
+#	include "win32/include/ipx_drv.h"
+#else
 #	include "linux/include/ipx_udp.h"
 #	include "linux/include/ipx_drv.h"
 #endif
@@ -111,7 +160,7 @@ tPingStats pingStats [MAX_PLAYERS];
 
 tNetgameInfo tempNetInfo;
 
-const char *pszRankStrings []={
+char *pszRankStrings []={
 	" (unpatched) ", "Cadet ", "Ensign ", "Lieutenant ", "Lt.Commander ", 
    "Commander ", "Captain ", "Vice Admiral ", "Admiral ", "Demigod "
 	};
@@ -155,6 +204,20 @@ return 0;
 
 //------------------------------------------------------------------------------
 
+#ifdef _DEBUG
+void DumpSegments (void)
+{
+	FILE * fp;
+
+fp = fopen ("TEST.DMP", "wb");
+fwrite (gameData.segs.segments, sizeof (tSegment)* (gameData.segs.nLastSegment+1), 1, fp);    
+fclose (fp);
+con_printf (CONDBG, "SS=%d\n", sizeof (tSegment));
+}
+#endif
+
+//------------------------------------------------------------------------------
+
 int NetworkStartGame (void)
 {
 	int i, bAutoRun;
@@ -194,7 +257,7 @@ networkData.nStatus = NETSTAT_STARTING;
 IpxInitNetGameAuxData (netGame.AuxData);
 NetworkSetGameMode (netGame.gameMode);
 d_srand (TimerGetFixedSeconds ());
-netGame.nSecurity = d_rand ();  // For syncing Netgames with CPlayerData packets
+netGame.nSecurity = d_rand ();  // For syncing Netgames with tPlayer packets
 if (NetworkSelectPlayers (bAutoRun)) {
 	StartNewLevel (netGame.nLevel, 0);
 	ResetAllPlayerTimeouts ();
@@ -230,22 +293,14 @@ fclose (SendLogFile);
 	fclose (ReceiveLogFile);
 #endif
 if ((NetworkIAmMaster ())) {
-	bool bSyncExtras = true;
-
-	while (bSyncExtras) {
-		bSyncExtras = false;
-		for (short i = 0; i < networkData.nJoining; i++)
-			if (networkData.sync [i].nExtras && (networkData.sync [i].nExtrasPlayer != -1)) {
-				NetworkSyncExtras (networkData.sync + i);
-				bSyncExtras  = true;
-				}
-		}
+	while (networkData.nSyncExtras && (networkData.nPlayerJoiningExtras != -1))
+		NetworkSyncExtras ();
 
 	netGame.nNumPlayers = 0;
-	nsave = gameData.multiplayer.nPlayers;
-	gameData.multiplayer.nPlayers = 0;
+	nsave=gameData.multiplayer.nPlayers;
+	gameData.multiplayer.nPlayers=0;
 	NetworkSendGameInfo (NULL);
-	gameData.multiplayer.nPlayers = nsave;
+	gameData.multiplayer.nPlayers=nsave;
 	}
 LOCALPLAYER.connected = 0;
 NetworkSendEndLevelPacket ();
@@ -273,20 +328,20 @@ while (IpxGetPacketData (packet) > 0)
 
 void NetworkTimeoutPlayer (int nPlayer)
 {
-	// Remove a CPlayerData from the game if we haven't heard from them in 
+	// Remove a tPlayer from the game if we haven't heard from them in 
 	// a long time.
 	int i, n = 0;
 
 Assert (nPlayer < gameData.multiplayer.nPlayers);
 Assert (nPlayer > -1);
 NetworkDisconnectPlayer (nPlayer);
-CreatePlayerAppearanceEffect (OBJECTS + gameData.multiplayer.players [nPlayer].nObject);
+CreatePlayerAppearanceEffect (gameData.objs.objects + gameData.multiplayer.players [nPlayer].nObject);
 DigiPlaySample (SOUND_HUD_MESSAGE, F1_0);
 HUDInitMessage ("%s %s", gameData.multiplayer.players [nPlayer].callsign, TXT_DISCONNECTING);
 for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 	if (gameData.multiplayer.players [i].connected) 
 		n++;
-#if !DBG
+#ifndef _DEBUG
 if (n == 1)
 	MultiOnlyPlayerMsg (0);
 #endif
@@ -303,7 +358,7 @@ int NetworkListen (void)
 CleanUploadDests ();
 if (NetworkIAmMaster ())
 	AddServerToTracker ();
-if ((networkData.nStatus == NETSTAT_PLAYING) && netGame.bShortPackets && !networkData.nJoining)
+if ((networkData.nStatus == NETSTAT_PLAYING) && netGame.bShortPackets && !networkData.nSyncState)
 	nMaxLoops = gameData.multiplayer.nPlayers * PacketsPerSec ();
 
 if (gameStates.multi.nGameType >= IPX_GAME)
@@ -336,23 +391,25 @@ return nPackets;
 void SquishShortFrameInfo (tFrameInfoShort old_info, ubyte *data)
 {
 	int 	bufI = 0;
+	int 	tmpi;
+	short tmps;
 	
 NW_SET_BYTE (data, bufI, old_info.nType);                                            
 bufI += 3;
-NW_SET_INT (data, bufI, old_info.nPackets);
-NW_SET_BYTES (data, bufI, old_info.objPos.bytemat, 9);                   
-NW_SET_SHORT (data, bufI, old_info.objPos.xo);
-NW_SET_SHORT (data, bufI, old_info.objPos.yo);
-NW_SET_SHORT (data, bufI, old_info.objPos.zo);
-NW_SET_SHORT (data, bufI, old_info.objPos.nSegment);
-NW_SET_SHORT (data, bufI, old_info.objPos.velx);
-NW_SET_SHORT (data, bufI, old_info.objPos.vely);
-NW_SET_SHORT (data, bufI, old_info.objPos.velz);
-NW_SET_SHORT (data, bufI, old_info.dataSize);
+NW_SET_INT (data, bufI, old_info.numpackets);
+NW_SET_BYTES (data, bufI, old_info.thepos.bytemat, 9);                   
+NW_SET_SHORT (data, bufI, old_info.thepos.xo);
+NW_SET_SHORT (data, bufI, old_info.thepos.yo);
+NW_SET_SHORT (data, bufI, old_info.thepos.zo);
+NW_SET_SHORT (data, bufI, old_info.thepos.nSegment);
+NW_SET_SHORT (data, bufI, old_info.thepos.velx);
+NW_SET_SHORT (data, bufI, old_info.thepos.vely);
+NW_SET_SHORT (data, bufI, old_info.thepos.velz);
+NW_SET_SHORT (data, bufI, old_info.data_size);
 NW_SET_BYTE (data, bufI, old_info.nPlayer);                                     
-NW_SET_BYTE (data, bufI, old_info.objRenderType);                               
-NW_SET_BYTE (data, bufI, old_info.nLevel);                                     
-NW_SET_BYTES (data, bufI, old_info.data, old_info.dataSize);
+NW_SET_BYTE (data, bufI, old_info.obj_renderType);                               
+NW_SET_BYTE (data, bufI, old_info.level_num);                                     
+NW_SET_BYTES (data, bufI, old_info.data, old_info.data_size);
 }
 
 #endif
@@ -361,7 +418,7 @@ NW_SET_BYTES (data, bufI, old_info.data, old_info.dataSize);
 
 void NetworkDoFrame (int bForce, int bListen)
 {
-	tFrameInfoShort shortSyncPack;
+	tFrameInfoShort ShortSyncPack;
 	static fix xLastEndlevel = 0;
 	int i;
 
@@ -371,7 +428,7 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 	if (nakedData.nLength) {
 		Assert (nakedData.nDestPlayer >- 1);
 		if (gameStates.multi.nGameType >= IPX_GAME) 
-			IPXSendPacketData (reinterpret_cast<ubyte*> (nakedData.buf), nakedData.nLength, 
+			IPXSendPacketData ((ubyte *) nakedData.buf, nakedData.nLength, 
 									netPlayers.players [nakedData.nDestPlayer].network.ipx.server, 
 									netPlayers.players [nakedData.nDestPlayer].network.ipx.node, 
 									gameData.multiplayer.players [nakedData.nDestPlayer].netAddress);
@@ -398,56 +455,56 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 				ubyte send_data [MAX_PACKETSIZE];
 #endif
-				memset (&shortSyncPack, 0, sizeof (shortSyncPack));
-				CreateShortPos (&shortSyncPack.objPos, OBJECTS+nObject, 0);
-				shortSyncPack.nType = PID_PDATA;
-				shortSyncPack.nPlayer = gameData.multiplayer.nLocalPlayer;
-				shortSyncPack.objRenderType = OBJECTS [nObject].info.renderType;
-				shortSyncPack.nLevel = gameData.missions.nCurrentLevel;
-				shortSyncPack.dataSize = networkData.syncPack.dataSize;
-				memcpy (shortSyncPack.data, networkData.syncPack.data, networkData.syncPack.dataSize);
-				networkData.syncPack.nPackets = INTEL_INT (gameData.multiplayer.players [0].nPacketsSent++);
-				shortSyncPack.nPackets = networkData.syncPack.nPackets;
+				memset (&ShortSyncPack, 0, sizeof (ShortSyncPack));
+				CreateShortPos (&ShortSyncPack.thepos, gameData.objs.objects+nObject, 0);
+				ShortSyncPack.nType = PID_PDATA;
+				ShortSyncPack.nPlayer = gameData.multiplayer.nLocalPlayer;
+				ShortSyncPack.obj_renderType = gameData.objs.objects [nObject].renderType;
+				ShortSyncPack.level_num = gameData.missions.nCurrentLevel;
+				ShortSyncPack.data_size = networkData.syncPack.data_size;
+				memcpy (ShortSyncPack.data, networkData.syncPack.data, networkData.syncPack.data_size);
+				networkData.syncPack.numpackets = INTEL_INT (gameData.multiplayer.players [0].nPacketsSent++);
+				ShortSyncPack.numpackets = networkData.syncPack.numpackets;
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (&shortSyncPack), 
-					sizeof (tFrameInfoShort) - networkData.nMaxXDataSize + networkData.syncPack.dataSize);
+					(ubyte*)&ShortSyncPack, 
+					sizeof (tFrameInfoShort) - networkData.nMaxXDataSize + networkData.syncPack.data_size);
 #else
-				SquishShortFrameInfo (shortSyncPack, send_data);
+				SquishShortFrameInfo (ShortSyncPack, send_data);
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (send_data), 
-					IPX_SHORT_INFO_SIZE-networkData.nMaxXDataSize+networkData.syncPack.dataSize);
+					(ubyte*)send_data, 
+					IPX_SHORT_INFO_SIZE-networkData.nMaxXDataSize+networkData.syncPack.data_size);
 #endif
 				}
 			else {// If long packets
-					int send_dataSize;
+					int send_data_size;
 
 				networkData.syncPack.nType = PID_PDATA;
 				networkData.syncPack.nPlayer = gameData.multiplayer.nLocalPlayer;
-				networkData.syncPack.objRenderType = OBJECTS [nObject].info.renderType;
-				networkData.syncPack.nLevel = gameData.missions.nCurrentLevel;
-				networkData.syncPack.nObjSeg = OBJECTS [nObject].info.nSegment;
-				networkData.syncPack.objPos = OBJECTS [nObject].info.position.vPos;
-				networkData.syncPack.objOrient = OBJECTS [nObject].info.position.mOrient;
-				networkData.syncPack.physVelocity = OBJECTS [nObject].mType.physInfo.velocity;
-				networkData.syncPack.physRotVel = OBJECTS [nObject].mType.physInfo.rotVel;
-				send_dataSize = networkData.syncPack.dataSize;                  // do this so correct size data is sent
+				networkData.syncPack.obj_renderType = gameData.objs.objects [nObject].renderType;
+				networkData.syncPack.level_num = gameData.missions.nCurrentLevel;
+				networkData.syncPack.obj_segnum = gameData.objs.objects [nObject].nSegment;
+				networkData.syncPack.obj_pos = gameData.objs.objects [nObject].position.vPos;
+				networkData.syncPack.obj_orient = gameData.objs.objects [nObject].position.mOrient;
+				networkData.syncPack.phys_velocity = gameData.objs.objects [nObject].mType.physInfo.velocity;
+				networkData.syncPack.phys_rotvel = gameData.objs.objects [nObject].mType.physInfo.rotVel;
+				send_data_size = networkData.syncPack.data_size;                  // do this so correct size data is sent
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)                        // do the swap stuff
 				if (gameStates.multi.nGameType >= IPX_GAME) {
-					networkData.syncPack.nObjSeg = INTEL_SHORT (networkData.syncPack.nObjSeg);
-					INTEL_VECTOR (networkData.syncPack.objPos);
-					INTEL_MATRIX (networkData.syncPack.objOrient);
-					INTEL_VECTOR (networkData.syncPack.physVelocity);
-					INTEL_VECTOR (networkData.syncPack.physRotVel);
-					networkData.syncPack.dataSize = INTEL_SHORT (networkData.syncPack.dataSize);
+					networkData.syncPack.obj_segnum = INTEL_SHORT (networkData.syncPack.obj_segnum);
+					INTEL_VECTOR (&networkData.syncPack.obj_pos);
+					INTEL_MATRIX (&networkData.syncPack.obj_orient);
+					INTEL_VECTOR (&networkData.syncPack.phys_velocity);
+					INTEL_VECTOR (&networkData.syncPack.phys_rotvel);
+					networkData.syncPack.data_size = INTEL_SHORT (networkData.syncPack.data_size);
 					}
 #endif
-				networkData.syncPack.nPackets = INTEL_INT (gameData.multiplayer.players [0].nPacketsSent++);
+				networkData.syncPack.numpackets = INTEL_INT (gameData.multiplayer.players [0].nPacketsSent++);
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (&networkData.syncPack), 
-					sizeof (tFrameInfo) - networkData.nMaxXDataSize + send_dataSize);
+					(ubyte*)&networkData.syncPack, 
+					sizeof (tFrameInfo) - networkData.nMaxXDataSize + send_data_size);
 				}
-			networkData.syncPack.dataSize = 0;               // Start data over at 0 length.
+			networkData.syncPack.data_size = 0;               // Start data over at 0 length.
 			networkData.bD2XData = 0;
 			if (gameData.reactor.bDestroyed) {
 				if (gameStates.app.bPlayerIsDead)
@@ -465,7 +522,7 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 
 	if ((networkData.xLastTimeoutCheck > F1_0) && !gameData.reactor.bDestroyed) {
 		fix t = (fix) SDL_GetTicks ();
-	// Check for CPlayerData timeouts
+	// Check for tPlayer timeouts
 		for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
 			if ((i != gameData.multiplayer.nLocalPlayer) && 
 				((gameData.multiplayer.players [i].connected == 1) || bDownloading [i])) {
@@ -485,14 +542,12 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 	}
 
 if (!bListen) {
-	networkData.syncPack.dataSize = 0;
+	networkData.syncPack.data_size = 0;
 	return;
 	}
 NetworkListen ();
-#if 0
-if ((networkData.sync.nPlayer != -1) && !(gameData.app.nFrameCount & 63))
-	ResendSyncDueToPacketLoss (); // This will resend to network_player_rejoining
-#endif
+if ((networkData.bVerifyPlayerJoined != -1) && !(gameData.app.nFrameCount & 63))
+	ResendSyncDueToPacketLossForAllender (); // This will resend to network_player_rejoining
 NetworkDoSyncFrame ();
 if (NetworkIAmMaster ())
 	AddServerToTracker ();
@@ -524,7 +579,7 @@ mybuf [0]=flag;
 mybuf [1]=gameData.multiplayer.nLocalPlayer;
 if (gameStates.multi.nGameType >= IPX_GAME)
 	IPXSendPacketData (
-			reinterpret_cast<ubyte*> (mybuf), 2, 
+			(ubyte *)mybuf, 2, 
 		netPlayers.players [nPlayer].network.ipx.server, 
 		netPlayers.players [nPlayer].network.ipx.node, 
 		gameData.multiplayer.players [nPlayer].netAddress);
@@ -541,7 +596,7 @@ if ((nPlayer >= gameData.multiplayer.nPlayers) || !pingStats [nPlayer].launchTim
    return;
 	}
 xPingReturnTime = TimerGetFixedSeconds ();
-pingStats [nPlayer].ping = X2I (FixMul (xPingReturnTime - pingStats [nPlayer].launchTime, I2X (1000)));
+pingStats [nPlayer].ping = f2i (FixMul (xPingReturnTime - pingStats [nPlayer].launchTime, i2f (1000)));
 if (!gameStates.render.cockpit.bShowPingStats)
 	HUDInitMessage ("Ping time for %s is %d ms!", gameData.multiplayer.players [nPlayer].callsign, pingStats [nPlayer].ping);
 pingStats [nPlayer].launchTime = 0;
@@ -563,7 +618,7 @@ void OpenSendLog (void)
  {
   int i;
 
-SendLogFile = reinterpret_cast<FILE*> (fopen ("sendlog.net", "w"));
+SendLogFile= (FILE *)fopen ("sendlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTSent [i] = 0;
  }
@@ -574,7 +629,7 @@ void OpenReceiveLog (void)
  {
 int i;
 
-ReceiveLogFile= reinterpret_cast<FILE*> (fopen ("recvlog.net", "w"));
+ReceiveLogFile= (FILE *)fopen ("recvlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTRecv [i] = 0;
  }

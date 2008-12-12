@@ -1,3 +1,4 @@
+/* $Id: powerup.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -65,7 +66,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define POW_GUIDEDMSL_1    		40
 #define POW_GUIDEDMSL_4    		41      // 4-pack MUST follow single missile
 #define POW_SMARTMINE          	42
-
 #define POW_MERCURYMSL_1   		43
 #define POW_MERCURYMSL_4   		44      // 4-pack MUST follow single missile
 #define POW_EARTHSHAKER 			45
@@ -101,25 +101,25 @@ extern char Powerup_names[MAX_POWERUP_TYPES][POWERUP_NAME_LENGTH];
 
 extern int Headlight_active_default;    // is headlight on when picked up?
 
-typedef struct tPowerupTypeInfo {
+typedef struct powerupType_info {
 	int nClipIndex;
 	int hitSound;
 	fix size;       // 3d size of longest dimension
 	fix light;      // amount of light cast by this powerup, set in bitmaps.tbl
-} __pack__ tPowerupTypeInfo;
+} __pack__ powerupType_info;
 
 extern int N_powerupTypes;
-extern tPowerupTypeInfo powerupInfo[MAX_POWERUP_TYPES];
+extern powerupType_info Powerup_info[MAX_POWERUP_TYPES];
 
 void InitPowerupTables (void);
 
-void DrawPowerup(CObject *objP);
+void DrawPowerup(tObject *objP);
 
 //returns true if powerup consumed
-int DoPowerup(CObject *objP, int nPlayer);
+int DoPowerup(tObject *objP, int nPlayer);
 
 //process (animate) a powerup for one frame
-void DoPowerupFrame(CObject *objP);
+void DoPowerupFrame(tObject *objP);
 void UpdatePowerupClip (tVideoClip *vcP, tVClipInfo *vciP, int nObject);
 void UpdateFlagClips (void);
 
@@ -128,13 +128,16 @@ void diminish_towards_max(void);
 
 void DoMegaWowPowerup(int quantity);
 
-void _CDECL_ PowerupBasic(int redadd, int greenadd, int blueadd, int score, const char *format, ...);
+void _CDECL_ PowerupBasic(int redadd, int greenadd, int blueadd, int score, char *format, ...);
 
+#if 0
+#define PowerupTypeInfoReadN(pti, n, fp) CFRead(pti, sizeof(powerupType_info), n, fp)
+#else
 /*
- * reads n tPowerupTypeInfo structs from a CFILE
+ * reads n powerupType_info structs from a CFILE
  */
-int ReadPowerupTypeInfos (tPowerupTypeInfo *pti, int n, CFile& cf);
-
+extern int PowerupTypeInfoReadN(powerupType_info *pti, int n, CFILE *fp);
+#endif
 int ApplyCloak (int bForce, int nPlayer);
 int ApplyInvul (int bForce, int nPlayer);
 
@@ -148,9 +151,6 @@ short PowerupsOnShips (int nPowerup);
 void SpawnLeftoverPowerups (short nObject);
 void CheckInventory (void);
 
-int PickupEnergyBoost (CObject *objP, int nPlayer);
-int PickupEquipment (CObject *objP, int nEquipment, const char *pszHave, const char *pszGot, int nPlayer);
-
 #define	PowerupsInMine(_nPowerup) \
 			((gameStates.multi.nGameType == UDP_GAME) ? \
 			 (gameData.multiplayer.powerupsInMine [_nPowerup] + PowerupsOnShips (_nPowerup)) : \
@@ -160,16 +160,7 @@ int PickupEquipment (CObject *objP, int nEquipment, const char *pszHave, const c
 			IsMultiGame && PowerupClass (_nPowerup) && \
 			(PowerupsInMine (_nPowerup) >= gameData.multiplayer.maxPowerupsAllowed [_nPowerup])
 
-extern const char *pszPowerup [MAX_POWERUP_TYPES];
-extern ubyte powerupType [MAX_POWERUP_TYPES];
-extern void * pickupHandler [MAX_POWERUP_TYPES];
-
-#define POWERUP_IS_UNDEFINED	-1
-#define POWERUP_IS_GUN			0
-#define POWERUP_IS_MISSILE		1
-#define POWERUP_IS_EQUIPMENT	2
-#define POWERUP_IS_KEY			3
-#define POWERUP_IS_FLAG			4
+extern char *pszPowerup [MAX_POWERUP_TYPES];
 
 //------------------------------------------------------------------------------
 

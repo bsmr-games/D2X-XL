@@ -204,10 +204,10 @@ ARB_vertex_bufferObject and hopefully cygwin support. Fixed a typo in a license.
 #endif
 
 #ifdef __gl_h_
-#error extgl[HA] should be included before gl.h
+#error extgl.h should be included before gl.h
 #endif
 #ifdef __GL_H_
-#error extgl[HA] should be included before gl.h
+#error extgl.h should be included before gl.h
 #endif
 
 #ifndef WINGDIAPI
@@ -236,7 +236,7 @@ extern "C" {
 
 union ieee_half /* ieee-like 16 bit float */ 
 {
-    ushort bits;
+    unsigned short bits;
     struct 
     {
         unsigned long m : 10; /* mantissa */
@@ -258,7 +258,7 @@ union ieee_single /* ieee-754 single floating point nType */
 
 /* the actual typedef */
 
-typedef ushort GLhalf;
+typedef unsigned short GLhalf;
 
 /* conversion functions */
 
@@ -345,7 +345,7 @@ __inline static GLhalf ftoh(float val)
 
         if (new_exp<-14) 
         { /* this maps to a denorm */
-            uint exp_val = (uint) (-14 - new_exp); // 2^-exp_val
+            unsigned int exp_val = (unsigned int) (-14 - new_exp); // 2^-exp_val
             h.ieee.e = 0;
             switch (exp_val) 
             {
@@ -378,16 +378,16 @@ return h.bits;
 
 /* OpenGL 1.1 definition */
 
-typedef uint GLenum;
-typedef ubyte GLboolean;
-typedef uint GLbitfield;
+typedef unsigned int GLenum;
+typedef unsigned char GLboolean;
+typedef unsigned int GLbitfield;
 typedef signed char GLbyte;
 typedef short GLshort;
 typedef int GLint;
 typedef int GLsizei;
-typedef ubyte GLubyte;
-typedef ushort GLushort;
-typedef uint GLuint;
+typedef unsigned char GLubyte;
+typedef unsigned short GLushort;
+typedef unsigned int GLuint;
 typedef float GLfloat;
 typedef float GLclampf;
 typedef double GLdouble;
@@ -544,8 +544,7 @@ typedef void (*_GLfuncptr)();
 #define GL_LIST_INDEX                                           0x0B33
 #define GL_POLYGON_MODE                                         0x0B40
 #define GL_POLYGON_SMOOTH                                       0x0B41
-#define GL_POLYGON_STIPPLE                                      0x0B
-
+#define GL_POLYGON_STIPPLE                                      0x0B42
 #define GL_EDGE_FLAG                                            0x0B43
 #define GL_CULL_FACE                                            0x0B44
 #define GL_CULL_FACE_MODE                                       0x0B45
@@ -851,8 +850,7 @@ typedef void (*_GLfuncptr)();
 #define GL_LUMINANCE4                                           0x803F
 #define GL_LUMINANCE8                                           0x8040
 #define GL_LUMINANCE12                                          0x8041
-#define GL_LUMINANCE16                                          0x80
-
+#define GL_LUMINANCE16                                          0x8042
 #define GL_LUMINANCE4_ALPHA4                                    0x8043
 #define GL_LUMINANCE6_ALPHA2                                    0x8044
 #define GL_LUMINANCE8_ALPHA8                                    0x8045
@@ -2531,8 +2529,7 @@ extern glPointParameterfvEXTPROC glPointParameterfvEXT;
 #define GL_SCALE_BY_ONE_HALF_NV                                 0x8540
 #define GL_BIAS_BY_NEGATIVE_ONE_HALF_NV                         0x8541
 #define GL_DISCARD_NV                                           0x8530
-#define GL_COMBINER_INPUT_NV                                    0x85
-
+#define GL_COMBINER_INPUT_NV                                    0x8542
 #define GL_COMBINER_MAPPING_NV                                  0x8543
 #define GL_COMBINER_COMPONENT_USAGE_NV                          0x8544
 #define GL_COMBINER_AB_DOT_PRODUCT_NV                           0x8545
@@ -2806,8 +2803,7 @@ extern glVertexWeightPointerEXTPROC glVertexWeightPointerEXT;
 #define GL_NV_vertex_program 1
 
 #define GL_VERTEX_PROGRAM_NV                                    0x8620
-#define GL_VERTEX_PROGRAM_POINT_SIZE_NV                         0x86
-
+#define GL_VERTEX_PROGRAM_POINT_SIZE_NV                         0x8642
 #define GL_VERTEX_PROGRAM_TWO_SIDE_NV                           0x8643
 #define GL_VERTEX_STATE_PROGRAM_NV                              0x8621
 #define GL_ATTRIB_ARRAY_SIZE_NV                                 0x8623
@@ -3393,8 +3389,7 @@ extern glMultiDrawElementsEXTPROC glMultiDrawElementsEXT;
 
 #define GL_MATRIX_PALETTE_ARB                                   0x8840
 #define GL_MAX_MATRIX_PALETTE_STACK_DEPTH_ARB                   0x8841
-#define GL_MAX_PALETTE_MATRICES_ARB                             0x88
-
+#define GL_MAX_PALETTE_MATRICES_ARB                             0x8842
 #define GL_CURRENT_PALETTE_MATRIX_ARB                           0x8843
 #define GL_MATRIX_INDEX_ARRAY_ARB                               0x8844
 #define GL_CURRENT_MATRIX_INDEX_ARB                             0x8845
@@ -3692,8 +3687,7 @@ extern glGetTexBumpParameterfvATIPROC glGetTexBumpParameterfvATI;
 #define GL_REG_30_ATI                                           0x893F
 #define GL_REG_31_ATI                                           0x8940
 #define GL_CON_0_ATI                                            0x8941
-#define GL_CON_1_ATI                                            0x89
-
+#define GL_CON_1_ATI                                            0x8942
 #define GL_CON_2_ATI                                            0x8943
 #define GL_CON_3_ATI                                            0x8944
 #define GL_CON_4_ATI                                            0x8945
@@ -3803,8 +3797,7 @@ extern glSetFragmentShaderConstantATIPROC glSetFragmentShaderConstantATI;
 #ifndef GL_ATI_texture_mirror_once
 #define GL_ATI_texture_mirror_once 1
 
-#define GL_MIRROR_CLAMP_ATI                                     0x87
-
+#define GL_MIRROR_CLAMP_ATI                                     0x8742
 #define GL_MIRROR_CLAMP_TO_EDGE_ATI                             0x8743
 
 #endif
@@ -4396,8 +4389,7 @@ extern glGetVertexAttribPointervARBPROC glGetVertexAttribPointervARB;
 extern glIsProgramARBPROC glIsProgramARB;
 
 #define GL_VERTEX_PROGRAM_ARB                                   0x8620
-#define GL_VERTEX_PROGRAM_POINT_SIZE_ARB                        0x86
-
+#define GL_VERTEX_PROGRAM_POINT_SIZE_ARB                        0x8642
 #define GL_VERTEX_PROGRAM_TWO_SIDE_ARB                          0x8643
 #define GL_COLOR_SUM_ARB                                        0x8458
 #define GL_PROGRAM_FORMAT_ASCII_ARB                             0x8875
@@ -5436,8 +5428,7 @@ extern wglGetCurrentReadDCARBPROC wglGetCurrentReadDCARB;
 #define WGL_ARB_multisample 1
 
 #define WGL_SAMPLE_BUFFERS_ARB                                  0x2041
-#define WGL_SAMPLES_ARB                                         0x20
-
+#define WGL_SAMPLES_ARB                                         0x2042
 
 #endif /* WGL_ARB_multisample */
 

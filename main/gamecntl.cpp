@@ -1,3 +1,4 @@
+/* $Id: gamecntl.c, v 1.23 2003/11/07 06:30:06 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -19,57 +20,104 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
 #ifndef _WIN32
 #	include <unistd.h>
 #endif
 
-#include "inferno.h"
+#include "pstypes.h"
 #include "console.h"
+#include "inferno.h"
+#include "game.h"
+#include "player.h"
 #include "key.h"
+#include "object.h"
 #include "menu.h"
 #include "physics.h"
 #include "error.h"
 #include "joy.h"
 #include "mono.h"
 #include "iff.h"
+#include "pcx.h"
 #include "timer.h"
 #include "render.h"
 #include "transprender.h"
+#include "laser.h"
 #include "screens.h"
+#include "textures.h"
 #include "slew.h"
 #include "gauges.h"
 #include "texmap.h"
+#include "3d.h"
+#include "effects.h"
 #include "gameseg.h"
+#include "wall.h"
+#include "ai.h"
+#include "digi.h"
+#include "ibitblt.h"
 #include "u_mem.h"
+#include "palette.h"
+#include "morph.h"
 #include "light.h"
+#include "dynlight.h"
+#include "headlight.h"
 #include "newdemo.h"
+#include "weapon.h"
+#include "sounds.h"
+#include "args.h"
+#include "loadgame.h"
 #include "automap.h"
 #include "text.h"
+#include "gamerend.h"
+#include "powerup.h"
+#include "newmenu.h"
+#include "network.h"
 #include "network_lib.h"
 #include "gamefont.h"
 #include "gamepal.h"
+#include "endlevel.h"
+#include "joydefs.h"
 #include "kconfig.h"
 #include "mouse.h"
+#include "briefings.h"
+#include "gr.h"
 #include "playsave.h"
+#include "movie.h"
+#include "scores.h"
+
+#if defined (TACTILE)
+#include "tactile.h"
+#endif
+
+#include "pa_enabl.h"
+#include "multi.h"
+#include "desc_id.h"
+#include "reactor.h"
+#include "pcx.h"
+#include "state.h"
 #include "piggy.h"
+#include "multibot.h"
 #include "ai.h"
 #include "rbaudio.h"
 #include "switch.h"
+#include "escort.h"
+#include "collide.h"
 #include "ogl_defs.h"
 #include "object.h"
+#include "sphere.h"
+#include "cheats.h"
+#include "input.h"
 #include "render.h"
 #include "marker.h"
 #include "systemkeys.h"
-
-#if defined (TACTILE)
-#	include "tactile.h"
-#endif
 
 char *pszPauseMsg = NULL;
 
 //------------------------------------------------------------------------------
 //#define TEST_TIMER    1		//if this is set, do checking on timer
+
+#define Arcade_mode 0
 
 #ifdef EDITOR
 #include "editor/editor.h"
@@ -78,7 +126,7 @@ char *pszPauseMsg = NULL;
 //#define _MARK_ON 1
 #ifdef __WATCOMC__
 #if __WATCOMC__ < 1000
-#include <wsample.h>		//should come after inferno[HA] to get mark setting
+#include <wsample.h>		//should come after inferno.h to get mark setting
 #endif
 #endif
 
@@ -90,11 +138,23 @@ char *pszPauseMsg = NULL;
 #endif
 #endif
 
+void FullPaletteSave(void);
+void SetFunctionMode (int);
+
 //	Function prototypes --------------------------------------------------------
+
+void HandleGameKey(int key);
+int HandleSystemKey(int key);
+void HandleTestKey(int key);
+void HandleVRKey(int key);
 
 void SpeedtestInit(void);
 void SpeedtestFrame(void);
+void AdvanceSound(void);
 void PlayTestSound(void);
+
+#define key_isfunc(k) (((k&0xff)>=KEY_F1 && (k&0xff)<=KEY_F10) || (k&0xff)==KEY_F11 || (k&0xff)==KEY_F12)
+#define key_ismod(k)  ((k&0xff)==KEY_LALT || (k&0xff)==KEY_RALT || (k&0xff)==KEY_LSHIFT || (k&0xff)==KEY_RSHIFT || (k&0xff)==KEY_LCTRL || (k&0xff)==KEY_RCTRL)
 
 // Functions ------------------------------------------------------------------
 
@@ -114,7 +174,7 @@ void TransferEnergyToShield(fix time)
 		         (MAX_SHIELDS-LOCALPLAYER.shields)*CONVERTER_SCALE);
 	if (e <= 0) {
 		if (LOCALPLAYER.energy <= INITIAL_ENERGY)
-			HUDInitMessage(TXT_TRANSFER_ENERGY, X2I(INITIAL_ENERGY));
+			HUDInitMessage(TXT_TRANSFER_ENERGY, f2i(INITIAL_ENERGY));
 		else
 			HUDInitMessage(TXT_TRANSFER_SHIELDS);
 		return;
@@ -155,8 +215,8 @@ if (!gameData.app.bGamePaused) {
 	DigiPauseAll();
 	RBAPause();
 	StopTime();
-	paletteManager.SaveEffect();
-	paletteManager.ResetEffect();
+	PaletteSave();
+	ResetPaletteAdd();
 	GameFlushInputs();
 #if defined (TACTILE)
 	if (TactileStick)
@@ -171,7 +231,7 @@ void ResumeGame (void)
 {
 GameFlushInputs ();
 ResetCockpit ();
-paletteManager.LoadEffect ();
+PaletteRestore ();
 StartTime (0);
 if (gameStates.sound.bRedbookPlaying)
 	RBAResume ();
@@ -213,9 +273,9 @@ else if (gameData.app.nGameMode & GM_MULTI) {
 	}
 PauseGame ();
 SetPopupScreenMode();
-paletteManager.LoadEffect  ();
-formatTime(totalTime, X2I(LOCALPLAYER.timeTotal) + LOCALPLAYER.hoursTotal*3600);
-formatTime(xLevelTime, X2I(LOCALPLAYER.timeLevel) + LOCALPLAYER.hoursLevel*3600);
+GrPaletteStepLoad (NULL);
+formatTime(totalTime, f2i(LOCALPLAYER.timeTotal) + LOCALPLAYER.hoursTotal*3600);
+formatTime(xLevelTime, f2i(LOCALPLAYER.timeLevel) + LOCALPLAYER.hoursLevel*3600);
   if (gameData.demo.nState!=ND_STATE_PLAYBACK)
 	sprintf(msg, TXT_PAUSE_MSG1, GAMETEXT (332 + gameStates.app.nDifficultyLevel), 
 			  LOCALPLAYER.hostages.nOnBoard, xLevelTime, totalTime);
@@ -237,14 +297,14 @@ while (gameData.app.bGamePaused) {
 		gameStates.menus.nInMenu++;
 		while (!(key = KeyInKey ())) {
 			GameRenderFrame ();
-			paletteManager.LoadEffect (NULL);
+			GrPaletteStepLoad(NULL);
 			RemapFontsAndMenus (1);
 			ShowBoxedMessage(msg);
 			G3_SLEEP (0);
 			}
 		gameStates.menus.nInMenu--;
 		}
-#if DBG
+#ifdef _DEBUG
 		HandleTestKey(key);
 #endif
 		bScreenChanged = HandleSystemKey(key);
@@ -296,7 +356,7 @@ int SelectNextWindowFunction(int nWindow)
 			}
 			//if no ecort, fall through
 		case CV_ESCORT:
-			gameStates.render.cockpit.nCoopPlayerView [nWindow] = -1;		//force first CPlayerData
+			gameStates.render.cockpit.nCoopPlayerView [nWindow] = -1;		//force first tPlayer
 			//fall through
 		case CV_COOP:
 			gameData.marker.viewers [nWindow] = -1;
@@ -321,12 +381,12 @@ int SelectNextWindowFunction(int nWindow)
 			//if not multi, fall through
 		case CV_MARKER:
 		case_marker:;
-			if (!IsMultiGame || IsCoopGame || netGame.bAllowMarkerView) {	//anarchy only
+			if (!(gameData.app.nGameMode & GM_MULTI) || (gameData.app.nGameMode & GM_MULTI_COOP) || netGame.bAllowMarkerView) {	//anarchy only
 				gameStates.render.cockpit.n3DView [nWindow] = CV_MARKER;
-				if (gameData.marker.viewers [nWindow] == -1)
-					gameData.marker.viewers [nWindow] = gameData.multiplayer.nLocalPlayer * 3;
-				else if (gameData.marker.viewers [nWindow] < gameData.multiplayer.nLocalPlayer * 3 + MaxDrop ())
-					gameData.marker.viewers [nWindow]++;
+				if (gameData.marker.viewers  [nWindow] == -1)
+					gameData.marker.viewers  [nWindow] = gameData.multiplayer.nLocalPlayer * 2;
+				else if (gameData.marker.viewers  [nWindow] == gameData.multiplayer.nLocalPlayer * 2)
+					gameData.marker.viewers  [nWindow]++;
 				else
 					gameStates.render.cockpit.n3DView [nWindow] = CV_NONE;
 			}
@@ -339,9 +399,20 @@ int SelectNextWindowFunction(int nWindow)
 	return 1;	 //bScreenChanged
 }
 
+//------------------------------------------------------------------------------
+
+
+void SongsGotoNextSong();
+void SongsGotoPrevSong();
+
+//	--------------------------------------------------------------------------
+
+void toggle_movie_saving(void);
+extern char Language[];
+
 //	Testing functions ----------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 void SpeedtestInit(void)
 {
 	gameData.speedtest.nStartTime = TimerGetFixedSeconds();
@@ -358,23 +429,20 @@ void SpeedtestInit(void)
 
 void SpeedtestFrame(void)
 {
-	CFixVector	view_dir, center_point;
+	vmsVector	view_dir, center_point;
 
 	gameData.speedtest.nSide=gameData.speedtest.nSegment % MAX_SIDES_PER_SEGMENT;
 
-	COMPUTE_SEGMENT_CENTER(&gameData.objs.viewerP->info.position.vPos, &gameData.segs.segments[gameData.speedtest.nSegment]);
-	gameData.objs.viewerP->info.position.vPos[X] += 0x10;	
-	gameData.objs.viewerP->info.position.vPos[Y] -= 0x10;	
-	gameData.objs.viewerP->info.position.vPos[Z] += 0x17;
+	COMPUTE_SEGMENT_CENTER(&gameData.objs.viewer->position.vPos, &gameData.segs.segments[gameData.speedtest.nSegment]);
+	gameData.objs.viewer->position.vPos.p.x += 0x10;	
+	gameData.objs.viewer->position.vPos.p.y -= 0x10;	
+	gameData.objs.viewer->position.vPos.p.z += 0x17;
 
-	gameData.objs.viewerP->RelinkToSeg (gameData.speedtest.nSegment);
+	RelinkObject(OBJ_IDX (gameData.objs.viewer), gameData.speedtest.nSegment);
 	COMPUTE_SIDE_CENTER(&center_point, &gameData.segs.segments[gameData.speedtest.nSegment], gameData.speedtest.nSide);
-	CFixVector::NormalizedDir(view_dir, center_point, gameData.objs.viewerP->info.position.vPos);
-	/*
-	gameData.objs.viewerP->info.position.mOrient = vmsMatrix::Create(view_dir, NULL, NULL);
-	*/
-	// TODO: MatrixCreateFCheck
-	gameData.objs.viewerP->info.position.mOrient = vmsMatrix::CreateF(view_dir);
+	VmVecNormalizedDir(&view_dir, &center_point, &gameData.objs.viewer->position.vPos);
+	VmVector2Matrix(&gameData.objs.viewer->position.mOrient, &view_dir, NULL, NULL);
+
 	if (((gameData.app.nFrameCount - gameData.speedtest.nFrameStart) % 10) == 0) {
 #if TRACE
 		con_printf (CONDBG, ".");
@@ -387,8 +455,8 @@ void SpeedtestFrame(void)
 
 		sprintf(msg, TXT_SPEEDTEST, 
 			gameData.app.nFrameCount-gameData.speedtest.nFrameStart, 
-			X2F(TimerGetFixedSeconds() - gameData.speedtest.nStartTime), 
-			(double) (gameData.app.nFrameCount-gameData.speedtest.nFrameStart) / X2F(TimerGetFixedSeconds() - gameData.speedtest.nStartTime));
+			f2fl(TimerGetFixedSeconds() - gameData.speedtest.nStartTime), 
+			(double) (gameData.app.nFrameCount-gameData.speedtest.nFrameStart) / f2fl(TimerGetFixedSeconds() - gameData.speedtest.nStartTime));
 #if TRACE
 		con_printf (CONDBG, "%s", msg);
 #endif

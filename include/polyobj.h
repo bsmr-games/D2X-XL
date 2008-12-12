@@ -1,3 +1,4 @@
+/* $Id: polyobj.h,v 1.7 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -33,32 +34,31 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 typedef struct tSubModelData {
 	int			ptrs [MAX_SUBMODELS];
-	CFixVector	offsets [MAX_SUBMODELS];
-	CFixVector	norms [MAX_SUBMODELS];   // norm for sep plane
-	CFixVector	pnts [MAX_SUBMODELS];    // point on sep plane
+	vmsVector	offsets [MAX_SUBMODELS];
+	vmsVector	norms [MAX_SUBMODELS];   // norm for sep plane
+	vmsVector	pnts [MAX_SUBMODELS];    // point on sep plane
 	fix			rads [MAX_SUBMODELS];       // radius for each submodel
 	ubyte			parents [MAX_SUBMODELS];    // what is parent for each submodel
-	CFixVector	mins [MAX_SUBMODELS];
-	CFixVector	maxs [MAX_SUBMODELS];
+	vmsVector	mins [MAX_SUBMODELS];
+	vmsVector	maxs [MAX_SUBMODELS];
 } tSubModelData;
 
 //used to describe a polygon model
 typedef struct tPolyModel {
-	short				nType;
 	int				nModels;
 	int				nDataSize;
-	CArray<ubyte>	modelData;
+	ubyte				*modelData;
 	tSubModelData	subModels;
-	CFixVector		mins,maxs;                       // min,max for whole model
+	vmsVector		mins,maxs;                       // min,max for whole model
 	fix				rad;
 	ubyte				nTextures;
 	ushort			nFirstTexture;
 	ubyte				nSimplerModel;                      // alternate model with less detail (0 if none, nModel+1 else)
-	//CFixVector min,max;
-} tPolyModel;
+	//vmsVector min,max;
+} __pack__ tPolyModel;
 
 // array of pointers to polygon objects
-// switch to simpler model when the CObject has depth
+// switch to simpler model when the tObject has depth
 // greater than this value times its radius.
 extern int nSimpleModelThresholdScale;
 
@@ -69,17 +69,17 @@ extern char Pof_names[MAX_POLYGON_MODELS][SHORT_FILENAME_LEN];
 void InitPolygonModels();
 
 #ifndef DRIVE
-int LoadPolygonModel(const char *filename,int n_textures,int first_texture,tRobotInfo *r);
+int LoadPolygonModel(char *filename,int n_textures,int first_texture,tRobotInfo *r);
 #else
-int LoadPolygonModel(const char *filename,int n_textures,CBitmap ***textures);
+int LoadPolygonModel(char *filename,int n_textures,grsBitmap ***textures);
 #endif
 
 // draw a polygon model
-int DrawPolygonModel (CObject *objP, CFixVector *pos,vmsMatrix *orient,vmsAngVec *animAngles, int nModel, int flags, fix light, 
+int DrawPolygonModel (tObject *objP, vmsVector *pos,vmsMatrix *orient,vmsAngVec *animAngles, int nModel, int flags, fix light, 
 							 fix *glowValues, tBitmapIndex nAltTextures[], tRgbaColorf *obj_color);
 
 // fills in arrays gunPoints & gun_dirs, returns the number of guns read
-int ReadModelGuns (const char *filename,CFixVector *gunPoints, CFixVector *gun_dirs, int *gunSubModels);
+int read_model_guns(char *filename,vmsVector *gunPoints, vmsVector *gun_dirs, int *gunSubModels);
 
 // draws the given model in the current canvas.  The distance is set to
 // more-or-less fill the canvas.  Note that this routine actually renders
@@ -92,22 +92,28 @@ void FreeModel (tPolyModel *po);
 
 #define MAX_POLYOBJ_TEXTURES 100
 
-int ReadPolyModel (tPolyModel *pm, int bHMEL, CFile &cf);
+#if 0
+#define PolyModelRead(pm, fp, bHMEL) CFRead(pm, sizeof(tPolyModel), 1, fp)
+#define PolyModelReadN(pm, n, fp, bHMEL) CFRead(pm, sizeof(tPolyModel), n, fp)
+#else
+/*
+ * reads a tPolyModel structure from a CFILE
+ */
+int PolyModelRead(tPolyModel *pm, CFILE *fp, int bHMEL);
 
 /*
  * reads n tPolyModel structs from a CFILE
  */
-int ReadPolyModels (tPolyModel *pm, int n, CFile& cf);
+extern int PolyModelReadN(tPolyModel *pm, int n, CFILE *fp);
+#endif
 
 /*
  * routine which allocates, reads, and inits a tPolyModel's modelData
  */
-void ReadPolyModelData (tPolyModel *pm, int nModel, tPolyModel *pdm, CFile& cf);
+void PolyModelDataRead (tPolyModel *pm, int nModel, tPolyModel *pdm, CFILE *fp);
 
-tPolyModel *GetPolyModel (CObject *objP, CFixVector *pos, int nModel, int flags);
+tPolyModel *GetPolyModel (tObject *objP, vmsVector *pos, int nModel, int flags);
 
 int LoadModelTextures (tPolyModel *po, tBitmapIndex *altTextures);
-
-//	-----------------------------------------------------------------------------
 
 #endif /* _POLYOBJ_H */

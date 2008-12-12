@@ -1,3 +1,4 @@
+/* $Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -12,9 +13,23 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
 #ifdef HAVE_CONFIG_H
-#	include <conf.h>
+#include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: network.c, v 1.24 2003/10/12 09:38:48 btb Exp $";
+#endif
+
+#define PATCH12
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#	include <winsock.h>
+#else
+#	include <sys/socket.h>
+#endif
 #ifndef _WIN32
 #	include <arpa/inet.h>
 #	include <netinet/in.h> /* for htons & co. */
@@ -22,20 +37,72 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "strutil.h"
+#include "args.h"
+#include "timer.h"
+#include "mono.h"
 #include "ipx.h"
+#include "newmenu.h"
+#include "key.h"
+#include "gauges.h"
+#include "object.h"
+#include "objsmoke.h"
 #include "error.h"
+#include "laser.h"
+#include "gamesave.h"
+#include "gamemine.h"
+#include "player.h"
+#include "loadgame.h"
+#include "fireball.h"
 #include "network.h"
-#include "network_lib.h"
+#include "game.h"
+#include "multi.h"
+#include "endlevel.h"
+#include "palette.h"
+#include "reactor.h"
+#include "powerup.h"
+#include "menu.h"
+#include "sounds.h"
+#include "text.h"
+#include "highscores.h"
+#include "newdemo.h"
+#include "multibot.h"
+#include "wall.h"
+#include "bm.h"
+#include "effects.h"
+#include "physics.h"
+#include "switch.h"
+#include "automap.h"
+#include "byteswap.h"
 #include "netmisc.h"
+#include "kconfig.h"
+#include "playsave.h"
+#include "cfile.h"
+#include "autodl.h"
+#include "tracker.h"
+#include "newmenu.h"
+#include "gamefont.h"
 #include "gameseg.h"
+#include "hudmsg.h"
+#include "vers_id.h"
+#include "netmenu.h"
+#include "banlist.h"
+#include "collide.h"
+#include "ipx.h"
+#ifdef _WIN32
+#	include "win32/include/ipx_udp.h"
+#	include "win32/include/ipx_drv.h"
+#else
+#	include "linux/include/ipx_udp.h"
+#	include "linux/include/ipx_drv.h"
+#endif
 
 //------------------------------------------------------------------------------
 
 char *iptos (char *pszIP, char *addr)
 {
-sprintf (pszIP, "%d.%d.%d.%d:%d",
+sprintf (pszIP, "%d.%d.%d.%d:%d", 
 			addr [0], addr [1], addr [2], addr [3],
-			ntohs (*reinterpret_cast<short*> (addr + 4)));
+			ntohs (*((short *) (addr + 4))));
 return pszIP;
 }
 
@@ -76,7 +143,7 @@ return NetworkWhoIsMaster () == gameData.multiplayer.nLocalPlayer;
 int NetworkHowManyConnected (void)
  {
   int num = 0, i;
-
+ 
 for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 	if (gameData.multiplayer.players [i].connected)
 		num++;
@@ -106,7 +173,7 @@ else {
 #endif
 if (callsign1 && callsign2 && stricmp (callsign1, callsign2))
 	return 1;
-#if DBG
+#ifdef _DEBUG
 HUDMessage (0, "'%s' not recognized", callsign1);
 #endif
 return 0;
@@ -116,7 +183,7 @@ return 0;
 
 #define LOCAL_NODE \
 	((gameStates.multi.bHaveLocalAddress && (gameStates.multi.nGameType == UDP_GAME)) ? \
-	 ipx_LocalAddress + 4 : networkData.thisPlayer.player.network.ipx.node)
+	 ipx_LocalAddress + 4 : networkData.mySeq.player.network.ipx.node)
 
 
 int CmpLocalPlayer (tNetworkInfo *pNetwork, char *pszNetCallSign, char *pszLocalCallSign)
@@ -124,8 +191,8 @@ int CmpLocalPlayer (tNetworkInfo *pNetwork, char *pszNetCallSign, char *pszLocal
 if (stricmp (pszNetCallSign, pszLocalCallSign))
 	return 1;
 #if 0
-// if restoring a multiplayer game that had been played via UDP/IP,
-// CPlayerData network addresses may have changed, so we have to rely on the callsigns
+// if restoring a multiplayer game that had been played via UDP/IP, 
+// tPlayer network addresses may have changed, so we have to rely on the callsigns
 // This will cause problems if several players with identical callsigns participate
 if (gameStates.multi.nGameType == UDP_GAME)
 	return 0;
@@ -134,7 +201,7 @@ if (gameStates.multi.nGameType >= IPX_GAME) {
 	return memcmp (pNetwork->ipx.node, LOCAL_NODE, extraGameInfo [1].bCheckUDPPort ? 6 : 4) ? 1 : 0;
 	}
 #ifdef MACINTOSH
-if (pNetwork->appletalk.node != networkData.thisPlayer.player.network.appletalk.node)
+if (pNetwork->appletalk.node != networkData.mySeq.player.network.appletalk.node)
 	return 1;
 #endif
 return 0;
@@ -144,15 +211,15 @@ return 0;
 
 char *NetworkGetPlayerName (int nObject)
 {
-if (nObject < 0)
+if (nObject < 0) 
+	return NULL; 
+if (gameData.objs.objects [nObject].nType != OBJ_PLAYER) 
 	return NULL;
-if (OBJECTS [nObject].info.nType != OBJ_PLAYER)
+if (gameData.objs.objects [nObject].id >= MAX_PLAYERS) 
 	return NULL;
-if (OBJECTS [nObject].info.nId >= MAX_PLAYERS)
+if (gameData.objs.objects [nObject].id >= gameData.multiplayer.nPlayers) 
 	return NULL;
-if (OBJECTS [nObject].info.nId >= gameData.multiplayer.nPlayers)
-	return NULL;
-return gameData.multiplayer.players [OBJECTS [nObject].info.nId].callsign;
+return gameData.multiplayer.players [gameData.objs.objects [nObject].id].callsign;
 }
 
 //------------------------------------------------------------------------------
@@ -164,7 +231,7 @@ if (i < --networkData.nActiveGames) {
 	memcpy (activeNetGames + i, activeNetGames + i + 1, sizeof (tNetgameInfo) * h);
 	memcpy (activeNetPlayers + i, activeNetPlayers + i + 1, sizeof (tAllNetPlayersInfo) * h);
 	memcpy (nLastNetGameUpdate + i, nLastNetGameUpdate + i + 1, sizeof (int) * h);
-	}
+	}	   
 networkData.bGamesChanged = 1;
 }
 
@@ -203,20 +270,20 @@ return i;
 
 //------------------------------------------------------------------------------
 
-int NetworkObjnumIsPast (int nObject, tNetworkSyncData *syncP)
+int NetworkObjnumIsPast (int nObject)
 {
-	// determine whether or not a given CObject number has already been sent
+	// determine whether or not a given tObject number has already been sent
 	// to a re-joining player.
-	int nPlayer = syncP->player [1].player.connected;
+	int nPlayer = networkData.playerRejoining.player.connected;
 	int nObjMode = !((gameData.multigame.nObjOwner [nObject] == -1) || (gameData.multigame.nObjOwner [nObject] == nPlayer));
 
-if (!syncP->nState)
-	return 0; // We're not sending OBJECTS to a new CPlayerData
-if (nObjMode > syncP->objs.nMode)
+if (!networkData.nSyncState)
+	return 0; // We're not sending gameData.objs.objects to a new tPlayer
+if (nObjMode > networkData.bSendObjectMode)
 	return 0;
-else if (nObjMode < syncP->objs.nMode)
+else if (nObjMode < networkData.bSendObjectMode)
 	return 1;
-else if (nObject < syncP->objs.nCurrent)
+else if (nObject < networkData.nSentObjs)
 	return 1;
 else
 	return 0;
@@ -234,7 +301,7 @@ else if (gameMode == NETGAME_TEAM_ANARCHY)
 	gameData.app.nGameMode = GM_TEAM;
 else if (gameMode == NETGAME_ROBOT_ANARCHY)
 	gameData.app.nGameMode = GM_MULTI_ROBOTS;
-else if (gameMode == NETGAME_COOPERATIVE)
+else if (gameMode == NETGAME_COOPERATIVE) 
 	gameData.app.nGameMode = GM_MULTI_COOP | GM_MULTI_ROBOTS;
 else if (gameMode == NETGAME_CAPTURE_FLAG)
 		gameData.app.nGameMode = GM_TEAM | GM_CAPTURE;
@@ -262,7 +329,7 @@ int GotTeamSpawnPos (void)
 	int	i, j;
 
 for (i = 0; i < gameData.multiplayer.nPlayerPositions; i++) {
-	j = FindSegByPos (*PlayerSpawnPos (i), -1, 1, 0);
+	j = FindSegByPos (PlayerSpawnPos (i), -1, 1, 0);
 	gameData.multiplayer.playerInit [i].nSegType = (j < 0) ? SEGMENT_IS_NOTHING : gameData.segs.segment2s [j].special;
 	switch (gameData.multiplayer.playerInit [i].nSegType) {
 		case SEGMENT_IS_GOAL_BLUE:
@@ -278,18 +345,18 @@ return 1;
 }
 
 //------------------------------------------------------------------------------
-// Find the proper initial spawn location for CPlayerData i from team t
+// Find the proper initial spawn location for tPlayer i from team t
 
 int TeamSpawnPos (int i)
 {
 	int	h, j, t = GetTeam (i);
 
-// first find out how many players before CPlayerData i are in the same team
+// first find out how many players before tPlayer i are in the same team
 // result stored in h
 for (h = j = 0; j < i; j++)
 	if (GetTeam (j) == t)
 		h++;
-// assign the spawn location # (h+1) to CPlayerData i
+// assign the spawn location # (h+1) to tPlayer i
 for (j = 0; j < gameData.multiplayer.nPlayerPositions; j++) {
 	switch (gameData.multiplayer.playerInit [j].nSegType) {
 		case SEGMENT_IS_GOAL_BLUE:
@@ -310,15 +377,16 @@ return -1;
 //------------------------------------------------------------------------------
 
 void NetworkCountPowerupsInMine (void)
-{
-  int 		i;
-  CObject	*objP;
+ {
+  int i;
 
 memset (gameData.multiplayer.powerupsInMine, 0, sizeof (gameData.multiplayer.powerupsInMine));
-FORALL_POWERUP_OBJS (objP, i) {
-	gameData.multiplayer.powerupsInMine [objP->info.nId]++;
-	if (MultiPowerupIs4Pack (objP->info.nId))
-		gameData.multiplayer.powerupsInMine [objP->info.nId - 1] += 4;
+for (i = 0; i <= gameData.objs.nLastObject; i++) {
+	if (gameData.objs.objects [i].nType == OBJ_POWERUP) {
+		gameData.multiplayer.powerupsInMine [gameData.objs.objects [i].id]++;
+		if (MultiPowerupIs4Pack (gameData.objs.objects [i].id))
+			gameData.multiplayer.powerupsInMine [gameData.objs.objects [i].id-1]+=4;
+		}
 	}
 }
 
@@ -336,7 +404,7 @@ void OpenSendLog ()
  {
   int i;
 
-SendLogFile = reinterpret_cast<FILE*> (fopen ("sendlog.net", "w"));
+SendLogFile = (FILE *)fopen ("sendlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTSent [i] = 0;
  }
@@ -347,7 +415,7 @@ void OpenReceiveLog ()
  {
 int i;
 
-ReceiveLogFile= reinterpret_cast<FILE*> (fopen ("recvlog.net", "w"));
+ReceiveLogFile= (FILE *)fopen ("recvlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTRecv [i] = 0;
  }
@@ -368,7 +436,7 @@ int HoardEquipped ()
 	static int checked=-1;
 
 if (checked == -1) {
-	if (CFile::Exist ("hoard.ham", gameFolders.szDataDir, 0))
+	if (CFExist ("hoard.ham", gameFolders.szDataDir, 0))
 		checked=1;
 	else
 		checked=0;

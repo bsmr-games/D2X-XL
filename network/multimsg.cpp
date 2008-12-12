@@ -13,8 +13,21 @@
 #include "timer.h"
 #include "strutil.h"
 #include "network.h"
+#include "multi.h"
+#include "object.h"
 #include "error.h"
+#include "powerup.h"
+#include "bm.h"
+#include "sounds.h"
+#include "kconfig.h"
+#include "config.h"
+#include "textures.h"
 #include "byteswap.h"
+#include "sounds.h"
+#include "args.h"
+#include "cfile.h"
+#include "effects.h"
+#include "hudmsg.h"
 #include "key.h"
 #include "banlist.h"
 #include "text.h"
@@ -51,7 +64,7 @@ if (gameData.multigame.msg.nReceiver != -1) {
 void MultiDefineMacro (int key)
 {
 int nMsg = 0;
-#if !DBG
+#ifndef _DEBUG
 if (!(gameOpts->multi.bUseMacros && (gameData.app.nGameMode & GM_MULTI)))
 	return;
 #endif
@@ -95,20 +108,20 @@ sprintf (szFeedbackResult, "%s ", TXT_MESSAGE_SENT_TO);
 if ((gameData.app.nGameMode & GM_TEAM) && (atoi (gameData.multigame.msg.szMsg) > 0) && 
 	 (atoi (gameData.multigame.msg.szMsg) < 3)) {
 	sprintf (szFeedbackResult+strlen (szFeedbackResult), "%s '%s'", 
-				TXT_TEAM, netGame.szTeamName [atoi (gameData.multigame.msg.szMsg)-1]);
+				TXT_TEAM, netGame.team_name [atoi (gameData.multigame.msg.szMsg)-1]);
 	bFound = 1;
 	}
 if (!bFound)
 	if (gameData.app.nGameMode & GM_TEAM) {
 		for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
-			if (!strnicmp (netGame.szTeamName [i], gameData.multigame.msg.szMsg, l)) {
+			if (!strnicmp (netGame.team_name [i], gameData.multigame.msg.szMsg, l)) {
 				if (bFound)
 					strcat (szFeedbackResult, ", ");
 				bFound++;
 				if (!(bFound % 4))
 					strcat (szFeedbackResult, "\n");
 				sprintf (szFeedbackResult+strlen (szFeedbackResult), "%s '%s'", 
-							TXT_TEAM, netGame.szTeamName [i]);
+							TXT_TEAM, netGame.team_name [i]);
 				}
 			}
 		}
@@ -235,7 +248,7 @@ MultiSendData (gameData.multigame.msg.buf, 3, 0);
 int KickPlayer (int bBan)
 {
 	int i, name_index = 5 - bBan;
-	const char *pszKick = GT (589 + bBan);
+	char *pszKick = GT (589 + bBan);
 
 if (strlen (gameData.multigame.msg.szMsg) > 5)
 	while (gameData.multigame.msg.szMsg [name_index] == ' ')
@@ -284,7 +297,7 @@ kick_player:;
 
 		HUDInitMessage (TXT_DUMPING, gameData.multiplayer.players [i].callsign);
 		if (bBan)
-			banList.Add (gameData.multiplayer.players [i].callsign);
+			AddPlayerToBanList (gameData.multiplayer.players [i].callsign);
 		MultiSendMsgQuit ();
 		return 1;
 		}
@@ -351,7 +364,7 @@ else if (gameStates.gameplay.xStartingShields > 100) {
 else
 	sprintf (gameData.multigame.msg.szMsg, TXT_NEW_HANDICAP, LOCALPLAYER.callsign, gameStates.gameplay.xStartingShields);
 HUDInitMessage (TXT_HANDICAP_ALERT, gameStates.gameplay.xStartingShields);
-gameStates.gameplay.xStartingShields = I2X (gameStates.gameplay.xStartingShields);
+gameStates.gameplay.xStartingShields = i2f (gameStates.gameplay.xStartingShields);
 return 0;
 }
 
@@ -394,7 +407,7 @@ if ((gameData.app.nGameMode & GM_NETWORK) && (gameData.app.nGameMode & GM_TEAM))
 #endif
 			for (t = 0;t<gameData.multiplayer.nPlayers;t++)
 				if (gameData.multiplayer.players [t].connected)
-					MultiResetObjectTexture (OBJECTS + gameData.multiplayer.players [t].nObject);
+					MultiResetObjectTexture (gameData.objs.objects + gameData.multiplayer.players [t].nObject);
 
 			NetworkSendNetgameUpdate ();
 			sprintf (gameData.multigame.msg.szMsg, TXT_TEAMCHANGE3, gameData.multiplayer.players [i].callsign);
@@ -557,7 +570,7 @@ i = atoi (bufP);
 if ((i >= 1) && (i <= 2))
 	return 1;
 for (i = 0; i < 2; i++)
-	if (!strnicmp (netGame.szTeamName [i], bufP, nLen))
+	if (!strnicmp (netGame.team_name [i], bufP, nLen))
 		return 1;
 return 0;
 }
@@ -573,7 +586,7 @@ if (!(gameData.app.nGameMode & GM_TEAM))
 i = GetTeam (gameData.multiplayer.nLocalPlayer);
 if (i == atoi (bufP) - 1)
 	return 1;
-if (!strnicmp (netGame.szTeamName [i], bufP, nLen))
+if (!strnicmp (netGame.team_name [i], bufP, nLen))
 	return 1;
 return 0;
 }
@@ -614,7 +627,7 @@ if ((tilde = strchr (buf + bufP, '$'))) {
 	strcpy (msgBuf + strlen (LOCALPLAYER.callsign) + tloc, buf + bufP + tloc + 1);
 	strcpy (buf + bufP, msgBuf);
 	}
-if ((colon = strrchr (buf + bufP, ':'))) {	//message may be addressed to a certain team or CPlayerData
+if ((colon = strrchr (buf + bufP, ':'))) {	//message may be addressed to a certain team or tPlayer
 	l = (int) (colon - (buf + bufP));
 	if (l && (l <= CALLSIGN_LEN) &&
 		 ((IsTeamId (buf + bufP, l) && !IsMyTeamId (buf + bufP, l)) ||

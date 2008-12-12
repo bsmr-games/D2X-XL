@@ -1,3 +1,4 @@
+/* $Id: joydefs.c,v 1.7 2003/10/08 19:18:46 btb Exp $ */
 /*
  *
  * SDL joystick support
@@ -71,7 +72,7 @@ char szJoyAxis [UNIQUE_JOY_AXES] = {'X', 'Y', 'R', 'T', 'Z'};
 
 char joyHotkeys [UNIQUE_JOY_AXES] = {KEY_X, KEY_Y, KEY_R, KEY_T, KEY_Z};
 
-static const char *szDZoneSizes [5];
+static char *szDZoneSizes [5];
 
 int joydefs_calibrateFlag = 0;
 
@@ -90,7 +91,7 @@ void JoyDefsCalibrate()
 
 //------------------------------------------------------------------------------
 
-int AddDeadzoneControl (tMenuItem *m, char *szText, const char *szFmt, const char *szHelp, const char **szSizes, ubyte nValue, char nKey, int *pnOpt)
+int AddDeadzoneControl (tMenuItem *m, char *szText, char *szFmt, char *szHelp, char **szSizes, ubyte nValue, char nKey, int *pnOpt)
 {
 	int nOpt = *pnOpt;
 
@@ -105,7 +106,7 @@ return (*pnOpt)++;
 
 //------------------------------------------------------------------------------
 
-int AddAxisControls (tMenuItem *m, char *szText, const char *szFmtSyncd, const char *szFmt, const char *szLabel, const char *szHelp, 
+int AddAxisControls (tMenuItem *m, char *szText, char *szFmtSyncd, char *szFmt, char *szLabel, char *szHelp, 
 							int nControls, int *pnValues, int nValues, int *pnIntervals, 
 							char nKeySyncd, char *pnKeys, int bSyncControls, int *pnOpt)
 {
@@ -144,7 +145,7 @@ return h;
 
 //------------------------------------------------------------------------------
 
-int MouseConfigCallback (int nitems, tMenuItem * items, int *key, int nCurItem)
+void MouseConfigCallback (int nitems, tMenuItem * items, int *key, int citem)
 {
 	int h, i, v;
 	int ocType = gameConfig.nControlType;
@@ -180,11 +181,11 @@ if (gameOpts->input.mouse.bUse != v) {
 		m->rebuild = 1;
 		*key = -2;
 		}
-	return nCurItem;
+	return;
 	}
 
 if (gameStates.app.bNostalgia)
-	return nCurItem;
+	return;
 
 if (gameOpts->input.mouse.bUse) {
 	if (gameOpts->app.bExpertMode) {
@@ -197,7 +198,7 @@ if (gameOpts->input.mouse.bUse) {
 					gameOpts->input.mouse.sensitivity [i] = gameOpts->input.mouse.sensitivity [0];
 			m->rebuild = 1;
 			*key = -2;
-			return nCurItem;
+			return;
 			}
 		m = items + mouseOpts.nJoystick;
 		v = m->value;
@@ -221,7 +222,6 @@ if (gameOpts->input.mouse.bUse) {
 			}
 		}
 	}
-return nCurItem;
 }
 
 //------------------------------------------------------------------------------
@@ -312,7 +312,7 @@ do {
 
 //------------------------------------------------------------------------------
 
-int JoystickConfigCallback (int nitems, tMenuItem * items, int *key, int nCurItem)
+void JoystickConfigCallback (int nitems, tMenuItem * items, int *key, int citem)
 {
 	int h, i, v;
 	int ocType = gameConfig.nControlType;
@@ -348,11 +348,11 @@ if (gameOpts->input.joystick.bUse != v) {
 		m->rebuild = 1;
 		*key = -2;
 		}
-	return nCurItem;
+	return;
 	}
 
 if (gameStates.app.bNostalgia)
-	return nCurItem;
+	return;
 
 
 if (gameStates.input.nJoysticks && gameOpts->input.joystick.bUse) {
@@ -368,7 +368,7 @@ if (gameStates.input.nJoysticks && gameOpts->input.joystick.bUse) {
 					}
 			m->rebuild = 1;
 			*key = -2;
-			return nCurItem;
+			return;
 			}
 		}
 	h = gameOpts->input.joystick.bSyncAxes ? 1 : UNIQUE_JOY_AXES;
@@ -393,7 +393,6 @@ if (gameStates.input.nJoysticks && gameOpts->input.joystick.bUse) {
 	for (i = h; i < UNIQUE_JOY_AXES; i++)
 		gameOpts->input.joystick.deadzones [i] = gameOpts->input.joystick.deadzones [0];
 	}
-return nCurItem;
 }
 
 //------------------------------------------------------------------------------
@@ -472,7 +471,7 @@ do {
 
 //------------------------------------------------------------------------------
 
-int TrackIRConfigCallback (int nitems, tMenuItem * items, int *key, int nCurItem)
+void TrackIRConfigCallback (int nitems, tMenuItem * items, int *key, int citem)
 {
 	int h, i, v;
 	tMenuItem * m;
@@ -482,7 +481,7 @@ v = m->value;
 if (gameOpts->input.trackIR.bUse != v) {
 	gameOpts->input.trackIR.bUse = v;
 	*key = -2;
-	return nCurItem;
+	return;
 	}
 if (gameOpts->input.trackIR.bUse) {
 	for (i = 0; i < 3; i++) {
@@ -493,7 +492,7 @@ if (gameOpts->input.trackIR.bUse) {
 				gameData.trackIR.y = 0;
 				}
 			*key = -2;
-			return nCurItem;
+			return;
 			}
 		}
 	for (i = 0; i < 3; i++) {
@@ -507,7 +506,7 @@ if (gameOpts->input.trackIR.bUse) {
 						gameOpts->input.trackIR.sensitivity [i] = gameOpts->input.trackIR.sensitivity [0];
 				m->rebuild = 1;
 				*key = -2;
-				return nCurItem;
+				return;
 				}
 			}
 		}
@@ -521,20 +520,20 @@ if (gameOpts->input.trackIR.bUse) {
 					h += gameOpts->input.trackIR.bMove [i];
 				if (h < 2) {
 					*key = -2;
-					return nCurItem;
+					return;
 					}
 				}
 			}
 		}
 	if (tirOpts.nSyncAxes < 0)
-		return nCurItem;
+		return;
 	h = gameOpts->input.trackIR.bSyncAxes ? 1 : 3;
 	for (i = 0; i < h; i++)
 		gameOpts->input.trackIR.sensitivity [i] = items [tirOpts.nSensitivity + i].value;
 	for (i = h; i < 3; i++)
 		gameOpts->input.trackIR.sensitivity [i] = gameOpts->input.trackIR.sensitivity [0];
 	if (tirOpts.nDeadzone < 0)
-		return nCurItem;
+		return;
 	m = items + tirOpts.nDeadzone;
 	v = m->value;
 	if (gameOpts->input.trackIR.nDeadzone != v) {
@@ -543,7 +542,6 @@ if (gameOpts->input.trackIR.bUse) {
 		m->rebuild = 1;
 		}
 	}
-return nCurItem;
 }
 
 //------------------------------------------------------------------------------
@@ -606,7 +604,7 @@ do {
 
 //------------------------------------------------------------------------------
 
-int KeyboardConfigCallback (int nitems, tMenuItem * items, int *key, int nCurItem)
+void KeyboardConfigCallback (int nitems, tMenuItem * items, int *key, int citem)
 {
 	int			i, v;
 	tMenuItem	*m;
@@ -617,7 +615,7 @@ if (!gameStates.app.bNostalgia) {
 	if (gameOpts->input.bUseHotKeys != v) {
 		gameOpts->input.bUseHotKeys = v;
 		*key = -2;
-		return nCurItem;
+		return;
 		}
 	}
 
@@ -641,7 +639,6 @@ if (gameOpts->app.bExpertMode) {
 			}
 		}
 	}
-return nCurItem;
 }
 
 //------------------------------------------------------------------------------

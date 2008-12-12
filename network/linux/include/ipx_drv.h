@@ -4,7 +4,7 @@
  * IPX driver interface
  *
  * parts from:
- * ipx[HA] header file for IPX for the DOS emulator
+ * ipx.h header file for IPX for the DOS emulator
  * 		Tim Bird, tbird@novell.com
  *
  */
@@ -71,6 +71,6 @@ struct ipx_driver {
 
 int IxpGeneralPacketReady(ipx_socket_t *s);
 
-extern ubyte ipx_MyAddress[10];
+extern unsigned char ipx_MyAddress[10];
 
 #endif /* _IPX_DRV_H */

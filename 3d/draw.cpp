@@ -1,3 +1,4 @@
+/* $Id: draw.c, v 1.4 2002/07/17 21:55:19 bradleyb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -7,17 +8,21 @@ IN USING, DISPLAYING,  AND CREATING DERIVATIVE WORKS THEREOF, SO LONG AS
 SUCH USE, DISPLAY OR CREATION IS FOR NON-COMMERCIAL, ROYALTY OR REVENUE
 FREE PURPOSES.  IN NO EVENT SHALL THE END-USER USE THE COMPUTER CODE
 CONTAINED HEREIN FOR REVENUE-BEARING PURPOSES.  THE END-USER UNDERSTANDS
-AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
+AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.  
 COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 /*
- *
+ * 
  * Drawing routines
- *
+ * 
  */
 
 #ifdef HAVE_CONFIG_H
 #include <conf.h>
+#endif
+
+#ifdef RCS
+static char rcsid[] = "$Id: draw.c, v 1.4 2002/07/17 21:55:19 bradleyb Exp $";
 #endif
 
 #include "inferno.h"
@@ -35,7 +40,7 @@ tmap_drawer_fp tmap_drawer_ptr = draw_tmap;
 flat_drawer_fp flat_drawer_ptr = gr_upoly_tmap;
 line_drawer_fp line_drawer_ptr = GrLine;
 #else
-void (*tmap_drawer_ptr) (CBitmap *bm, int nv, g3sPoint **vertlist) = draw_tmap;
+void (*tmap_drawer_ptr) (grsBitmap *bm, int nv, g3sPoint **vertlist) = draw_tmap;
 void (*flat_drawer_ptr) (int nv, int *vertlist) = gr_upoly_tmap;
 int (*line_drawer_ptr) (fix x0, fix y0, fix x1, fix y1) = GrLine;
 #endif
@@ -51,41 +56,42 @@ line_drawer_ptr = (line_drawer)?line_drawer:GrLine;
 if (tmap_drawer == DrawTexPolyFlat)
 	fpDrawTexPolyMulti = G3DrawTexPolyFlat;
 else
-	fpDrawTexPolyMulti = gameStates.render.color.bRenderLightmaps ? G3DrawTexPolyLightmap : G3DrawTexPolyMulti;
+	fpDrawTexPolyMulti = gameStates.render.color.bRenderLightMaps ? G3DrawTexPolyLightmap : G3DrawTexPolyMulti;
 }
 
 //------------------------------------------------------------------------------
-//returns true if a plane is facing the viewer. takes the unrotated surface
-//Normal of the plane, and a point on it.  The Normal need not be normalized
-int G3CheckNormalFacing(const CFixVector& pv, const CFixVector& pnorm)
+//returns true if a plane is facing the viewer. takes the unrotated surface 
+//normal of the plane, and a point on it.  The normal need not be normalized
+int G3CheckNormalFacing (vmsVector *pv, vmsVector *pnorm)
 {
-CFixVector v = viewInfo.pos - pv;
-return (CFixVector::Dot(v, pnorm) > 0);
+vmsVector v;
+return (VmVecDot (VmVecSub (&v, &viewInfo.pos, pv), pnorm) > 0);
 }
 
 //------------------------------------------------------------------------------
 
-int DoFacingCheck (CFixVector *norm, g3sPoint **vertlist, CFixVector *p)
+int DoFacingCheck (vmsVector *norm, g3sPoint **vertlist, vmsVector *p)
 {
-if (norm) {		//have Normal
-	return G3CheckNormalFacing (*p, *norm);
+if (norm) {		//have normal
+	Assert (norm->p.x || norm->p.y || norm->p.z);
+	return G3CheckNormalFacing (p, norm);
 	}
-else {	//Normal not specified, so must compute
-	CFixVector vTemp;
-	//get three points (rotated) and compute Normal
-	vTemp = CFixVector::Perp(vertlist [0]->p3_vec, vertlist [1]->p3_vec, vertlist [2]->p3_vec);
-	return (CFixVector::Dot(vTemp, vertlist [1]->p3_vec) < 0);
+else {	//normal not specified, so must compute
+	vmsVector vTemp;
+	//get three points (rotated) and compute normal
+	VmVecPerp (&vTemp, &vertlist [0]->p3_vec, &vertlist [1]->p3_vec, &vertlist [2]->p3_vec);
+	return (VmVecDot (&vTemp, &vertlist [1]->p3_vec) < 0);
 	}
 }
 
 //------------------------------------------------------------------------------
-//like G3DrawPoly (), but checks to see if facing.  If surface Normal is
-//NULL, this routine must compute it, which will be slow.  It is better to
-//pre-compute the Normal, and pass it to this function.  When the Normal
+//like G3DrawPoly (), but checks to see if facing.  If surface normal is
+//NULL, this routine must compute it, which will be slow.  It is better to 
+//pre-compute the normal, and pass it to this function.  When the normal
 //is passed, this function works like G3CheckNormalFacing () plus
 //G3DrawPoly ().
 //returns -1 if not facing, 1 if off screen, 0 if drew
-int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, CFixVector *norm, CFixVector *pnt)
+int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, vmsVector *norm, vmsVector *pnt)
 {
 	if (DoFacingCheck (norm, pointlist, pnt))
 		return G3DrawPoly (nv, pointlist);
@@ -96,7 +102,7 @@ int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, CFixVector *norm, CFixVect
 //------------------------------------------------------------------------------
 
 int G3CheckAndDrawTMap (
-	int nv, g3sPoint **pointlist, tUVL *uvl_list, CBitmap *bm, CFixVector *norm, CFixVector *pnt)
+	int nv, g3sPoint **pointlist, tUVL *uvl_list, grsBitmap *bm, vmsVector *norm, vmsVector *pnt)
 {
 if (DoFacingCheck (norm, pointlist, pnt))
 	return !G3DrawTexPoly (nv, pointlist, uvl_list, bm, norm, 1, -1);
@@ -127,13 +133,13 @@ int MustClipFlatFace (int nv, g3sCodes cc)
 				goto free_points;
 			}
 
-			polyVertList[i*2]   = I2X (p->p3_screen.x);
-			polyVertList[i*2+1] = I2X (p->p3_screen.y);
+			polyVertList[i*2]   = p->p3_screen.x;
+			polyVertList[i*2+1] = p->p3_screen.y;
 		}
 
-		 (*flat_drawer_ptr) (nv, reinterpret_cast<int*> (polyVertList));
+		 (*flat_drawer_ptr) (nv, (int *)polyVertList);
 	}
-	else
+	else 
 		ret=1;
 
 	//D2_FREE temp points
@@ -144,7 +150,7 @@ free_points:
 		if (Vbuf1[i]->p3_flags & PF_TEMP_POINT)
 			free_temp_point (Vbuf1[i]);
 
-//	Assert (nFreePoints==0);
+//	Assert (free_point_num==0);
 
 	return ret;
 }

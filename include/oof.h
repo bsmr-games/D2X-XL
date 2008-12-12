@@ -56,7 +56,7 @@
 
 #define OOF_PAGENAME_LEN	35
 
-typedef ushort tOOF_angle;	//make sure this matches up with fix.h
+typedef unsigned short tOOF_angle;	//make sure this matches up with fix.h
 
 typedef char tOOF_chunkType [4];
 
@@ -112,7 +112,7 @@ typedef struct tOOF_face {
 		int				nTexId;
 		tOOF_rgb			color;
 		} texProps;
-	tOOF_faceVert		*verts;
+	tOOF_faceVert		*pVerts;
 	float					fBoundingLength;
 	float					fBoundingWidth;
 	tOOF_vector			vMin;
@@ -124,8 +124,8 @@ typedef struct tOOF_face {
 
 typedef struct tOOF_faceList {
 	int					nFaces;
-	tOOF_face			*faces;
-	tOOF_faceVert		*faceVerts;
+	tOOF_face			*pFaces;
+	tOOF_faceVert		*pFaceVerts;
 } tOOF_faceList;
 
 typedef struct tOOF_glowInfo {
@@ -145,7 +145,7 @@ typedef struct tOOF_specialPoint {
 
 typedef struct tOOF_specialList {
 	int					nVerts;
-	tOOF_specialPoint	*verts;
+	tOOF_specialPoint	*pVerts;
 } tOOF_specialList;
 
 typedef struct tOOF_point {
@@ -248,10 +248,10 @@ typedef struct tOOF_subObject {
 	int					nFSLists;
 	int					*pFSList;
 	int					nVerts;
-	tOOF_vector			*verts;
-	tOOF_vector			*rotVerts;
-	tOOF_vector			*normals;
-	tFaceColor			*vertColors;
+	tOOF_vector			*pvVerts;
+	tOOF_vector			*pvRotVerts;
+	tOOF_vector			*pvNormals;
+	tFaceColor			*pVertColors;
 	float					*pfAlpha;	// only present if version >= 2300
 	tOOF_faceList		faces;
 	tOOF_edgeList		edges;
@@ -285,7 +285,7 @@ typedef struct tOOFObject {
 	tOOF_attachList	attachPoints;
 	tOOF_specialList	specialPoints;
 	tOOF_armament		armament;
-	CModelTextures		textures;
+	tModelTextures		textures;
 	tOOF_frameInfo		frameInfo;
 	int					bCloaked;
 	int					nCloakPulse;
@@ -300,11 +300,11 @@ typedef float glMatrixf [4*4];
 
 int OOF_ReadFile (char *pszFile, tOOFObject *po, short nModel, short nType, int bFlipV, int bCustom);
 int OOF_FreeObject (tOOFObject *po);
-int OOF_Render (CObject *objP, tOOFObject *po, float *fLight, int bCloaked);
-float *OOF_MatVms2Gl (float *pDest, const vmsMatrix& src);
-float *OOF_VecVms2Gl (float *pDest, const CFixVector& src);
-float *OOF_VecVms2Oof (tOOF_vector *pDest, const CFixVector& src);
-float *OOF_MatVms2Oof (tOOF_matrix *pDest, const vmsMatrix& src);
+int OOF_Render (tObject *objP, tOOFObject *po, float *fLight, int bCloaked);
+float *OOF_MatVms2Gl (float *pDest, vmsMatrix *pSrc);
+float *OOF_VecVms2Gl (float *pDest, vmsVector *pSrc);
+float *OOF_VecVms2Oof (tOOF_vector *pDest, vmsVector *pSrc);
+float *OOF_MatVms2Oof (tOOF_matrix *pDest, vmsMatrix *pSrc);
 tOOF_vector *OOF_VecNormalize (tOOF_vector *pv);
 tOOF_vector *OOF_VecAdd (tOOF_vector *pvDest, tOOF_vector *pvSrc, tOOF_vector *pvAdd);
 tOOF_vector *OOF_VecSub (tOOF_vector *pvDest, tOOF_vector *pvMin, tOOF_vector *pvSub);

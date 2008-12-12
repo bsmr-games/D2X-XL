@@ -1,3 +1,4 @@
+/* $Id: render.c, v 1.18 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -8,7 +9,7 @@ SUCH USE, DISPLAY OR CREATION IS FOR NON-COMMERCIAL, ROYALTY OR REVENUE
 FREE PURPOSES.  IN NO EVENT SHALL THE END-USER USE THE COMPUTER CODE
 CONTAINED HEREIN FOR REVENUE-BEARING PURPOSES.  THE END-USER UNDERSTANDS
 AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
-COPYRIGHT 0993-0999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
+COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -22,55 +23,49 @@ COPYRIGHT 0993-0999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "error.h"
 #include "light.h"
 #include "dynlight.h"
-#include "objsmoke.h"
-#include "sparkeffect.h"
-#include "lightning.h"
 #include "render.h"
 #include "fastrender.h"
 #include "renderthreads.h"
 #include "interp.h"
-#include "lightmap.h"
 
 #define KILL_RENDER_THREADS 0
 
 tRenderThreadInfo tiRender;
-tTranspItemThreadInfo tiTranspItems;
-tThreadInfo tiEffects;
+tRenderItemThreadInfo tiRenderItems;
 
-//------------------------------------------------------------------------------
-
-void WaitForRenderThreads (void)
-{
-if (gameStates.app.bMultiThreaded)
-	while (tiRender.ti [0].bExec || tiRender.ti [1].bExec)
-		G3_SLEEP (0);	//already running, so wait
-}
+int bUseMultiThreading [rtPolyModel + 1] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
 //------------------------------------------------------------------------------
 
 int RunRenderThreads (int nTask)
 {
-#if DBG
-	time_t	t0 = 0, t2 = 0;
+	time_t	t1 = 0, t2 = 0;
+#ifdef _DEBUG
 	static	int nLockups = 0;
 #endif
 
 if (!gameStates.app.bMultiThreaded)
 	return 0;
-if ((nTask < rtTaskCount) && !gameData.app.bUseMultiThreading [nTask])
+if (!bUseMultiThreading [nTask])
 	return 0;
+#if 0
+while (tiRender.ti [0].bExec || tiRender.ti [1].bExec)
+	G3_SLEEP (0);	//already running, so wait
+#endif
 tiRender.nTask = (tRenderTask) nTask;
 tiRender.ti [0].bExec =
 tiRender.ti [1].bExec = 1;
-#if DBG
-t0 = clock ();
-while ((tiRender.ti [0].bExec || tiRender.ti [1].bExec) && (clock () - t0 < 1000)) {
+#if 0
+PrintLog ("running render threads (task: %d)\n", nTask);
+#endif
+t1 = clock ();
+while ((tiRender.ti [0].bExec || tiRender.ti [1].bExec) && (clock () - t1 < 1000)) {
 	G3_SLEEP (0);
 	if (tiRender.ti [0].bExec != tiRender.ti [1].bExec) {
 		if (!t2)
 			t2 = clock ();
-		else if (clock () - t2 > 33) {	//slower thread must not take more than 00 ms longer than faster one
-#if 0//ndef _DEBUG
+		else if (clock () - t2 > 33) {	//slower thread must not take more than 10 ms longer than faster one
+#if 1//ndef _DEBUG
 			t2 = clock ();
 #else
 			PrintLog ("threads locked up (task: %d)\n", nTask);
@@ -82,9 +77,9 @@ while ((tiRender.ti [0].bExec || tiRender.ti [1].bExec) && (clock () - t0 < 1000
 			}
 		}
 	}
-#else
-while (tiRender.ti [0].bExec || tiRender.ti [1].bExec)
-	G3_SLEEP (0);
+#if 0//def _DEBUG
+if (tiRender.ti [0].bExec || tiRender.ti [1].bExec)
+	gameStates.app.bMultiThreaded = 0;
 #endif
 return 1;
 }
@@ -93,10 +88,7 @@ return 1;
 
 int _CDECL_ RenderThread (void *pThreadId)
 {
-	int		nId = *reinterpret_cast<int*> (pThreadId);
-#ifdef _WIN32
-	HGLRC		myContext = 0;
-#endif
+	int	nId = *((int *) pThreadId);
 
 do {
 	while (!tiRender.ti [nId].bExec) {
@@ -106,9 +98,9 @@ do {
 		}
 	if (tiRender.nTask == rtSortSegZRef) {
 		if (nId)
-			QSortSegZRef (gameData.render.mine.nRenderSegs / 2, gameData.render.mine.nRenderSegs - 0);
+			QSortSegZRef (gameData.render.mine.nRenderSegs / 2, gameData.render.mine.nRenderSegs - 1);
 		else
-			QSortSegZRef (0, gameData.render.mine.nRenderSegs / 2 - 0);
+			QSortSegZRef (0, gameData.render.mine.nRenderSegs / 2 - 1);
 		}
 	else if (tiRender.nTask == rtInitSegZRef) {
 		if (nId)
@@ -116,25 +108,35 @@ do {
 		else
 			InitSegZRef (0, gameData.render.mine.nRenderSegs / 2, nId);
 		}
+	if (tiRender.nTask == rtSortFaces) {
+		if (nId)
+			QSortFaces (tiRender.nFaces / 2, tiRender.nFaces - 1);
+		else
+			QSortFaces (0, tiRender.nFaces / 2 - 1);
+		}
+	else if (tiRender.nTask == rtComputeFaceLight) {
+		if (nId)
+			ComputeFaceLight (gameData.render.mine.nRenderSegs - 1, tiRender.nMiddle - 1, nId);
+		else
+			ComputeFaceLight (0, tiRender.nMiddle, nId);
+		}
+	else if (tiRender.nTask == rtAnimateLightnings) {
+		if (nId)
+			AnimateLightning (tiRender.pl, tiRender.nLightnings / 2, tiRender.nLightnings, 0);
+		else
+			AnimateLightning (tiRender.pl, 0, tiRender.nLightnings / 2, 0);
+		}
+	else if (tiRender.nTask == rtRenderLightnings) {
+		if (nId)
+			RenderLightningsBuffered (tiRender.pl, tiRender.nLightnings / 2, tiRender.nLightnings, 0, nId);
+		else
+			RenderLightningsBuffered (tiRender.pl, 0, tiRender.nLightnings / 2, 0, nId);
+		}
 	else if (tiRender.nTask == rtStaticVertLight) {
 		if (nId)
 			ComputeStaticVertexLights (gameData.segs.nVertices / 2, gameData.segs.nVertices, nId);
 		else
 			ComputeStaticVertexLights (0, gameData.segs.nVertices / 2, nId);
-		}
-	else if (tiRender.nTask == rtComputeFaceLight) {
-		if (gameData.render.mine.nRenderSegs < 0) {
-			if (nId)
-				ComputeFaceLight (gameData.segs.nFaces / 2, gameData.segs.nFaces, nId);
-			else
-				ComputeFaceLight (0, gameData.segs.nFaces / 2, nId);
-			}
-		else {
-			if (nId)
-				ComputeFaceLight (gameData.render.mine.nRenderSegs - 1, tiRender.nMiddle - 1, nId);
-			else
-				ComputeFaceLight (0, tiRender.nMiddle, nId);
-			}
 		}
 	else if (tiRender.nTask == rtPolyModel) {
 		short	iVerts, nVerts, iFaceVerts, nFaceVerts;
@@ -153,62 +155,64 @@ do {
 			}
 		G3DynLightModel (tiRender.objP, tiRender.pm, iVerts, nVerts, iFaceVerts, nFaceVerts);
 		}
-	else if (tiRender.nTask == rtLightmap)
-		lightmapManager.Build (nId);
+	else if (tiRender.nTask == rtUpdateParticles)
+		UpdateCloud (tiRender.clouds [nId], tiRender.nCurTime [nId], nId);
+	else if (tiRender.nTask == rtRenderParticles)
+		RenderCloud (tiRender.clouds [nId], nId);
 	tiRender.ti [nId].bExec = 0;
 	} while (!tiRender.ti [nId].bDone);
-#ifdef _WIN32
-if (myContext)
-	wglDeleteContext (myContext);
-#endif
 return 0;
 }
 
 //------------------------------------------------------------------------------
 
-int _CDECL_ TranspItemThread (void *pThreadId)
+int _CDECL_ RenderItemThread (void *pThreadId)
 {
-#if 1
 	int	i;
 
 do {
-	while (!(tiTranspItems.ti [0].bExec || tiTranspItems.ti [1].bExec))
+	while (!(tiRenderItems.ti [0].bExec || tiRenderItems.ti [1].bExec))
 		G3_SLEEP (0);
 	for (i = 0; i < 2; i++) {
-		if (tiTranspItems.ti [i].bExec) {
-			AddTranspItem ((tTranspItemType) tiTranspItems.itemData [i].nType, 
-								&tiTranspItems.itemData [i].item, 
-								tiTranspItems.itemData [i].nSize, 
-								tiTranspItems.itemData [i].nDepth, 
-								tiTranspItems.itemData [i].nIndex);
-			tiTranspItems.ti [i].bExec = 0;
+		if (tiRenderItems.ti [i].bExec) {
+			AddRenderItem ((tRenderItemType) tiRenderItems.itemData [i].nType, 
+								&tiRenderItems.itemData [i].item, 
+								tiRenderItems.itemData [i].nSize, 
+								tiRenderItems.itemData [i].nDepth, 
+								tiRenderItems.itemData [i].nIndex);
+			tiRenderItems.ti [i].bExec = 0;
 			}
 		}
-	} while (!(tiTranspItems.ti [0].bDone && tiTranspItems.ti [1].bDone));
+	} while (!(tiRenderItems.ti [0].bDone && tiRenderItems.ti [1].bDone));
 return 0;
-#endif
 }
 
 //------------------------------------------------------------------------------
 
-void StartTranspItemThread (void)
+void StartRenderItemThread (void)
 {
-#if 1
-memset (&tiTranspItems, 0, sizeof (tiTranspItems));
-tiTranspItems.ti [0].pThread = SDL_CreateThread (TranspItemThread, NULL);
-#endif
+memset (&tiRenderItems, 0, sizeof (tiRenderItems));
+tiRenderItems.ti [0].pThread = SDL_CreateThread (RenderItemThread, NULL);
 }
 
 //------------------------------------------------------------------------------
 
-void EndTranspItemThread (void)
+void EndRenderItemThread (void)
 {
-if (!tiTranspItems.ti [0].pThread)
-	return;
-tiTranspItems.ti [0].bDone = 0;
-G3_SLEEP (10);
-//SDL_KillThread (tiTranspItems.ti [0].pThread);
-tiTranspItems.ti [0].pThread = NULL;
+	int	i;
+
+for (i = 0; i < 2; i++)
+	tiRenderItems.ti [i].bDone = 1;
+G3_SLEEP (100);
+#if KILL_RENDER_THREADS
+#	if 1
+SDL_KillThread (tiRender.ti [0].pThread);
+SDL_KillThread (tiRender.ti [1].pThread);
+#	else
+SDL_WaitThread (tiRender.ti [0].pThread, NULL);
+SDL_WaitThread (tiRender.ti [1].pThread, NULL);
+#	endif
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -222,8 +226,7 @@ for (i = 0; i < 2; i++) {
 	tiRender.ti [i].nId = i;
 	tiRender.ti [i].pThread = SDL_CreateThread (RenderThread, &tiRender.ti [i].nId);
 	}
-StartTranspItemThread ();
-StartEffectsThread ();
+StartRenderItemThread ();
 }
 
 //------------------------------------------------------------------------------
@@ -233,52 +236,18 @@ void EndRenderThreads (void)
 	int	i;
 
 for (i = 0; i < 2; i++)
-	tiRender.ti [i].bDone = 0;
-G3_SLEEP (10);
-for (i = 0; i < 2; i++) {
-	if (tiRender.ti [i].pThread) {
-		//SDL_KillThread (tiRender.ti [0].pThread);
-		tiRender.ti [i].pThread = NULL;
-		}
-	}
-EndTranspItemThread ();
-EndEffectsThread ();
-}
-
-//------------------------------------------------------------------------------
-
-int _CDECL_ EffectsThread (void *pThreadId)
-{
-do {
-	while (!tiEffects.bExec)
-		G3_SLEEP (0);
-	DoParticleFrame ();
-	DoEnergySparkFrame ();
-	lightningManager.DoFrame ();
-	tiEffects.bExec = 0;
-	} while (!tiEffects.bDone);
-return 0;
-}
-
-//------------------------------------------------------------------------------
-
-void StartEffectsThread (void)
-{
-memset (&tiEffects, 0, sizeof (tiEffects));
-if (!(tiEffects.pThread = SDL_CreateThread (EffectsThread, NULL)))
-	gameData.app.bUseMultiThreading [rtEffects] = 0;
-}
-
-//------------------------------------------------------------------------------
-
-void EndEffectsThread (void)
-{
-if (!tiEffects.pThread)
-	return;
-tiEffects.bDone = 0;
+	tiRender.ti [i].bDone = 1;
 G3_SLEEP (100);
-//SDL_KillThread (tiEffects.pThread);
-tiEffects.pThread = NULL;
+#if KILL_RENDER_THREADS
+#	if 1
+SDL_KillThread (tiRender.ti [0].pThread);
+SDL_KillThread (tiRender.ti [1].pThread);
+#	else
+SDL_WaitThread (tiRender.ti [0].pThread, NULL);
+SDL_WaitThread (tiRender.ti [1].pThread, NULL);
+#	endif
+#endif
+EndRenderItemThread ();
 }
 
 //------------------------------------------------------------------------------

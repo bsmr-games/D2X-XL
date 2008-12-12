@@ -1,3 +1,4 @@
+/* $Id: 2dsline.c,v 1.10 2003/04/29 08:05:41 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -35,7 +36,7 @@ void gr_linear_darken(ubyte * dest, int darkeningLevel, int count, ubyte * fade_
 }
 
 
-void gr_linear_stosd( ubyte * dest, tCanvasColor *color, uint nbytes) 
+void gr_linear_stosd( ubyte * dest, grsColor *color, unsigned int nbytes) 
 {
 memset(dest, color->index, nbytes);
 }
@@ -43,8 +44,8 @@ memset(dest, color->index, nbytes);
 
 void gr_uscanline( int x1, int x2, int y )
 {
-	if (gameStates.render.grAlpha >= FADE_LEVELS ) {
-		switch(MODE)
+	if (gameStates.render.grAlpha >= GR_ACTUAL_FADE_LEVELS ) {
+		switch(TYPE)
 		{
 		case BM_LINEAR:
 		case BM_OGL:
@@ -52,11 +53,11 @@ void gr_uscanline( int x1, int x2, int y )
 			break;
 		}
 	} else {
-		switch(MODE)
+		switch(TYPE)
 		{
 		case BM_LINEAR:
 		case BM_OGL:
-			gr_linear_darken( DATA + ROWSIZE*y + x1, (int) gameStates.render.grAlpha, x2-x1+1, paletteManager.FadeTable ());
+			gr_linear_darken( DATA + ROWSIZE*y + x1, (int) gameStates.render.grAlpha, x2-x1+1, grFadeTable);
 			break;
 		}
 	}
@@ -74,8 +75,8 @@ void GrScanLine( int x1, int x2, int y )
 	if (x1 < MINX) x1 = MINX;
 	if (x2 > MAXX) x2 = MAXX;
 
-	if (gameStates.render.grAlpha >= FADE_LEVELS ) {
-		switch(MODE)
+	if (gameStates.render.grAlpha >= GR_ACTUAL_FADE_LEVELS ) {
+		switch(TYPE)
 		{
 		case BM_LINEAR:
 		case BM_OGL:
@@ -83,11 +84,11 @@ void GrScanLine( int x1, int x2, int y )
 			break;
 		}
 	} else {
-		switch(MODE)
+		switch(TYPE)
 		{
 		case BM_LINEAR:
 		case BM_OGL:
-			gr_linear_darken( DATA + ROWSIZE*y + x1, (int) gameStates.render.grAlpha, x2-x1+1, paletteManager.FadeTable ());
+			gr_linear_darken( DATA + ROWSIZE*y + x1, (int) gameStates.render.grAlpha, x2-x1+1, grFadeTable);
 			break;
 		}
 	}

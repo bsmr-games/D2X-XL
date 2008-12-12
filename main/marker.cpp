@@ -1,3 +1,4 @@
+/* $Id: automap.c,v 1.16 2003/11/15 00:37:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -27,6 +28,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "error.h"
 #include "key.h"
 #include "text.h"
+#include "error.h"
 #include "strutil.h"
 #include "ogl_lib.h"
 #include "ogl_color.h"
@@ -35,7 +37,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 // -------------------------------------------------------------
 
-static inline CObject *MarkerObj (int nPlayer, int nMarker)
+static inline tObject *MarkerObj (int nPlayer, int nMarker)
 {
 short nObject = gameData.marker.objects [((nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer) * 2 + nMarker];
 return (nObject < 0) ? NULL : OBJECTS + nObject;
@@ -49,28 +51,28 @@ void DrawMarkerNumber (int nMarker)
 	int		i;
 	float		*px, *py;
 
-	static float xCoord [9][10] =
-		{{-0.25f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+	static float xCoord [10][20] =
+		{{-0.25f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f},
        {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f},
-       {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f},
-       {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+       {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f},
+       {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f},
        {-1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f},
        {-1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f},
-       {-1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+       {-1.0f, 1.0f, 1.0f, 1.0f},
        {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f},
-       {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 0.0f, 0.0f}
+       {-1.0f, 1.0f, 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f}
       };
 
-	static float yCoord [9][10] =
-		{{0.75f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+	static float yCoord [10][20] =
+		{{0.75f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f},
        {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, -1.0f, -1.0f},
-       {1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
-       {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+       {1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f},
+       {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, -1.0f},
        {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, -1.0f, -1.0f},
        {1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 0.0f, 0.0f, 0.0f},
-       {1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+       {1.0f, 1.0f, 1.0f, -1.0f},
        {1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f},
-       {1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}
+       {1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 1.0f}
       };
 
   int nPoints [] = {6, 10, 8, 6, 10, 10, 4, 10, 8};
@@ -78,16 +80,16 @@ void DrawMarkerNumber (int nMarker)
 if (gameData.marker.fScale == 0.0f)
 	gameData.marker.fScale = 2.0f;
 if (nMarker == gameData.marker.nHighlight)
-	CCanvas::Current ()->SetColorRGB (255, 255, 255, 255);
+	GrSetColorRGB (255, 255, 255, 255);
 else if (!strcmp (gameData.marker.szMessage [nMarker], "SPAWN"))
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (63, 0, 47));
+	GrSetColorRGBi (RGBA_PAL2 (63, 0, 47));
 else
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (63, 15, 0));
-G3TransformAndEncodePoint (&basePoint, MarkerObj (-1, nMarker)->info.position.vPos);
+	GrSetColorRGBi (RGBA_PAL2 (63, 15, 0));
+G3TransformAndEncodePoint (&basePoint, &MarkerObj (-1, nMarker)->position.vPos);
 glPushMatrix ();
-glTranslatef (X2F (basePoint.p3_vec[X]), X2F (basePoint.p3_vec[Y]), X2F (basePoint.p3_vec[Z]));
+glTranslatef (f2fl (basePoint.p3_vec.p.x), f2fl (basePoint.p3_vec.p.y), f2fl (basePoint.p3_vec.p.z));
 glDisable (GL_TEXTURE_2D);
-OglCanvasColor (&CCanvas::Current ()->Color ());
+OglGrsColor (&grdCurCanv->cvColor);
 glBegin (GL_LINES);
 px = xCoord [nMarker];
 py = yCoord [nMarker];
@@ -107,7 +109,7 @@ void DrawMarkers (void)
 {
 	g3sPoint spherePoint;
 	int		i, j, nMaxDrop, bSpawn;
-	CObject	*objP;
+	tObject	*objP;
 
 	static int cyc = 10, cycdir = 1;
 	static ubyte	colors [2][3] = {{20, 30, 40},{40, 50, 60}};
@@ -119,9 +121,9 @@ spherePoint.p3_index = -1;
 for (i = 0; i < nMaxDrop; i++)
 	if ((objP = MarkerObj (-1, i))) {
 		bSpawn = (objP == SpawnMarkerObject (-1));
-		G3TransformAndEncodePoint(&spherePoint, objP->info.position.vPos);
+		G3TransformAndEncodePoint (&spherePoint, &objP->position.vPos);
 		for (j = 0; j < 3; j++) {
-			CCanvas::Current ()->SetColorRGB (PAL2RGBA (colors [bSpawn][j]), 0, 0, 255);
+			GrSetColorRGB (PAL2RGBA (colors [bSpawn][j]), 0, 0, 255);
 			G3DrawSphere (&spherePoint, (int) (gameData.marker.fScale * MARKER_SPHERE_SIZE) >> j, 1);
 			}
 		DrawMarkerNumber (i);
@@ -144,14 +146,14 @@ else {
 
 //------------------------------------------------------------------------------
 
-int MoveSpawnMarker (tTransformation *posP, short nSegment)
+int MoveSpawnMarker (tPosition *posP, short nSegment)
 {
-	CObject	*markerP;
+	tObject	*markerP;
 
 if (!(markerP = SpawnMarkerObject (-1)))
 	return 0;
-markerP->info.position = *posP;
-markerP->RelinkToSeg (nSegment);
+markerP->position = *posP;
+RelinkObject (OBJ_IDX (markerP), nSegment);
 return 1;
 }
 
@@ -160,19 +162,18 @@ return 1;
 void DropMarker (char nPlayerMarker, int bSpawn)
 {
 	ubyte		nMarker = (gameData.multiplayer.nLocalPlayer * 2) + nPlayerMarker;
-	CObject	*playerP = OBJECTS + LOCALPLAYER.nObject;
+	tObject	*playerP = gameData.objs.objects + LOCALPLAYER.nObject;
 
-if (!(bSpawn && MoveSpawnMarker (&playerP->info.position, playerP->info.nSegment))) {
-	gameData.marker.point [nMarker] = playerP->info.position.vPos;
-	short nObject = gameData.marker.objects [nMarker];
-	if ((nObject >= 0) && (nObject <= gameData.objs.nLastObject [0]) && (OBJECTS [nObject].info.nType == OBJ_MARKER))
-		ReleaseObject (nObject);
+if (!(bSpawn && MoveSpawnMarker (&playerP->position, playerP->nSegment))) {
+	gameData.marker.point [nMarker] = playerP->position.vPos;
+	if (gameData.marker.objects [nMarker] != -1)
+		ReleaseObject (gameData.marker.objects [nMarker]);
 	if (bSpawn)
 		strcpy (gameData.marker.szMessage [nMarker], "SPAWN");
-	gameData.marker.objects [nMarker] =
-		DropMarkerObject (&playerP->info.position.vPos, (short) playerP->info.nSegment, &playerP->info.position.mOrient, nMarker);
+	gameData.marker.objects [nMarker] = 
+		DropMarkerObject (&playerP->position.vPos, (short) playerP->nSegment, &playerP->position.mOrient, nMarker);
 	if (IsMultiGame)
-		MultiSendDropMarker (gameData.multiplayer.nLocalPlayer, playerP->info.position.vPos, nPlayerMarker, gameData.marker.szMessage [nMarker]);
+		MultiSendDropMarker (gameData.multiplayer.nLocalPlayer, playerP->position.vPos, nPlayerMarker, gameData.marker.szMessage [nMarker]);
 	}
 }
 
@@ -193,7 +194,7 @@ if ((!IsMultiGame || IsCoopGame) && !(gameStates.app.bPlayerExploded || gameStat
 
 //------------------------------------------------------------------------------
 
-void DropBuddyMarker (CObject *objP)
+void DropBuddyMarker (tObject *objP)
 {
 	ubyte	nMarker;
 
@@ -202,10 +203,10 @@ nMarker = MAX_DROP_SINGLE + 1;
 if (nMarker > NUM_MARKERS - 1)
 	nMarker = NUM_MARKERS - 1;
 sprintf (gameData.marker.szMessage [nMarker], "RIP: %s",gameData.escort.szName);
-gameData.marker.point [nMarker] = objP->info.position.vPos;
+gameData.marker.point [nMarker] = objP->position.vPos;
 if (gameData.marker.objects [nMarker] != -1 && gameData.marker.objects [nMarker] !=0)
 	ReleaseObject (gameData.marker.objects [nMarker]);
-gameData.marker.objects [nMarker] = DropMarkerObject (&objP->info.position.vPos, (short) objP->info.nSegment, &objP->info.position.mOrient, nMarker);
+gameData.marker.objects [nMarker] = DropMarkerObject (&objP->position.vPos, (short) objP->nSegment, &objP->position.mOrient, nMarker);
 }
 
 //------------------------------------------------------------------------------
@@ -256,7 +257,7 @@ return -1;
 
 //------------------------------------------------------------------------------
 
-CObject *SpawnMarkerObject (int nPlayer)
+tObject *SpawnMarkerObject (int nPlayer)
 {
 	int	i = (IsCoopGame || !IsMultiGame) ? SpawnMarkerIndex (nPlayer) : -1;
 
@@ -265,9 +266,9 @@ return (i < 0) ? NULL : OBJECTS + gameData.marker.objects [i];
 
 //------------------------------------------------------------------------------
 
-int IsSpawnMarkerObject (CObject *objP)
+int IsSpawnMarkerObject (tObject *objP)
 {
-if (objP->info.nType == OBJ_MARKER) {
+if (objP->nType == OBJ_MARKER) {
 	int nMaxDrop, h, i, nObject = OBJ_IDX (objP);
 
 	nMaxDrop = MaxDrop ();
@@ -283,7 +284,6 @@ return 0;
 void DeleteMarker (int bForce)
 {
 if ((gameData.marker.nHighlight > -1) && (gameData.marker.objects [gameData.marker.nHighlight] != -1)) {
-	gameData.objs.viewerP = OBJECTS + gameData.marker.objects [gameData.marker.nHighlight];
 	if (bForce || !ExecMessageBox (NULL, NULL, 2, TXT_YES, TXT_NO, TXT_DELETE_MARKER)) {
 		int	h, i;
 		ReleaseObject (gameData.marker.objects [gameData.marker.nHighlight]);
@@ -304,8 +304,7 @@ if ((gameData.marker.nHighlight > -1) && (gameData.marker.objects [gameData.mark
 			gameData.marker.objects [i] = -1;
 			gameData.marker.szMessage [i][0] = '\0';
 			}
-		}
-	gameData.objs.viewerP = gameData.objs.consoleP;
+		}				
 	}
 }
 
@@ -314,25 +313,23 @@ if ((gameData.marker.nHighlight > -1) && (gameData.marker.objects [gameData.mark
 void TeleportToMarker (void)
 {
 if (!IsMultiGame || IsCoopGame) {
-#if !DBG
+#ifndef _DEBUG
 	if (LOCALPLAYER.energy < F1_0 * 25)
 		HUDMessage (0, TXT_CANNOT_TELEPORT);
-	else
+	else 
 #endif
 	if ((gameData.marker.nHighlight > -1) && (gameData.marker.objects [gameData.marker.nHighlight] != -1)) {
-		gameData.objs.viewerP = OBJECTS + gameData.marker.objects [gameData.marker.nHighlight];
 		if (!ExecMessageBox (NULL, NULL, 2, TXT_YES, TXT_NO, TXT_JUMP_TO_MARKER)) {
-			CObject	*markerP = OBJECTS + gameData.marker.objects [gameData.marker.nHighlight];
-
-#if !DBG
+			tObject	*markerP = OBJECTS + gameData.marker.objects [gameData.marker.nHighlight]; 
+			
+#ifndef _DEBUG
 			LOCALPLAYER.energy -= F1_0 * 25;
 #endif
-			OBJECTS [LOCALPLAYER.nObject].info.position.vPos = markerP->info.position.vPos;
-			OBJECTS [LOCALPLAYER.nObject].RelinkToSeg (markerP->info.nSegment);
+			OBJECTS [LOCALPLAYER.nObject].position.vPos = markerP->position.vPos;
+			RelinkObject (LOCALPLAYER.nObject, markerP->nSegment);
 			gameStates.render.bDoAppearanceEffect = 1;
 			}
-		gameData.objs.viewerP = gameData.objs.consoleP;
-		}
+		}				
 	}
 }
 
@@ -360,7 +357,7 @@ if (i == nMaxDrop) {		//no free slot
 		return;
 		}
 	}
-//got a free slot. start inputting marker message
+//got a D2_FREE slot.  start inputting marker message
 gameData.marker.szInput [0] = '\0';
 gameData.marker.nIndex = 0;
 gameData.marker.nDefiningMsg = 1;

@@ -1,3 +1,4 @@
+/* $Id: strutil.h,v 1.9 2003/11/26 12:26:28 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -29,17 +30,13 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #endif
 
 #ifndef _WIN32
-#	ifndef __DJGPP__
+#ifndef __DJGPP__
 char *strupr( char *s1 );
 char *strlwr( char *s1 );
-#	endif
+#endif
 
 char *strrev( char *s1 );
 #endif
-
-char *strcompress (char *str);
-
-char* StrDup (const char* source);
 
 #if !(defined(_WIN32) && !defined(_WIN32_WCE))
 void _splitpath(char *name, char *drive, char *path, char *base, char *ext);

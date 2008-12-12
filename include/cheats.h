@@ -4,7 +4,7 @@
 void KillAllRobots (int bVerbose);
 void KillEverything (int bVerbose);
 void KillThief (int bVerbose);
-#if DBG
+#ifdef _DEBUG
 void KillAllSnipers (int bVerbose);
 #endif
 void KillBuddy (int bVerbose);
@@ -13,9 +13,8 @@ void SuperWowieCheat (int bVerbose);
 void WowieCheat (int bVerbose);
 void GasolineCheat (int bVerbose);
 void DoWowieCheat (int bVerbose, int bInitialize);
-void KillAllBossRobots (int bVerbose);
 
-#if DBG
+#ifdef _DEBUG
 void DoCheatMenu ();
 #endif
 

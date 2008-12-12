@@ -1,3 +1,4 @@
+/* $Id: gpixel.c,v 1.5 2002/10/10 18:55:32 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,24 +25,24 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "vesa.h"
 #endif
 
-ubyte gr_ugpixel( CBitmap * bitmap, int x, int y )
+unsigned char gr_ugpixel( grsBitmap * bitmap, int x, int y )
 {
 #ifdef __DJGPP__
-	switch(bitmap->props.nMode)
+	switch(bitmap->bmProps.nType)
 	{
 	case BM_LINEAR:
 #endif
-		return bitmap->Buffer () [bitmap->RowSize () * y + x];
+		return bitmap->bmTexBuf[ bitmap->bmProps.rowSize*y + x ];
 #ifdef __DJGPP__
 	case BM_MODEX:
-		x += bitmap->props.x;
-		y += bitmap->props.y;
+		x += bitmap->bmProps.x;
+		y += bitmap->bmProps.y;
 		gr_modex_setplane( x & 3 );
-		return gr_video_memory[(bitmap->RowSize () * y) + (x/4)];
+		return gr_video_memory[(bitmap->bmProps.rowSize * y) + (x/4)];
 	case BM_SVGA:
 		{
-		uint offset;
-		offset = (uint)bitmap->Buffer () + (uint)bitmap->RowSize () * y + x;
+		unsigned int offset;
+		offset = (unsigned int)bitmap->bmTexBuf + (unsigned int)bitmap->bmProps.rowSize * y + x;
 		gr_vesa_setpage( offset >> 16 );
 		return gr_video_memory[offset & 0xFFFF];
 		}
@@ -50,25 +51,25 @@ ubyte gr_ugpixel( CBitmap * bitmap, int x, int y )
 #endif
 }
 
-ubyte gr_gpixel( CBitmap * bitmap, int x, int y )
+unsigned char gr_gpixel( grsBitmap * bitmap, int x, int y )
 {
-	if ((x<0) || (y<0) || (x>=bitmap->Width ()) || (y>=bitmap->Height ())) return 0;
+	if ((x<0) || (y<0) || (x>=bitmap->bmProps.w) || (y>=bitmap->bmProps.h)) return 0;
 #ifdef __DJGPP__
-	switch(bitmap->props.nMode)
+	switch(bitmap->bmProps.nType)
 	{
 	case BM_LINEAR:
 #endif
-		return bitmap->Buffer ()[ bitmap->RowSize ()*y + x ];
+		return bitmap->bmTexBuf[ bitmap->bmProps.rowSize*y + x ];
 #ifdef __DJGPP__
 	case BM_MODEX:
-		x += bitmap->props.x;
-		y += bitmap->props.y;
+		x += bitmap->bmProps.x;
+		y += bitmap->bmProps.y;
 		gr_modex_setplane( x & 3 );
-		return gr_video_memory[(bitmap->RowSize () * y) + (x/4)];
+		return gr_video_memory[(bitmap->bmProps.rowSize * y) + (x/4)];
 	case BM_SVGA:
 		{
-		uint offset;
-		offset = (uint)bitmap->Buffer () + (uint)bitmap->RowSize () * y + x;
+		unsigned int offset;
+		offset = (unsigned int)bitmap->bmTexBuf + (unsigned int)bitmap->bmProps.rowSize * y + x;
 		gr_vesa_setpage( offset >> 16 );
 		return gr_video_memory[offset & 0xFFFF];
 		}

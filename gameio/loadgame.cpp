@@ -1,3 +1,4 @@
+/* $Id: gameseq.c,v 1.33 2003/11/26 12:26:30 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,12 +16,16 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+char gameseq_rcsid [] = "$Id: gameseq.c,v 1.33 2003/11/26 12:26:30 btb Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #ifndef _WIN32
-#	include <unistd.h>
+#include <unistd.h>
 #endif
 #include <time.h>
 
@@ -95,7 +100,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "powerup.h"
 #include "text.h"
 #include "cfile.h"
-#include "hogfile.h"
 #include "piggy.h"
 #include "textdata.h"
 #include "texmerge.h"
@@ -118,9 +122,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "entropy.h"
 #include "monsterball.h"
 #include "sparkeffect.h"
-#include "transprender.h"
-#include "slowmotion.h"
-#include "soundthreads.h"
 
 #if defined (TACTILE)
  #include "tactile.h"
@@ -134,7 +135,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "rle.h"
 #include "input.h"
 
-#define SPAWN_MIN_DIST	I2X (15 * 20)
+#define SPAWN_MIN_DIST	i2f (15 * 20)
 
 //------------------------------------------------------------------------------
 
@@ -169,6 +170,7 @@ void CopyDefaultsToRobotsAll (void);
 void HUDClearMessages (); // From hud.c
 #endif
 
+void GrRemapMonoFonts ();
 void SetFunctionMode (int);
 void InitHoardData ();
 
@@ -183,9 +185,9 @@ void VerifyConsoleObject (void)
 {
 Assert (gameData.multiplayer.nLocalPlayer > -1);
 Assert (LOCALPLAYER.nObject > -1);
-gameData.objs.consoleP = OBJECTS + LOCALPLAYER.nObject;
-Assert (gameData.objs.consoleP->info.nType == OBJ_PLAYER);
-Assert (gameData.objs.consoleP->info.nId == gameData.multiplayer.nLocalPlayer);
+gameData.objs.console = gameData.objs.objects + LOCALPLAYER.nObject;
+Assert (gameData.objs.console->nType == OBJ_PLAYER);
+Assert (gameData.objs.console->id==gameData.multiplayer.nLocalPlayer);
 }
 
 //------------------------------------------------------------------------------
@@ -193,11 +195,12 @@ Assert (gameData.objs.consoleP->info.nId == gameData.multiplayer.nLocalPlayer);
 int CountRobotsInLevel (void)
 {
 	int robotCount = 0;
-	int 		i;
-	CObject	*objP;
+	int i;
 
-FORALL_ROBOT_OBJS (objP, i)
-	robotCount++;
+for (i = 0; i <= gameData.objs.nLastObject; i++) {
+	if (gameData.objs.objects [i].nType == OBJ_ROBOT)
+		robotCount++;
+	}
 return robotCount;
 }
 
@@ -205,13 +208,13 @@ return robotCount;
 
 int CountHostagesInLevel (void)
 {
-	int 		count = 0;
-	int 		i;
-	CObject	*objP;
+	int count = 0;
+	int i;
 
-FORALL_STATIC_OBJS (objP, i)
-	if (objP->info.nType == OBJ_HOSTAGE)
+for (i = 0; i <= gameData.objs.nLastObject; i++) {
+	if (gameData.objs.objects [i].nType == OBJ_HOSTAGE)
 		count++;
+	}
 return count;
 }
 
@@ -220,33 +223,31 @@ return count;
 void GameStartInitNetworkPlayers (void)
 {
 	int		i, j, t, bCoop = IsCoopGame,
-				segNum, segType,
+				segNum, segType, 
 				playerObjs [MAX_PLAYERS], startSegs [MAX_PLAYERS],
 				nPlayers, nMaxPlayers = bCoop ? MAX_COOP_PLAYERS : MAX_PLAYERS;
-	CObject	*objP, *nextObjP;
+	tObject	*objP;
 
-	// Initialize network CPlayerData start locations and CObject numbers
+	// Initialize network tPlayer start locations and tObject numbers
 
 memset (gameStates.multi.bPlayerIsTyping, 0, sizeof (gameStates.multi.bPlayerIsTyping));
 //VerifyConsoleObject ();
 nPlayers = 0;
 j = 0;
-for (objP = gameData.objs.lists.all.head; objP; objP = nextObjP) {
-	nextObjP = objP->Links (0).next;
-	t = objP->info.nType;
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++) {
+	t = objP->nType;
 	if ((t == OBJ_PLAYER) || (t == OBJ_GHOST) || (t == OBJ_COOP)) {
-		i = OBJ_IDX (objP);
 		if ((nPlayers >= nMaxPlayers) || (bCoop ? (j && (t != OBJ_COOP)) : (t == OBJ_COOP)))
 			ReleaseObject ((short) i);
 		else {
 			playerObjs [nPlayers] = i;
-			startSegs [nPlayers] = objP->info.nSegment;
+			startSegs [nPlayers] = gameData.objs.objects [i].nSegment;
 			nPlayers++;
 			}
 		j++;
 		}
 	else if (t == OBJ_ROBOT) {
-		if (ROBOTINFO (objP->info.nId).companion && IsMultiGame)
+		if (ROBOTINFO (objP->id).companion && IsMultiGame)
 			ReleaseObject ((short) i);		//kill the buddy in netgames
 		}
 	}
@@ -254,14 +255,14 @@ for (objP = gameData.objs.lists.all.head; objP; objP = nextObjP) {
 // the following code takes care of team players being assigned the proper start locations
 // in enhanced CTF
 for (i = 0; i < nPlayers; i++) {
-// find a CPlayerData CObject that resides in a CSegment of proper nType for the current
-// CPlayerData start info
+// find a tPlayer tObject that resides in a tSegment of proper nType for the current
+// tPlayer start info 
 	for (j = 0; j < nPlayers; j++) {
 		segNum = startSegs [j];
 		if (segNum < 0)
 			continue;
 		segType = bCoop ? gameData.segs.segment2s [segNum].special : SEGMENT_IS_NOTHING;
-#if 0
+#if 0		
 		switch (segType) {
 			case SEGMENT_IS_GOAL_RED:
 			case SEGMENT_IS_TEAM_RED:
@@ -278,24 +279,24 @@ for (i = 0; i < nPlayers; i++) {
 			default:
 				break;
 			}
-#endif
-		objP = OBJECTS + playerObjs [j];
-		objP->SetType (OBJ_PLAYER);
-		gameData.multiplayer.playerInit [i].position = objP->info.position;
-		gameData.multiplayer.playerInit [i].nSegment = objP->info.nSegment;
+#endif		
+		objP = gameData.objs.objects + playerObjs [j];
+		objP->nType = OBJ_PLAYER;
+		gameData.multiplayer.playerInit [i].position = objP->position;
+		gameData.multiplayer.playerInit [i].nSegment = objP->nSegment;
 		gameData.multiplayer.playerInit [i].nSegType = segType;
 		gameData.multiplayer.players [i].nObject = playerObjs [j];
-		objP->info.nId = i;
+		objP->id = i;
 		startSegs [j] = -1;
 		break;
 		}
 	}
-gameData.objs.viewerP = gameData.objs.consoleP = OBJECTS.Buffer (); // + LOCALPLAYER.nObject;
+gameData.objs.viewer = gameData.objs.console = gameData.objs.objects; // + LOCALPLAYER.nObject;
 gameData.multiplayer.nPlayerPositions = nPlayers;
 
-#if DBG
+#ifdef _DEBUG
 if (gameData.multiplayer.nPlayerPositions != (bCoop ? 4 : 8)) {
-#if TRACE
+#if TRACE	
 	//con_printf (CON_VERBOSE, "--NOT ENOUGH MULTIPLAYER POSITIONS IN THIS MINE!--\n");
 #endif
 	//Int3 (); // Not enough positions!!
@@ -312,7 +313,7 @@ if (IS_D2_OEM && IsMultiGame && (gameData.missions.nCurrentMission == gameData.m
 if (IS_MAC_SHARE && IsMultiGame && (gameData.missions.nCurrentMission == gameData.missions.nBuiltinMission) && (gameData.missions.nCurrentLevel == 4)) {
 	for (i = 0; i < nPlayers; i++)
 		if (gameData.multiplayer.players [i].connected && !(netPlayers.players [i].versionMinor & 0xF0)) {
-			ExecMessageBox ("Warning!", NULL, 1 , TXT_OK,
+			ExecMessageBox ("Warning!", NULL, 1 , TXT_OK, 
 								 "This shareware version of Descent II\nwill disconnect after this level.\nPlease purchase the full version\nto experience all the levels!");
 			return;
 			}
@@ -341,7 +342,7 @@ else {		// Note link to above if!!!
 
 //------------------------------------------------------------------------------
 
-// Setup CPlayerData for new game
+// Setup tPlayer for new game
 void InitPlayerStatsGame (void)
 {
 LOCALPLAYER.score = 0;
@@ -367,8 +368,6 @@ LOCALPLAYER.hostages.nLevel = 0;
 LOCALPLAYER.hostages.nTotal = 0;
 LOCALPLAYER.laserLevel = 0;
 LOCALPLAYER.flags = 0;
-LOCALPLAYER.nCloaks =
-LOCALPLAYER.nInvuls = 0;
 InitPlayerStatsNewShip ();
 gameStates.app.bFirstSecretVisit = 1;
 }
@@ -391,7 +390,7 @@ if (LOCALPLAYER.secondaryAmmo [0] < 2 + NDL - gameStates.app.nDifficultyLevel)
 
 //------------------------------------------------------------------------------
 
-// Setup CPlayerData for new level (After completion of previous level)
+// Setup tPlayer for new level (After completion of previous level)
 void InitPlayerStatsLevel (int bSecret)
 {
 LOCALPLAYER.lastScore = LOCALPLAYER.score;
@@ -409,7 +408,7 @@ LOCALPLAYER.hostages.nTotal += LOCALPLAYER.hostages.nLevel;
 LOCALPLAYER.hostages.nOnBoard = 0;
 if (!bSecret) {
 	InitAmmoAndEnergy ();
-	LOCALPLAYER.flags &=
+	LOCALPLAYER.flags &=  
 		~(PLAYER_FLAGS_INVULNERABLE | PLAYER_FLAGS_CLOAKED | PLAYER_FLAGS_FULLMAP | KEY_BLUE | KEY_RED | KEY_GOLD);
 	LOCALPLAYER.cloakTime = 0;
 	LOCALPLAYER.invulnerableTime = 0;
@@ -424,9 +423,9 @@ else if (gameStates.app.bD1Mission)
 	InitAmmoAndEnergy ();
 gameStates.app.bPlayerIsDead = 0; // Added by RH
 LOCALPLAYER.homingObjectDist = -F1_0; // Added by RH
-gameData.laser.xLastFiredTime =
-gameData.laser.xNextFireTime =
-gameData.missiles.xLastFiredTime =
+gameData.laser.xLastFiredTime = 
+gameData.laser.xNextFireTime = 
+gameData.missiles.xLastFiredTime = 
 gameData.missiles.xNextFireTime = gameData.time.xGame; // added by RH, solved demo playback bug
 Controls [0].afterburnerState = 0;
 gameStates.gameplay.bLastAfterburnerState = 0;
@@ -436,42 +435,14 @@ InitGauges ();
 if (TactileStick)
 	tactile_set_button_jolt ();
 #endif
-gameData.objs.missileViewerP = NULL;
+gameData.objs.missileViewer = NULL;
 }
 
 //------------------------------------------------------------------------------
 
-void InitAIForShip (void);
+extern	void InitAIForShip (void);
 
-//------------------------------------------------------------------------------
-
-void AddPlayerLoadout (void)
-{
-if (gameStates.app.bHaveExtraGameInfo [IsMultiGame])
-	{
-	LOCALPLAYER.primaryWeaponFlags |= extraGameInfo [IsMultiGame].loadout.nGuns;
-	if (gameStates.app.bD1Mission)
-	   LOCALPLAYER.primaryWeaponFlags &= ~(HAS_FLAG (HELIX_INDEX) | HAS_FLAG (GAUSS_INDEX) | HAS_FLAG (PHOENIX_INDEX) | HAS_FLAG (OMEGA_INDEX));
-	if (!gameStates.app.bD1Mission && (extraGameInfo [IsMultiGame].loadout.nGuns & HAS_FLAG (SUPER_LASER_INDEX)))
-		LOCALPLAYER.laserLevel = MAX_LASER_LEVEL + 2;
-	else if (extraGameInfo [IsMultiGame].loadout.nGuns & HAS_FLAG (LASER_INDEX))
-		LOCALPLAYER.laserLevel = MAX_LASER_LEVEL;
-	if (extraGameInfo [IsMultiGame].loadout.nGuns & (HAS_FLAG (VULCAN_INDEX) | HAS_FLAG (GAUSS_INDEX)))
-		LOCALPLAYER.primaryAmmo [1] = GAUSS_WEAPON_AMMO_AMOUNT;
-	LOCALPLAYER.flags |= extraGameInfo [IsMultiGame].loadout.nDevices;
-	if (extraGameInfo [1].bDarkness)
-		LOCALPLAYER.flags |= PLAYER_FLAGS_HEADLIGHT;
-	if (gameStates.app.bD1Mission)
-		{
-	   LOCALPLAYER.primaryWeaponFlags &= ~(HAS_FLAG (HELIX_INDEX) | HAS_FLAG (GAUSS_INDEX) | HAS_FLAG (PHOENIX_INDEX) | HAS_FLAG (OMEGA_INDEX));
-	   LOCALPLAYER.flags &= ~(PLAYER_FLAGS_FULLMAP | PLAYER_FLAGS_AMMO_RACK | PLAYER_FLAGS_CONVERTER | PLAYER_FLAGS_AFTERBURNER | PLAYER_FLAGS_HEADLIGHT);
-	   }
-	}
-}
-
-//------------------------------------------------------------------------------
-
-// Setup CPlayerData for a brand-new ship
+// Setup tPlayer for a brand-new ship
 void InitPlayerStatsNewShip (void)
 {
 	int	i;
@@ -504,7 +475,7 @@ LOCALPLAYER.secondaryWeaponFlags = HAS_CONCUSSION_FLAG;
 gameData.weapons.nOverridden = 0;
 gameData.weapons.nPrimary = 0;
 gameData.weapons.nSecondary = 0;
-LOCALPLAYER.flags &= ~
+LOCALPLAYER.flags &= ~ 
 	(PLAYER_FLAGS_QUAD_LASERS |
 	 PLAYER_FLAGS_AFTERBURNER |
 	 PLAYER_FLAGS_CLOAKED |
@@ -515,15 +486,32 @@ LOCALPLAYER.flags &= ~
 	 PLAYER_FLAGS_HEADLIGHT |
 	 PLAYER_FLAGS_HEADLIGHT_ON |
 	 PLAYER_FLAGS_FLAG);
-AddPlayerLoadout ();
+if (gameStates.app.bHaveExtraGameInfo [IsMultiGame]) {
+	LOCALPLAYER.primaryWeaponFlags |= extraGameInfo [IsMultiGame].loadout.nGuns;
+	if (gameStates.app.bD1Mission)
+	   LOCALPLAYER.primaryWeaponFlags &= ~(HAS_FLAG (HELIX_INDEX) | HAS_FLAG (GAUSS_INDEX) | HAS_FLAG (PHOENIX_INDEX) | HAS_FLAG (OMEGA_INDEX));
+	if (!gameStates.app.bD1Mission && (extraGameInfo [IsMultiGame].loadout.nGuns & HAS_FLAG (SUPER_LASER_INDEX)))
+		LOCALPLAYER.laserLevel = MAX_LASER_LEVEL + 2;
+	else if (extraGameInfo [IsMultiGame].loadout.nGuns & HAS_FLAG (LASER_INDEX))
+		LOCALPLAYER.laserLevel = MAX_LASER_LEVEL;
+	if (extraGameInfo [IsMultiGame].loadout.nGuns & (HAS_FLAG (VULCAN_INDEX) | HAS_FLAG (GAUSS_INDEX)))
+		LOCALPLAYER.primaryAmmo [1] = i2f (5000) / VULCAN_AMMO_SCALE;
+	LOCALPLAYER.flags |= extraGameInfo [IsMultiGame].loadout.nDevices;
+	if (extraGameInfo [1].bDarkness)
+		LOCALPLAYER.flags |= PLAYER_FLAGS_HEADLIGHT;
+	if (gameStates.app.bD1Mission) {
+	   LOCALPLAYER.primaryWeaponFlags &= ~(HAS_FLAG (HELIX_INDEX) | HAS_FLAG (GAUSS_INDEX) | HAS_FLAG (PHOENIX_INDEX) | HAS_FLAG (OMEGA_INDEX));
+	   LOCALPLAYER.flags &= ~(PLAYER_FLAGS_FULLMAP | PLAYER_FLAGS_AMMO_RACK | PLAYER_FLAGS_CONVERTER | PLAYER_FLAGS_AFTERBURNER | PLAYER_FLAGS_HEADLIGHT);
+	   }
+	}
 LOCALPLAYER.cloakTime = 0;
 LOCALPLAYER.invulnerableTime = 0;
-gameStates.app.bPlayerIsDead = 0;		//CPlayerData no longer dead
+gameStates.app.bPlayerIsDead = 0;		//tPlayer no longer dead
 LOCALPLAYER.homingObjectDist = -F1_0; // Added by RH
 Controls [0].afterburnerState = 0;
 gameStates.gameplay.bLastAfterburnerState = 0;
 DigiKillSoundLinkedToObject (LOCALPLAYER.nObject);
-gameData.objs.missileViewerP = NULL;		///reset missile camera if out there
+gameData.objs.missileViewer = NULL;		///reset missile camera if out there
 #ifdef TACTILE
 	if (TactileStick)
 	{
@@ -541,16 +529,16 @@ void InitStuckObjects (void);
 
 extern int gameData.segs.bHaveSlideSegs;
 
-//reset stuff so game is semi-Normal when playing from editor
+//reset stuff so game is semi-normal when playing from editor
 void editor_reset_stuff_onLevel ()
 {
 	GameStartInitNetworkPlayers ();
 	InitPlayerStatsLevel (0);
-	gameData.objs.viewerP = gameData.objs.consoleP;
-	gameData.objs.consoleP = gameData.objs.viewerP = OBJECTS + LOCALPLAYER.nObject;
-	gameData.objs.consoleP->id=gameData.multiplayer.nLocalPlayer;
-	gameData.objs.consoleP->controlType = CT_FLYING;
-	gameData.objs.consoleP->movementType = MT_PHYSICS;
+	gameData.objs.viewer = gameData.objs.console;
+	gameData.objs.console = gameData.objs.viewer = gameData.objs.objects + LOCALPLAYER.nObject;
+	gameData.objs.console->id=gameData.multiplayer.nLocalPlayer;
+	gameData.objs.console->controlType = CT_FLYING;
+	gameData.objs.console->movementType = MT_PHYSICS;
 	gameStates.app.bGameSuspended = 0;
 	VerifyConsoleObject ();
 	gameData.reactor.bDestroyed = 0;
@@ -573,7 +561,7 @@ void editor_reset_stuff_onLevel ()
 
 //------------------------------------------------------------------------------
 
-//do whatever needs to be done when a CPlayerData dies in multiplayer
+//do whatever needs to be done when a tPlayer dies in multiplayer
 void DoGameOver (void)
 {
 //	ExecMessageBox (TXT_GAME_OVER, 1, TXT_OK, "");
@@ -587,17 +575,17 @@ longjmp (gameExitPoint, 0);		// Exit out of game loop
 
 //------------------------------------------------------------------------------
 
-//update various information about the CPlayerData
+//update various information about the tPlayer
 void UpdatePlayerStats (void)
 {
 LOCALPLAYER.timeLevel += gameData.time.xFrame;	//the never-ending march of time...
-if (LOCALPLAYER.timeLevel > I2X (3600))	{
-	LOCALPLAYER.timeLevel -= I2X (3600);
+if (LOCALPLAYER.timeLevel > i2f (3600))	{
+	LOCALPLAYER.timeLevel -= i2f (3600);
 	LOCALPLAYER.hoursLevel++;
 	}
 LOCALPLAYER.timeTotal += gameData.time.xFrame;	//the never-ending march of time...
-if (LOCALPLAYER.timeTotal > I2X (3600))	{
-	LOCALPLAYER.timeTotal -= I2X (3600);
+if (LOCALPLAYER.timeTotal > i2f (3600))	{
+	LOCALPLAYER.timeTotal -= i2f (3600);
 	LOCALPLAYER.hoursTotal++;
 	}
 }
@@ -608,31 +596,31 @@ if (LOCALPLAYER.timeTotal > I2X (3600))	{
 void SetSoundSources (void)
 {
 	short			nSegment, nSide, nConnSeg, nConnSide, nSound;
-	CSegment		*segP, *connSegP;
-	CObject		*objP;
-	CFixVector	v;
+	tSegment		*segP, *connSegP;
+	tObject		*objP;
+	vmsVector	v;
 	int			i, nOvlTex, nEffect;
 
 gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds && !gameOpts->sound.bHires;
 DigiInitSounds ();		//clear old sounds
 gameStates.sound.bDontStartObjects = 1;
-for (segP = gameData.segs.segments.Buffer (), nSegment = 0; nSegment <= gameData.segs.nLastSegment; segP++, nSegment++)
+for (segP = gameData.segs.segments, nSegment = 0; nSegment <= gameData.segs.nLastSegment; segP++, nSegment++)
 	for (nSide = 0; nSide < MAX_SIDES_PER_SEGMENT; nSide++) {
 		if (!(WALL_IS_DOORWAY (segP,nSide, NULL) & WID_RENDER_FLAG))
 			continue;
-		nEffect = (nOvlTex = segP->sides [nSide].nOvlTex) ? gameData.pig.tex.tMapInfoP [nOvlTex].nEffectClip : -1;
+		nEffect = (nOvlTex = segP->sides [nSide].nOvlTex) ? gameData.pig.tex.pTMapInfo [nOvlTex].nEffectClip : -1;
 		if (nEffect < 0)
-			nEffect = gameData.pig.tex.tMapInfoP [segP->sides [nSide].nBaseTex].nEffectClip;
+			nEffect = gameData.pig.tex.pTMapInfo [segP->sides [nSide].nBaseTex].nEffectClip;
 		if (nEffect < 0)
 			continue;
-		if ((nSound = gameData.eff.effectP [nEffect].nSound) == -1)
+		if ((nSound = gameData.eff.pEffects [nEffect].nSound) == -1)
 			continue;
 		nConnSeg = segP->children [nSide];
 
 		//check for sound on other tSide of tWall.  Don't add on
 		//both walls if sound travels through tWall.  If sound
 		//does travel through tWall, add sound for lower-numbered
-		//CSegment.
+		//tSegment.
 
 		if (IS_CHILD (nConnSeg) && (nConnSeg < nSegment) &&
 			 (WALL_IS_DOORWAY (segP, nSide, NULL) & (WID_FLY_FLAG | WID_RENDPAST_FLAG))) {
@@ -646,11 +634,11 @@ for (segP = gameData.segs.segments.Buffer (), nSegment = 0; nSegment <= gameData
 		}
 
 if (0 <= (nSound = DigiGetSoundByName ("explode2"))) {
-	FORALL_STATIC_OBJS (objP, i)
-		if (objP->info.nType == OBJ_EXPLOSION) {
-			objP->info.renderType = RT_POWERUP;
-			objP->rType.vClipInfo.nClipIndex = objP->info.nId;
-			DigiSetObjectSound (OBJ_IDX (objP), nSound, NULL);
+	for (i = 0, objP = OBJECTS; i <= gameData.objs.nLastObject; i++, objP++) 
+		if (objP->nType == OBJ_EXPLOSION) {
+			objP->renderType = RT_POWERUP;
+			objP->rType.vClipInfo.nClipIndex = objP->id;
+			DigiSetObjectSound (i, nSound, NULL);
 			}
 	}
 //gameStates.sound.bD1Sound = 0;
@@ -661,29 +649,29 @@ gameStates.sound.bDontStartObjects = 0;
 
 void SetVertigoRobotFlags (void)
 {
-	CObject	*objP;
+	tObject	*objP;
 	int		i;
 
 gameData.objs.nVertigoBotFlags = 0;
-FORALL_ROBOT_OBJS (objP, i)
-	if ((objP->info.nId >= 66) && !IS_BOSS (objP))
-		gameData.objs.nVertigoBotFlags |= (1 << (objP->info.nId - 64));
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) && (objP->id >= 66) && !IS_BOSS (objP))
+		gameData.objs.nVertigoBotFlags |= (1 << (objP->id - 64));
 }
 
 //------------------------------------------------------------------------------
 
 char *LevelName (int nLevel)
 {
-return gameStates.app.bAutoRunMission ? szAutoMission : (nLevel < 0) ?
-		 gameData.missions.szSecretLevelNames [-nLevel-1] :
+return gameStates.app.bAutoRunMission ? szAutoMission : (nLevel < 0) ? 
+		 gameData.missions.szSecretLevelNames [-nLevel-1] : 
 		 gameData.missions.szLevelNames [nLevel-1];
 }
 
 //------------------------------------------------------------------------------
 
-char *MakeLevelFilename (int nLevel, char *pszFilename, const char *pszFileExt)
+char *MakeLevelFilename (int nLevel, char *pszFilename, char *pszFileExt)
 {
-CFile::ChangeFilenameExtension (pszFilename, strlwr (LevelName (nLevel)), pszFileExt);
+ChangeFilenameExtension (pszFilename, strlwr (LevelName (nLevel)), pszFileExt);
 return pszFilename;
 }
 
@@ -692,8 +680,8 @@ return pszFilename;
 char *LevelSongName (int nLevel)
 {
 return gameStates.app.bAutoRunMission ? 0 :
-			(nLevel < 0) ?
-			gameData.missions.szSongNames [-nLevel-1] :
+			(nLevel < 0) ? 
+			gameData.missions.szSongNames [-nLevel-1] : 
 			gameData.missions.szSongNames [nLevel-1];
 }
 
@@ -706,36 +694,27 @@ int LoadLevel (int nLevel, int bPageInTextures, int bRestore)
 {
 	char		*pszLevelName;
 	char		szHogName [FILENAME_LEN];
-	CPlayerData	save_player;
-	int		nRooms, bRetry = 0, nLoadRes, nCurrentLevel = gameData.missions.nCurrentLevel;
+	tPlayer	save_player;
+	int		nRooms, bRetry = 0, nLoadRes;
 
 /*---*/PrintLog ("Loading level...\n");
-lightmapManager.Destroy ();
+if (!gameStates.render.bUsePerPixelLighting)
+	gameStates.render.bPerPixelLighting = 0;
+DestroyLightMaps ();
 gameStates.app.bBetweenLevels = 1;
 gameStates.app.bFreeCam = 0;
 gameStates.app.bGameRunning = 0;
-gameStates.app.bPlayerExploded = 0;
 gameData.physics.side.nSegment = -1;
 gameData.physics.side.nSide = -1;
 memset (&gameData.marker, 0, sizeof (gameData.marker));
 gameData.marker.nLast = -1;
-gameData.songs.tPos =
+gameData.songs.tPos = 
 gameData.songs.tSlowDown = 0;
 gameStates.gameplay.bKillBossCheat = 0;
 gameStates.render.nFlashScale = F1_0;
 gameOpts->app.nScreenShotInterval = 0;	//better reset this every time a level is loaded
 gameStates.render.automap.bFull = 0;
-gameData.render.ogl.nHeadlights = -1;
-gameData.render.nColoredFaces = 0;
-gameData.app.nFrameCount = 0;
-gameData.app.nMineRenderCount = 0;
-memset (&gameData.objs.lists, 0, sizeof (gameData.objs.lists));
-memset (gameData.app.semaphores, 0, sizeof (gameData.app.semaphores));
-transpItems.nMinOffs = ITEM_DEPTHBUFFER_SIZE;
-transpItems.nMaxOffs = 0;
-#if PROFILING
-memset (&gameData.profiler, 0, sizeof (gameData.profiler));
-#endif
+gameData.render.ogl.nHeadLights = -1;
 DigiKillSoundLinkedToObject (LOCALPLAYER.nObject);
 memset (gameData.stats.player, 0, sizeof (tPlayerStats));
 memset (gameData.render.mine.bObjectRendered, 0xff, sizeof (gameData.render.mine.bObjectRendered));
@@ -745,35 +724,23 @@ memset (gameData.multiplayer.weaponStates, 0xff, sizeof (gameData.multiplayer.we
 memset (gameData.multiplayer.bWasHit, 0, sizeof (gameData.multiplayer.bWasHit));
 memset (gameData.multiplayer.nLastHitTime, 0, sizeof (gameData.multiplayer.nLastHitTime));
 memset (gameData.weapons.firing, 0, sizeof (gameData.weapons.firing));
-gameData.objs.objects.Clear ();
-gameData.objs.lightObjs.Clear (0xff);
-gameData.render.faceIndex [0].roots.Clear (0xff);
-gameData.render.faceIndex [1].roots.Clear (0xff);
-gameData.render.faceIndex [0].tails.Clear (0xff);
-gameData.render.faceIndex [1].tails.Clear (0xff);
-memset (&gameData.render.lights.dynamic.shader.index, 0, sizeof (gameData.render.lights.dynamic.shader.index));
-memset (gameData.objs.bWantEffect, 0, sizeof (gameData.objs.bWantEffect));
-memset (gameData.objs.guidedMissile, 0, sizeof (gameData.objs.guidedMissile));
+memset (gameData.objs.lightObjs, (char) 0xff, MAX_OBJECTS * sizeof (*gameData.objs.lightObjs));
+memset (gameData.objs.shots, (char) 0xff, MAX_OBJECTS * sizeof (*gameData.objs.shots));
+memset (gameData.render.faceIndex [0].roots, 0xff, sizeof (gameData.render.faceIndex [0].roots));
+memset (gameData.render.faceIndex [1].roots, 0xff, sizeof (gameData.render.faceIndex [1].roots));
+memset (gameData.render.faceIndex [0].tails, 0xff, sizeof (gameData.render.faceIndex [0].tails));
+memset (gameData.render.faceIndex [1].tails, 0xff, sizeof (gameData.render.faceIndex [1].tails));
 gameData.render.faceIndex [0].nUsedFaces = 0;
 gameData.render.faceIndex [0].nUsedKeys = 0;
 gameData.render.faceIndex [1].nUsedFaces = MAX_FACES;
 gameData.render.faceIndex [1].nUsedKeys = 0;
-omegaLightnings.Init ();
+gameData.omega.lightnings.nHandles = 0;
 gameData.multiplayer.bMoving = -1;
 #if 1
 /*---*/PrintLog ("   stopping music\n");
 SongsStopAll ();
 /*---*/PrintLog ("   stopping sounds\n");
 DigiStopAllChannels ();
-/*---*/PrintLog ("   reconfiguring audio\n");
-gameData.missions.nCurrentLevel = nLevel;
-if (!bRestore) {
-	gameStates.gameplay.slowmo [0].fSpeed =
-	gameStates.gameplay.slowmo [1].fSpeed = 1;
-	gameStates.gameplay.slowmo [0].nState =
-	gameStates.gameplay.slowmo [1].nState = 0;
-	SpeedupSound ();
-	}
 /*---*/PrintLog ("   unloading textures\n");
 PiggyBitmapPageOutAll (0);
 /*---*/PrintLog ("   unloading custom sounds\n");
@@ -811,14 +778,12 @@ if (gameData.missions.nEnhancedMission) {
 	switch (BMReadExtraRobots (t, gameFolders.szMissionDirs [0], gameData.missions.nEnhancedMission)) {
 		case -1:
 			gameStates.app.bBetweenLevels = 0;
-			gameData.missions.nCurrentLevel = nCurrentLevel;
 			return 0;
 		case 1:
 			break;
 		default:
 			if (0 > BMReadExtraRobots ("d2x.ham", gameFolders.szMissionDir, gameData.missions.nEnhancedMission)) {
 				gameStates.app.bBetweenLevels = 0;
-				gameData.missions.nCurrentLevel = nCurrentLevel;
 				return 0;
 				}
 		}
@@ -829,85 +794,75 @@ if (gameData.missions.nEnhancedMission) {
 	}
 #endif
 /*---*/PrintLog ("   Destroying camera objects\n");
-cameraManager.Destroy ();
+DestroyCameras ();
 /*---*/PrintLog ("   Destroying particle data\n");
-particleManager.Shutdown ();
+DestroyAllSmoke ();
 /*---*/PrintLog ("   Destroying lightning data\n");
-omegaLightnings.Destroy (-1);
-lightningManager.Shutdown (1);
+DestroyAllLightnings (1);
+DestroyOmegaLightnings (-1);
 /*---*/PrintLog ("   Initializing smoke manager\n");
 InitObjectSmoke ();
-gameData.pig.tex.bitmapColors.Clear ();
+memset (gameData.pig.tex.bitmapColors, 0, sizeof (gameData.pig.tex.bitmapColors));
 memset (gameData.models.thrusters, 0, sizeof (gameData.models.thrusters));
 gameData.render.lights.flicker.nLights = 0;
 save_player = LOCALPLAYER;
 #if 0
-Assert (gameStates.app.bAutoRunMission ||
-		  ((nLevel <= gameData.missions.nLastLevel) &&
-		   (nLevel >= gameData.missions.nLastSecretLevel) &&
+Assert (gameStates.app.bAutoRunMission || 
+		  ((nLevel <= gameData.missions.nLastLevel) && 
+		   (nLevel >= gameData.missions.nLastSecretLevel) && 
 			(nLevel != 0)));
 #endif
-if (!gameStates.app.bAutoRunMission &&
+if (!gameStates.app.bAutoRunMission && 
 	 (!nLevel || (nLevel > gameData.missions.nLastLevel) || (nLevel < gameData.missions.nLastSecretLevel))) {
 	gameStates.app.bBetweenLevels = 0;
-	gameData.missions.nCurrentLevel = nCurrentLevel;
 	Warning ("Invalid level number!");
 	return 0;
 	}
 strlwr (pszLevelName = LevelName (nLevel));
 /*---*/PrintLog ("   loading level '%s'\n", pszLevelName);
 #if 0
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 GrClearCanvas (BLACK_RGBA);		//so palette switching is less obvious
 #endif
 nLastMsgYCrd = -1;		//so we don't restore backgound under msg
 /*---*/PrintLog ("   loading palette\n");
-paletteManager.LoadEffect  ();
- //paletteManager.Load ("groupa.256", NULL, 0, 0, 1);		//don't change screen
+GrPaletteStepLoad (NULL);
+ //LoadPalette ("groupa.256", NULL, 0, 0, 1);		//don't change screen
 if (!gameOpts->menus.nStyle)
 	NMLoadBackground (NULL, NULL, 0);
 ShowBoxedMessage (TXT_LOADING);
 /*---*/PrintLog ("   loading level data\n");
 gameStates.app.bD1Mission = gameStates.app.bAutoRunMission ? (strstr (szAutoMission, "rdl") != NULL) :
 									 (gameData.missions.list [gameData.missions.nCurrentMission].nDescentVersion == 1);
-gameData.segs.xSegments.Clear (0xff);
+memset (gameData.segs.xSegments, 0xff, sizeof (*gameData.segs.xSegments) * MAX_SEGMENTS);
+memset (gameData.objs.xCreationTime, 0, sizeof (*gameData.objs.xCreationTime) * MAX_OBJECTS);
 /*---*/PrintLog ("   loading texture brightness info\n");
 SetDataVersion (-1);
-
-memcpy (gameData.pig.tex.brightness.Buffer (),
-		  gameData.pig.tex.defaultBrightness [gameStates.app.bD1Mission].Buffer (),
-		  sizeof (gameData.pig.tex.brightness));
-LoadTextureBrightness (pszLevelName, NULL);
-gameData.render.color.textures = gameData.render.color.defaultTextures [gameStates.app.bD1Mission];
-LoadTextureColors (pszLevelName, NULL);
-InitTexColors ();
-if (gameStates.app.bD1Mission)
-	LoadD1BitmapReplacements ();
-
+LoadTextureBrightness (pszLevelName);
 for (;;) {
 	if (!(nLoadRes = LoadLevelSub (pszLevelName, nLevel)))
 		break;	//actually load the data from disk!
 	nLoadRes = 1;
 	if (bRetry)
 		break;
-	if (strstr (hogFileManager.AltFiles ().szName, ".hog"))
+	if (strstr (gameHogFiles.AltHogFiles.szName, ".hog"))
 		break;
-	sprintf (szHogName, "%s%s%s%s",
-				gameFolders.szMissionDir, *gameFolders.szMissionDir ? "/" : "",
+	sprintf (szHogName, "%s%s%s%s", 
+				gameFolders.szMissionDir, *gameFolders.szMissionDir ? "/" : "", 
 				gameFolders.szMsnSubDir, pszLevelName);
-	if (!hogFileManager.UseAlt (szHogName))
+	if (!CFUseAltHogFile (szHogName))
 		break;
 	bRetry = 1;
 	};
 if (nLoadRes) {
 	/*---*/PrintLog ("Couldn't load '%s' (%d)\n", pszLevelName, nLoadRes);
 	gameStates.app.bBetweenLevels = 0;
-	gameData.missions.nCurrentLevel = nCurrentLevel;
 	Warning (TXT_LOAD_ERROR, pszLevelName);
 	return 0;
 	}
 
-paletteManager.SetGame (paletteManager.Load (szCurrentLevelPalette, pszLevelName, 1, 1, 1));		//don't change screen
+gameData.missions.nCurrentLevel = nLevel;
+gamePalette = LoadPalette (szCurrentLevelPalette, pszLevelName, 1, 1, 1);		//don't change screen
 InitGaugeCanvases ();
 ResetPogEffects ();
 if (gameStates.app.bD1Mission) {
@@ -932,16 +887,15 @@ gameData.bots.nCamBotModel = gameData.models.nPolyModels - 1;
 /*---*/PrintLog ("   loading replacement robots\n");
 if (0 > LoadRobotReplacements (pszLevelName, 0, 0)) {
 	gameStates.app.bBetweenLevels = 0;
-	gameData.missions.nCurrentLevel = nCurrentLevel;
 	return 0;
 	}
 LoadHiresModels (1);
 /*---*/PrintLog ("   initializing cambot\n");
 InitCamBots (0);
-networkData.nSegmentCheckSum = NetMiscCalcCheckSum (gameData.segs.segments.Buffer (), sizeof (CSegment) * gameData.segs.nSegments);
+networkData.nSegmentCheckSum = NetMiscCalcCheckSum (gameData.segs.segments, sizeof (tSegment) * gameData.segs.nSegments);
 ResetNetworkObjects ();
 ResetChildObjects ();
-externalView.Reset (-1, -1);
+ResetFlightPath (&externalView, -1, -1);
 ResetPlayerPaths ();
 FixObjectSizes ();
 /*---*/PrintLog ("   counting entropy rooms\n");
@@ -953,7 +907,7 @@ if (gameData.app.nGameMode & GM_ENTROPY) {
 		gameData.app.nGameMode |= GM_TEAM;
 		}
 	}
-else if ((gameData.app.nGameMode & (GM_CAPTURE | GM_HOARD)) ||
+else if ((gameData.app.nGameMode & (GM_CAPTURE | GM_HOARD)) || 
 			((gameData.app.nGameMode & GM_MONSTERBALL) == GM_MONSTERBALL)) {
 /*---*/PrintLog ("   gathering CTF+ flag goals\n");
 	if (GatherFlagGoals () != 3) {
@@ -962,7 +916,7 @@ else if ((gameData.app.nGameMode & (GM_CAPTURE | GM_HOARD)) ||
 		gameData.app.nGameMode |= GM_TEAM;
 		}
 	}
-gameData.render.lights.segDeltas.Clear ();
+memset (gameData.render.lights.segDeltas, 0, sizeof (*gameData.render.lights.segDeltas) * MAX_SEGMENTS * 6);
 /*---*/PrintLog ("   initializing door animations\n");
 InitDoorAnims ();
 LOCALPLAYER = save_player;
@@ -973,7 +927,7 @@ if (!IsMultiGame)
 	InitEntropySettings (0);	//required for repair centers
 PlayLevelSong (gameData.missions.nCurrentLevel, 1);
 ClearBoxedMessage ();		//remove message before new palette loaded
-paletteManager.LoadEffect  ();		//actually load the palette
+GrPaletteStepLoad (NULL);		//actually load the palette
 /*---*/PrintLog ("   rebuilding OpenGL texture data\n");
 /*---*/PrintLog ("      rebuilding effects\n");
 if (!bRestore)
@@ -988,25 +942,29 @@ gameStates.app.cheats.nUnlockLevel = 0;
 gameStates.render.nFrameFlipFlop = 0;
 gameStates.app.bUsingConverter = 0;
 /*---*/PrintLog ("   resetting color information\n");
-gameData.render.color.vertices.Clear ();
-gameData.render.color.segments.Clear ();
+memset (gameData.render.color.vertices, 0, sizeof (*gameData.render.color.vertices) * MAX_VERTICES);
+memset (gameData.render.color.segments, 0, sizeof (*gameData.render.color.segments) * MAX_SEGMENTS);
 /*---*/PrintLog ("   resetting speed boost information\n");
-gameData.objs.speedBoost.Clear ();
+memset (gameData.objs.speedBoost, 0, sizeof (*gameData.objs.speedBoost) * MAX_SEGMENTS);
 if (!gameStates.render.bHaveStencilBuffer)
 	extraGameInfo [0].bShadows = 0;
 D2SetCaption ();
 if (!bRestore) {
+	gameStates.gameplay.slowmo [0].fSpeed =
+	gameStates.gameplay.slowmo [1].fSpeed = 1;
+	gameStates.gameplay.slowmo [0].nState =
+	gameStates.gameplay.slowmo [1].nState = 0;
 	gameData.render.lights.bInitDynColoring = 1;
 	gameData.omega.xCharge [IsMultiGame] = MAX_OMEGA_CHARGE;
 	SetMaxOmegaCharge ();
 	ConvertObjects ();
 	ComputeStaticDynLighting (nLevel);
 	SetEquipGenStates ();
-	SetupEffects ();
 	gameData.time.nPaused = 0;
 	}
 LoadExtraImages ();
 CreateShieldSphere ();
+SetupEffects ();
 PrintLog ("   initializing energy spark render data\n");
 AllocEnergySparks ();
 PrintLog ("   setting robot generator vertigo robot flags\n");
@@ -1015,7 +973,7 @@ PrintLog ("   initializing debris collision handlers\n");
 SetDebrisCollisions ();
 PrintLog ("   building sky box segment list\n");
 BuildSkyBoxSegList ();
-if (RENDERPATH)
+if (gameOpts->render.nPath)
 	gameOpts->render.bDepthSort = 1;
 gameStates.app.bBetweenLevels = 0;
 return 1;
@@ -1023,7 +981,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-//sets up gameData.multiplayer.nLocalPlayer & gameData.objs.consoleP
+//sets up gameData.multiplayer.nLocalPlayer & gameData.objs.console
 void InitMultiPlayerObject (void)
 {
 Assert ((gameData.multiplayer.nLocalPlayer >= 0) && (gameData.multiplayer.nLocalPlayer < MAX_PLAYERS));
@@ -1034,11 +992,11 @@ if (gameData.multiplayer.nLocalPlayer != 0)	{
 LOCALPLAYER.nObject = 0;
 LOCALPLAYER.nInvuls =
 LOCALPLAYER.nCloaks = 0;
-gameData.objs.consoleP = OBJECTS + LOCALPLAYER.nObject;
-gameData.objs.consoleP->SetType (OBJ_PLAYER);
-gameData.objs.consoleP->info.nId = gameData.multiplayer.nLocalPlayer;
-gameData.objs.consoleP->info.controlType	= CT_FLYING;
-gameData.objs.consoleP->info.movementType = MT_PHYSICS;
+gameData.objs.console = gameData.objs.objects + LOCALPLAYER.nObject;
+gameData.objs.console->nType = OBJ_PLAYER;
+gameData.objs.console->id = gameData.multiplayer.nLocalPlayer;
+gameData.objs.console->controlType	= CT_FLYING;
+gameData.objs.console->movementType = MT_PHYSICS;
 gameStates.entropy.nTimeLastMoved = -1;
 }
 
@@ -1052,10 +1010,10 @@ int StartNewGame (int nStartLevel)
 gameData.app.nGameMode = GM_NORMAL;
 SetFunctionMode (FMODE_GAME);
 gameData.missions.nNextLevel = 0;
-InitMultiPlayerObject ();				//make sure CPlayerData's CObject set up
+InitMultiPlayerObject ();				//make sure tPlayer's tObject set up
 InitPlayerStatsGame ();		//clear all stats
 gameData.multiplayer.nPlayers = 1;
-gameData.objs.nLastObject [0] = 0;
+gameData.objs.nLastObject = 0;
 networkData.bNewGame = 0;
 if (nStartLevel < 0)
 	result = StartNewLevelSecret (nStartLevel, 0);
@@ -1072,11 +1030,11 @@ return result;
 //------------------------------------------------------------------------------
 
 #ifndef _NETWORK_H
-extern int NetworkEndLevelPoll2 (int nitems, tMenuItem * menus, int * key, int nCurItem); // network.c
+extern int NetworkEndLevelPoll2 (int nitems, tMenuItem * menus, int * key, int citem); // network.c
 #endif
 
 //	Does the bonus scoring.
-//	Call with deadFlag = 1 if CPlayerData died, but deserves some portion of bonus (only skill points), anyway.
+//	Call with deadFlag = 1 if tPlayer died, but deserves some portion of bonus (only skill points), anyway.
 void DoEndLevelScoreGlitz (int network)
 {
 	#define N_GLITZITEMS 11
@@ -1101,22 +1059,13 @@ if (TactileStick)
 	ClearForces ();
 #endif
 
-	//	Compute level CPlayerData is on, deal with secret levels (negative numbers)
+	//	Compute level tPlayer is on, deal with secret levels (negative numbers)
 nMineLevel = LOCALPLAYER.level;
 if (nMineLevel < 0)
 	nMineLevel *= - (gameData.missions.nLastLevel / gameData.missions.nSecretLevels);
 else if (nMineLevel == 0)
 	nMineLevel = 1;
-nEndGamePoints =
-nSkillPoints =
-nShieldPoints =
-nEnergyPoints =
-nHostagePoints =
-nAllHostagePoints = 0;
-bIsLastLevel = 0;
 nLevelPoints = LOCALPLAYER.score - LOCALPLAYER.lastScore;
-szAllHostages [0] = 0;
-szEndGame [0] = 0;
 if (!gameStates.app.cheats.bEnabled) {
 	if (gameStates.app.nDifficultyLevel > 1) {
 		nSkillPoints = nLevelPoints * (gameStates.app.nDifficultyLevel) / 4;
@@ -1124,32 +1073,44 @@ if (!gameStates.app.cheats.bEnabled) {
 		}
 	else
 		nSkillPoints = 0;
-	nShieldPoints = X2I (LOCALPLAYER.shields) * 5 * nMineLevel;
-	nEnergyPoints = X2I (LOCALPLAYER.energy) * 2 * nMineLevel;
+	nShieldPoints = f2i (LOCALPLAYER.shields) * 5 * nMineLevel;
+	nEnergyPoints = f2i (LOCALPLAYER.energy) * 2 * nMineLevel;
 	nHostagePoints = LOCALPLAYER.hostages.nOnBoard * 500 * (gameStates.app.nDifficultyLevel+1);
 	nShieldPoints -= nShieldPoints % 50;
 	nEnergyPoints -= nEnergyPoints % 50;
-	if ((LOCALPLAYER.hostages.nOnBoard > 0) && (LOCALPLAYER.hostages.nOnBoard == LOCALPLAYER.hostages.nLevel)) {
-		nAllHostagePoints = LOCALPLAYER.hostages.nOnBoard * 1000 * (gameStates.app.nDifficultyLevel+1);
-		sprintf (szAllHostages, "%s%i", TXT_FULL_RESCUE_BONUS, nAllHostagePoints);
-		}
-	if (!IsMultiGame && LOCALPLAYER.lives && (gameData.missions.nCurrentLevel == gameData.missions.nLastLevel)) {		//CPlayerData has finished the game!
-		nEndGamePoints = LOCALPLAYER.lives * 10000;
-		sprintf (szEndGame, "%s%i  ", TXT_SHIP_BONUS, nEndGamePoints);
-		bIsLastLevel = 1;
-		}
-	AddBonusPointsToScore (nSkillPoints + nEnergyPoints + nShieldPoints + nHostagePoints + nAllHostagePoints + nEndGamePoints);
 	}
+else {
+	nSkillPoints = 0;
+	nShieldPoints = 0;
+	nEnergyPoints = 0;
+	nHostagePoints = 0;
+	}
+szAllHostages [0] = 0;
+szEndGame [0] = 0;
+if (!gameStates.app.cheats.bEnabled && (LOCALPLAYER.hostages.nOnBoard == LOCALPLAYER.hostages.nLevel)) {
+	nAllHostagePoints = LOCALPLAYER.hostages.nOnBoard * 1000 * (gameStates.app.nDifficultyLevel+1);
+	sprintf (szAllHostages, "%s%i", TXT_FULL_RESCUE_BONUS, nAllHostagePoints);
+	}
+else
+	nAllHostagePoints = 0;
+if (!gameStates.app.cheats.bEnabled && !IsMultiGame && LOCALPLAYER.lives && 
+	 (gameData.missions.nCurrentLevel == gameData.missions.nLastLevel)) {		//tPlayer has finished the game!
+	nEndGamePoints = LOCALPLAYER.lives * 10000;
+	sprintf (szEndGame, "%s%i  ", TXT_SHIP_BONUS, nEndGamePoints);
+	bIsLastLevel = 1;
+	}
+else
+	nEndGamePoints = bIsLastLevel = 0;
+AddBonusPointsToScore (nSkillPoints + nEnergyPoints + nShieldPoints + nHostagePoints + nAllHostagePoints + nEndGamePoints);
 c = 0;
 sprintf (szMenu [c++], "%s%i  ", TXT_SHIELD_BONUS, nShieldPoints);		// Return at start to lower menu...
 sprintf (szMenu [c++], "%s%i  ", TXT_ENERGY_BONUS, nEnergyPoints);
 sprintf (szMenu [c++], "%s%i  ", TXT_HOSTAGE_BONUS, nHostagePoints);
 sprintf (szMenu [c++], "%s%i  ", TXT_SKILL_BONUS, nSkillPoints);
-if (*szAllHostages)
-	sprintf (szMenu [c++], "%s  ", szAllHostages);
+sprintf (szMenu [c++], "%s  ", szAllHostages);
 if (bIsLastLevel)
 	sprintf (szMenu [c++], "%s  ", szEndGame);
-sprintf (szMenu [c++], "%s%i  ", TXT_TOTAL_BONUS,
+sprintf (szMenu [c++], "%s%i  ", TXT_TOTAL_BONUS, 
 			nShieldPoints + nEnergyPoints + nHostagePoints + nSkillPoints + nAllHostagePoints + nEndGamePoints);
 sprintf (szMenu [c++], "%s%i  ", TXT_TOTAL_SCORE, LOCALPLAYER.score);
 memset (m, 0, sizeof (m));
@@ -1160,41 +1121,41 @@ for (i = 0; i < c; i++) {
 sprintf (szTitle,
 			"%s%s %d %s\n%s %s",
 			gameOpts->menus.nStyle ? "" : bIsLastLevel ? "\n\n\n":"\n",
-			 (gameData.missions.nCurrentLevel < 0) ? TXT_SECRET_LEVEL : TXT_LEVEL,
-			 (gameData.missions.nCurrentLevel < 0) ? -gameData.missions.nCurrentLevel : gameData.missions.nCurrentLevel,
-			TXT_COMPLETE,
-			gameData.missions.szCurrentLevel,
+			 (gameData.missions.nCurrentLevel < 0) ? TXT_SECRET_LEVEL : TXT_LEVEL, 
+			 (gameData.missions.nCurrentLevel < 0) ? -gameData.missions.nCurrentLevel : gameData.missions.nCurrentLevel, 
+			TXT_COMPLETE, 
+			gameData.missions.szCurrentLevel, 
 			TXT_DESTROYED);
 Assert (c <= N_GLITZITEMS);
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 if (network && (gameData.app.nGameMode & GM_NETWORK))
-	ExecMenu2 (NULL, szTitle, c, m, NetworkEndLevelPoll2, 0, reinterpret_cast<char*> (STARS_BACKGROUND));
+	ExecMenu2 (NULL, szTitle, c, m, NetworkEndLevelPoll2, 0, (char *) STARS_BACKGROUND);
 else
 // NOTE LINK TO ABOVE!!!
 gameStates.app.bGameRunning = 0;
-ExecMenu2 (NULL, szTitle, c, m, NULL, 0, reinterpret_cast<char*> (STARS_BACKGROUND));
+ExecMenu2 (NULL, szTitle, c, m, NULL, 0, (char *) STARS_BACKGROUND);
 }
 
 //	-----------------------------------------------------------------------------------------------------
 
-//give the CPlayerData the opportunity to save his game
+//give the tPlayer the opportunity to save his game
 void DoEndlevelMenu ()
 {
 //No between level saves......!!!	StateSaveAll (1);
 }
 
 //	-----------------------------------------------------------------------------------------------------
-//called when the CPlayerData is starting a level (new game or new ship)
+//called when the tPlayer is starting a level (new game or new ship)
 void StartSecretLevel (void)
 {
 Assert (!gameStates.app.bPlayerIsDead);
 InitPlayerPosition (0);
 VerifyConsoleObject ();
-gameData.objs.consoleP->info.controlType = CT_FLYING;
-gameData.objs.consoleP->info.movementType = MT_PHYSICS;
+gameData.objs.console->controlType	= CT_FLYING;
+gameData.objs.console->movementType	= MT_PHYSICS;
 // -- WHY? -- DisableMatCens ();
 ClearTransientObjects (0);		//0 means leave proximity bombs
-// CreatePlayerAppearanceEffect (gameData.objs.consoleP);
+// CreatePlayerAppearanceEffect (gameData.objs.console);
 gameStates.render.bDoAppearanceEffect = 1;
 AIResetAllPaths ();
 ResetTime ();
@@ -1202,7 +1163,7 @@ ResetRearView ();
 gameData.fusion.xAutoFireTime = 0;
 gameData.fusion.xCharge = 0;
 gameStates.app.cheats.bRobotsFiring = 1;
-gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds && !gameOpts->sound.bHires;
+gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds;
 if (gameStates.app.bD1Mission) {
 	if (LOCALPLAYER.energy < INITIAL_ENERGY)
 		LOCALPLAYER.energy = INITIAL_ENERGY;
@@ -1218,20 +1179,20 @@ int PSecretLevelDestroyed (void)
 {
 if (gameStates.app.bFirstSecretVisit)
 	return 0;		//	Never been there, can't have been destroyed.
-if (CFile::Exist (SECRETC_FILENAME, gameFolders.szSaveDir, 0))
+if (CFExist (SECRETC_FILENAME, gameFolders.szSaveDir, 0))
 	return 0;
 return 1;
 }
 
 //	-----------------------------------------------------------------------------------------------------
 
-void DoSecretMessage (const char *msg)
+void DoSecretMessage (char *msg)
 {
 	int fMode = gameStates.app.nFunctionMode;
 
 StopTime ();
 SetFunctionMode (FMODE_MENU);
-ExecMessageBox (NULL, reinterpret_cast<char*> (STARS_BACKGROUND), 1, TXT_OK, msg);
+ExecMessageBox (NULL, (char *) STARS_BACKGROUND, 1, TXT_OK, msg);
 SetFunctionMode (fMode);
 StartTime (0);
 }
@@ -1245,17 +1206,17 @@ Assert (gameStates.app.nFunctionMode == FMODE_GAME);
 GameStartInitNetworkPlayers (); // Initialize the gameData.multiplayer.players array for this level
 HUDClearMessages ();
 AutomapClearVisited ();
-InitPlayerStatsLevel (1);
-gameData.objs.viewerP = OBJECTS + LOCALPLAYER.nObject;
+// --	InitPlayerStatsLevel ();
+gameData.objs.viewer = gameData.objs.objects + LOCALPLAYER.nObject;
 GameStartRemoveUnusedPlayers ();
 gameStates.app.bGameSuspended = 0;
 gameData.reactor.bDestroyed = 0;
 InitCockpit ();
-paletteManager.ResetEffect ();
+ResetPaletteAdd ();
 }
 
 //	-----------------------------------------------------------------------------------------------------
-// called when the CPlayerData is starting a new level for Normal game mode and restore state
+// called when the tPlayer is starting a new level for normal game mode and restore state
 //	Need to deal with whether this is the first time coming to this level or not.  If not the
 //	first time, instead of initializing various things, need to do a game restore for all the
 //	robots, powerups, walls, doors, etc.
@@ -1267,7 +1228,7 @@ int StartNewLevelSecret (int nLevel, int bPageInTextures)
 gameStates.app.xThisLevelTime=0;
 
 m [0].nType = NM_TYPE_TEXT;
-m [0].text = reinterpret_cast<char*> (" ");
+m [0].text = " ";
 
 gameStates.render.cockpit.nLastDrawn [0] = -1;
 gameStates.render.cockpit.nLastDrawn [1] = -1;
@@ -1278,13 +1239,13 @@ if (gameData.demo.nState == ND_STATE_PAUSED)
 if (gameData.demo.nState == ND_STATE_RECORDING) {
 	NDSetNewLevel (nLevel);
 	NDRecordStartFrame (gameData.app.nFrameCount, gameData.time.xFrame);
-	}
+	} 
 else if (gameData.demo.nState != ND_STATE_PLAYBACK) {
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	SetScreenMode (SCREEN_MENU);		//go into menu mode
 	if (gameStates.app.bFirstSecretVisit)
 		DoSecretMessage (gameStates.app.bD1Mission ? TXT_ALTERNATE_EXIT : TXT_SECRET_EXIT);
-	else if (CFile::Exist (SECRETC_FILENAME,gameFolders.szSaveDir,0))
+	else if (CFExist (SECRETC_FILENAME,gameFolders.szSaveDir,0))
 		DoSecretMessage (gameStates.app.bD1Mission ? TXT_ALTERNATE_EXIT : TXT_SECRET_EXIT);
 	else {
 		char	text_str [128];
@@ -1311,13 +1272,13 @@ if (gameStates.app.bFirstSecretVisit || (gameData.demo.nState == ND_STATE_PLAYBA
 	LOCALPLAYER.flags &= ~PLAYER_FLAGS_ALL_KEYS;
 	}
 else {
-	if (CFile::Exist (SECRETC_FILENAME, gameFolders.szSaveDir, 0)) {
+	if (CFExist (SECRETC_FILENAME, gameFolders.szSaveDir, 0)) {
 		int	pw_save, sw_save, nCurrentLevel;
 
 		pw_save = gameData.weapons.nPrimary;
 		sw_save = gameData.weapons.nSecondary;
 		nCurrentLevel = gameData.missions.nCurrentLevel;
-		saveGameHandler.Load (1, 1, 0, SECRETC_FILENAME);
+		StateRestoreAll (1, 1, SECRETC_FILENAME);
 		gameData.missions.nEnteredFromLevel = nCurrentLevel;
 		gameData.weapons.nPrimary = pw_save;
 		gameData.weapons.nSecondary = sw_save;
@@ -1345,7 +1306,7 @@ if (gameStates.app.bFirstSecretVisit)
 	CopyDefaultsToRobotsAll ();
 TurnCheatsOff ();
 InitReactorForLevel (0);
-//	Say CPlayerData can use FLASH cheat to mark path to exit.
+//	Say tPlayer can use FLASH cheat to mark path to exit.
 nLastLevelPathCreated = -1;
 gameStates.app.bFirstSecretVisit = 0;
 return 1;
@@ -1353,20 +1314,20 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-//	Called from switch.c when CPlayerData is on a secret level and hits exit to return to base level.
+//	Called from switch.c when tPlayer is on a secret level and hits exit to return to base level.
 void ExitSecretLevel (void)
 {
 if (gameData.demo.nState == ND_STATE_PLAYBACK)
 	return;
 if (!(gameStates.app.bD1Mission || gameData.reactor.bDestroyed))
-	saveGameHandler.Save (0, 2, 0, SECRETC_FILENAME);
-if (!gameStates.app.bD1Mission && CFile::Exist (SECRETB_FILENAME, gameFolders.szSaveDir, 0)) {
+	StateSaveAll (0, 2, SECRETC_FILENAME);
+if (!gameStates.app.bD1Mission && CFExist (SECRETB_FILENAME, gameFolders.szSaveDir, 0)) {
 	int pw_save = gameData.weapons.nPrimary;
 	int sw_save = gameData.weapons.nSecondary;
 
 	ReturningToLevelMessage ();
-	saveGameHandler.Load (1, 1, 0, SECRETB_FILENAME);
-	gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds && !gameOpts->sound.bHires;
+	StateRestoreAll (1, 1, SECRETB_FILENAME);
+	gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds;
 	SetDataVersion (-1);
 	gameData.weapons.nPrimary = pw_save;
 	gameData.weapons.nSecondary = sw_save;
@@ -1385,7 +1346,7 @@ else {
 }
 
 //------------------------------------------------------------------------------
-//	Set invulnerableTime and cloakTime in CPlayerData struct to preserve amount of time left to
+//	Set invulnerableTime and cloakTime in tPlayer struct to preserve amount of time left to
 //	be invulnerable or cloaked.
 void DoCloakInvulSecretStuff (fix xOldGameTime)
 {
@@ -1405,7 +1366,7 @@ if (LOCALPLAYER.flags & PLAYER_FLAGS_CLOAKED) {
 }
 
 //------------------------------------------------------------------------------
-//	Called from switch.c when CPlayerData passes through secret exit.  That means he was on a non-secret level and he
+//	Called from switch.c when tPlayer passes through secret exit.  That means he was on a non-secret level and he
 //	is passing to the secret level.
 //	Do a savegame.
 void EnterSecretLevel (void)
@@ -1418,13 +1379,13 @@ gameData.missions.nEnteredFromLevel = gameData.missions.nCurrentLevel;
 if (gameData.reactor.bDestroyed)
 	DoEndLevelScoreGlitz (0);
 if (gameData.demo.nState != ND_STATE_PLAYBACK)
-	saveGameHandler.Save (0, 1, 0, NULL);	//	Not between levels (ie, save all), IS a secret level, NO filename override
+	StateSaveAll (0, 1, NULL);	//	Not between levels (ie, save all), IS a secret level, NO filename override
 //	Find secret level number to go to, stuff in gameData.missions.nNextLevel.
 for (i = 0; i < -gameData.missions.nLastSecretLevel; i++)
 	if (gameData.missions.secretLevelTable [i] == gameData.missions.nCurrentLevel) {
 		gameData.missions.nNextLevel = -i - 1;
 		break;
-		}
+		} 
 	else if (gameData.missions.secretLevelTable [i] > gameData.missions.nCurrentLevel) {	//	Allows multiple exits in same group.
 		gameData.missions.nNextLevel = -i;
 		break;
@@ -1437,12 +1398,12 @@ StartNewLevelSecret (gameData.missions.nNextLevel, 1);
 }
 
 //------------------------------------------------------------------------------
-//called when the CPlayerData has finished a level
+//called when the tPlayer has finished a level
 void PlayerFinishedLevel (int bSecret)
 {
 	Assert (!bSecret);
 
-	//credit the CPlayerData for hostages
+	//credit the tPlayer for hostages
 LOCALPLAYER.hostages.nRescued += LOCALPLAYER.hostages.nOnBoard;
 if (gameData.app.nGameMode & GM_NETWORK)
 	LOCALPLAYER.connected = 2; // Finished but did not die
@@ -1456,7 +1417,7 @@ else
 
 //------------------------------------------------------------------------------
 
-void PlayLevelMovie (const char *pszExt, int nLevel)
+void PlayLevelMovie (char *pszExt, int nLevel)
 {
 	char szFilename [FILENAME_LEN];
 
@@ -1481,14 +1442,14 @@ PlayLevelMovie (".mvx", nLevel);
 
 #define MOVIE_REQUIRED 1
 
-//called when the CPlayerData has finished the last level
+//called when the tPlayer has finished the last level
 void DoEndGame (void)
 {
 SetFunctionMode (FMODE_MENU);
 if ((gameData.demo.nState == ND_STATE_RECORDING) || (gameData.demo.nState == ND_STATE_PAUSED))
 	NDStopRecording ();
 SetScreenMode (SCREEN_MENU);
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 KeyFlush ();
 if (!IsMultiGame) {
 	if (gameData.missions.nCurrentMission == (gameStates.app.bD1Mission ? gameData.missions.nD1BuiltinMission : gameData.missions.nBuiltinMission)) {
@@ -1507,12 +1468,11 @@ if (!IsMultiGame) {
 		if (!bPlayed) {
 			if (IS_D2_OEM) {
 				SongsPlaySong (SONG_TITLE, 0);
-				DoBriefingScreens (reinterpret_cast<char*> ("end2oem.tex"), 1);
+				DoBriefingScreens ((char *) "end2oem.tex",1);
 				}
 			else {
 				SongsPlaySong (SONG_ENDGAME, 0);
-				DoBriefingScreens (gameStates.app.bD1Mission ? reinterpret_cast<char*> ("endreg.tex") : reinterpret_cast<char*> ("ending2.tex"), 
-										 gameStates.app.bD1Mission ? 0x7e : 1);
+				DoBriefingScreens (gameStates.app.bD1Mission ? (char *) "endreg.tex" : (char *) "ending2.tex", gameStates.app.bD1Mission ? 0x7e : 1);
 				}
 			}
 		}
@@ -1534,12 +1494,12 @@ else
 	// NOTE LINK TO ABOVE
 	DoEndLevelScoreGlitz (0);
 
-if ((gameData.missions.nCurrentMission == gameData.missions.nBuiltinMission) &&
+if ((gameData.missions.nCurrentMission == gameData.missions.nBuiltinMission) && 
 	 !(gameData.app.nGameMode & (GM_MULTI | GM_MULTI_COOP))) {
-	CCanvas::SetCurrent (NULL);
-	CCanvas::Current ()->Clear (BLACK_RGBA);
-	paletteManager.ClearEffect ();
-	//paletteManager.Load (D2_DEFAULT_PALETTE, NULL, 0, 1, 0);
+	GrSetCurrentCanvas (NULL);
+	GrClearCanvas (BLACK_RGBA);
+	GrPaletteStepClear ();
+	//LoadPalette (D2_DEFAULT_PALETTE, NULL, 0, 1, 0);
 	MaybeAddPlayerScore (0);
 	}
 SetFunctionMode (FMODE_MENU);
@@ -1553,7 +1513,7 @@ longjmp (gameExitPoint, 0);		// Exit out of game loop
 //------------------------------------------------------------------------------
 //from which level each do you get to each secret level
 //called to go to the next level (if there is one)
-//if bSecret is true, advance to secret level, else next Normal one
+//if bSecret is true, advance to secret level, else next normal one
 //	Return true if game over.
 void AdvanceLevel (int bSecret, int bFromSecret)
 {
@@ -1562,10 +1522,10 @@ void AdvanceLevel (int bSecret, int bFromSecret)
 gameStates.app.bBetweenLevels = 1;
 Assert (!bSecret);
 if ((!bFromSecret/* && gameStates.app.bD1Mission*/) &&
-	 ((gameData.missions.nCurrentLevel != gameData.missions.nLastLevel) ||
+	 ((gameData.missions.nCurrentLevel != gameData.missions.nLastLevel) || 
 	  extraGameInfo [IsMultiGame].bRotateLevels)) {
 	if (IsMultiGame)
-		MultiEndLevelScore ();
+		MultiEndLevelScore ();	
 	else {
 		PlayLevelExtroMovie (gameData.missions.nCurrentLevel);
 		DoEndLevelScoreGlitz (0);		//give bonuses
@@ -1579,16 +1539,16 @@ if (gameData.missions.nCurrentLevel == 0)
 if (IsMultiGame) {
 	if ((result = MultiEndLevel (&bSecret))) { // Wait for other players to reach this point
 		gameStates.app.bBetweenLevels = 0;
-		if (gameData.missions.nCurrentLevel != gameData.missions.nLastLevel)		//CPlayerData has finished the game!
+		if (gameData.missions.nCurrentLevel != gameData.missions.nLastLevel)		//tPlayer has finished the game!
 			return;
 		longjmp (gameExitPoint, 0);		// Exit out of game loop
 		}
 	}
-if ((gameData.missions.nCurrentLevel == gameData.missions.nLastLevel) &&
-	!extraGameInfo [IsMultiGame].bRotateLevels) //CPlayerData has finished the game!
+if ((gameData.missions.nCurrentLevel == gameData.missions.nLastLevel) && 
+	!extraGameInfo [IsMultiGame].bRotateLevels) //tPlayer has finished the game!
 	DoEndGame ();
 else {
-	gameData.missions.nNextLevel = gameData.missions.nCurrentLevel + 1;		//assume go to next Normal level
+	gameData.missions.nNextLevel = gameData.missions.nCurrentLevel + 1;		//assume go to next normal level
 	if (gameData.missions.nNextLevel > gameData.missions.nLastLevel) {
 		if (extraGameInfo [IsMultiGame].bRotateLevels)
 			gameData.missions.nNextLevel = 1;
@@ -1606,29 +1566,30 @@ gameStates.app.bBetweenLevels = 0;
 
 void LoadStars (bkg *bg, int bRedraw)
 {
-NMLoadBackground (reinterpret_cast<char*> (STARS_BACKGROUND), bg, bRedraw);
+NMLoadBackground ((char *) STARS_BACKGROUND, bg, bRedraw);
+starsPalette = gameData.render.pal.pCurPal;
 }
 
 //------------------------------------------------------------------------------
 
 void DiedInMineMessage (void)
 {
-	// Tell the CPlayerData he died in the mine, explain why
+	// Tell the tPlayer he died in the mine, explain why
 	int old_fmode;
 
 if (gameData.app.nGameMode & GM_MULTI)
 	return;
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 SetScreenMode (SCREEN_MENU);		//go into menu mode
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 old_fmode = gameStates.app.nFunctionMode;
 SetFunctionMode (FMODE_MENU);
-ExecMessageBox (NULL, reinterpret_cast<char*> (STARS_BACKGROUND), 1, TXT_OK, TXT_DIED_IN_MINE);
+ExecMessageBox (NULL, (char *) STARS_BACKGROUND, 1, TXT_OK, TXT_DIED_IN_MINE);
 SetFunctionMode (old_fmode);
 }
 
 //------------------------------------------------------------------------------
-//	Called when CPlayerData dies on secret level.
+//	Called when tPlayer dies on secret level.
 void ReturningToLevelMessage (void)
 {
 	char	msg [128];
@@ -1638,22 +1599,22 @@ void ReturningToLevelMessage (void)
 if (gameData.app.nGameMode & GM_MULTI)
 	return;
 StopTime ();
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 SetScreenMode (SCREEN_MENU);		//go into menu mode
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 old_fmode = gameStates.app.nFunctionMode;
 SetFunctionMode (FMODE_MENU);
 if (gameData.missions.nEnteredFromLevel < 0)
 	sprintf (msg, TXT_SECRET_LEVEL_RETURN);
 else
 	sprintf (msg, TXT_RETURN_LVL, gameData.missions.nEnteredFromLevel);
-ExecMessageBox (NULL, reinterpret_cast<char*> (STARS_BACKGROUND), 1, TXT_OK, msg);
+ExecMessageBox (NULL, (char *) STARS_BACKGROUND, 1, TXT_OK, msg);
 SetFunctionMode (old_fmode);
 StartTime (0);
 }
 
 //------------------------------------------------------------------------------
-//	Called when CPlayerData dies on secret level.
+//	Called when tPlayer dies on secret level.
 void AdvancingToLevelMessage (void)
 {
 	char	msg [128];
@@ -1664,28 +1625,14 @@ void AdvancingToLevelMessage (void)
 Assert (gameData.missions.nCurrentLevel < 0);
 if (IsMultiGame)
 	return;
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 SetScreenMode (SCREEN_MENU);		//go into menu mode
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 old_fmode = gameStates.app.nFunctionMode;
 SetFunctionMode (FMODE_MENU);
 sprintf (msg, "Base level destroyed.\nAdvancing to level %i", gameData.missions.nEnteredFromLevel + 1);
-ExecMessageBox (NULL, reinterpret_cast<char*> (STARS_BACKGROUND), 1, TXT_OK, msg);
+ExecMessageBox (NULL, (char *) STARS_BACKGROUND, 1, TXT_OK, msg);
 SetFunctionMode (old_fmode);
-}
-
-//	-----------------------------------------------------------------------------------
-//	Set the CPlayerData's position from the globals gameData.segs.secret.nReturnSegment and gameData.segs.secret.returnOrient.
-void SetPosFromReturnSegment (int bRelink)
-{
-	int	nPlayerObj = LOCALPLAYER.nObject;
-
-COMPUTE_SEGMENT_CENTER_I (&OBJECTS [nPlayerObj].info.position.vPos, 
-							     gameData.segs.secret.nReturnSegment);
-if (bRelink)
-	OBJECTS [nPlayerObj].RelinkToSeg (gameData.segs.secret.nReturnSegment);
-ResetPlayerObject ();
-OBJECTS [nPlayerObj].info.position.mOrient = gameData.segs.secret.returnOrient;
 }
 
 //------------------------------------------------------------------------------
@@ -1695,23 +1642,23 @@ void DoPlayerDead (void)
 	int bSecret = (gameData.missions.nCurrentLevel < 0);
 
 gameStates.app.bGameRunning = 0;
-paletteManager.ResetEffect ();
-paletteManager.LoadEffect  ();
+ResetPaletteAdd ();
+GrPaletteStepLoad (NULL);
 DigiStopDigiSounds ();		//kill any continuing sounds (eg. forcefield hum)
 DeadPlayerEnd ();		//terminate death sequence (if playing)
 if (IsCoopGame && gameStates.app.bHaveExtraGameInfo [1])
-	LOCALPLAYER.score =
+	LOCALPLAYER.score = 
 	(LOCALPLAYER.score * (100 - nCoopPenalties [(int) extraGameInfo [1].nCoopPenalty])) / 100;
 if (gameStates.multi.bPlayerIsTyping [gameData.multiplayer.nLocalPlayer] && (gameData.app.nGameMode & GM_MULTI))
 	MultiSendMsgQuit ();
 gameStates.entropy.bConquering = 0;
 #ifdef EDITOR
 if (gameData.app.nGameMode == GM_EDITOR) {			//test mine, not real level
-	CObject * playerobj = OBJECTS + LOCALPLAYER.nObject;
+	tObject * playerobj = gameData.objs.objects + LOCALPLAYER.nObject;
 	//ExecMessageBox ("You're Dead!", 1, "Continue", "Not a real game, though.");
 	LoadLevelSub ("gamesave.lvl");
 	InitPlayerStatsNewShip ();
-	playerobjP->info.nFlags &= ~OF_SHOULD_BE_DEAD;
+	playerobjP->flags &= ~OF_SHOULD_BE_DEAD;
 	StartLevel (0);
 	return;
 }
@@ -1759,7 +1706,7 @@ DigiSyncSounds ();
 
 //------------------------------------------------------------------------------
 
-//called when the CPlayerData is starting a new level for Normal game mode and restore state
+//called when the tPlayer is starting a new level for normal game mode and restore state
 //	bSecret set if came from a secret level
 int StartNewLevelSub (int nLevel, int bPageInTextures, int bSecret, int bRestore)
 {
@@ -1773,7 +1720,7 @@ if (!IsMultiGame) {
 	gameStates.render.cockpit.nLastDrawn [0] =
 	gameStates.render.cockpit.nLastDrawn [1] = -1;
 	}
-gameStates.render.cockpit.bBigWindowSwitch = 0;
+ gameStates.render.cockpit.bBigWindowSwitch=0;
 if (gameData.demo.nState == ND_STATE_PAUSED)
 	gameData.demo.nState = ND_STATE_RECORDING;
 if (gameData.demo.nState == ND_STATE_RECORDING) {
@@ -1789,11 +1736,11 @@ if (!funcRes)
 	return 0;
 Assert (gameStates.app.bAutoRunMission || (gameData.missions.nCurrentLevel == nLevel));	//make sure level set right
 GameStartInitNetworkPlayers (); // Initialize the gameData.multiplayer.players array for
-#if DBG										  // this level
+#ifdef _DEBUG										  // this level
 InitHoardData ();
 SetMonsterballForces ();
 #endif
-//	gameData.objs.viewerP = OBJECTS + LOCALPLAYER.nObject;
+//	gameData.objs.viewer = gameData.objs.objects + LOCALPLAYER.nObject;
 if (gameData.multiplayer.nPlayers > gameData.multiplayer.nPlayerPositions) {
 	ExecMessageBox (NULL, NULL, 1, TXT_OK, "Too many players for this level.");
 	return 0;
@@ -1808,7 +1755,7 @@ if (gameData.app.nGameMode & GM_NETWORK) {
 		case 0:
 			if (gameData.multiplayer.nLocalPlayer < 0)
 				return 0;
-			fontManager.RemapMono ();
+			GrRemapMonoFonts ();
 			break;
 		case 1:
 			networkData.nStatus = 2;
@@ -1821,10 +1768,11 @@ AutomapClearVisited ();
 if (networkData.bNewGame == 1) {
 	networkData.bNewGame = 0;
 	InitPlayerStatsNewShip ();
-	}
+}
 InitPlayerStatsLevel (bSecret);
-if (IsCoopGame && networkData.nJoinState) {
-	for (int i = 0; i < gameData.multiplayer.nPlayers; i++)
+if ((gameData.app.nGameMode & GM_MULTI_COOP) && networkData.nJoinState) {
+	int i;
+	for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 		gameData.multiplayer.players [i].flags |= netGame.playerFlags [i];
 	}
 if (IsMultiGame)
@@ -1841,7 +1789,7 @@ InitRobotsForLevel ();
 InitShakerDetonates ();
 MorphInit ();
 InitAllMatCens ();
-paletteManager.ResetEffect ();
+ResetPaletteAdd ();
 InitThiefForLevel ();
 InitStuckObjects ();
 GameFlushInputs ();		// clear out the keyboard
@@ -1870,43 +1818,43 @@ BuildObjectModels ();
 LOCALPLAYER.nInvuls =
 LOCALPLAYER.nCloaks = 0;
 #endif
-//	Say CPlayerData can use FLASH cheat to mark path to exit.
+//	Say tPlayer can use FLASH cheat to mark path to exit.
 nLastLevelPathCreated = -1;
 return 1;
 }
 
 //------------------------------------------------------------------------------
 
-void BashToShield (int i, const char *s)
+void BashToShield (int i, char *s)
 {
-	CObject *objP = OBJECTS + i;
-	int id = objP->info.nId;
+	tObject *objP = gameData.objs.objects + i;
+	int id = objP->id;
 
 gameData.multiplayer.powerupsInMine [id] =
 gameData.multiplayer.maxPowerupsAllowed [id] = 0;
-objP->SetType (OBJ_POWERUP);
-objP->info.nId = POW_SHIELD_BOOST;
-objP->info.renderType = RT_POWERUP;
-objP->info.controlType = CT_POWERUP;
-objP->info.xSize = gameData.objs.pwrUp.info [POW_SHIELD_BOOST].size;
+objP->nType = OBJ_POWERUP;
+objP->id = POW_SHIELD_BOOST;
+objP->renderType = RT_POWERUP;
+objP->controlType = CT_POWERUP;
+objP->size = gameData.objs.pwrUp.info [POW_SHIELD_BOOST].size;
 objP->rType.vClipInfo.nClipIndex = gameData.objs.pwrUp.info [POW_SHIELD_BOOST].nClipIndex;
 objP->rType.vClipInfo.xFrameTime = gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].xFrameTime;
 }
 
 //------------------------------------------------------------------------------
 
-void BashToEnergy (int i, const char *s)
+void BashToEnergy (int i,char *s)
 {
-	CObject *objP = OBJECTS + i;
-	int id = objP->info.nId;
+	tObject *objP = gameData.objs.objects + i;
+	int id = objP->id;
 
 gameData.multiplayer.powerupsInMine [id] =
 gameData.multiplayer.maxPowerupsAllowed [id] = 0;
-objP->SetType (OBJ_POWERUP);
-objP->info.nId = POW_ENERGY;
-objP->info.renderType = RT_POWERUP;
-objP->info.controlType = CT_POWERUP;
-objP->info.xSize = gameData.objs.pwrUp.info [POW_ENERGY].size;
+objP->nType = OBJ_POWERUP;
+objP->id = POW_ENERGY;
+objP->renderType = RT_POWERUP;
+objP->controlType = CT_POWERUP;
+objP->size = gameData.objs.pwrUp.info [POW_ENERGY].size;
 objP->rType.vClipInfo.nClipIndex = gameData.objs.pwrUp.info [POW_ENERGY].nClipIndex;
 objP->rType.vClipInfo.xFrameTime = gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].xFrameTime;
 }
@@ -1915,12 +1863,12 @@ objP->rType.vClipInfo.xFrameTime = gameData.eff.vClips [0][objP->rType.vClipInfo
 
 void FilterObjectsFromLevel (void)
 {
-  int 		i;
-	CObject	*objP;
+  int i;
 
-FORALL_POWERUP_OBJS (objP, i) {
-	if ((objP->info.nId == POW_REDFLAG) || (objP->info.nId == POW_BLUEFLAG))
-		BashToShield (OBJ_IDX (objP), "Flag!!!!");
+for (i = 0; i <= gameData.objs.nLastObject; i++) {
+	if ((gameData.objs.objects [i].nType == OBJ_POWERUP) &&
+		 ((gameData.objs.objects [i].id == POW_REDFLAG) || (gameData.objs.objects [i].id == POW_BLUEFLAG)))
+		BashToShield (i,"Flag!!!!");
   }
 }
 
@@ -1943,17 +1891,17 @@ void ShowLevelIntro (int nLevel)
 {
 //if shareware, show a briefing?
 if (!IsMultiGame) {
-	uint i, bPlayed = 0;
+	int i, bPlayed = 0;
 
 	PlayLevelIntroMovie (nLevel);
 	if (!gameStates.app.bD1Mission && (gameData.missions.nCurrentMission == gameData.missions.nBuiltinMission)) {
 		if (IS_SHAREWARE) {
 			if (nLevel == 1)
-				DoBriefingScreens (reinterpret_cast<char*> ("brief2.tex"), 1);
+				DoBriefingScreens ((char *) "brief2.tex", 1);
 			}
 		else if (IS_D2_OEM) {
 			if ((nLevel == 1) && !gameStates.movies.bIntroPlayed)
-				DoBriefingScreens (reinterpret_cast<char*> ("brief2o.tex"), 1);
+				DoBriefingScreens ((char *) "brief2o.tex", 1);
 			}
 		else { // full version
 			if (gameStates.app.bHaveExtraMovies && (nLevel == 1)) {
@@ -1974,7 +1922,7 @@ if (!IsMultiGame) {
 					if (hires_save != gameStates.menus.bHiresAvailable)
 						gameStates.video.nScreenMode = -1;		//force reset
 					}
-				DoBriefingScreens (reinterpret_cast<char*> ("robot.tex"), nLevel);
+				DoBriefingScreens ((char *) "robot.tex", nLevel);
 				gameStates.menus.bHiresAvailable = hires_save;
 				}
 			}
@@ -1985,7 +1933,7 @@ if (!IsMultiGame) {
 			if (gameStates.app.bHaveExtraMovies && (nLevel == 1)) {
 				if (PlayMovie ("briefa.mve", MOVIE_REQUIRED, 0, gameOpts->movies.bResize) != MOVIE_ABORTED)
 					 PlayMovie ("briefb.mve", MOVIE_REQUIRED, 0, gameOpts->movies.bResize);
-				}
+				}		
 			DoBriefingScreens (gameData.missions.szBriefingFilename, nLevel);
 			}
 		else {
@@ -1999,7 +1947,7 @@ if (!IsMultiGame) {
 
 //	---------------------------------------------------------------------------
 //	If starting a level which appears in the gameData.missions.secretLevelTable, then set gameStates.app.bFirstSecretVisit.
-//	Reason: On this level, if CPlayerData goes to a secret level, he will be going to a different
+//	Reason: On this level, if tPlayer goes to a secret level, he will be going to a different
 //	secret level than he's ever been to before.
 //	Sets the global gameStates.app.bFirstSecretVisit if necessary.  Otherwise leaves it unchanged.
 void MaybeSetFirstSecretVisit (int nLevel)
@@ -2014,7 +1962,7 @@ for (i = 0; i < gameData.missions.nSecretLevels; i++) {
 }
 
 //------------------------------------------------------------------------------
-//called when the CPlayerData is starting a new level for Normal game model
+//called when the tPlayer is starting a new level for normal game model
 //	bSecret if came from a secret level
 int StartNewLevel (int nLevel, int bSecret)
 {
@@ -2062,72 +2010,7 @@ if (left < r)
 }
 
 //------------------------------------------------------------------------------
-
-int GetRandomPlayerPosition (void)
-{
-	CObject		*objP;
-	tSpawnMap	spawnMap [MAX_NUM_NET_PLAYERS];
-	int			nSpawnPos = 0;
-	int			nSpawnSegs = 0;
-	int			i, j, bRandom;
-	fix			xDist;
-
-// find the smallest distance between each spawn point and any player in the mine
-for (i = 0; i < gameData.multiplayer.nPlayerPositions; i++) {
-	spawnMap [i].i = i;
-	spawnMap [i].xDist = 0x7fffffff;
-	for (j = 0; j < gameData.multiplayer.nPlayers; j++) {
-		if (j != gameData.multiplayer.nLocalPlayer) {
-			objP = OBJECTS + gameData.multiplayer.players [j].nObject;
-			if ((objP->info.nType == OBJ_PLAYER))	{
-				xDist = FindConnectedDistance (&objP->info.position.vPos,
-														 objP->info.nSegment,
-														 &gameData.multiplayer.playerInit [i].position.vPos,
-														 gameData.multiplayer.playerInit [i].nSegment,
-														 10, WID_FLY_FLAG, 0);	//	Used to be 5, search up to 10 segments
-				if (xDist < 0)
-					continue;
-				if (spawnMap [i].xDist > xDist)
-					spawnMap [i].xDist = xDist;
-				}
-			}
-		}
-	}
-nSpawnSegs = gameData.multiplayer.nPlayerPositions;
-SortSpawnMap (spawnMap, 0, nSpawnSegs - 1);
-bRandom = (spawnMap [0].xDist >= SPAWN_MIN_DIST);
-
-d_srand (SDL_GetTicks ());
-j = 0;
-for (;;) {
-	i = bRandom ? d_rand () % nSpawnSegs : j++;
-	nSpawnPos = spawnMap [i].i;
-	if (IsTeamGame) {
-		switch (gameData.multiplayer.playerInit [nSpawnPos].nSegType) {
-			case SEGMENT_IS_GOAL_RED:
-			case SEGMENT_IS_TEAM_RED:
-				if (GetTeam (gameData.multiplayer.nLocalPlayer) != TEAM_RED)
-					continue;
-				break;
-			case SEGMENT_IS_GOAL_BLUE:
-			case SEGMENT_IS_TEAM_BLUE:
-				if (GetTeam (gameData.multiplayer.nLocalPlayer) != TEAM_BLUE)
-					continue;
-				break;
-			default:
-				break;
-			}
-		}
-	if (!bRandom || (spawnMap [i].xDist > SPAWN_MIN_DIST))
-		break;
-	if (i < --nSpawnSegs)
-		memcpy (spawnMap + i, spawnMap + i + 1, nSpawnSegs - i);
-	}
-return nSpawnPos;
-}
-
-//------------------------------------------------------------------------------
-//initialize the CPlayerData CObject position & orientation (at start of game, or new ship)
+//initialize the tPlayer tObject position & orientation (at start of game, or new ship)
 void InitPlayerPosition (int bRandom)
 {
 	int nSpawnPos = 0;
@@ -2135,15 +2018,71 @@ void InitPlayerPosition (int bRandom)
 if (!(gameData.app.nGameMode & (GM_MULTI | GM_MULTI_COOP))) // If not deathmatch
 	nSpawnPos = gameData.multiplayer.nLocalPlayer;
 else if (bRandom == 1) {
-	nSpawnPos = GetRandomPlayerPosition ();
+	tObject		*objP;
+	tSpawnMap	spawnMap [MAX_NUM_NET_PLAYERS];
+	int			nSpawnSegs = 0;
+	int			i, j;
+	fix			xDist;
+
+	// find the smallest distance between each spawn point and any player in the mine
+	for (i = 0; i < gameData.multiplayer.nPlayerPositions; i++) {
+		spawnMap [i].i = i;
+		spawnMap [i].xDist = 0x7fffffff;
+		for (j = 0; j < gameData.multiplayer.nPlayers; j++) {
+			if (j != gameData.multiplayer.nLocalPlayer) {
+				objP = gameData.objs.objects + gameData.multiplayer.players [j].nObject; 
+				if ((objP->nType == OBJ_PLAYER))	{
+					xDist = FindConnectedDistance (&objP->position.vPos, 
+															 objP->nSegment, 
+															 &gameData.multiplayer.playerInit [i].position.vPos, 
+															 gameData.multiplayer.playerInit [i].nSegment, 
+															 10, WID_FLY_FLAG, 0);	//	Used to be 5, search up to 10 segments
+					if (xDist < 0)
+						continue;
+					if (spawnMap [i].xDist > xDist)
+						spawnMap [i].xDist = xDist;
+					}
+				}
+			}
+		}
+	nSpawnSegs = gameData.multiplayer.nPlayerPositions;
+	SortSpawnMap (spawnMap, 0, nSpawnSegs - 1);
+	bRandom = (spawnMap [0].xDist >= SPAWN_MIN_DIST);
+
+	d_srand (SDL_GetTicks ());
+	j = 0;
+	for (;;) {
+		i = bRandom ? d_rand () % nSpawnSegs : j++;
+		nSpawnPos = spawnMap [i].i;
+		if (IsTeamGame) {
+			switch (gameData.multiplayer.playerInit [nSpawnPos].nSegType) {
+				case SEGMENT_IS_GOAL_RED:
+				case SEGMENT_IS_TEAM_RED:
+					if (GetTeam (gameData.multiplayer.nLocalPlayer) != TEAM_RED)
+						continue;
+					break;
+				case SEGMENT_IS_GOAL_BLUE:
+				case SEGMENT_IS_TEAM_BLUE:
+					if (GetTeam (gameData.multiplayer.nLocalPlayer) != TEAM_BLUE)
+						continue;
+					break;
+				default:
+					break;
+				}
+			}
+		if (!bRandom || (spawnMap [i].xDist > SPAWN_MIN_DIST))
+			break;
+		if (i < --nSpawnSegs)
+			memcpy (spawnMap + i, spawnMap + i + 1, nSpawnSegs - i);
+		}
 	}
 else {
-	goto done; // If deathmatch and not Random, positions were already determined by sync packet
+	goto done; // If deathmatch and not random, positions were already determined by sync packet
 	}
 Assert (nSpawnPos >= 0);
 Assert (nSpawnPos < gameData.multiplayer.nPlayerPositions);
 
-GetPlayerSpawn (nSpawnPos, gameData.objs.consoleP);
+GetPlayerSpawn (nSpawnPos, gameData.objs.console);
 
 done:
 
@@ -2153,14 +2092,14 @@ ResetCruise ();
 
 //------------------------------------------------------------------------------
 
-fix RobotDefaultShields (CObject *objP)
+fix RobotDefaultShields (tObject *objP)
 {
 	tRobotInfo	*botInfoP;
 	int			objId, i;
 	fix			shields;
 
-Assert (objP->info.nType == OBJ_ROBOT);
-objId = objP->info.nId;
+Assert (objP->nType == OBJ_ROBOT);
+objId = objP->id;
 //Assert (objId < gameData.bots.nTypes [0]);
 i = gameStates.app.bD1Mission && (objId < gameData.bots.nTypes [1]);
 botInfoP = gameData.bots.info [i] + objId;
@@ -2172,19 +2111,19 @@ if (botInfoP->thief || botInfoP->companion) {
 		//	Now, scale guide-bot hits by skill level
 		switch (gameStates.app.nDifficultyLevel) {
 			case 0:
-				shields = I2X (20000);
+				shields = i2f (20000);
 				break;		//	Trainee, basically unkillable
 			case 1:
-				shields *= 3;
+				shields *= 3;			
 				break;		//	Rookie, pretty dang hard
 			case 2:
-				shields *= 2;
+				shields *= 2;			
 				break;		//	Hotshot, a bit tough
 			default:
 				break;
 			}
 		}
-	}
+	} 
 else if (botInfoP->bossFlag) {	//	MK, 01/16/95, make boss shields lower on lower diff levels.
 	shields = shields / (NDL + 3) * (gameStates.app.nDifficultyLevel + 4);
 //	Additional wimpification of bosses at Trainee
@@ -2195,11 +2134,11 @@ return shields;
 }
 
 //------------------------------------------------------------------------------
-//	Initialize default parameters for one robot, copying from gameData.bots.infoP to *objP.
+//	Initialize default parameters for one robot, copying from gameData.bots.pInfo to *objP.
 //	What about setting size!?  Where does that come from?
-void CopyDefaultsToRobot (CObject *objP)
+void CopyDefaultsToRobot (tObject *objP)
 {
-objP->info.xShields = RobotDefaultShields (objP);
+objP->shields = RobotDefaultShields (objP);
 }
 
 //------------------------------------------------------------------------------
@@ -2208,36 +2147,36 @@ objP->info.xShields = RobotDefaultShields (objP);
 //	This function should be called at level load time.
 void CopyDefaultsToRobotsAll ()
 {
-	int		i;
-	CObject	*objP;
+	int	i;
 
-FORALL_ROBOT_OBJS (objP, i)
-	CopyDefaultsToRobot (objP);
+for (i = 0; i <= gameData.objs.nLastObject; i++)
+	if (gameData.objs.objects [i].nType == OBJ_ROBOT)
+		CopyDefaultsToRobot (&gameData.objs.objects [i]);
 
 }
 
 extern void ClearStuckObjects (void);
 
 //------------------------------------------------------------------------------
-//called when the CPlayerData is starting a level (new game or new ship)
+//called when the tPlayer is starting a level (new game or new ship)
 void StartLevel (int bRandom)
 {
 Assert (!gameStates.app.bPlayerIsDead);
-VerifyConsoleObject ();
 InitPlayerPosition (bRandom);
-gameData.objs.consoleP->info.controlType = CT_FLYING;
-gameData.objs.consoleP->info.movementType = MT_PHYSICS;
+VerifyConsoleObject ();
+gameData.objs.console->controlType = CT_FLYING;
+gameData.objs.console->movementType = MT_PHYSICS;
 MultiSendShields ();
 DisableMatCens ();
 ClearTransientObjects (0);		//0 means leave proximity bombs
-// CreatePlayerAppearanceEffect (gameData.objs.consoleP);
+// CreatePlayerAppearanceEffect (gameData.objs.console);
 gameStates.render.bDoAppearanceEffect = 1;
 if (IsMultiGame) {
 	if (IsCoopGame)
 		MultiSendScore ();
 	MultiSendPosition (LOCALPLAYER.nObject);
 	MultiSendReappear ();
-	}
+	}	
 if (gameData.app.nGameMode & GM_NETWORK)
 	NetworkDoFrame (1, 1);
 AIResetAllPaths ();
@@ -2245,7 +2184,7 @@ AIInitBossForShip ();
 ClearStuckObjects ();
 #ifdef EDITOR
 //	Note, this is only done if editor builtin.  Calling this from here
-//	will cause it to be called after the CPlayerData dies, resetting the
+//	will cause it to be called after the tPlayer dies, resetting the
 //	hits for the buddy and thief.  This is ok, since it will work ok
 //	in a shipped version.
 InitAIObjects ();
@@ -2256,7 +2195,7 @@ gameData.fusion.xAutoFireTime = 0;
 gameData.fusion.xCharge = 0;
 gameStates.app.cheats.bRobotsFiring = 1;
 gameStates.app.cheats.bD1CheatsEnabled = 0;
-gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds && !gameOpts->sound.bHires;
+gameStates.sound.bD1Sound = gameStates.app.bD1Mission && gameStates.app.bHaveD1Data && gameOpts->sound.bUseD1Sounds;
 SetDataVersion (-1);
 }
 

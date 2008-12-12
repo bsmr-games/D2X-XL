@@ -1,3 +1,4 @@
+/* $Id: ogl.c,v 1.14 2004/05/11 23:15:55 btb Exp $ */
 /*
  *
  * Graphics support functions for OpenGL.
@@ -26,13 +27,33 @@
 # include <SDL.h>
 #endif
 
-#include "ogl_defs.h"
-#include "ogl_lib.h"
-#include "lightmap.h"
-#include "texmerge.h"
+#include "3d.h"
+#include "piggy.h"
+#include "globvars.h"
 #include "error.h"
+#include "texmap.h"
+#include "palette.h"
+#include "rle.h"
+#include "mono.h"
+
+#include "inferno.h"
+#include "textures.h"
+#include "texmerge.h"
+#include "effects.h"
+#include "weapon.h"
+#include "powerup.h"
+#include "polyobj.h"
+#include "gamefont.h"
+#include "byteswap.h"
+#include "cameras.h"
+#include "render.h"
+#include "grdef.h"
+#include "ogl_defs.h"
+#include "lightmap.h"
 
 //------------------------------------------------------------------------------
+
+#if RENDER2TEXTURE == 1
 
 HGLDC		hGlDC = 0;
 HGLRC		hGlRC = 0;
@@ -40,7 +61,11 @@ HGLRC		hGlRC = 0;
 GLXDrawable hGlWindow = 0;
 #endif
 
-#ifdef _WIN32
+
+int gameStates.ogl.bUseRender2Texture = 1;
+int gameStates.ogl.bRender2TextureOk = 0;
+
+#	ifdef _WIN32
 PFNWGLCREATEPBUFFERARBPROC				wglCreatePbufferARB = NULL;
 PFNWGLGETPBUFFERDCARBPROC				wglGetPbufferDCARB = NULL;
 PFNWGLRELEASEPBUFFERDCARBPROC			wglReleasePbufferDCARB = NULL;
@@ -54,18 +79,14 @@ PFNWGLRELEASETEXIMAGEARBPROC			wglReleaseTexImageARB = NULL;
 PFNWGLSETPBUFFERATTRIBARBPROC			wglSetPbufferAttribARB = NULL;
 PFNWGLMAKECONTEXTCURRENTARBPROC		wglMakeContextCurrentARB = NULL;
 PFNWGLGETCURRENTREADDCARBPROC			wglGetCurrentReadDCARB = NULL;
+#	endif
 #endif
 
 //------------------------------------------------------------------------------
 
-void CPBO::Init (void)
-{
-memset (&m_info, 0, sizeof (m_info));
-}
+#if RENDER2TEXTURE == 1
 
-//------------------------------------------------------------------------------
-
-int CPBO::Create (int nWidth, int nHeight)
+int OglCreatePBuffer (tPixelBuffer *pb, int nWidth, int nHeight, int nDepth)
 {
 #ifdef _WIN32
 	int	pf;
@@ -93,31 +114,31 @@ int CPBO::Create (int nWidth, int nHeight)
 
 if (!gameStates.ogl.bRender2TextureOk)
 	return 0;
-Destroy ();
+OglDestroyPBuffer (pb);
 hGlDC = wglGetCurrentDC ();
 hGlRC = wglGetCurrentContext ();
 if (nWidth > 0)
-	m_info.nWidth = nWidth;
+	pb->nWidth = nWidth;
 if (nHeight > 0)
-	m_info.nHeight = nHeight;
-wglChoosePixelFormatARB (hGlDC, reinterpret_cast<const int*> (pfAttribs), NULL, 1, &pf, &nPf);
+	pb->nHeight = nHeight;
+wglChoosePixelFormatARB (hGlDC, (const int *) pfAttribs, NULL, 1, &pf, &nPf);
 if (!nPf)
 	return 0;
-if (!(m_info.hBuf = wglCreatePbufferARB (hGlDC, pf, m_info.nWidth, m_info.nHeight, pbAttribs)))
+if (!(pb->hBuf = wglCreatePbufferARB (hGlDC, pf, pb->nWidth, pb->nHeight, pbAttribs)))
 	return 0;
-if (!(m_info.hDC = wglGetPbufferDCARB (m_info.hBuf))) {
-	wglDestroyPbufferARB (m_info.hBuf);
-	m_info.hBuf = NULL;
-	return 0;
-	}
-if (!(m_info.hRC = wglCreateContext (m_info.hDC))) {
-	wglReleasePbufferDCARB (m_info.hBuf, m_info.hDC);
-	wglDestroyPbufferARB (m_info.hBuf);
-	m_info.hDC = NULL;
-	m_info.hBuf = NULL;
+if (!(pb->hDC = wglGetPbufferDCARB (pb->hBuf))) {
+	wglDestroyPbufferARB (pb->hBuf);
+	pb->hBuf = NULL;
 	return 0;
 	}
-wglShareLists (hGlRC, m_info.hRC);
+if (!(pb->hRC = wglCreateContext (pb->hDC))) {
+	wglReleasePbufferDCARB (pb->hBuf, pb->hDC);
+	wglDestroyPbufferARB (pb->hBuf);
+	pb->hDC = NULL;
+	pb->hBuf = NULL;
+	return 0;
+	}
+wglShareLists (hGlRC, pb->hRC);
 #else //!_WIN32
 	XVisualInfo *vi;
 	GLXFBConfig *pfd;	// pixel format descriptor
@@ -149,30 +170,30 @@ hGlRC = glXGetCurrentContext ();
 nScreen = DefaultScreen (hGlDC);
 pfd = glXChooseFBConfig (hGlDC, nScreen, pfAttribs, &nFd);
 if (nWidth > 0)
-	m_info.nWidth = nWidth;
+	pb->nWidth = nWidth;
 if (nHeight > 0)
-	m_info.nHeight = nHeight;
+	pb->nHeight = nHeight;
 pbAttribs [1] = nWidth;
 pbAttribs [3] = nHeight;
-if (!(m_info.hBuf = glXCreatePbuffer (hGlDC, pfd [0], pbAttribs))) {
+if (!(pb->hBuf = glXCreatePbuffer (hGlDC, pfd [0], pbAttribs))) {
 	XFree (pfd);
 	return 0;
 	}
 if (!(vi = glXGetVisualFromFBConfig (hGlDC, pfd [0]))) {
-	glXDestroyPbuffer (m_info.hDC, m_info.hBuf);
+	glXDestroyPbuffer (pb->hDC, pb->hBuf);
 	XFree (pfd);
 	return 0;
 	}
-if (!(m_info.hRC = glXCreateContext (hGlDC, vi, hGlRC, GL_TRUE))) {// Share display lists and textures with the regular window
-	glXDestroyPbuffer (m_info.hDC, m_info.hBuf);
+if (!(pb->hRC = glXCreateContext (hGlDC, vi, hGlRC, GL_TRUE))) {// Share display lists and textures with the regular window
+	glXDestroyPbuffer (pb->hDC, pb->hBuf);
 	XFree (pfd);
 	XFree (vi);
 	return 0;
 	}
 XFree (pfd);
 #endif //!_WIN32
-glGenTextures (1, &m_info.texId);
-OGL_BINDTEX (m_info.texId);
+OglGenTextures (1, &pb->texId);
+OGL_BINDTEX (pb->texId);
 glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR /*GL_LINEAR_MIPMAP_LINEAR*/);
@@ -182,69 +203,69 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-void CPBO::Destroy (void)
+void OglDestroyPBuffer (tPixelBuffer *pb)
 {
-if (m_info.hBuf) {
+if (pb->hBuf) {
 #ifdef _WIN32
-	Release ();
-	if (m_info.hRC)
-		wglDeleteContext (m_info.hRC);
-	if (m_info.hDC)
-		wglReleasePbufferDCARB (m_info.hBuf, m_info.hDC);
-	wglDestroyPbufferARB (m_info.hBuf);
+	wglReleaseTexImageARB (pb->hBuf, WGL_FRONT_LEFT_ARB);
+	if (pb->hRC)
+		wglDeleteContext (pb->hRC);
+	if (pb->hDC)
+		wglReleasePbufferDCARB (pb->hBuf, pb->hDC);
+	wglDestroyPbufferARB (pb->hBuf);
 #else //!_WIN32
-	if (m_info.hRC)
-		glXDestroyContext (m_info.hDC, m_info.hRC);
-	if (m_info.hBuf)
-		glXDestroyPbuffer (m_info.hDC, m_info.hBuf);
+	if (pb->hRC)
+		glXDestroyContext (pb->hDC, pb->hRC);
+	if (pb->hBuf)
+		glXDestroyPbuffer (pb->hDC, pb->hBuf);
 #endif //!_WIN32
-	glDeleteTextures (1, &m_info.texId);
-	m_info.hRC = NULL;
-	m_info.hDC = NULL;
-	m_info.hBuf = NULL;
+	OglDeleteTextures (1, &pb->texId);
+	pb->hRC = NULL;
+	pb->hDC = NULL;
+	pb->hBuf = NULL;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-int CPBO::Available (void)
+int OglPBufferAvail (tPixelBuffer *pb)
 {
 #ifdef _WIN32
 	int	bLost;
 
 if (!wglQueryPbufferARB)
 	return 0;	// pixel buffer extension not available
-if (!(m_info.hDC && m_info.hDC && m_info.hRC))
+if (!(pb->hDC && pb->hDC && pb->hRC))
 	return 0;	// pixel buffer not available
-wglQueryPbufferARB (m_info.hBuf, WGL_PBUFFER_LOST_ARB, &bLost);
-return (bLost && !Create (0, 0)) ? -1 : 1;
+wglQueryPbufferARB (pb->hBuf, WGL_PBUFFER_LOST_ARB, &bLost);
+return (bLost && !OglCreatePBuffer (pb, 0, 0)) ? -1 : 1;
 #else
-return (m_info.hBuf && m_info.hRC);
+return (pb->hBuf && pb->hRC);
 #endif
 }
 
 //------------------------------------------------------------------------------
 
-int CPBO::Enable (void)
+int OglEnablePBuffer (tPixelBuffer *pb)
 {
-if (Available () < 1)
+if (OglPBufferAvail (pb) < 1)
 	return 0;
 #ifdef _WIN32
-if (!wglMakeContextCurrentARB (m_info.hDC, m_info.hDC, m_info.hRC))
+if (!wglMakeContextCurrentARB (pb->hDC, pb->hDC, pb->hRC))
 #else
-if (!glXMakeCurrent (m_info.hDC, m_info.hBuf, m_info.hRC))
+if (!glXMakeCurrent (pb->hDC, pb->hBuf, pb->hRC))
 #endif
 	return 0;
-OglSetDrawBuffer (GL_FRONT, 1);
-OglSetReadBuffer (GL_FRONT, 1);
+OglDrawBuffer (GL_FRONT, 1);
+OglReadBuffer (GL_FRONT, 1);
 return 1;
 }
 
 //------------------------------------------------------------------------------
 
-int CPBO::Disable (void)
+int OglDisablePBuffer (tPixelBuffer *pb)
 {
-if (Available () < 1)
+if (OglPBufferAvail (pb) < 1)
 	return 0;
 #ifdef _WIN32
 if (!wglMakeContextCurrentARB (hGlDC, hGlDC, hGlRC))
@@ -252,39 +273,20 @@ if (!wglMakeContextCurrentARB (hGlDC, hGlDC, hGlRC))
 if (!glXMakeCurrent (hGlDC, hGlWindow, hGlRC))
 #endif
 	return 0;
-OglSetDrawBuffer (GL_BACK, 1);
-OglSetReadBuffer (GL_FRONT, 1);
+OglDrawBuffer (GL_BACK, 1);
+OglReadBuffer (GL_FRONT, 1);
 return 1;
 }
 
-//------------------------------------------------------------------------------
-
-bool CPBO::Bind (void)
-{
-if (!Handle ())
-	return false;
-if (m_info.bBound)
-	return true;
-return m_info.bBound = (Handle () > 0) && wglBindTexImageARB (Handle (), WGL_FRONT_LEFT_ARB);
-}
+#endif
 
 //------------------------------------------------------------------------------
 
-void CPBO::Release (void)
+void OglInitPBuffer (void)
 {
-if (Handle () > 0) 
-	wglReleaseTexImageARB (Handle (), WGL_FRONT_LEFT_ARB);
-m_info.bBound = false;
-}
-
-//------------------------------------------------------------------------------
-
-void CPBO::Setup (void)
-{
-gameStates.ogl.bUseRender2Texture = 1;
-gameStates.ogl.bRender2TextureOk = 0;
+#if RENDER2TEXTURE == 1
 if (gameStates.ogl.bUseRender2Texture) {
-#ifdef _WIN32
+#	ifdef _WIN32
 	wglCreatePbufferARB = (PFNWGLCREATEPBUFFERARBPROC) wglGetProcAddress ("wglCreatePbufferARB");
 	wglGetPbufferDCARB = (PFNWGLGETPBUFFERDCARBPROC) wglGetProcAddress ("wglGetPbufferDCARB");
 	wglReleasePbufferDCARB = (PFNWGLRELEASEPBUFFERDCARBPROC) wglGetProcAddress ("wglReleasePbufferDCARB");
@@ -298,7 +300,7 @@ if (gameStates.ogl.bUseRender2Texture) {
 		wglCreatePbufferARB && wglGetPbufferDCARB && wglReleasePbufferDCARB && wglDestroyPbufferARB && 
 		wglQueryPbufferARB && wglChoosePixelFormatARB && wglMakeContextCurrentARB &&
 		wglBindTexImageARB && wglReleaseTexImageARB;
-#else
+#	else
 	gameStates.ogl.bRender2TextureOk = 1;
 #endif
 	}
@@ -312,9 +314,10 @@ if (gameStates.ogl.bUseRender2Texture) {
   hGlRC = glXGetCurrentContext ();
 #endif
   
+#endif
 PrintLog ((gameStates.ogl.bRender2TextureOk == 1) ? 
-		reinterpret_cast<char*> ("Rendering to pixel buffers is available\n") : 
-		reinterpret_cast<char*> ("No rendering to pixel buffers available\n"));
+		(char *) "Rendering to pixel buffers is available\n" : 
+		(char *) "No rendering to pixel buffers available\n");
 
 }
 

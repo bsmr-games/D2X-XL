@@ -1,3 +1,4 @@
+/* $Id: gamemine.h,v 1.6 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -63,7 +64,7 @@ struct mfi {
 	int     unused_sizeof;      // was: doors_sizeof
 	short   level_shake_frequency, level_shake_duration;
 	// Shakes every level_shake_frequency seconds
-	// for level_shake_duration seconds (on average, Random).  In 16ths second.
+	// for level_shake_duration seconds (on average, random).  In 16ths second.
 	int     secret_return_segment;
 	vmsMatrix secret_return_orient;
 
@@ -108,15 +109,12 @@ extern struct me mine_editor;
 // returns 1 if error, else 0
 int game_load_mine(char * filename);
 
-void ReadColor (CFile& cf, tFaceColor *pc, int bFloatData, int bRegisterColor);
-
 // loads from an already-open file
 // returns 0=everything ok, 1=old version, -1=error
-int load_mine_data(CFile& cf);
-int LoadMineSegmentsCompiled (CFile& cf);
+int load_mine_data(CFILE *LoadFile);
+int LoadMineSegmentsCompiled (CFILE *LoadFile);
 void CreateFaceList (void);
 void ComputeNearestLights (int nLevel);
-void InitTexColors (void);
 
 extern short tmap_xlate_table[];
 extern fix Level_shake_frequency, Level_shake_duration;

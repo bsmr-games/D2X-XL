@@ -1,3 +1,4 @@
+/* $Id: texmerge.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,11 +16,11 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define _TEXMERGE_H
 
 int TexMergeInit (int num_cached_textures);
-CBitmap *TexMergeGetCachedBitmap (int nBaseTex, int nOvlTex, int nOrient);
+grsBitmap *TexMergeGetCachedBitmap (int nBaseTex, int nOvlTex, int nOrient);
 void _CDECL_ TexMergeClose (void);
 void TexMergeFlush ();
 void InitTexMergeShaders ();
-int G3SetupTexMergeShader (int bColorKey, int bColored, int nType);
+int G3SetupTexMergeShader (int bColorKey, int bColored);
 
 extern int bGlsTexMergeOk;
 extern GLhandleARB tmShaderProgs [3]; 

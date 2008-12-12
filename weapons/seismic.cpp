@@ -1,3 +1,4 @@
+/* $Id: weapon.c,v 1.9 2003/10/11 09:28:38 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,15 +16,21 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: weapon.c,v 1.9 2003/10/11 09:28:38 btb Exp $";
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "inferno.h"
+#include "weapon.h"
 #include "error.h"
+#include "sounds.h"
 #include "text.h"
+#include "multi.h"
 #include "network.h"
-
 //	-----------------------------------------------------------------------------
 
 #define	ESHAKER_SHAKE_TIME		(F1_0*2)
@@ -56,7 +63,7 @@ for (i = 0; i < MAX_ESHAKER_DETONATES; i++) {
 			gameStates.gameplay.seismic.nNextSoundTime = gameData.time.xGame + d_rand()/2;
 			}
 		if (deltaTime < ESHAKER_SHAKE_TIME) {
-			//	Control center destroyed, rock the CPlayerData's ship.
+			//	Control center destroyed, rock the tPlayer's ship.
 			int	fc, rx, rz;
 			fix	h;
 			// -- fc = abs(deltaTime - ESHAKER_SHAKE_TIME/2);
@@ -70,12 +77,12 @@ for (i = 0; i < MAX_ESHAKER_DETONATES; i++) {
 			h = 3 * F1_0 / 16 + (F1_0 * (16 - fc)) / 32;
 			rx = FixMul(d_rand() - 16384, h);
 			rz = FixMul(d_rand() - 16384, h);
-			gameData.objs.consoleP->mType.physInfo.rotVel[X] += rx;
-			gameData.objs.consoleP->mType.physInfo.rotVel[Z] += rz;
+			gameData.objs.console->mType.physInfo.rotVel.p.x += rx;
+			gameData.objs.console->mType.physInfo.rotVel.p.z += rz;
 			//	Shake the buddy!
 			if (gameData.escort.nObjNum != -1) {
-				OBJECTS[gameData.escort.nObjNum].mType.physInfo.rotVel[X] += rx*4;
-				OBJECTS[gameData.escort.nObjNum].mType.physInfo.rotVel[Z] += rz*4;
+				gameData.objs.objects[gameData.escort.nObjNum].mType.physInfo.rotVel.p.x += rx*4;
+				gameData.objs.objects[gameData.escort.nObjNum].mType.physInfo.rotVel.p.z += rz*4;
 				}
 			//	Shake a guided missile!
 			gameStates.gameplay.seismic.nMagnitude += rx;
@@ -88,6 +95,8 @@ for (i = 0; i < MAX_ESHAKER_DETONATES; i++) {
 }
 
 //	-----------------------------------------------------------------------------
+
+extern void MultiSendSeismic (fix,fix);
 
 #define	SEISMIC_DISTURBANCE_DURATION	(F1_0*5)
 
@@ -148,12 +157,12 @@ if (gameStates.gameplay.seismic.nShakeFrequency) {
 		h = 3 * F1_0 / 16 + (F1_0 * (16 - fc)) / 32;
 		rx = FixMul(d_rand() - 16384, h);
 		rz = FixMul(d_rand() - 16384, h);
-		gameData.objs.consoleP->mType.physInfo.rotVel[X] += rx;
-		gameData.objs.consoleP->mType.physInfo.rotVel[Z] += rz;
+		gameData.objs.console->mType.physInfo.rotVel.p.x += rx;
+		gameData.objs.console->mType.physInfo.rotVel.p.z += rz;
 		//	Shake the buddy!
 		if (gameData.escort.nObjNum != -1) {
-			OBJECTS[gameData.escort.nObjNum].mType.physInfo.rotVel[X] += rx*4;
-			OBJECTS[gameData.escort.nObjNum].mType.physInfo.rotVel[Z] += rz*4;
+			gameData.objs.objects[gameData.escort.nObjNum].mType.physInfo.rotVel.p.x += rx*4;
+			gameData.objs.objects[gameData.escort.nObjNum].mType.physInfo.rotVel.p.z += rz*4;
 			}
 		//	Shake a guided missile!
 		gameStates.gameplay.seismic.nMagnitude += rx;
@@ -166,7 +175,7 @@ if (gameStates.gameplay.seismic.nShakeFrequency) {
 //	Call this when a smega detonates to start the process of rocking the mine.
 void ShakerRockStuff (void)
 {
-#if !DBG
+#ifndef _DEBUG
 	int	i;
 
 for (i = 0; i < MAX_ESHAKER_DETONATES; i++)

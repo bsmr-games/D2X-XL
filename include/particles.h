@@ -1,24 +1,12 @@
 #ifndef __PARTICLES_H
 #define __PARTICLES_H
 
-#include "inferno.h"
-
 #define EXTRA_VERTEX_ARRAYS	1
 
-#define MAX_PARTICLE_SYSTEMS 10000
+#define MAX_SMOKE 10000
 
-#define PARTICLE_RAD	(F1_0)
-
-#define SMOKE_PARTICLES		0
-#define BUBBLE_PARTICLES	1
-#define BULLET_PARTICLES	2
-#define LIGHT_PARTICLES		3
-#define GATLING_PARTICLES	4
-
-#define MAX_PARTICLES(_nParts,_nDens)	particleManager.MaxParticles (_nParts, _nDens)
-#define PARTICLE_SIZE(_nSize,_fScale)	particleManager.ParticleSize (_nSize, _fScale)
-
-//------------------------------------------------------------------------------
+#define MAX_PARTICLES(_nParts,_nDens)	MaxParticles (_nParts, _nDens)
+#define PARTICLE_SIZE(_nSize,_nScale)	ParticleSize (_nSize, _nScale)
 
 typedef struct tPartPos {
 	float		x, y, z;
@@ -26,322 +14,132 @@ typedef struct tPartPos {
 
 typedef struct tParticle {
 #if !EXTRA_VERTEX_ARRAYS
-	tPartPos		m_glPos;
+	tPartPos		glPos;
 #endif
-	vmsMatrix	m_mOrient;
-	CFixVector	m_vPos;				//position
-	CFixVector	m_vTransPos;		//transformed position
-	CFixVector	m_vDir;				//movement direction
-	CFixVector	m_vDrift;
-	int			m_nTTL;				//time to live
-	int			m_nLife;			//remaining life time
-	int			m_nDelay;			//time between creation and appearance
-	int			m_nMoved;			//time last moved
-	int			m_nWidth;
-	int			m_nHeight;
-	int			m_nRad;
-	short			m_nSegment;
-	tRgbaColorf	m_color [2];		//well ... the color, ya know =)
-	char			m_nType;			//black or white
-	char			m_nRotDir;
-	char			m_nBounce;
-	char			m_bHaveDir;
-	char			m_bBlowUp;
-	char			m_bBright;
-	char			m_bEmissive;
-	char			m_nFade;
-	char			m_nClass;
-	char			m_nFrame;
-	char			m_nRotFrame;
-	char			m_nOrient;
+	vmsMatrix	orient;
+	vmsVector	pos;				//position
+	vmsVector	transPos;		//transformed position
+	vmsVector	dir;				//movement direction
+	vmsVector	drift;
+	int			nTTL;				//time to live
+	int			nLife;			//remaining life time
+	int			nDelay;			//time between creation and appearance
+	int			nMoved;			//time last moved
+	int			nWidth;
+	int			nHeight;
+	int			nRad;
+	short			nSegment;
+	tRgbaColorf	color;			//well ... the color, ya know =)
+	char			nType;			//black or white
+	char			nRotDir;
+	char			nBounce;
+	char			bHaveDir;
+	char			bBlowUp;
+	char			bBright;
+	char			bColored;
+	char			nFade;
+	char			nClass;
+	char			nFrame;
+	char			nRotFrame;
+	char			nOrient;
 } tParticle;
 
-class CParticle : public tParticle {
-	public:
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
-					   short nSegment, int nLife, int nSpeed, char nParticleSystemType, char nClass,
-				      float fScale, tRgbaColorf *colorP, int nCurTime, int bBlowUp,
-					   float fBrightness, CFixVector *vEmittingFace);
-		int Render (float brightness);
-		int Update (int nCurTime);
-		inline bool IsVisible (void);
-		inline fix Transform (bool bUnscaled) { 
-			G3TransformPoint (m_vTransPos, m_vPos, bUnscaled); 
-			return m_vTransPos [Z];
-			}
+typedef struct tPartIdx {
+	int			i;
+	int			z;
+} tPartIdx;
 
-	private:
-		inline int ChangeDir (int d);
-		int CollideWithWall (void);
+typedef struct tCloud {
+	char			nType;			//smoke/light trail (corona)
+	char			nClass;
+	int			nLife;			//max. particle life time
+	int			nBirth;			//time of creation
+	int			nSpeed;			//initial particle speed
+	int			nParts;			//curent no. of particles
+	int			nFirstPart;
+	int			nMaxParts;		//max. no. of particles
+	int			nDensity;		//density (opaqueness) of smoke cloud
+	float			fPartsPerTick;
+	int			nTicks;
+	int			nPartsPerPos;	//particles per interpolated position mutiplier of moving objects
+	int			nPartLimit;		//highest max. part. no ever set for this cloud
+	float			nPartScale;
+	int			nDefBrightness;
+	float			fBrightness;
+	int			nMoved;			//time last moved
+	short			nSegment;
+	int			nObject;
+	short			nObjType;
+	short			nObjId;
+	vmsMatrix	orient;
+	vmsVector	dir;
+	vmsVector	pos;				//initial particle position
+	vmsVector	prevPos;			//initial particle position
+	vmsVector	vEmittingFace [4];
+	ubyte			bHaveDir;		//movement direction given?
+	ubyte			bHavePrevPos;	//valid previous position set?
+	tParticle	*pParticles;	//list of active particles
+	tPartIdx		*pPartIdx;
+	tRgbaColorf	color;
+	char			bHaveColor;
+	char			bBlowUpParts;	//blow particles up at their "birth"
+	char			bEmittingFace;
+} tCloud;
 
-};
+typedef struct tSmoke {
+	int			nNext;
+	int			nObject;
+	short			nObjType;
+	short			nObjId;
+	int			nSignature;
+	char			nType;			//black or white
+	int			nBirth;			//time of creation
+	int			nLife;			//max. particle life time
+	int			nSpeed;			//initial particle speed
+	int			nClouds;			//number of separate particle clouds
+	int			nMaxClouds;		//max. no. of clouds
+	tCloud		*pClouds;		//list of active clouds
+} tSmoke;
 
-//------------------------------------------------------------------------------
+int CreateSmoke (vmsVector *pPos, vmsVector *pDir, vmsMatrix *pOrient,
+					  short nSegment, int nMaxClouds, int nMaxParts, 
+					  float nPartScale, int nDensity, int nPartsPerPos, 
+					  int nLife, int nSpeed, char nType, int nObject,
+					  tRgbaColorf *pColor, int bBlowUpParts, char nFace);
+int DestroySmoke (int iSmoke);
+int UpdateSmoke ();
+int RenderSmoke ();
+int DestroyAllSmoke (void);
+void SetSmokeDensity (int i, int nMaxParts, int nDensity);
+void SetSmokePartScale (int i, float nPartScale);
+void SetSmokePos (int i, vmsVector *pos, vmsMatrix *orient, short nSegment);
+void SetSmokeDir (int i, vmsVector *pDir);
+void SetSmokeLife (int i, int nLife);
+void SetSmokeType (int i, int nType);
+void SetSmokeSpeed (int i, int nSpeed);
+void SetSmokeBrightness (int i, int nBrightness);
+tCloud *GetCloud (int i, int j);
+int GetSmokeType (int i);
+void FreeParticleImages (void);
+void SetCloudPos (tCloud *pCloud, vmsVector *pos, vmsMatrix *orient, short nSegment);
+void InitSmoke (void);
+int MaxParticles (int nParts, int nDens);
+float ParticleSize (int nSize, float nScale);
+int AllocPartList (void);
+void FreePartList (void);
+int LoadParticleImages (void);
+int BeginRenderSmoke (int nType, float nScale);
+int EndRenderSmoke (tCloud *pCloud);
+int RenderParticle (tParticle *pParticle, float brightness);
+int SetSmokeObject (int nObject, int nSmoke);
+void FlushParticleBuffer (float brightness);
+int InitParticleBuffer (int bLightMaps);
+int CloseParticleBuffer (void);
+int UpdateCloud (tCloud *pCloud, int nCurTime, int nThread);
+int RenderCloud (tCloud *pCloud, int nThread);
 
-typedef struct tParticleEmitter {
-	char				m_nType;				//smoke/light trail (corona)
-	char				m_nClass;
-	int				m_nLife;				//max. particle life time
-	int				m_nBirth;			//time of creation
-	int				m_nSpeed;			//initial particle speed
-	int				m_nParts;			//curent no. of particles
-	int				m_nFirstPart;
-	int				m_nMaxParts;		//max. no. of particles
-	int				m_nDensity;			//density (opaqueness) of particle emitter
-	float				m_fPartsPerTick;
-	int				m_nTicks;
-	int				m_nPartsPerPos;	//particles per interpolated position mutiplier of moving objects
-	int				m_nPartLimit;		//highest max. part. no ever set for this emitter
-	float				m_fScale;
-	int				m_nDefBrightness;
-	float				m_fBrightness;
-	int				m_nMoved;			//time last moved
-	short				m_nSegment;
-	int				m_nObject;
-	short				m_nObjType;
-	short				m_nObjId;
-	vmsMatrix		m_mOrient;
-	CFixVector		m_vDir;
-	CFixVector		m_vPos;				//initial particle position
-	CFixVector		m_vPrevPos;			//initial particle position
-	CFixVector		m_vEmittingFace [4];
-	ubyte				m_bHaveDir;			//movement direction given?
-	ubyte				m_bHavePrevPos;	//valid previous position set?
-	CParticle*		m_particles;		//list of active particles
-	tRgbaColorf		m_color;
-	char				m_bHaveColor;
-	char				m_bBlowUpParts;	//blow particles up at their "birth"
-	char				m_bEmittingFace;
-} tParticleEmitter;
-
-class CParticleEmitter : public tParticleEmitter {
-	public:
-		CParticleEmitter () { m_particles = NULL; };
-		~CParticleEmitter () { Destroy (); };
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
-						short nSegment, int nObject, int nMaxParts, float fScale,
-						int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
-						tRgbaColorf *colorP, int nCurTime, int bBlowUpParts, CFixVector *vEmittingFace);
-		int Destroy (void);
-		int Update (int nCurTime, int nThread);
-		int Render (int nThread);
-		void SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment);
-		inline void SetDir (CFixVector *vDir);
-		inline void SetLife (int nLife);
-		inline void SetBrightness (int nBrightness);
-		inline void SetSpeed (int nSpeed);
-		inline void SetType (int nType);
-		inline int SetDensity (int nMaxParts, int nDensity);
-		inline void SetScale (float fScale);
-		inline bool IsAlive (int nCurTime)
-			{ return (m_nLife < 0) || (m_nBirth + m_nLife > nCurTime); }
-		inline bool IsDead (int nCurTime)
-			{ return !(IsAlive (nCurTime) || m_nParts); }
-
-	private:
-		char ObjectClass (int nObject);
-		float  Brightness (void);
-		inline int MayBeVisible (void);
-};
-
-//------------------------------------------------------------------------------
-
-typedef struct tParticleSystem {
-	CParticleEmitter	*m_emitters;		//list of active emitters
-	int					m_nId;
-	int					m_nNext;
-	int					m_nSignature;
-	int					m_nBirth;			//time of creation
-	int					m_nLife;				//max. particle life time
-	int					m_nSpeed;			//initial particle speed
-	int					m_nEmitters;		//number of separate particle emitters
-	int					m_nMaxEmitters;	//max. no. of emitters
-	int					m_nObject;
-	short					m_nObjType;
-	short					m_nObjId;
-	char					m_nType;				//black or white
-} tParticleSystem;
-
-class CParticleSystem : public tParticleSystem {
-	public:
-		CParticleSystem () { m_emitters = NULL; };
-		~CParticleSystem () { Destroy (); };
-		void Init (int nId, int nNext);
-		int Create (CFixVector *pPos, CFixVector *pDir, vmsMatrix *pOrient,
-					   short nSegment, int nMaxEmitters, int nMaxParts, 
-						float fScale, int nDensity, int nPartsPerPos, 
-						int nLife, int nSpeed, char nType, int nObject,
-						tRgbaColorf *pColor, int bBlowUpParts, char nFace);
-		void Destroy (void);
-		int Render (void);
-		int Update (void);
-		int RemoveEmitter (int i);
-		void SetDensity (int nMaxParts, int nDensity);
-		void SetPartScale (float fScale);
-		void SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment);
-		void SetDir (CFixVector *vDir);
-		void SetLife (int nLife);
-		void SetScale (float fScale);
-		void SetType (int nType);
-		void SetSpeed (int nSpeed);
-		void SetBrightness (int nBrightness);
-
-		inline bool HasEmitters (void) { return m_emitters != NULL; }
-		inline CParticleEmitter* GetEmitter (int i)
-			{ return (m_emitters && (i < m_nEmitters)) ? m_emitters + i : NULL; }
-		inline int GetType (void) { return m_nType; }
-		inline int GetNext (void) { return m_nNext; }
-		inline void SetNext (int i) { m_nNext = i; }
-};
-
-//------------------------------------------------------------------------------
-
-class CParticleManager {
-	private:
-		CParticleSystem	m_systems [MAX_PARTICLE_SYSTEMS];
-		CArray<short>		m_objectSystems;
-		CArray<time_t>		m_objExplTime;
-		int					m_nLastType;
-		int					m_bAnimate;
-		int					m_bStencil;
-		int					m_nFree;
-		int					m_nUsed;
-
-	public:
-		CParticleManager () {}
-		~CParticleManager ();
-		void Init (void);
-		inline void InitObjects (void) { 
-			m_objectSystems.Clear (0xff); 
-			m_objExplTime.Clear (0xff);
-			}
-		int Update (void);
-		void Render (void);
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
-						short nSegment, int nMaxEmitters, int nMaxParts,
-						float fScale, int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
-						int nObject, tRgbaColorf *colorP, int bBlowUpParts, char nSide);
-		int Destroy (int iParticleSystem);
-		int Shutdown (void);
-		int AllocPartList (void);
-		void FreePartList (void);
-
-		int BeginRender (int nType, float fScale);
-		int EndRender (void);
-		int InitBuffer (int bLightmaps);
-		void FlushBuffer (float brightness);
-		int CloseBuffer (void);
-
-		void AdjustBrightness (CBitmap *bmP);
-
-		inline time_t* ObjExplTime (int i = 0) { return m_objExplTime + i; }
-		inline int LastType (void) { return m_nLastType; }
-		inline void SetLastType (int nLastType) { m_nLastType = nLastType; }
-		inline int Animate (void) { return m_bAnimate; }
-		inline void SetAnimate (int bAnimate) { m_bAnimate = bAnimate; }
-		inline int Stencil (void) { return m_bStencil; }
-		inline void SetStencil (int bStencil) { m_bStencil = bStencil; }
-		inline int GetFree (void) { return m_nFree; }
-		inline void SetFree (int i) { m_nFree = i; }
-		inline int GetUsed (void) { return m_nUsed; }
-		inline void SetUsed (int i) { m_nUsed = i; }
-		inline CParticleSystem& GetSystem (int i) { return m_systems [i]; }
-		inline short GetObjectSystem (short nObject) { return m_objectSystems [nObject]; }
-
-		inline CParticleEmitter* GetEmitter (int i, int j)
-			{ return (0 <= IsUsed (i)) ? GetSystem (i).GetEmitter (j) : NULL; }
-
-		inline void SetPos (int i, CFixVector *vPos, vmsMatrix *mOrient, short nSegment) { 
-			if (0 <= IsUsed (i)) 
-				GetSystem (i).SetPos (vPos, mOrient, nSegment); 
-			}
-
-		inline void SetDensity (int i, int nMaxParts, int nDensity) {
-			if (0 <= IsUsed (i)) {
-				nMaxParts = MaxParticles (nMaxParts, gameOpts->render.particles.nDens [0]);
-				GetSystem (i).SetDensity (nMaxParts, nDensity);
-				}
-			}
-
-		inline void SetScale (int i, float fScale) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetScale (fScale);
-			}
-
-		inline void SetLife (int i, int nLife) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetLife (nLife);
-			}
-
-		inline void SetBrightness (int i, int nBrightness) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetBrightness (nBrightness);
-			}
-
-		inline void SetType (int i, int nType) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetType (nType);
-			}
-
-		inline void SetSpeed (int i, int nSpeed) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetSpeed (nSpeed);
-			}
-
-		inline void SetDir (int i, CFixVector *vDir) {
-			if (0 <= IsUsed (i))
-				GetSystem (i).SetDir (vDir);
-			}
-
-		inline int SetObjectSystem (int nObject, int i) {
-			if ((nObject < 0) || (nObject >= MAX_OBJECTS))
-				return -1;
-			return m_objectSystems [nObject] = i;
-			}
-
-		inline int GetType (int i) {
-			return (IsUsed (i)) ? GetSystem (i).GetType () : -1;
-			}
-
-		inline int MaxParticles (int nParts, int nDens) {
-			nParts = ((nParts < 0) ? -nParts : nParts * (nDens + 1)); //(int) (nParts * pow (1.2, nDens));
-			return (nParts < 100000) ? nParts : 100000;
-			}
-
-		inline float ParticleSize (int nSize, float fScale) {
-			if (gameOpts->render.particles.bDisperse)
-				return (float) (PARTICLE_RAD * (nSize + 1)) / fScale + 0.5f;
-			return (float) (PARTICLE_RAD * (nSize + 1) * (nSize + 2) / 2) / fScale + 0.5f;
-			}
-
-		inline int RemoveEmitter (int i, int j)
-			{ return (0 <= IsUsed (i)) ? GetSystem (i).RemoveEmitter (j) : -1; }
-
-	private:
-		int IsUsed (int i);
-		void RebuildSystemList (void);
-
-};
-
-extern CParticleManager particleManager;
-
-//------------------------------------------------------------------------------
-
-class CParticleImageManager {
-	public:
-		CParticleImageManager () {};
-		~CParticleImageManager () {};
-		int Load (int nType);
-		int LoadAll (void);
-		void FreeAll (void);
-		void Animate (int nType);
-		void AdjustBrightness (CBitmap *bmP);
-		int GetType (int nType);
-};
-
-extern CParticleImageManager particleImageManager;
-
-//------------------------------------------------------------------------------
+extern int bUseSmoke;
+extern int nSmokeDensScale;
 
 #endif //__PARTICLES_H
 //eof

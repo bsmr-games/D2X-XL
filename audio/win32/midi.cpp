@@ -2,10 +2,20 @@
 #include <stdio.h>
 
 #include "inferno.h"
+#include "digi.h"
+#include "cfile.h"
 #include "error.h"
 #include "hmpfile.h"
 
+#if USE_SDL_MIXER
+#	ifdef __macosx__
+#		include <SDL/SDL_mixer.h>
+#	else
+#		include <SDL_mixer.h>
+#	endif
+
 Mix_Music *mixMusic = NULL;
+#endif
 
 hmp_file *hmp = NULL;
 
@@ -13,7 +23,7 @@ int midiVolume = 255;
 
 //------------------------------------------------------------------------------
 
-void DigiSetMidiVolume (int n)
+void DigiSetMidiVolume(int n)
 {
 if (n < 0)
 	midiVolume = 0;
@@ -36,7 +46,7 @@ if (hmp) {
 	// scale up from 0-127 to 0-0xffff
 	mmVolume = (midiVolume << 1) | (midiVolume & 1);
 	mmVolume |= (mmVolume << 8);
-	n = midiOutSetVolume ((HMIDIOUT)hmp->hmidi, mmVolume | (mmVolume << 16));
+	n = midiOutSetVolume((HMIDIOUT)hmp->hmidi, mmVolume | (mmVolume << 16));
 	}
 #endif
 }
@@ -50,9 +60,6 @@ void DigiStopCurrentSong ()
 if (gameData.songs.bPlaying) {
 	DigiFadeoutMusic ();
 	h = midiVolume;	// preserve it for another song being started
-#if USE_SDL_MIXER
-	if (!gameOpts->sound.bUseSDLMixer)
-#endif
 	DigiSetMidiVolume (0);
 	midiVolume = h;
 #if defined (_WIN32)
@@ -104,7 +111,7 @@ if (gameOpts->sound.bUseSDLMixer) {
 			gameData.songs.user.bMP3 = 0;
 			DigiInit (1);
 			}
-		sprintf (fnSong, "%s/d2x-temp.mid", *gameFolders.szCacheDir ? gameFolders.szCacheDir : gameFolders.szHomeDir);
+		sprintf (fnSong, "%s/d2x-temp.mid", *gameFolders.szTempDir ? gameFolders.szTempDir : gameFolders.szHomeDir);
 		if (!hmp_to_midi (hmp, fnSong)) {
 			PrintLog ("SDL_mixer failed to load %s\n(%s)\n", fnSong, Mix_GetError ());
 			return 0;

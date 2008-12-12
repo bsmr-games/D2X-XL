@@ -1,3 +1,4 @@
+/* $Id: movie.h,v 1.3 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -45,7 +46,7 @@ void PlayIntroMovie (void);
 // find and initialize the movie libraries
 void InitMovies();
 
-int InitSubTitles (const char *filename);
+int InitSubTitles(char *filename);
 void CloseSubTitles();
 
 int GetNumMovieLibs (void);

@@ -32,10 +32,9 @@
 
 //#define IPX_MCAST4DBG
 
-extern ubyte ipx_MyAddress[10];
+extern unsigned char ipx_MyAddress[10];
 
 #define UDP_BASEPORT 28342
-
 #define PORTSHIFT_TOLERANCE 0x100
 #define MAX_PACKETSIZE 8192
 
@@ -91,12 +90,12 @@ return 1;
 #ifdef IPX_MCAST4DBG
 /* Dump raw form of IP address/port by fancy output to user
  */
-static void dumpraddr(ubyte *a)
+static void dumpraddr(unsigned char *a)
 {
 	short port;
 
 	//printf("[%u.%u.%u.%u]", a[0], a[1], a[2], a[3]);
-	port=(signed short)ntohs(*reinterpret_cast<ushort*> (a+4);
+	port=(signed short)ntohs(*(unsigned short *)(a+4);
 	//if (port) printf(":%+d",port);
 }
 
@@ -104,8 +103,8 @@ static void dumpraddr(ubyte *a)
  */
 static void dumpaddr(struct sockaddr_in *sin)
 {
-	ushort ports;
-	ubyte qhbuf[8];
+	unsigned short ports;
+	unsigned char qhbuf[8];
 
 	memcpy(qhbuf + 0, &sin->sin_addr, 4);
 	ports = htons(((short)ntohs(sin->sin_port)) - UDP_BASEPORT);
@@ -136,7 +135,7 @@ static int ipx_mcast4_OpenSocket(ipx_socket_t *sk, int port)
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
 	sin.sin_port = htons(baseport);
-	if (bind(sk->fd, reinterpret_cast<struct sockaddr*> (&sin), sizeof(sin)))
+	if (bind(sk->fd, (struct sockaddr *)&sin, sizeof(sin)))
 	{
 		if (close(sk->fd))
 			msg("close() failed during error recovery: %m");
@@ -186,7 +185,7 @@ static int ipx_mcast4_SendPacket(ipx_socket_t *sk, IPXPacket_t *IPXHeader, u_cha
 
 	toaddr.sin_family = AF_INET;
 	memcpy(&toaddr.sin_addr, IPXHeader->Destination.Node + 0, 4);
-	//toaddr.sin_port = htons(((short)ntohs(*reinterpret_cast<ushort*> (IPXHeader->Destination.Node + 4))) + UDP_BASEPORT);
+	//toaddr.sin_port = htons(((short)ntohs(*(unsigned short *)(IPXHeader->Destination.Node + 4))) + UDP_BASEPORT);
 	// For now, just use the same port for everything
 	toaddr.sin_port = htons(UDP_BASEPORT);
 
@@ -208,7 +207,7 @@ static int ipx_mcast4_SendPacket(ipx_socket_t *sk, IPXPacket_t *IPXHeader, u_cha
 	//puts(").");
 #endif
 
-	i = sendto(sk->fd, data, dataLen, 0, reinterpret_cast<struct sockaddr*> (&toaddr), sizeof(toaddr));
+	i = sendto(sk->fd, data, dataLen, 0, (struct sockaddr *)&toaddr, sizeof(toaddr));
 	return i;
 }
 
@@ -216,9 +215,9 @@ static int ipx_mcast4_ReceivePacket(ipx_socket_t *sk, char *outbuf, int outbufsi
 {
 	int size;
 	struct sockaddr_in fromaddr;
-	uint fromaddrsize = sizeof(fromaddr);
+	unsigned int fromaddrsize = sizeof(fromaddr);
 
-size = recvfrom(sk->fd, outbuf, outbufsize, 0, reinterpret_cast<struct sockaddr*> (&fromaddr), &fromaddrsize);
+size = recvfrom(sk->fd, outbuf, outbufsize, 0, (struct sockaddr*)&fromaddr, &fromaddrsize);
 if (size < 0)
 	return -1;
 
@@ -297,7 +296,7 @@ static void ipx_mcast4_InitNetgameAuxData(ipx_socket_t *sk, u_char buf[NETGAME_A
 	// The first byte is the version number
 	buf[0] = IPX_MCAST4_VERSION;
 
-	// Generate a Random session
+	// Generate a random session
 	game_addr = inet_makeaddr(239*256 + 255, d_rand() % 0xFFFF);
 	memcpy(buf + 1, &game_addr, sizeof(game_addr));
 
@@ -337,7 +336,7 @@ static int ipx_mcast4_SendGamePacket(ipx_socket_t *sk, ubyte *data, int dataLen)
 
 	msg("ipx_mcast4_SendGamePacket");
 
-	i = sendto(sk->fd, data, dataLen, 0, reinterpret_cast<struct sockaddr*> (&toaddr), sizeof(toaddr));
+	i = sendto(sk->fd, data, dataLen, 0, (struct sockaddr *)&toaddr, sizeof(toaddr));
 
 	return i;
 }

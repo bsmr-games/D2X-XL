@@ -183,27 +183,27 @@ void remove_char( char * bObjectRendered, char c )
 
 //---------------------------------------------------------------
 
-int ComputeAvgPixel(CBitmap *newBm)
+int ComputeAvgPixel(grsBitmap *newBm)
 {
 	int	row, column, color, size;
 	char	*pptr;
 	int	total_red, total_green, total_blue;
 
-	pptr = reinterpret_cast<char*> (newBm->texBuf);
+	pptr = (char *)newBm->bmTexBuf;
 
 	total_red = 0;
 	total_green = 0;
 	total_blue = 0;
 
-	for (row=0; row<newBm->props.h; row++)
-		for (column=0; column<newBm->props.w; column++) {
+	for (row=0; row<newBm->bmProps.h; row++)
+		for (column=0; column<newBm->bmProps.w; column++) {
 			color = *pptr++;
 			total_red += grPalette[color*3];
 			total_green += grPalette[color*3+1];
 			total_blue += grPalette[color*3+2];
 		}
 
-	size = newBm->props.h * newBm->props.w * 2;
+	size = newBm->bmProps.h * newBm->bmProps.w * 2;
 	total_red /= size;
 	total_green /= size;
 	total_blue /= size;
@@ -218,7 +218,7 @@ int ComputeAvgPixel(CBitmap *newBm)
 tBitmapIndex bm_load_sub( char * filename )
 {
 	tBitmapIndex bitmap_num;
-	CBitmap * newBmP;
+	grsBitmap * new;
 	ubyte newpal[256*3];
 	int iff_error;		//reference parm to avoid warning message
 	char fname[20];
@@ -232,9 +232,9 @@ tBitmapIndex bm_load_sub( char * filename )
 		return bitmap_num;
 	}
 
-	newBmP = new CBitmap;
-	iff_error = iff_read_bitmap(filename,newBmP,BM_LINEAR,newpal);
-	newBmP->nId=0;
+	MALLOC( new, grsBitmap, 1 );
+	iff_error = iff_read_bitmap(filename,new,BM_LINEAR,newpal);
+	new->bmHandle=0;
 	if (iff_error != IFF_NO_ERROR)		{
 #if TRACE
 		con_printf (1, "File %bObjectRendered - IFF error: %bObjectRendered",filename,iff_errormsg(iff_error));
@@ -243,24 +243,24 @@ tBitmapIndex bm_load_sub( char * filename )
 	}
 
 	if ( iff_has_transparency )
-		newBmP->Remap (newpal, iff_transparent_color, SuperX );
+		GrRemapBitmapGood( new, newpal, iff_transparent_color, SuperX );
 	else
-		newBmP->Remap (newpal, -1, SuperX );
+		GrRemapBitmapGood( new, newpal, -1, SuperX );
 
-	newBmP->avgColor = ComputeAvgPixel(newBmP);
+	new->bmAvgColor = ComputeAvgPixel(new);
 
-	bitmap_num = PiggyRegisterBitmap( newBmP, fname, 0 );
-	delete newBmP;
+	bitmap_num = PiggyRegisterBitmap( new, fname, 0 );
+	D2_FREE( new );
 	return bitmap_num;
 }
 
-extern CBitmap bogus_bitmap;
+extern grsBitmap bogus_bitmap;
 extern ubyte bogus_bitmap_initialized;
 extern tDigiSound bogusSound;
 
 void ab_load( char * filename, tBitmapIndex bmp[], int *nframes )
 {
-	CBitmap * bm[MAX_BITMAPS_PER_BRUSH];
+	grsBitmap * bm[MAX_BITMAPS_PER_BRUSH];
 	tBitmapIndex bi;
 	int i;
 	int iff_error;		//reference parm to avoid warning message
@@ -299,15 +299,14 @@ void ab_load( char * filename, tBitmapIndex bmp[], int *nframes )
 		tBitmapIndex new_bmp;
 		sprintf( tempname, "%bObjectRendered#%d", fname, i );
 		if ( iff_has_transparency )
-			bm[i].Remap (newpal, iff_transparent_color, SuperX );
+			GrRemapBitmapGood( bm[i], newpal, iff_transparent_color, SuperX );
 		else
-			bm[i].Remap ( bm[i], newpal, -1, SuperX );
+			GrRemapBitmapGood( bm[i], newpal, -1, SuperX );
 
-		bm[i]->avgColor = ComputeAvgPixel(bm[i]);
+		bm[i]->bmAvgColor = ComputeAvgPixel(bm[i]);
 
 		new_bmp = PiggyRegisterBitmap( bm[i], tempname, 0 );
-		delete bm[i];
-		bm[i] = NULL;
+		D2_FREE( bm[i] );
 		bmp[i] = new_bmp;
 #if TRACE
 		if (!i)
@@ -323,8 +322,8 @@ void ab_load( char * filename, tBitmapIndex bmp[], int *nframes )
 
 int ds_load( char * filename )	{
 	int i;
-	CFile * cfP;
-	tDigiSound newBmP;
+	CFILE * cfp;
+	tDigiSound new;
 	char fname[20];
 	char rawname[100];
 
@@ -336,20 +335,20 @@ int ds_load( char * filename )	{
 		return i;
 	}
 
-	cfP = cf.Open( rawname, gameFolders.szDataDir, "rb", 0 );
+	cfp = CFOpen( rawname, gameFolders.szDataDir, "rb", 0 );
 
-	if (cfP) {
-		newBmP.length	= cf.Length(cfP);
-		MALLOC( newBmP.data, ubyte, newBmP.length );
-		cf.Read( newBmP.data, 1, newBmP.length, cfP );
-		cf.Close(cfP);
+	if (cfp!=NULL) {
+		new.length	= CFLength( cfp );
+		MALLOC( new.data, ubyte, new.length );
+		CFRead( new.data, 1, new.length, cfp );
+		CFClose(cfp);
 	} else {
 #if TRACE
 		con_printf (1, "Warning: Couldn't find '%bObjectRendered'\n", filename );
 #endif
 		return 255;
 	}
-	i = PiggyRegisterSound( &newBmP, fname, 0 );
+	i = PiggyRegisterSound( &new, fname, 0 );
 	return i;
 }
 
@@ -417,13 +416,13 @@ int get_texture(char *name)
 // If no editor, BMInit() is called.
 int bm_init_use_tbl()
 {
-	CFile	* InfoFile;
+	CFILE	* InfoFile;
 	char	szInput[LINEBUF_SIZE];
 	int	i, have_bin_tbl;
 
-	GrUsePaletteTable (DEFAULT_PIG_PALETTE);
+	GrUsePaletteTable(DEFAULT_PIG_PALETTE);
 
-	paletteManager.Load (DEFAULT_PIG_PALETTE, -2, 0, 0);		//special: tell palette code which pig is loaded
+	LoadPalette(DEFAULT_PIG_PALETTE,-2,0,0);		//special: tell palette code which pig is loaded
 
 	InitPolygonModels();
 
@@ -448,6 +447,7 @@ int bm_init_use_tbl()
 
 	Num_effects = 0;
 	for (i=0; i<MAX_EFFECTS; i++ ) {
+		//Effects [gameStates.app.bD1Data][i].bm_ptr = (grsBitmap **) -1;
 		Effects [gameStates.app.bD1Data][i].changingWallTexture = -1;
 		Effects [gameStates.app.bD1Data][i].changingObjectTexture = -1;
 		Effects [gameStates.app.bD1Data][i].nSegment = -1;
@@ -483,16 +483,16 @@ int bm_init_use_tbl()
 
 	// Open BITMAPS.TBL for reading.
 	have_bin_tbl = 0;
-	InfoFile = cf.Open( "BITMAPS.TBL", gameFolders.szDataDir, "rb", 0 );
+	InfoFile = CFOpen( "BITMAPS.TBL", gameFolders.szDataDir, "rb", 0 );
 	if (InfoFile == NULL) {
-		InfoFile = cf.Open("BITMAPS.BIN", gameFolders.szDataDir, "rb", 0);
+		InfoFile = CFOpen("BITMAPS.BIN", gameFolders.szDataDir, "rb", 0);
 		if (InfoFile == NULL)
 			Error("Missing BITMAPS.TBL and BITMAPS.BIN file\n");
 		have_bin_tbl = 1;
 	}
 	linenum = 0;
 
-	cf.Seek( InfoFile, 0L, SEEK_SET);
+	CFSeek( InfoFile, 0L, SEEK_SET);
 
 	while (CFGetS(szInput, LINEBUF_SIZE, InfoFile)) {
 		int l;
@@ -536,7 +536,7 @@ int bm_init_use_tbl()
 		if ( (temp_ptr=strstr( szInput, "superx=" )) )	{
 			SuperX = atoi( &temp_ptr[7] );
 			Assert(SuperX == 254);
-				//the superx color isn't kept around, so the newBmP piggy regeneration
+				//the superx color isn't kept around, so the new piggy regeneration
 				//code doesn't know what it is, so it assumes that it'bObjectRendered 254, so
 				//this code requires that it be 254
 									
@@ -574,14 +574,14 @@ int bm_init_use_tbl()
 			else IFTOK("!EFFECTS_FLAG")	TextureEffects = textureCount;
 			#endif
 
-			else IFTOK("lighting") 			TmapInfo [gameStates.app.bD1Data][textureCount-1].lighting = F2X(get_float();
-			else IFTOK("damage") 			TmapInfo [gameStates.app.bD1Data][textureCount-1].damage = F2X(get_float();
+			else IFTOK("lighting") 			TmapInfo [gameStates.app.bD1Data][textureCount-1].lighting = fl2f(get_float();
+			else IFTOK("damage") 			TmapInfo [gameStates.app.bD1Data][textureCount-1].damage = fl2f(get_float();
 			else IFTOK("volatile") 			TmapInfo [gameStates.app.bD1Data][textureCount-1].flags |= TMI_VOLATILE;
 			else IFTOK("goal_blue")			TmapInfo [gameStates.app.bD1Data][textureCount-1].flags |= TMI_GOAL_BLUE;
 			else IFTOK("goal_red")			TmapInfo [gameStates.app.bD1Data][textureCount-1].flags |= TMI_GOAL_RED;
 			else IFTOK("water")	 			TmapInfo [gameStates.app.bD1Data][textureCount-1].flags |= TMI_WATER;
 			else IFTOK("force_field")		TmapInfo [gameStates.app.bD1Data][textureCount-1].flags |= TMI_FORCE_FIELD;
-			else IFTOK("slide")	 			{TmapInfo [gameStates.app.bD1Data][textureCount-1].slide_u = F2X(get_float())>>8; TmapInfo [gameStates.app.bD1Data][textureCount-1].slide_v = F2X(get_float())>>8;}
+			else IFTOK("slide")	 			{TmapInfo [gameStates.app.bD1Data][textureCount-1].slide_u = fl2f(get_float())>>8; TmapInfo [gameStates.app.bD1Data][textureCount-1].slide_v = fl2f(get_float())>>8;}
 			else IFTOK("destroyed")	 		{int t=textureCount-1; TmapInfo [gameStates.app.bD1Data][t].destroyed = get_texture(strtok( NULL, space );}
 			//else IFTOK("Num_effects")		Num_effects = get_int();
 			else IFTOK("Num_wall_anims")	Num_wall_anims = get_int();
@@ -589,7 +589,7 @@ int bm_init_use_tbl()
 			else IFTOK("dest_bm")			dest_bm = strtok( NULL, space );
 			else IFTOK("dest_vclip")		dest_vclip = get_int();
 			else IFTOK("dest_eclip")		dest_eclip = get_int();
-			else IFTOK("dest_size")			dest_size = F2X(get_float();
+			else IFTOK("dest_size")			dest_size = fl2f(get_float();
 			else IFTOK("crit_clip")			crit_clip = get_int();
 			else IFTOK("critFlag")			critFlag = get_int();
 			else IFTOK("nSound") 		nSound = get_int();
@@ -648,7 +648,7 @@ int bm_init_use_tbl()
 
 	Textures [gameStates.app.bD1Data][NumTextures++].index = 0;		//entry for bogus tmap
 
-	cf.Close( InfoFile );
+	CFClose( InfoFile );
 
 	atexit(BMClose);
 
@@ -663,9 +663,9 @@ int bm_init_use_tbl()
 				  (Effects [gameStates.app.bD1Data][i].changingObjectTexture!=-1)
              )
 			 && (Effects [gameStates.app.bD1Data][i].vc.nFrameCount==-1) )
-			Error("EClip %d referenced (by polygon CObject?), but not defined",i);
+			Error("EClip %d referenced (by polygon tObject?), but not defined",i);
 
-	#if DBG
+	#ifdef _DEBUG
 	{
 		int used;
 		for (i=used=0; i<numSounds; i++ )
@@ -695,12 +695,12 @@ int bm_init_use_tbl()
 
 void verify_textures()
 {
-	CBitmap * bmp;
+	grsBitmap * bmp;
 	int i,j;
 	j=0;
 	for (i=0; i<Num_tmaps; i++ )	{
 		bmp = GameBitmaps + Textures [gameStates.app.bD1Data][i].index;
-		if ( (bmp->props.w!=64)||(bmp->props.h!=64)||(bmp->props.rowSize!=64) )	{
+		if ( (bmp->bmProps.w!=64)||(bmp->bmProps.h!=64)||(bmp->bmProps.rowSize!=64) )	{
 #if TRACE
 			con_printf (1, "ERROR: Texture '%bObjectRendered' isn't 64x64 !\n", TmapInfo [gameStates.app.bD1Data][i].filename );
 #endif
@@ -712,9 +712,9 @@ void verify_textures()
 
 	for (i=0;i<Num_effects;i++)
 		if (Effects [gameStates.app.bD1Data][i].changingObjectTexture != -1)
-			if (GameBitmaps[gameData.pig.tex.objBmIndex[Effects [gameStates.app.bD1Data][i].changingObjectTexture].index].props.w!=64 || 
-				 GameBitmaps[gameData.pig.tex.objBmIndex[Effects [gameStates.app.bD1Data][i].changingObjectTexture].index].props.h!=64)
-				Error("Effect %d is used on CObject, but is not 64x64",i);
+			if (GameBitmaps[gameData.pig.tex.objBmIndex[Effects [gameStates.app.bD1Data][i].changingObjectTexture].index].bmProps.w!=64 || 
+				 GameBitmaps[gameData.pig.tex.objBmIndex[Effects [gameStates.app.bD1Data][i].changingObjectTexture].index].bmProps.h!=64)
+				Error("Effect %d is used on tObject, but is not 64x64",i);
 
 }
 
@@ -740,7 +740,7 @@ void bm_read_alias()
 //--unused-- 	fp = fopen( "XPARENT.LST", "wt" );
 //--unused-- 	for (i=0; i<Num_tmaps; i++ )	{
 //--unused-- 		k = 0;
-//--unused-- 		p = Textures [gameStates.app.bD1Data][i]->texBuf;
+//--unused-- 		p = Textures [gameStates.app.bD1Data][i]->bmTexBuf;
 //--unused-- 		for (j=0; j<64*64; j++ )
 //--unused-- 			if ( (*p++)==255 ) k++;
 //--unused-- 		if ( k )	{
@@ -811,13 +811,13 @@ void bm_read_eclip()
 	if (!abmFlag)	{
 		bitmap = bm_load_sub(arg);
 
-		Effects [gameStates.app.bD1Data][nClip].vc.xTotalTime = F2X(time);
+		Effects [gameStates.app.bD1Data][nClip].vc.xTotalTime = fl2f(time);
 		Effects [gameStates.app.bD1Data][nClip].vc.nFrameCount = frames;
-		Effects [gameStates.app.bD1Data][nClip].vc.xFrameTime = F2X(time)/frames;
+		Effects [gameStates.app.bD1Data][nClip].vc.xFrameTime = fl2f(time)/frames;
 
 		Assert(clipCount < frames);
 		Effects [gameStates.app.bD1Data][nClip].vc.frames[clipCount] = bitmap;
-		set_lightingFlag(&GameBitmaps[bitmap.index].props.flags);
+		set_lightingFlag(&GameBitmaps[bitmap.index].bmProps.flags);
 
 		Assert(!obj_eclip);		//obj eclips for non-abm files not supported!
 		Assert(critFlag==0);
@@ -843,11 +843,11 @@ void bm_read_eclip()
 		ab_load( arg, bm, &Effects [gameStates.app.bD1Data][nClip].vc.nFrameCount );
 
 		////printf("EC%d.", nClip);
-		Effects [gameStates.app.bD1Data][nClip].vc.xTotalTime = F2X(time);
+		Effects [gameStates.app.bD1Data][nClip].vc.xTotalTime = fl2f(time);
 		Effects [gameStates.app.bD1Data][nClip].vc.xFrameTime = Effects [gameStates.app.bD1Data][nClip].vc.xTotalTime/Effects [gameStates.app.bD1Data][nClip].vc.nFrameCount;
 
 		clipCount = 0;
-		set_lightingFlag( &GameBitmaps[bm[clipCount].index].props.flags);
+		set_lightingFlag( &GameBitmaps[bm[clipCount].index].bmProps.flags);
 		Effects [gameStates.app.bD1Data][nClip].vc.frames[clipCount] = bm[clipCount];
 
 		if (!obj_eclip && !critFlag) {
@@ -872,10 +872,10 @@ void bm_read_eclip()
 			gameData.pig.tex.objBmIndex[Effects [gameStates.app.bD1Data][nClip].changingObjectTexture] = Effects [gameStates.app.bD1Data][nClip].vc.frames[0];
 		}
 
-		//if for an CObject, Effects_bm_ptrs set in CObject load
+		//if for an tObject, Effects_bm_ptrs set in tObject load
 
 		for(clipCount=1;clipCount < Effects [gameStates.app.bD1Data][nClip].vc.nFrameCount; clipCount++) {
-			set_lightingFlag( &GameBitmaps[bm[clipCount].index].props.flags);
+			set_lightingFlag( &GameBitmaps[bm[clipCount].index].bmProps.flags);
 			Effects [gameStates.app.bD1Data][nClip].vc.frames[clipCount] = bm[clipCount];
 		}
 
@@ -968,15 +968,15 @@ void bm_read_wclip()
 		bitmap = bm_load_sub(arg);
 		if ( (WallAnims[nClip].nFrameCount>-1) && (clipCount==0) )
 			Error( "Wall Clip %d is already used!", nClip );
-		WallAnims[nClip].xTotalTime = F2X(time);
+		WallAnims[nClip].xTotalTime = fl2f(time);
 		WallAnims[nClip].nFrameCount = frames;
-		//WallAnims[nClip].xFrameTime = F2X(time)/frames;
+		//WallAnims[nClip].xFrameTime = fl2f(time)/frames;
 		Assert(clipCount < frames);
 		WallAnims[nClip].frames[clipCount++] = textureCount;
 		WallAnims[nClip].openSound = wall_openSound;
 		WallAnims[nClip].closeSound = wall_closeSound;
 		Textures [gameStates.app.bD1Data][textureCount] = bitmap;
-		set_lightingFlag(&GameBitmaps[bitmap.index].props.flags);
+		set_lightingFlag(&GameBitmaps[bitmap.index].bmProps.flags);
 		set_texture_name( arg );
 		Assert(textureCount < MAX_TEXTURES);
 		textureCount++;
@@ -991,8 +991,8 @@ void bm_read_wclip()
 		ab_load( arg, bm, &nframes );
 		WallAnims[nClip].nFrameCount = nframes;
 		////printf("WC");
-		WallAnims[nClip].xTotalTime = F2X(time);
-		//WallAnims[nClip].xFrameTime = F2X(time)/nframes;
+		WallAnims[nClip].xTotalTime = fl2f(time);
+		//WallAnims[nClip].xFrameTime = fl2f(time)/nframes;
 		WallAnims[nClip].openSound = wall_openSound;
 		WallAnims[nClip].closeSound = wall_closeSound;
 
@@ -1002,12 +1002,12 @@ void bm_read_wclip()
 
 		if (nClip >= Num_wall_anims) Num_wall_anims = nClip+1;
 
-		set_lightingFlag(&GameBitmaps[bm[clipCount].index].props.flags);
+		set_lightingFlag(&GameBitmaps[bm[clipCount].index].bmProps.flags);
 
 		for (clipCount=0;clipCount < WallAnims[nClip].nFrameCount; clipCount++)	{
 			////printf("%d", clipCount);
 			Textures [gameStates.app.bD1Data][textureCount] = bm[clipCount];
-			set_lightingFlag(&GameBitmaps[bm[clipCount].index].props.flags);
+			set_lightingFlag(&GameBitmaps[bm[clipCount].index].bmProps.flags);
 			WallAnims[nClip].frames[clipCount] = textureCount;
 			REMOVE_DOTS(arg);
 			sprintf( TmapInfo [gameStates.app.bD1Data][textureCount].filename, "%bObjectRendered#%d", arg, clipCount);
@@ -1030,12 +1030,12 @@ void bm_read_vclip()
 		if ( (Vclip [gameStates.app.bD1Data][nClip].nFrameCount>-1) && (clipCount==0)  )
 			Error( "Vclip %d is already used!", nClip );
 		bi = bm_load_sub(arg);
-		Vclip [gameStates.app.bD1Data][nClip].xTotalTime = F2X(time);
+		Vclip [gameStates.app.bD1Data][nClip].xTotalTime = fl2f(time);
 		Vclip [gameStates.app.bD1Data][nClip].nFrameCount = frames;
-		Vclip [gameStates.app.bD1Data][nClip].xFrameTime = F2X(time)/frames;
-		Vclip [gameStates.app.bD1Data][nClip].lightValue = F2X(vlighting);
+		Vclip [gameStates.app.bD1Data][nClip].xFrameTime = fl2f(time)/frames;
+		Vclip [gameStates.app.bD1Data][nClip].lightValue = fl2f(vlighting);
 		Vclip [gameStates.app.bD1Data][nClip].nSound = nSound;
-		set_lightingFlag(&GameBitmaps[bi.index].props.flags);
+		set_lightingFlag(&GameBitmaps[bi.index].bmProps.flags);
 		Assert(clipCount < frames);
 		Vclip [gameStates.app.bD1Data][nClip].frames[clipCount++] = bi;
 		if (rodFlag) {
@@ -1056,15 +1056,15 @@ void bm_read_vclip()
 			Vclip [gameStates.app.bD1Data][nClip].flags |= VF_ROD;
 		}		
 		////printf("VC");
-		Vclip [gameStates.app.bD1Data][nClip].xTotalTime = F2X(time);
-		Vclip [gameStates.app.bD1Data][nClip].xFrameTime = F2X(time)/Vclip [gameStates.app.bD1Data][nClip].nFrameCount;
-		Vclip [gameStates.app.bD1Data][nClip].lightValue = F2X(vlighting);
+		Vclip [gameStates.app.bD1Data][nClip].xTotalTime = fl2f(time);
+		Vclip [gameStates.app.bD1Data][nClip].xFrameTime = fl2f(time)/Vclip [gameStates.app.bD1Data][nClip].nFrameCount;
+		Vclip [gameStates.app.bD1Data][nClip].lightValue = fl2f(vlighting);
 		Vclip [gameStates.app.bD1Data][nClip].nSound = nSound;
-		set_lightingFlag(&GameBitmaps[bm[clipCount].index].props.flags);
+		set_lightingFlag(&GameBitmaps[bm[clipCount].index].bmProps.flags);
 
 		for (clipCount=0;clipCount < Vclip [gameStates.app.bD1Data][nClip].nFrameCount; clipCount++) {
 			////printf("%d", clipCount);
-			set_lightingFlag(&GameBitmaps[bm[clipCount].index].props.flags);
+			set_lightingFlag(&GameBitmaps[bm[clipCount].index].bmProps.flags);
 			Vclip [gameStates.app.bD1Data][nClip].frames[clipCount] = bm[clipCount];
 		}
 	}
@@ -1078,7 +1078,7 @@ void get4fix(fix *fixp)
 
 	for (i=0; i<NDL; i++) {
 		curtext = strtok(NULL, space);
-		fixp[i] = F2X(atof(curtext);
+		fixp[i] = fl2f(atof(curtext);
 	}
 }
 
@@ -1104,7 +1104,7 @@ void adjust_field_ofView(fix *fovp)
 	fix		temp;
 
 	for (i=0; i<NDL; i++) {
-		ff = - X2F(fovp[i]);
+		ff = - f2fl(fovp[i]);
 		if (ff > 179) {
 #if TRACE
 			con_printf (1, "Warning: Bogus field of view (%7.3f).  Must be in 0..179.\n", ff);
@@ -1112,7 +1112,7 @@ void adjust_field_ofView(fix *fovp)
 			ff = 179;
 		}
 		ff = ff/360;
-		tt = F2X(ff);
+		tt = fl2f(ff);
 		FixSinCos(tt, &temp, &fovp[i]);
 	}
 }
@@ -1193,7 +1193,7 @@ void bm_readRobot_ai()
 //this will load a bitmap for a polygon models.  it puts the bitmap into
 //the array gameData.pig.tex.objBmIndex[], and also deals with animating bitmaps
 //returns a pointer to the bitmap
-CBitmap *load_polymodel_bitmap(char *name)
+grsBitmap *load_polymodel_bitmap(char *name)
 {
 	Assert(gameData.pig.tex.nObjBitmaps < MAX_OBJ_BITMAPS);
 
@@ -1206,10 +1206,10 @@ CBitmap *load_polymodel_bitmap(char *name)
 
 		if (Effects [gameStates.app.bD1Data][nEffectClip].changingObjectTexture == -1) {		//first time referenced
 			Effects [gameStates.app.bD1Data][nEffectClip].changingObjectTexture = gameData.pig.tex.nObjBitmaps;
-			gameData.pig.tex.objBmIndexP[N_ObjBitmapPtrs++] = gameData.pig.tex.nObjBitmaps;
+			gameData.pig.tex.pObjBmIndex[N_ObjBitmapPtrs++] = gameData.pig.tex.nObjBitmaps;
 			gameData.pig.tex.nObjBitmaps++;
 		} else {
-			gameData.pig.tex.objBmIndexP[N_ObjBitmapPtrs++] = Effects [gameStates.app.bD1Data][nEffectClip].changingObjectTexture;
+			gameData.pig.tex.pObjBmIndex[N_ObjBitmapPtrs++] = Effects [gameStates.app.bD1Data][nEffectClip].changingObjectTexture;
 		}
 		Assert(gameData.pig.tex.nObjBitmaps < MAX_OBJ_BITMAPS);
 		Assert(N_ObjBitmapPtrs < MAX_OBJ_BITMAPS);
@@ -1217,9 +1217,9 @@ CBitmap *load_polymodel_bitmap(char *name)
 	}
 	else 	{
 		gameData.pig.tex.objBmIndex[gameData.pig.tex.nObjBitmaps] = bm_load_sub(name);
-		if (GameBitmaps[gameData.pig.tex.objBmIndex[gameData.pig.tex.nObjBitmaps].index].props.w!=64 || GameBitmaps[gameData.pig.tex.objBmIndex[gameData.pig.tex.nObjBitmaps].index].props.h!=64)
+		if (GameBitmaps[gameData.pig.tex.objBmIndex[gameData.pig.tex.nObjBitmaps].index].bmProps.w!=64 || GameBitmaps[gameData.pig.tex.objBmIndex[gameData.pig.tex.nObjBitmaps].index].bmProps.h!=64)
 			Error("Bitmap <%bObjectRendered> is not 64x64",name);
-		gameData.pig.tex.objBmIndexP[N_ObjBitmapPtrs++] = gameData.pig.tex.nObjBitmaps;
+		gameData.pig.tex.pObjBmIndex[N_ObjBitmapPtrs++] = gameData.pig.tex.nObjBitmaps;
 		gameData.pig.tex.nObjBitmaps++;
 		Assert(gameData.pig.tex.nObjBitmaps < MAX_OBJ_BITMAPS);
 		Assert(N_ObjBitmapPtrs < MAX_OBJ_BITMAPS);
@@ -1285,23 +1285,23 @@ void bm_readRobot()
 			} else if (!stricmp( arg, "exp2Sound" ))	{
 				nExp2Sound = atoi(equal_ptr);
 			} else if (!stricmp( arg, "lighting" ))	{
-				lighting = F2X(atof(equal_ptr);
+				lighting = fl2f(atof(equal_ptr);
 				if ( (lighting < 0) || (lighting > F1_0 )) {
 #if TRACE
-					con_printf (1, "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", X2F(lighting));
+					con_printf (1, "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", f2fl(lighting));
 #endif
-					Error( "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", X2F(lighting);
+					Error( "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", f2fl(lighting);
 				}
 			} else if (!stricmp( arg, "nWeaponType" )) {
 				nWeaponType = atoi(equal_ptr);
 			} else if (!stricmp( arg, "nSecWeaponType" )) {
 				nSecWeaponType = atoi(equal_ptr);
 			} else if (!stricmp( arg, "strength" )) {
-				strength = I2X(atoi(equal_ptr);
+				strength = i2f(atoi(equal_ptr);
 			} else if (!stricmp( arg, "mass" )) {
-				mass = F2X(atof(equal_ptr);
+				mass = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "drag" )) {
-				drag = F2X(atof(equal_ptr);
+				drag = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "containsId" )) {
 				containsId = atoi(equal_ptr);
 			} else if (!stricmp( arg, "containsType" )) {
@@ -1315,7 +1315,7 @@ void bm_readRobot()
 			} else if (!stricmp( arg, "lightcast" )) {
 				lightcast = atoi(equal_ptr);
 			} else if (!stricmp( arg, "glow" )) {
-				glow = F2X(atof(equal_ptr);
+				glow = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "bDeathRoll" )) {
 				bDeathRoll = atoi(equal_ptr);
 			} else if (!stricmp( arg, "deathrollSound" )) {
@@ -1351,7 +1351,7 @@ void bm_readRobot()
 			} else if (!stricmp( arg, "tauntSound" )) {
 				tauntSound = atoi(equal_ptr);
 			} else if (!stricmp( arg, "aim" )) {
-				aim = F2X(atof(equal_ptr);
+				aim = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "big_radius" )) {
 				if (atoi(equal_ptr))
 					flags |= RIF_BIG_RADIUS;
@@ -1416,7 +1416,7 @@ void bm_readRobot()
 		last_model_num = nModel;
 	}
 
-	if ((glow > I2X(15)) || (glow < 0) || (glow != 0 && glow < 0x1000)) {
+	if ((glow > i2f(15)) || (glow < 0) || (glow != 0 && glow < 0x1000)) {
 #if TRACE
 		con_printf (CONDBG,"Invalid glow value %x for robot %d\n",glow,NRobotTypes);
 #endif
@@ -1462,7 +1462,7 @@ void bm_readRobot()
 	Robot_info [gameStates.app.bD1Data][NRobotTypes].clawSound = clawSound;
 	Robot_info [gameStates.app.bD1Data][NRobotTypes].tauntSound = tauntSound;
 	Robot_info [gameStates.app.bD1Data][NRobotTypes].behavior = behavior;		//	Default behavior for this robot, if coming out of matcen.
-	Robot_info [gameStates.app.bD1Data][NRobotTypes].aim = min(X2I(aim*255), 255);		//	how well this robot nType can aim.  255=perfect
+	Robot_info [gameStates.app.bD1Data][NRobotTypes].aim = min(f2i(aim*255), 255);		//	how well this robot nType can aim.  255=perfect
 
 	if (containsType)
 		Robot_info [gameStates.app.bD1Data][NRobotTypes].containsType = OBJ_ROBOT;
@@ -1529,15 +1529,15 @@ void bm_read_reactor()
 			} else if (!stricmp( arg, "expSound" ))	{
 				explosionSound_num = atoi(equal_ptr);
 			} else if (!stricmp( arg, "lighting" ))	{
-				lighting = F2X(atof(equal_ptr);
+				lighting = fl2f(atof(equal_ptr);
 				if ( (lighting < 0) || (lighting > F1_0 )) {
 #if TRACE
-					con_printf (1, "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", X2F(lighting));
+					con_printf (1, "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", f2fl(lighting));
 #endif
-					Error( "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", X2F(lighting);
+					Error( "In bitmaps.tbl, lighting value of %.2f is out of range 0..1.\n", f2fl(lighting);
 				}
 			} else if (!stricmp( arg, "strength" )) {
-				strength = F2X(atof(equal_ptr);
+				strength = fl2f(atof(equal_ptr);
 			} else {
 				Int3();
 #if TRACE
@@ -1563,7 +1563,7 @@ void bm_read_reactor()
 		gameData.models.nDeadModels[nModel] = -1;
 
 	if (nType == -1)
-		Error("No CObject nType specfied for CObject in BITMAPS.TBL on line %d\n",linenum);
+		Error("No tObject nType specfied for tObject in BITMAPS.TBL on line %d\n",linenum);
 
 	Reactors[Num_reactors].nModel = nModel;
 	Reactors[Num_reactors].nGuns = read_model_guns(model_name,Reactors[Num_reactors].gunPoints,Reactors[Num_reactors].gun_dirs,NULL);
@@ -1579,7 +1579,7 @@ void bm_read_reactor()
 	Num_reactors++;
 }
 
-//read the marker CObject
+//read the marker tObject
 void bm_read_marker()
 {
 	char *model_name;
@@ -1663,21 +1663,21 @@ void bm_read_player_ship()
 					last_multi_bitmap_num=N_ObjBitmapPtrs;
 			}
 			else if (!stricmp( arg, "mass" ))
-				Player_ship->mass = F2X(atof(equal_ptr);
+				Player_ship->mass = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "drag" ))
-				Player_ship->drag = F2X(atof(equal_ptr);
+				Player_ship->drag = fl2f(atof(equal_ptr);
 //			else if (!stricmp( arg, "lowThrust" ))
-//				Player_ship->lowThrust = F2X(atof(equal_ptr);
+//				Player_ship->lowThrust = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "maxThrust" ))
-				Player_ship->maxThrust = F2X(atof(equal_ptr);
+				Player_ship->maxThrust = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "reverseThrust" ))
-				Player_ship->reverseThrust = F2X(atof(equal_ptr);
+				Player_ship->reverseThrust = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "brakes" ))
-				Player_ship->brakes = F2X(atof(equal_ptr);
+				Player_ship->brakes = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "wiggle" ))
-				Player_ship->wiggle = F2X(atof(equal_ptr);
+				Player_ship->wiggle = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "maxRotThrust" ))
-				Player_ship->maxRotThrust = F2X(atof(equal_ptr);
+				Player_ship->maxRotThrust = fl2f(atof(equal_ptr);
 			else if (!stricmp( arg, "dying_pof" ))
 				model_name_dying = equal_ptr;
 			else if (!stricmp( arg, "nExplVClip" ))
@@ -1848,7 +1848,7 @@ void bm_read_weapon(int unusedFlag)
 	}
 
 	// Initialize weapon array
-	Weapon_info[n].renderType = WEAPON_RENDER_NONE;		// 0=laser, 1=blob, 2=CObject
+	Weapon_info[n].renderType = WEAPON_RENDER_NONE;		// 0=laser, 1=blob, 2=tObject
 	Weapon_info[n].bitmap.index = 0;
 	Weapon_info[n].nModel = -1;
 	Weapon_info[n].nInnerModel = -1;
@@ -1946,26 +1946,26 @@ void bm_read_weapon(int unusedFlag)
 				pof_file_inner = equal_ptr;
 			} else if (!stricmp( arg, "strength" )) {
 				for (i=0; i<NDL-1; i++) {
-					Weapon_info[n].strength[i] = F2X(atof(equal_ptr);
+					Weapon_info[n].strength[i] = fl2f(atof(equal_ptr);
 					equal_ptr = strtok(NULL, space);
 				}
-				Weapon_info[n].strength[i] = I2X(atoi(equal_ptr);
+				Weapon_info[n].strength[i] = i2f(atoi(equal_ptr);
 			} else if (!stricmp( arg, "mass" )) {
-				Weapon_info[n].mass = F2X(atof(equal_ptr);
+				Weapon_info[n].mass = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "drag" )) {
-				Weapon_info[n].drag = F2X(atof(equal_ptr);
+				Weapon_info[n].drag = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "thrust" )) {
-				Weapon_info[n].thrust = F2X(atof(equal_ptr);
+				Weapon_info[n].thrust = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "matter" )) {
 				Weapon_info[n].matter = atoi(equal_ptr);
 			} else if (!stricmp( arg, "bounce" )) {
 				Weapon_info[n].bounce = atoi(equal_ptr);
 			} else if (!stricmp( arg, "speed" )) {
 				for (i=0; i<NDL-1; i++) {
-					Weapon_info[n].speed[i] = I2X(atoi(equal_ptr);
+					Weapon_info[n].speed[i] = i2f(atoi(equal_ptr);
 					equal_ptr = strtok(NULL, space);
 				}
-				Weapon_info[n].speed[i] = I2X(atoi(equal_ptr);
+				Weapon_info[n].speed[i] = i2f(atoi(equal_ptr);
 			} else if (!stricmp( arg, "speedvar" ))	{
 				Weapon_info[n].speedvar = (atoi(equal_ptr) * 128) / 100;
 			} else if (!stricmp( arg, "nFlashVClip" ))	{
@@ -1973,9 +1973,9 @@ void bm_read_weapon(int unusedFlag)
 			} else if (!stricmp( arg, "flashSound" ))	{
 				Weapon_info[n].flashSound = atoi(equal_ptr);
 			} else if (!stricmp( arg, "xFlashSize" ))	{
-				Weapon_info[n].xFlashSize = F2X(atof(equal_ptr);
+				Weapon_info[n].xFlashSize = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "blob_size" ))	{
-				Weapon_info[n].blob_size = F2X(atof(equal_ptr);
+				Weapon_info[n].blob_size = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "robot_hit_vclip" ))	{
 				Weapon_info[n].robot_hit_vclip = atoi(equal_ptr);
 			} else if (!stricmp( arg, "robot_hitSound" ))	{
@@ -1985,29 +1985,29 @@ void bm_read_weapon(int unusedFlag)
 			} else if (!stricmp( arg, "wall_hitSound" ))	{
 				Weapon_info[n].wall_hitSound = atoi(equal_ptr);
 			} else if (!stricmp( arg, "impact_size" ))	{
-				Weapon_info[n].impact_size = F2X(atof(equal_ptr);
+				Weapon_info[n].impact_size = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "lighted" ))	{
 				lighted = atoi(equal_ptr);
 			} else if (!stricmp( arg, "lw_ratio" ))	{
-				Weapon_info[n].po_len_to_width_ratio = F2X(atof(equal_ptr);
+				Weapon_info[n].po_len_to_width_ratio = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "lightcast" ))	{
-				Weapon_info[n].light = F2X(atof(equal_ptr);
+				Weapon_info[n].light = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "persistent" ))	{
 				Weapon_info[n].persistent = atoi(equal_ptr);
 			} else if (!stricmp(arg, "energy_usage" )) {
-				Weapon_info[n].energy_usage = F2X(atof(equal_ptr);
+				Weapon_info[n].energy_usage = fl2f(atof(equal_ptr);
 			} else if (!stricmp(arg, "ammo_usage" )) {
 				Weapon_info[n].ammo_usage = atoi(equal_ptr);
 			} else if (!stricmp(arg, "fire_wait" )) {
-				Weapon_info[n].fire_wait = F2X(atof(equal_ptr);
+				Weapon_info[n].fire_wait = fl2f(atof(equal_ptr);
 			} else if (!stricmp(arg, "fireCount" )) {
 				Weapon_info[n].fireCount = atoi(equal_ptr);
 			} else if (!stricmp(arg, "damage_radius" )) {
-				Weapon_info[n].damage_radius = F2X(atof(equal_ptr);
+				Weapon_info[n].damage_radius = fl2f(atof(equal_ptr);
 //--01/19/95, mk--			} else if (!stricmp(arg, "damage_force" )) {
-//--01/19/95, mk--				Weapon_info[n].damage_force = F2X(atof(equal_ptr);
+//--01/19/95, mk--				Weapon_info[n].damage_force = fl2f(atof(equal_ptr);
 			} else if (!stricmp(arg, "lifetime" )) {
-				Weapon_info[n].lifetime = F2X(atof(equal_ptr);
+				Weapon_info[n].lifetime = fl2f(atof(equal_ptr);
 			} else if (!stricmp(arg, "destroyable" )) {
 				Weapon_info[n].destroyable = atoi(equal_ptr);
 			} else if (!stricmp(arg, "picture" )) {
@@ -2019,9 +2019,9 @@ void bm_read_weapon(int unusedFlag)
 			} else if (!stricmp(arg, "flash" )) {
 				Weapon_info[n].flash = atoi(equal_ptr);
 			} else if (!stricmp(arg, "multi_damage_scale" )) {
-				Weapon_info[n].multi_damage_scale = F2X(atof(equal_ptr);
+				Weapon_info[n].multi_damage_scale = fl2f(atof(equal_ptr);
 			} else if (!stricmp(arg, "afterburner_size" )) {
-				Weapon_info[n].afterburner_size = X2I(16*F2X(atof(equal_ptr));
+				Weapon_info[n].afterburner_size = f2i(16*fl2f(atof(equal_ptr));
 			} else if (!stricmp(arg, "children" )) {
 				Weapon_info[n].children = atoi(equal_ptr);
 			} else if (!stricmp(arg, "placable" )) {
@@ -2040,11 +2040,11 @@ void bm_read_weapon(int unusedFlag)
 #endif
 			}	
 		} else {			// Must be a texture specification...
-			CBitmap *bm;
+			grsBitmap *bm;
 
 			bm = load_polymodel_bitmap(arg);
 			if (! lighted)
-				bm->props.flags |= BM_FLAG_NO_LIGHTING;
+				bm->bmProps.flags |= BM_FLAG_NO_LIGHTING;
 
 			lighted = 1;			//default for next bitmap is lighted
 		}
@@ -2088,7 +2088,7 @@ void bm_read_weapon(int unusedFlag)
 
 
 // ------------------------------------------------------------------------------
-#define DEFAULT_POWERUP_SIZE I2X(3)
+#define DEFAULT_POWERUP_SIZE i2f(3)
 
 void bm_read_powerup(int unusedFlag)
 {
@@ -2106,10 +2106,10 @@ void bm_read_powerup(int unusedFlag)
 	}
 
 	// Initialize powerup array
-	powerupInfo[n].light = F1_0/3;		//	Default lighting value.
-	powerupInfo[n].nClipIndex = -1;
-	powerupInfo[n].hitSound = -1;
-	powerupInfo[n].size = DEFAULT_POWERUP_SIZE;
+	Powerup_info[n].light = F1_0/3;		//	Default lighting value.
+	Powerup_info[n].nClipIndex = -1;
+	Powerup_info[n].hitSound = -1;
+	Powerup_info[n].size = DEFAULT_POWERUP_SIZE;
 	Powerup_names[n][0] = 0;
 
 	// Process arguments
@@ -2122,17 +2122,17 @@ void bm_read_powerup(int unusedFlag)
 			equal_ptr++;
 			// if we have john=cool, arg is 'john' and equal_ptr is 'cool'
 			if (!stricmp( arg, "vclip_num" ))	{
-				powerupInfo[n].nClipIndex = atoi(equal_ptr);
+				Powerup_info[n].nClipIndex = atoi(equal_ptr);
 			} else if (!stricmp( arg, "light" ))	{
-				powerupInfo[n].light = F2X(atof(equal_ptr);
+				Powerup_info[n].light = fl2f(atof(equal_ptr);
 			} else if (!stricmp( arg, "hitSound" ))	{
-				powerupInfo[n].hitSound = atoi(equal_ptr);
+				Powerup_info[n].hitSound = atoi(equal_ptr);
 			} else if (!stricmp( arg, "name" )) {
 				Assert(strlen(equal_ptr) < POWERUP_NAME_LENGTH);	//	Oops, name too long.
 				strcpy(Powerup_names[n], &equal_ptr[1]);
 				Powerup_names[n][strlen(Powerup_names[n])-1] = 0;
 			} else if (!stricmp( arg, "size" ))	{
-				powerupInfo[n].size = F2X(atof(equal_ptr);
+				Powerup_info[n].size = fl2f(atof(equal_ptr);
 			} else {
 				Int3();
 #if TRACE
@@ -2208,8 +2208,7 @@ void bm_read_hostage()
 #define N_D2_ROBOT_TYPES		66
 #define N_D2_ROBOT_JOINTS		1145
 #define N_D2_POLYGON_MODELS	166
-#define N_D2_OBJBITMAPS			
-2
+#define N_D2_OBJBITMAPS			422
 #define N_D2_OBJBITMAPPTRS		502
 #define N_D2_WEAPON_TYPES		62
 
@@ -2270,9 +2269,9 @@ fprintf(tfile,"NRobot_joints = %d, Robot_joints array = %d\n",t,sizeof(tJointPos
 fprintf(tfile,"N_weaponTypes = %d, Weapon_info array = %d\n",N_weaponTypes,sizeof(tWeaponInfo)*N_weaponTypes);
 
 	fwrite( &N_powerupTypes, sizeof(int), 1, fp );
-	fwrite( powerupInfo, sizeof(tPowerupTypeInfo), N_powerupTypes, fp );
+	fwrite( Powerup_info, sizeof(powerupType_info), N_powerupTypes, fp );
 
-fprintf(tfile,"N_powerupTypes = %d, powerupInfo array = %d\n",N_powerupTypes,sizeof(powerupInfo)*N_powerupTypes);
+fprintf(tfile,"N_powerupTypes = %d, Powerup_info array = %d\n",N_powerupTypes,sizeof(powerupInfo)*N_powerupTypes);
 
 	t = N_D2_POLYGON_MODELS;
 	fwrite( &t, sizeof(int), 1, fp );
@@ -2303,9 +2302,9 @@ fprintf(tfile,"Num gauge bitmaps = %d, gameData.cockpit.gauges [1] array = %d, g
 	t = MAX_OBJ_BITMAPS;
 	fwrite( &t, sizeof(int), 1, fp );
 	fwrite( gameData.pig.tex.objBmIndex, sizeof(tBitmapIndex), t, fp );
-	fwrite( gameData.pig.tex.objBmIndexP, sizeof(ushort), t, fp );
+	fwrite( gameData.pig.tex.pObjBmIndex, sizeof(ushort), t, fp );
 
-fprintf(tfile,"Num obj bitmaps = %d, gameData.pig.tex.objBmIndex array = %d, gameData.pig.tex.objBmIndexP array = %d\n",t,sizeof(tBitmapIndex)*t,sizeof(ushort)*t);
+fprintf(tfile,"Num obj bitmaps = %d, gameData.pig.tex.objBmIndex array = %d, gameData.pig.tex.pObjBmIndex array = %d\n",t,sizeof(tBitmapIndex)*t,sizeof(ushort)*t);
 
 	fwrite( &only_player_ship, sizeof(tPlayerShip), 1, fp );
 
@@ -2388,9 +2387,9 @@ void bm_write_extraRobots()
 
 	t = N_ObjBitmapPtrs - N_D2_OBJBITMAPPTRS;
 	fwrite( &t, sizeof(int), 1, fp );
-	fwrite( &gameData.pig.tex.objBmIndexP[N_D2_OBJBITMAPPTRS], sizeof(ushort), t, fp );
+	fwrite( &gameData.pig.tex.pObjBmIndex[N_D2_OBJBITMAPPTRS], sizeof(ushort), t, fp );
 
-	fwrite( gameData.pig.tex.objBmIndexP, sizeof(ushort), t, fp );
+	fwrite( gameData.pig.tex.pObjBmIndex, sizeof(ushort), t, fp );
 
 	fclose(fp);
 }

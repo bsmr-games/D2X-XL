@@ -11,37 +11,37 @@
 #define HMP_BUFSIZE 1024
 
 typedef struct event {
-	uint delta;
-	ubyte msg[3];
-	ubyte *data;
-	uint datalen;
+	unsigned int delta;
+	unsigned char msg[3];
+	unsigned char *data;
+	unsigned int datalen;
 } event;
 
 typedef struct hmp_track {
-	ubyte *data;
-	uint len;
-	ubyte *cur;
-	uint left;
-	uint curTime;
+	unsigned char *data;
+	unsigned int len;
+	unsigned char *cur;
+	unsigned int left;
+	unsigned int curTime;
 } hmp_track;
 
 typedef struct hmp_file {
 	int				num_trks;
 	hmp_track		trks[HMP_TRACKS];
-	uint				curTime;
+	unsigned int	curTime;
 	int				tempo;
 #ifdef _WIN32
 	MIDIHDR			*evbuf;
    HMIDISTRM		hmidi;
 	UINT				devid;
 #endif
-	ubyte				*pending;
-	uint				pending_size;
-	uint				pending_event;
+	unsigned char	*pending;
+	unsigned int	pending_size;
+	unsigned int	pending_event;
 	int				stop;		/* 1 -> don't send more data */
 	int				bufs_in_mm;	/* number of queued buffers */
 	int				bLoop;
-	uint				midi_division;
+	unsigned int	midi_division;
 } hmp_file;
 
 

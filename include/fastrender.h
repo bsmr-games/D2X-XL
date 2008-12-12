@@ -1,3 +1,4 @@
+/* $Id: render.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -21,9 +22,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 void QSortFaces (int left, int right);
 void RenderFaceList (int nType);
-void ComputeDynamicQuadLight (int nStart, int nEnd, int nThread);
-void ComputeDynamicTriangleLight (int nStart, int nEnd, int nThread);
 void ComputeDynamicFaceLight (int nStart, int nEnd, int nThread);
+void ComputeDynamicTriangleLight (int nStart, int nEnd, int nThread);
 void ComputeStaticFaceLight (int nStart, int nEnd, int nThread);
 void UpdateSlidingFaces (void);
 int CountRenderFaces (void);
@@ -38,8 +38,6 @@ static inline void ComputeFaceLight (int nStart, int nEnd, int nThread)
 if (gameStates.render.bApplyDynLight && (gameStates.app.bEndLevelSequence < EL_OUTSIDE)) {
 	if (gameStates.render.bTriangleMesh)
 		ComputeDynamicTriangleLight (nStart, nEnd, nThread);
-	else if (gameData.render.mine.nRenderSegs < gameData.segs.nSegments)
-		ComputeDynamicQuadLight (nStart, nEnd, nThread);
 	else
 		ComputeDynamicFaceLight (nStart, nEnd, nThread);
 	}

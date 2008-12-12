@@ -1,3 +1,4 @@
+/* $Id: fireball.c, v 1.4 2003/10/04 03:14:47 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,7 +25,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "objeffects.h"
 #include "monsterball.h"
 #include "dropobject.h"
-#include "network.h"
 
 //------------------------------------------------------------------------------
 
@@ -41,33 +41,28 @@ if (gameData.hoard.monsterballP) {
 int CreateMonsterball (void)
 {
 	short			nDropSeg, nObject;
+	vmsVector	vSegCenter;
 
 RemoveMonsterball ();
-#if DBG
+#ifdef _DEBUG
 nDropSeg = gameData.hoard.nMonsterballSeg;
 #else
-if (gameData.hoard.nMonsterballSeg >= 0)
-	nDropSeg = gameData.hoard.nMonsterballSeg;
-else {
-	nDropSeg = ChooseDropSegment (NULL, NULL, EXEC_DROP);
-	COMPUTE_SEGMENT_CENTER_I (&gameData.hoard.vMonsterballPos, nDropSeg);
-	}
+nDropSeg = (gameData.hoard.nMonsterballSeg >= 0) ? 
+			  gameData.hoard.nMonsterballSeg : ChooseDropSegment (NULL, NULL, EXEC_DROP);
 #endif
 if (nDropSeg >= 0) {
-	nObject = DropPowerup (OBJ_POWERUP, POW_MONSTERBALL, -1, 1, CFixVector::ZERO, gameData.hoard.vMonsterballPos, nDropSeg);
+	COMPUTE_SEGMENT_CENTER_I (&vSegCenter, nDropSeg);
+	nObject = DropPowerup (OBJ_POWERUP, POW_MONSTERBALL, -1, 1, &vZero, &vSegCenter, nDropSeg);
 	if (nObject >= 0) {
-		gameData.hoard.monsterballP = OBJECTS + nObject;
-		gameData.hoard.monsterballP->SetType (OBJ_MONSTERBALL);
+		gameData.hoard.monsterballP = gameData.objs.objects + nObject;
+		gameData.hoard.monsterballP->nType = OBJ_MONSTERBALL;
 		gameData.hoard.monsterballP->mType.physInfo.mass = F1_0 * 10;
-		gameData.hoard.monsterballP->mType.physInfo.thrust.SetZero();
-		gameData.hoard.monsterballP->mType.physInfo.rotThrust.SetZero();
-		gameData.hoard.monsterballP->mType.physInfo.velocity.SetZero();
 		gameData.hoard.nLastHitter = -1;
 		CreatePlayerAppearanceEffect (gameData.hoard.monsterballP);
 		return 1;
 		}
 	}
-#if !DBG
+#ifndef _DEBUG
 Warning (TXT_NO_MONSTERBALL);
 #endif
 gameData.app.nGameMode &= ~GM_MONSTERBALL;
@@ -79,20 +74,18 @@ return 0;
 int FindMonsterball (void)
 {
 	short		i;
-	CObject	*objP;
+	tObject	*objP;
 
 gameData.hoard.monsterballP = NULL;
 gameData.hoard.nMonsterballSeg = -1;
 gameData.hoard.nLastHitter = -1;
-FORALL_STATIC_OBJS (objP, i)
-	if ((objP->info.nType == OBJ_MONSTERBALL) || ((objP->info.nType == OBJ_POWERUP) && (objP->info.nId == POW_MONSTERBALL))) {
-		if (gameData.hoard.nMonsterballSeg < 0) {
-			gameData.hoard.nMonsterballSeg = objP->info.nSegment;
-			gameData.hoard.vMonsterballPos = OBJPOS (objP)->vPos;
-			}
-		ReleaseObject (OBJ_IDX (objP));
+for (i = 0, objP = gameData.objs.objects; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_MONSTERBALL) || ((objP->nType == OBJ_POWERUP) && (objP->id == POW_MONSTERBALL))) {
+		if (gameData.hoard.nMonsterballSeg < 0)
+			gameData.hoard.nMonsterballSeg = objP->nSegment;
+		ReleaseObject (i);
 		}
-#if !DBG
+#ifndef _DEBUG
 if (!(NetworkIAmMaster () && IsMultiGame && (gameData.app.nGameMode & GM_MONSTERBALL)))
 	return 0;
 #endif
@@ -114,37 +107,18 @@ if (!gameData.hoard.monsterballP)
 	return 0;
 if (gameData.hoard.nLastHitter != LOCALPLAYER.nObject)
 	return 0;
-special = gameData.segs.segment2s [gameData.hoard.monsterballP->info.nSegment].special;
+special = gameData.segs.segment2s [gameData.hoard.monsterballP->nSegment].special;
 if ((special != SEGMENT_IS_GOAL_BLUE) && (special != SEGMENT_IS_GOAL_RED))
 	return 0;
 if ((GetTeam (gameData.multiplayer.nLocalPlayer) == TEAM_RED) == (special == SEGMENT_IS_GOAL_RED))
-	MultiSendCaptureBonus (-gameData.multiplayer.nLocalPlayer - 1);
-else
 	MultiSendCaptureBonus (gameData.multiplayer.nLocalPlayer);
+else
+	MultiSendCaptureBonus (-gameData.multiplayer.nLocalPlayer - 1);
 CreatePlayerAppearanceEffect (gameData.hoard.monsterballP);
 RemoveMonsterball ();
 CreateMonsterball ();
 MultiSendMonsterball (1, 1);
 return 1;
-}
-
-//	-----------------------------------------------------------------------------
-
-short nMonsterballForces [100];
-
-short nMonsterballPyroForce;
-
-void SetMonsterballForces (void)
-{
-	int	i;
-	tMonsterballForce *forceP = extraGameInfo [IsMultiGame].monsterball.forces;
-
-memset (nMonsterballForces, 0, sizeof (nMonsterballForces));
-for (i = 0; i < MAX_MONSTERBALL_FORCES - 1; i++, forceP++)
-	nMonsterballForces [forceP->nWeaponId] = 	forceP->nForce;
-nMonsterballPyroForce = forceP->nForce;
-gameData.objs.pwrUp.info [POW_MONSTERBALL].size =
-	(gameData.objs.pwrUp.info [POW_SHIELD_BOOST].size * extraGameInfo [IsMultiGame].monsterball.nSizeMod) / 2;
 }
 
 //------------------------------------------------------------------------------

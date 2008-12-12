@@ -1,3 +1,4 @@
+/* $Id: render.c, v 1.18 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -28,15 +29,42 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "light.h"
 #include "dynlight.h"
 #include "lightmap.h"
+#include "endlevel.h"
+#include "ogl_defs.h"
 #include "ogl_color.h"
 #include "ogl_render.h"
 #include "renderlib.h"
-#include "renderthreads.h"
-#include "cameras.h"
 
 //------------------------------------------------------------------------------
 
 #define SW_CULLING 1
+#define SOFT_SHADOWS		0
+#define RENDER_DEPTHMASK_FIRST 1
+
+#if DBG_SHADOWS
+extern int bShadowTest;
+extern int bFrontCap;
+extern int bRearCap;
+extern int bShadowVolume;
+extern int bFrontFaces;
+extern int bBackFaces;
+extern int bSWCulling;
+extern int bWallShadows;
+#endif
+#if SHADOWS
+extern int bZPass;
+#endif
+
+//------------------------------------------------------------------------------
+
+int _CDECL_ D2X_RenderThread (void *p);
+int _CDECL_ D2X_OpenGLThread (void *p);
+
+#if DBG_SHADOWS
+extern int bShadowTest;
+#endif
+
+#define INITIAL_LOCAL_LIGHT (F1_0/4)    // local light value in tSegment of occurence (of light emission)
 
 #ifdef EDITOR
 #include "editor/editor.h"
@@ -48,9 +76,11 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 int bSearchMode = 0;			//true if looking for curseg, tSide, face
 short _search_x, _search_y;	//pixel we're looking at
 int found_seg, found_side, found_face, found_poly;
+#else
+#define bSearchMode 0
 #endif
 
-int	bOutLineMode = 0,
+int	bOutLineMode = 0, 
 		bShowOnlyCurSide = 0;
 
 //------------------------------------------------------------------------------
@@ -58,13 +88,13 @@ int	bOutLineMode = 0,
 int FaceIsVisible (short nSegment, short nSide)
 {
 #if SW_CULLING
-CSegment *segP = SEGMENTS + nSegment;
+tSegment *segP = SEGMENTS + nSegment;
 tSide *sideP = segP->sides + nSide;
-CFixVector v;
-v = gameData.render.mine.viewerEye - *SIDE_CENTER_I(nSegment, nSide); //gameData.segs.vertices + segP->verts [sideToVerts [nSide][0]]);
+vmsVector v;
+VmVecSub (&v, &gameData.render.mine.viewerEye, SIDE_CENTER_I (nSegment, nSide)); //gameData.segs.vertices + segP->verts [sideToVerts [nSide][0]]);
 return (sideP->nType == SIDE_IS_QUAD) ?
-		 CFixVector::Dot(sideP->normals[0], v) >= 0 :
-		 (CFixVector::Dot(sideP->normals[0], v) >= 0) || (CFixVector::Dot(sideP->normals[1], v) >= 0);
+		 VmVecDot (sideP->normals, &v) >= 0 :
+		 (VmVecDot (sideP->normals, &v) >= 0) || (VmVecDot (sideP->normals + 1, &v) >= 0);
 #else
 return 1;
 #endif
@@ -108,17 +138,17 @@ return bShowOnlyCurSide = !bShowOnlyCurSide;
 
 //------------------------------------------------------------------------------
 
-inline int LoadExtraBitmap (CBitmap **bmPP, const char *pszName, int *bHaveP)
+inline int LoadExtraBitmap (grsBitmap **bmPP, char *pszName, int *bHaveP)
 {
 if (!*bHaveP) {
-	CBitmap *bmP = CreateAndReadTGA (pszName);
+	grsBitmap *bmP = CreateAndReadTGA (pszName);
 	if (!bmP)
 		*bHaveP = -1;
 	else {
 		*bHaveP = 1;
-		bmP->SetFrameCount ();
-		bmP->Bind (1, 1);
-		}
+		BM_FRAMECOUNT (bmP) = bmP->bmProps.h / bmP->bmProps.w;
+		OglBindBmTex (bmP, 1, 1);
+		}	
 	*bmPP = bmP;
 	}
 return *bHaveP > 0;
@@ -126,7 +156,7 @@ return *bHaveP > 0;
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpExplBlast = NULL;
+grsBitmap *bmpExplBlast = NULL;
 int bHaveExplBlast = 0;
 
 int LoadExplBlast (void)
@@ -139,34 +169,15 @@ return LoadExtraBitmap (&bmpExplBlast, "blast.tga", &bHaveExplBlast);
 void FreeExplBlast (void)
 {
 if (bmpExplBlast) {
-	delete bmpExplBlast;
+	GrFreeBitmap (bmpExplBlast);
+	bmpExplBlast = NULL;
 	bHaveExplBlast = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpSparks = NULL;
-int bHaveSparks = 0;
-
-int LoadSparks (void)
-{
-return LoadExtraBitmap (&bmpSparks, "sparks.tga", &bHaveSparks);
-}
-
-//------------------------------------------------------------------------------
-
-void FreeSparks (void)
-{
-if (bmpSparks) {
-	delete bmpSparks;
-	bHaveSparks = 0;
-	}
-}
-
-//------------------------------------------------------------------------------
-
-CBitmap *bmpCorona = NULL;
+grsBitmap *bmpCorona = NULL;
 int bHaveCorona = 0;
 
 int LoadCorona (void)
@@ -179,14 +190,15 @@ return LoadExtraBitmap (&bmpCorona, "corona.tga", &bHaveCorona);
 void FreeCorona (void)
 {
 if (bmpCorona) {
-	delete bmpCorona;
+	GrFreeBitmap (bmpCorona);
+	bmpCorona = NULL;
 	bHaveCorona = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpGlare = NULL;
+grsBitmap *bmpGlare = NULL;
 int bHaveGlare = 0;
 
 int LoadGlare (void)
@@ -199,14 +211,15 @@ return LoadExtraBitmap (&bmpGlare, "glare.tga", &bHaveGlare);
 void FreeGlare (void)
 {
 if (bmpGlare) {
-	delete bmpGlare;
+	GrFreeBitmap (bmpGlare);
+	bmpGlare = NULL;
 	bHaveGlare = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpHalo = NULL;
+grsBitmap *bmpHalo = NULL;
 int bHaveHalo = 0;
 
 int LoadHalo (void)
@@ -219,21 +232,22 @@ return LoadExtraBitmap (&bmpHalo, "halo.tga", &bHaveHalo);
 void FreeHalo (void)
 {
 if (bmpHalo) {
-	delete bmpHalo;
+	GrFreeBitmap (bmpHalo);
+	bmpHalo = NULL;
 	bHaveHalo = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpThruster [2] = {NULL, NULL};
+grsBitmap *bmpThruster [2] = {NULL, NULL};
 int bHaveThruster [2] = {0, 0};
 
 int LoadThruster (void)
 {
 	int nStyle = EGI_FLAG (bThrusterFlames, 1, 1, 0);
 	int b3D = (nStyle == 2);
-	char *pszTex = (nStyle == 1) ? reinterpret_cast<char*> ("thrust2d.tga") : reinterpret_cast<char*> ("thrust3d.tga");
+	char *pszTex = (nStyle == 1) ? (char *) "thrust2d.tga" : (char *) "thrust3d.tga";
 
 return LoadExtraBitmap (&bmpThruster [b3D], pszTex, bHaveThruster + b3D);
 }
@@ -246,7 +260,7 @@ void FreeThruster (void)
 
 for (i = 0; i < 2; i++)
 	if (bmpThruster [i]) {
-		delete bmpThruster [i];
+		GrFreeBitmap (bmpThruster [i]);
 		bmpThruster [i] = NULL;
 		bHaveThruster [i] = 0;
 		}
@@ -254,7 +268,7 @@ for (i = 0; i < 2; i++)
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpShield = NULL;
+grsBitmap *bmpShield = NULL;
 int bHaveShield = 0;
 
 int LoadShield (void)
@@ -267,7 +281,7 @@ return LoadExtraBitmap (&bmpShield, "shield.tga", &bHaveShield);
 void FreeShield (void)
 {
 if (bmpShield) {
-	delete bmpShield;
+	GrFreeBitmap (bmpShield);
 	bmpShield = NULL;
 	bHaveShield = 0;
 	}
@@ -292,8 +306,6 @@ PrintLog ("   Loading shield images\n");
 LoadShield ();
 PrintLog ("   Loading explosion blast images\n");
 LoadExplBlast ();
-PrintLog ("   Loading spark images\n");
-LoadSparks ();
 PrintLog ("   Loading deadzone images\n");
 LoadDeadzone ();
 }
@@ -308,7 +320,6 @@ FreeHalo ();
 FreeThruster ();
 FreeShield ();
 FreeExplBlast ();
-FreeSparks ();
 FreeDeadzone ();
 }
 
@@ -317,12 +328,12 @@ FreeDeadzone ();
 void DrawOutline (int nVertices, g3sPoint **pointList)
 {
 	int i;
-	GLint depthFunc;
-	g3sPoint center, Normal;
-	CFixVector n;
-	CFloatVector *nf;
+	GLint depthFunc; 
+	g3sPoint center, normal;
+	vmsVector n;
+	fVector *nf;
 
-#if 1 //!DBG
+#if 1 //def RELEASE
 if (gameStates.render.bQueryOcclusion) {
 	tRgbaColorf outlineColor = {1, 1, 0, -1};
 	G3DrawPolyAlpha (nVertices, pointList, &outlineColor, 1, -1);
@@ -332,30 +343,27 @@ if (gameStates.render.bQueryOcclusion) {
 
 glGetIntegerv (GL_DEPTH_FUNC, &depthFunc);
 glDepthFunc (GL_ALWAYS);
-CCanvas::Current ()->SetColorRGB (255, 255, 255, 255);
-center.p3_vec.SetZero();
+GrSetColorRGB (255, 255, 255, 255);
+VmVecZero (&center.p3_vec);
 for (i = 0; i < nVertices; i++) {
 	G3DrawLine (pointList [i], pointList [(i + 1) % nVertices]);
-	center.p3_vec += pointList [i]->p3_vec;
+	VmVecInc (&center.p3_vec, &pointList [i]->p3_vec);
 	nf = &pointList [i]->p3_normal.vNormal;
-/*
-	n[X] = (fix) (nf->x() * 65536.0f);
-	n[Y] = (fix) (nf->y() * 65536.0f);
-	n[Z] = (fix) (nf->z() * 65536.0f);
-*/
-	n = nf->ToFix();
-	G3RotatePoint(n, n, 0);
-	Normal.p3_vec = pointList[i]->p3_vec + n * (F1_0 * 10);
-	G3DrawLine (pointList [i], &Normal);
+	n.p.x = (fix) (nf->p.x * 65536.0f);
+	n.p.y = (fix) (nf->p.y * 65536.0f);
+	n.p.z = (fix) (nf->p.z * 65536.0f);
+	G3RotatePoint (&n, &n, 0);
+	VmVecScaleAdd (&normal.p3_vec, &pointList [i]->p3_vec, &n, F1_0 * 10);
+	G3DrawLine (pointList [i], &normal);
 	}
 #if 0
-VmVecNormal (&Normal.p3_vec,
-				 &pointList [0]->p3_vec,
-				 &pointList [1]->p3_vec,
+VmVecNormal (&normal.p3_vec, 
+				 &pointList [0]->p3_vec, 
+				 &pointList [1]->p3_vec, 
 				 &pointList [2]->p3_vec);
-VmVecInc (&Normal.p3_vec, &center.p3_vec);
-VmVecScale (&Normal.p3_vec, F1_0 * 10);
-G3DrawLine (&center, &Normal);
+VmVecInc (&normal.p3_vec, &center.p3_vec);
+VmVecScale (&normal.p3_vec, F1_0 * 10);
+G3DrawLine (&center, &normal);
 #endif
 glDepthFunc (depthFunc);
 }
@@ -368,7 +376,7 @@ char IsColoredSegFace (short nSegment, short nSide)
 	int	owner;
 	int	special;
 
-if ((gameData.app.nGameMode & GM_ENTROPY) && (extraGameInfo [1].entropy.nOverrideTextures == 2) &&
+if ((gameData.app.nGameMode & GM_ENTROPY) && (extraGameInfo [1].entropy.nOverrideTextures == 2) && 
 	 ((owner = gameData.segs.xSegments [nSegment].owner) > 0)) {
 	nConnSeg = gameData.segs.segments [nSegment].children [nSide];
 	if ((nConnSeg < 0) || (gameData.segs.xSegments [nConnSeg].owner != owner))
@@ -378,7 +386,7 @@ special = gameData.segs.segment2s [nSegment].special;
 nConnSeg = gameData.segs.segments [nSegment].children [nSide];
 if ((nConnSeg >= 0) && (special == gameData.segs.segment2s [nConnSeg].special))
 	return 0;
-if (special == SEGMENT_IS_WATER)
+if (special == SEGMENT_IS_WATER) 
 	return 3;
 if (special == SEGMENT_IS_LAVA)
 	return 4;
@@ -402,7 +410,7 @@ tRgbaColorf *ColoredSegmentColor (int nSegment, int nSide, char nColor)
 if (nColor > 0)
 	nColor--;
 else {
-	if ((gameData.app.nGameMode & GM_ENTROPY) && (extraGameInfo [1].entropy.nOverrideTextures == 2) &&
+	if ((gameData.app.nGameMode & GM_ENTROPY) && (extraGameInfo [1].entropy.nOverrideTextures == 2) && 
 		((owner = gameData.segs.xSegments [nSegment].owner) > 0)) {
 		nConnSeg = gameData.segs.segments [nSegment].children [nSide];
 		if ((nConnSeg >= 0) && (gameData.segs.xSegments [nConnSeg].owner == owner))
@@ -410,7 +418,7 @@ else {
 		nColor = (owner == 1);
 		}
 	special = gameData.segs.segment2s [nSegment].special;
-	if (special == SEGMENT_IS_WATER)
+	if (special == SEGMENT_IS_WATER) 
 		nColor = 2;
 	else if (special == SEGMENT_IS_LAVA)
 		nColor = 3;
@@ -430,38 +438,38 @@ return segmentColors + nColor;
 //------------------------------------------------------------------------------
 // If any color component > 1, scale all components down so that the greatest == 1.
 
-static inline void ScaleColor (tFaceColor *colorP, float l)
+static inline void ScaleColor (tFaceColor *pc, float l)
 {
-	float m = colorP->color.red;
+	float m = pc->color.red;
 
-if (m < colorP->color.green)
-	m = colorP->color.green;
-if (m < colorP->color.blue)
-	m = colorP->color.blue;
+if (m < pc->color.green)
+	m = pc->color.green;
+if (m < pc->color.blue)
+	m = pc->color.blue;
 if (m > l) {
 	m = l / m;
-	colorP->color.red *= m;
-	colorP->color.green *= m;
-	colorP->color.blue *= m;
+	pc->color.red *= m;
+	pc->color.green *= m;
+	pc->color.blue *= m;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-int SetVertexColor (int nVertex, tFaceColor *colorP)
+int SetVertexColor (int nVertex, tFaceColor *pc)
 {
-#if DBG
+#ifdef _DEBUG
 if (nVertex == nDbgVertex)
 	nVertex = nVertex;
 #endif
-if (gameStates.render.bAmbientColor) {
-	colorP->color.red += gameData.render.color.ambient [nVertex].color.red;
-	colorP->color.green += gameData.render.color.ambient [nVertex].color.green;
-	colorP->color.blue += gameData.render.color.ambient [nVertex].color.blue;
+if (gameStates.render.bAmbientColor) { 
+	pc->color.red += gameData.render.color.ambient [nVertex].color.red;
+	pc->color.green += gameData.render.color.ambient [nVertex].color.green;
+	pc->color.blue += gameData.render.color.ambient [nVertex].color.blue;
 	}
 #if 0
 else
-	memset (colorP, 0, sizeof (*colorP));
+	memset (pc, 0, sizeof (*pc));
 #endif
 return 1;
 }
@@ -476,7 +484,7 @@ if (SHOW_DYN_LIGHT) {
 	return 0;
 	}
 memset (vertColors, 0, sizeof (vertColors));
-if (gameStates.render.bAmbientColor) {
+if (gameStates.render.bAmbientColor) { 
 	int i, j = propsP->nVertices;
 	for (i = 0; i < j; i++)
 		SetVertexColor (propsP->vp [i], vertColors + i);
@@ -488,7 +496,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-fix SetVertexLight (int nSegment, int nSide, int nVertex, tFaceColor *colorP, fix light)
+fix SetVertexLight (int nSegment, int nSide, int nVertex, tFaceColor *pc, fix light)
 {
 	tRgbColorf	*pdc;
 	fix			dynLight;
@@ -513,10 +521,10 @@ else {
 	}
 //add in dynamic light (from explosions, etc.)
 dynLight = gameData.render.lights.dynamicLight [nVertex];
-fl = X2F (light);
-dl = X2F (dynLight);
+fl = f2fl (light);
+dl = f2fl (dynLight);
 light += dynLight;
-#if DBG
+#ifdef _DEBUG
 if (nVertex == nDbgVertex)
 	nVertex = nVertex;
 #endif
@@ -528,53 +536,53 @@ if (gameStates.app.bHaveExtraGameInfo [IsMultiGame]) {
 				if (gameStates.render.bAmbientColor) {
 					if ((fl != 0) && gameData.render.color.vertBright [nVertex]) {
 						hl = fl / gameData.render.color.vertBright [nVertex];
-						colorP->color.red = colorP->color.red * hl + pdc->red * dl;
-						colorP->color.green = colorP->color.green * hl + pdc->green * dl;
-						colorP->color.blue = colorP->color.blue * hl + pdc->blue * dl;
-						ScaleColor (colorP, fl + dl);
+						pc->color.red = pc->color.red * hl + pdc->red * dl;
+						pc->color.green = pc->color.green * hl + pdc->green * dl;
+						pc->color.blue = pc->color.blue * hl + pdc->blue * dl;
+						ScaleColor (pc, fl + dl);
 						}
 					else {
-						colorP->color.red = pdc->red * dl;
-						colorP->color.green = pdc->green * dl;
-						colorP->color.blue = pdc->blue * dl;
-						ScaleColor (colorP, dl);
+						pc->color.red = pdc->red * dl;
+						pc->color.green = pdc->green * dl;
+						pc->color.blue = pdc->blue * dl;
+						ScaleColor (pc, dl);
 						}
 					}
 				else {
-					colorP->color.red = fl + pdc->red * dl;
-					colorP->color.green = fl + pdc->green * dl;
-					colorP->color.blue = fl + pdc->blue * dl;
-					ScaleColor (colorP, fl + dl);
+					pc->color.red = fl + pdc->red * dl;
+					pc->color.green = fl + pdc->green * dl;
+					pc->color.blue = fl + pdc->blue * dl;
+					ScaleColor (pc, fl + dl);
 					}
 				}
 			else {
-				colorP->color.red =
-				colorP->color.green =
-				colorP->color.blue = fl + dl;
+				pc->color.red =
+				pc->color.green =
+				pc->color.blue = fl + dl;
 				}
 			if (gameOpts->render.color.bCap) {
-				if (colorP->color.red > 1.0)
-					colorP->color.red = 1.0;
-				if (colorP->color.green > 1.0)
-					colorP->color.green = 1.0;
-				if (colorP->color.blue > 1.0)
-					colorP->color.blue = 1.0;
+				if (pc->color.red > 1.0)
+					pc->color.red = 1.0;
+				if (pc->color.green > 1.0)
+					pc->color.green = 1.0;
+				if (pc->color.blue > 1.0)
+					pc->color.blue = 1.0;
 				}
 			}
 		else {
-			float dl = X2F (light);
+			float dl = f2fl (light);
 			dl = (float) pow (dl, 1.0f / 3.0f);
-			colorP->color.red = pdc->red * dl;
-			colorP->color.green = pdc->green * dl;
-			colorP->color.blue = pdc->blue * dl;
+			pc->color.red = pdc->red * dl;
+			pc->color.green = pdc->green * dl;
+			pc->color.blue = pdc->blue * dl;
 			}
 		}
 	else {
-		ScaleColor (colorP, fl + dl);
+		ScaleColor (pc, fl + dl);
 		}
 	}
 else {
-	ScaleColor (colorP, fl + dl);
+	ScaleColor (pc, fl + dl);
 	}
 //saturate at max value
 if (light > MAX_LIGHT)
@@ -633,10 +641,10 @@ return (nTexture == 378) || ((nTexture >= 399) && (nTexture <= 409));
 int IsTransparentTexture (short nTexture)
 {
 return !gameStates.app.bD1Mission &&
-		 ((nTexture == 378) ||
-		  (nTexture == 353) ||
-		  (nTexture == 420) ||
-		  (nTexture == 432) ||
+		 ((nTexture == 378) || 
+		  (nTexture == 353) || 
+		  (nTexture == 420) || 
+		  (nTexture == 432) || 
 		  ((nTexture >= 399) && (nTexture <= 409)));
 }
 
@@ -653,7 +661,7 @@ float WallAlpha (short nSegment, short nSide, short nWall, ubyte widFlags, int b
 
 if (!IS_WALL (nWall))
 	return 1;
-#if DBG
+#ifdef _DEBUG
 if ((nSegment == nDbgSeg) && ((nDbgSide < 0) || (nSide == nDbgSide)))
 	nDbgSeg = nDbgSeg;
 #endif
@@ -667,22 +675,21 @@ if (bCloaked || (widFlags & WID_TRANSPARENT_FLAG)) {
 		*colorP = cloakColor;
 		*nColor = 1;
 		*bTextured = 0;
-		return colorP->alpha = (c >= FADE_LEVELS) ? 0 : 1.0f - (float) c / (float) FADE_LEVELS;
+		return colorP->alpha = (c >= GR_ACTUAL_FADE_LEVELS) ? 0 : 1.0f - (float) c / (float) GR_ACTUAL_FADE_LEVELS;
 		}
 	if (!gameOpts->render.color.bWalls)
 		c = 0;
 	if (gameData.walls.walls [nWall].hps)
 		fAlpha = (float) fabs ((1.0f - (float) gameData.walls.walls [nWall].hps / ((float) F1_0 * 100.0f)));
 	else if (IsMultiGame && gameStates.app.bHaveExtraGameInfo [1])
-		fAlpha = COMPETITION ? 0.5f : (float) (FADE_LEVELS - extraGameInfo [1].grWallTransparency) / (float) FADE_LEVELS;
+		fAlpha = COMPETITION ? 0.5f : (float) (GR_ACTUAL_FADE_LEVELS - extraGameInfo [1].grWallTransparency) / (float) GR_ACTUAL_FADE_LEVELS;
 	else
-		fAlpha = 1.0f - extraGameInfo [0].grWallTransparency / (float) FADE_LEVELS;
+		fAlpha = 1.0f - extraGameInfo [0].grWallTransparency / (float) GR_ACTUAL_FADE_LEVELS;
 	if (fAlpha < 1) {
 		//fAlpha = (float) sqrt (fAlpha);
-		paletteManager.Game ()->ToRgbaf ((ubyte) c, *colorP);
-		colorP->red /= fAlpha;
-		colorP->green /= fAlpha;
-		colorP->blue /= fAlpha;
+		colorP->red = (float) CPAL2Tr (gamePalette, c) / fAlpha;
+		colorP->green = (float) CPAL2Tg (gamePalette, c) / fAlpha;
+		colorP->blue = (float) CPAL2Tb (gamePalette, c) / fAlpha;
 		*bTextured = 0;
 		*nColor = 1;
 		}
@@ -690,7 +697,7 @@ if (bCloaked || (widFlags & WID_TRANSPARENT_FLAG)) {
 	}
 if (gameStates.app.bD2XLevel) {
 	c = wallP->cloakValue;
-	return colorP->alpha = (c && (c < FADE_LEVELS)) ? (float) (FADE_LEVELS - c) / (float) FADE_LEVELS : 1;
+	return colorP->alpha = (c && (c < GR_ACTUAL_FADE_LEVELS)) ? (float) (GR_ACTUAL_FADE_LEVELS - c) / (float) GR_ACTUAL_FADE_LEVELS : 1;
 	}
 if (gameOpts->render.effects.bAutoTransparency && IsTransparentTexture (gameData.segs.segments [nSegment].sides [nSide].nBaseTex))
 	return colorP->alpha = 0.8f;
@@ -701,60 +708,61 @@ return colorP->alpha = 1;
 
 int IsMonitorFace (short nSegment, short nSide, int bForce)
 {
-return (bForce || gameStates.render.bDoCameras) ? cameraManager.GetFaceCamera (nSegment * 6 + nSide) : -1;
+return ((bForce || gameStates.render.bDoCameras) && gameData.cameras.nSides) ? gameData.cameras.nSides [nSegment * 6 + nSide] : -1;
 }
 
 //------------------------------------------------------------------------------
 
-int SetupMonitorFace (short nSegment, short nSide, short nCamera, tFace *faceP)
+int SetupMonitorFace (short nSegment, short nSide, short nCamera, grsFace *faceP)
 {
-	CCamera		*cameraP = cameraManager.Camera (nCamera);
-	int			bHaveMonitorBg, bIsTeleCam = cameraP->GetTeleport ();
-#if !DBG
+	tCamera		*pc = gameData.cameras.cameras + nCamera;
+	int			bHaveMonitorBg, bIsTeleCam = pc->bTeleport;
+#ifdef RELEASE
 	int			i;
 #endif
 #if RENDER2TEXTURE
-	int			bCamBufAvail = cameraP->HaveBuffer (1) == 1;
+	int			bCamBufAvail = OglCamBufAvail (pc, 1) == 1;
 #else
 	int			bCamBufAvail = 0;
 #endif
 
 if (!gameStates.render.bDoCameras)
 	return 0;
-bHaveMonitorBg = cameraP->Valid () && /*!cameraP->bShadowMap &&*/
-					  (cameraP->Texture ().Texture () || bCamBufAvail) &&
+bHaveMonitorBg = pc->bValid && /*!pc->bShadowMap &&*/ 
+					  (pc->texBuf.glTexture || bCamBufAvail) &&
 					  (!bIsTeleCam || EGI_FLAG (bTeleporterCams, 0, 1, 0));
 if (bHaveMonitorBg) {
-	cameraP->GetUVL (faceP, NULL, gameData.segs.faces.texCoord + faceP->nIndex, gameData.segs.faces.vertices + faceP->nIndex);
+	GetCameraUVL (pc, faceP, NULL, gameData.segs.faces.texCoord + faceP->nIndex, gameData.segs.faces.vertices + faceP->nIndex);
+	pc->texBuf.glTexture->wrapstate = -1;
 	if (bIsTeleCam) {
-#if DBG
-		faceP->bmBot = &cameraP->Texture ();
-		gameStates.render.grAlpha = FADE_LEVELS;
+#ifdef _DEBUG
+		faceP->bmBot = &pc->texBuf;
+		gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 #else
-		faceP->bmTop = &cameraP->Texture ();
+		faceP->bmTop = &pc->texBuf;
 		for (i = 0; i < 4; i++)
 			gameData.render.color.vertices [faceP->index [i]].color.alpha = 0.7f;
 #endif
 		}
-	else if (/*gameOpts->render.cameras.bFitToWall ||*/ (faceP->nOvlTex == 0) || !faceP->bmBot)
-		faceP->bmBot = &cameraP->Texture ();
+	else if (gameOpts->render.cameras.bFitToWall || (faceP->nOvlTex > 0) || !faceP->bmBot)
+		faceP->bmBot = &pc->texBuf;
 	else
-		faceP->bmTop = &cameraP->Texture ();
-	faceP->pTexCoord = cameraP->TexCoord ();
+		faceP->bmTop = &pc->texBuf;
+	faceP->pTexCoord = pc->texCoord;
 	}
 faceP->bTeleport = bIsTeleCam;
-cameraP->SetVisible (1);
+pc->bVisible = 1;
 return bHaveMonitorBg || gameOpts->render.cameras.bFitToWall;
 }
 
 //------------------------------------------------------------------------------
 //draw outline for curside
-#if DBG
+#ifdef _DEBUG
 
-#define CROSS_WIDTH  I2X(8)
-#define CROSS_HEIGHT I2X(8)
+#define CROSS_WIDTH  i2f(8)
+#define CROSS_HEIGHT i2f(8)
 
-void OutlineSegSide (CSegment *seg, int _side, int edge, int vert)
+void OutlineSegSide (tSegment *seg, int _side, int edge, int vert)
 {
 	g3sCodes cc;
 
@@ -762,18 +770,16 @@ cc = RotateVertexList (8, seg->verts);
 if (! cc.ccAnd) {		//all off screen?
 	g3sPoint *pnt;
 	//render curedge of curside of curseg in green
-	CCanvas::Current ()->SetColorRGB (0, 255, 0, 255);
-	G3DrawLine(gameData.segs.points + seg->verts [sideToVerts [_side][edge]],
+	GrSetColorRGB (0, 255, 0, 255);
+	G3DrawLine(gameData.segs.points + seg->verts [sideToVerts [_side][edge]], 
 						gameData.segs.points + seg->verts [sideToVerts [_side][(edge+1)%4]]);
 	//draw a little cross at the current vert
 	pnt = gameData.segs.points + seg->verts [sideToVerts [_side][vert]];
 	G3ProjectPoint(pnt);		//make sure projected
-	fix x = I2X (pnt->p3_screen.x);
-	fix y = I2X (pnt->p3_screen.y);
-	GrLine(x-CROSS_WIDTH, y, x, y-CROSS_HEIGHT);
-	GrLine(x, y-CROSS_HEIGHT, x+CROSS_WIDTH, y);
-	GrLine(x+CROSS_WIDTH, y, x, y+CROSS_HEIGHT);
-	GrLine(x, y+CROSS_HEIGHT, x-CROSS_WIDTH, y);
+	GrLine(pnt->p3_screen.x-CROSS_WIDTH, pnt->p3_screen.y, pnt->p3_screen.x, pnt->p3_screen.y-CROSS_HEIGHT);
+	GrLine(pnt->p3_screen.x, pnt->p3_screen.y-CROSS_HEIGHT, pnt->p3_screen.x+CROSS_WIDTH, pnt->p3_screen.y);
+	GrLine(pnt->p3_screen.x+CROSS_WIDTH, pnt->p3_screen.y, pnt->p3_screen.x, pnt->p3_screen.y+CROSS_HEIGHT);
+	GrLine(pnt->p3_screen.x, pnt->p3_screen.y+CROSS_HEIGHT, pnt->p3_screen.x-CROSS_WIDTH, pnt->p3_screen.y);
 	}
 }
 
@@ -781,68 +787,65 @@ if (! cc.ccAnd) {		//all off screen?
 
 //------------------------------------------------------------------------------
 
-void AdjustVertexColor (CBitmap *bmP, tFaceColor *colorP, fix xLight)
+void AdjustVertexColor (grsBitmap *bmP, tFaceColor *pc, fix xLight)
 {
-	float l = (bmP && (bmP->Flags () & BM_FLAG_NO_LIGHTING)) ? 1.0f : X2F (xLight);
+	float l = (bmP && (bmP->bmProps.flags & BM_FLAG_NO_LIGHTING)) ? 1.0f : f2fl (xLight);
 	float s = 1.0f;
 
 #if SHADOWS
 if (gameStates.ogl.bScaleLight)
-	s *= gameStates.render.bHeadlightOn ? 0.4f : 0.3f;
+	s *= gameStates.render.bHeadLightOn ? 0.4f : 0.3f;
 #endif
-if (!colorP->index || !gameStates.render.bAmbientColor || (gameStates.app.bEndLevelSequence >= EL_OUTSIDE)) {
-	colorP->color.red =
-	colorP->color.green =
-	colorP->color.blue = l * s;
+if (!pc->index || !gameStates.render.bAmbientColor || (gameStates.app.bEndLevelSequence >= EL_OUTSIDE)) {
+	pc->color.red =
+	pc->color.green =
+	pc->color.blue = l * s;
 	}
 else if (s != 1) {
-	colorP->color.red *= s;
-	colorP->color.green *= s;
-	colorP->color.blue *= s;
+	pc->color.red *= s;
+	pc->color.green *= s;
+	pc->color.blue *= s;
 	}
-colorP->color.alpha = 1;
+pc->color.alpha = 1;
 }
 
 // -----------------------------------------------------------------------------------
 //Given a list of point numbers, rotate any that haven't been bRotated this frame
-//cc.ccAnd and cc.ccOr will contain the position/orientation of the face that is determined
+//cc.ccAnd and cc.ccOr will contain the position/orientation of the face that is determined 
 //by the vertices passed relative to the viewer
 
-g3sPoint *RotateVertex (int i)
+g3sCodes RotateVertexList (int nVertices, short *vertexIndexP)
 {
-g3sPoint *p = gameData.segs.points + i;
-if (gameData.render.mine.nRotatedLast [i] != gameStates.render.nFrameCount) {
-	G3TransformAndEncodePoint (p, gameData.segs.vertices [i]);
-	if (gameData.render.zMax < p->p3_vec [Z])
-		gameData.render.zMax = p->p3_vec [Z];
-	if (!gameStates.ogl.bUseTransform) {
-		gameData.segs.fVertices [i][X] = X2F (p->p3_vec [X]);
-		gameData.segs.fVertices [i][Y] = X2F (p->p3_vec [Y]);
-		gameData.segs.fVertices [i][Z] = X2F (p->p3_vec [Z]);
-		}
-	p->p3_index = i;
-	gameData.render.mine.nRotatedLast [i] = gameStates.render.nFrameCount;
-	}
-return p;
-}
+	int			i, j;
+	g3sPoint		*pnt;
+	g3sCodes		cc;
 
-// -----------------------------------------------------------------------------------
-//Given a list of point numbers, rotate any that haven't been bRotated this frame
-//cc.ccAnd and cc.ccOr will contain the position/orientation of the face that is determined
-//by the vertices passed relative to the viewer
-
-g3sCodes RotateVertexList (int nVertices, short *vertexIndexP) 
-{
-	int			i;
-	g3sPoint		*p;
-	g3sCodes		cc = {0, 0xff};
-
+cc.ccAnd = 0xff;  
+cc.ccOr = 0;
 for (i = 0; i < nVertices; i++) {
-	p = RotateVertex (vertexIndexP [i]);
-	cc.ccAnd &= p->p3_codes;
-	cc.ccOr |= p->p3_codes;
+	j = vertexIndexP [i];
+	pnt = gameData.segs.points + j;
+	if (gameData.render.mine.nRotatedLast [j] != gameStates.render.nFrameCount) {
+		G3TransformAndEncodePoint (pnt, gameData.segs.vertices + j);
+		if (gameData.render.zMax < pnt->p3_vec.p.z)
+			gameData.render.zMax = pnt->p3_vec.p.z;
+		if (gameStates.ogl.bUseTransform) {
+			gameData.segs.fVertices [j].p.x = f2fl (gameData.segs.vertices [j].p.x);
+			gameData.segs.fVertices [j].p.y = f2fl (gameData.segs.vertices [j].p.y);
+			gameData.segs.fVertices [j].p.z = f2fl (gameData.segs.vertices [j].p.z);
+			}
+		else {
+			gameData.segs.fVertices [j].p.x = f2fl (pnt->p3_vec.p.x);
+			gameData.segs.fVertices [j].p.y = f2fl (pnt->p3_vec.p.y);
+			gameData.segs.fVertices [j].p.z = f2fl (pnt->p3_vec.p.z);
+			}
+		gameData.render.mine.nRotatedLast [j] = gameStates.render.nFrameCount;
+		}
+	cc.ccAnd &= pnt->p3_codes;
+	cc.ccOr |= pnt->p3_codes;
+	pnt->p3_index = j;
 	}
-	return cc;
+return cc;
 }
 
 // -----------------------------------------------------------------------------------
@@ -854,7 +857,7 @@ void ProjectVertexList (int nVertices, short *vertexIndexP)
 for (i = 0; i < nVertices; i++) {
 	j = vertexIndexP [i];
 	if (!(gameData.segs.points [j].p3_flags & PF_PROJECTED))
-		G3ProjectPoint (&gameData.segs.points [j]);
+		G3ProjectPoint (gameData.segs.points + j);
 	}
 }
 
@@ -863,15 +866,15 @@ for (i = 0; i < nVertices; i++) {
 void RotateSideNorms (void)
 {
 	int			i, j;
-	CSegment		*segP = gameData.segs.segments.Buffer ();
-	tSegment2	*seg2P = gameData.segs.segment2s.Buffer ();
+	tSegment		*segP = gameData.segs.segments;
+	tSegment2	*seg2P = gameData.segs.segment2s;
 	tSide			*sideP;
 	tSide2		*side2P;
 
 for (i = gameData.segs.nSegments; i; i--, segP++, seg2P++)
 	for (j = 6, sideP = segP->sides, side2P = seg2P->sides; j; j--, sideP++, side2P++) {
-		G3RotatePoint(side2P->rotNorms[0], sideP->normals[0], 0);
-		G3RotatePoint(side2P->rotNorms[1], sideP->normals[1], 0);
+		G3RotatePoint (side2P->rotNorms, sideP->normals, 0);
+		G3RotatePoint (side2P->rotNorms + 1, sideP->normals + 1, 0);
 		}
 }
 
@@ -923,7 +926,7 @@ if (!++gameData.render.mine.nVisible) {
 
 int SegmentMayBeVisible (short nStartSeg, short nRadius, int nMaxDist)
 {
-	CSegment	*segP;
+	tSegment	*segP;
 	int		nSegment, nChildSeg, nChild, h, i, j;
 
 if (gameData.render.mine.bVisible [nStartSeg] == gameData.render.mine.nVisible)
@@ -937,7 +940,7 @@ for (i = 0, j = 1; nRadius; nRadius--) {
 	for (h = i, i = j; h < i; h++) {
 		nSegment = gameData.render.mine.nSegRenderList [h];
 		if ((gameData.render.mine.bVisible [nSegment] == gameData.render.mine.nVisible) &&
-			 (!nMaxDist || (CFixVector::Dist(*SEGMENT_CENTER_I (nStartSeg), *SEGMENT_CENTER_I (nSegment)) <= nMaxDist)))
+			 (!nMaxDist || (VmVecDist (SEGMENT_CENTER_I (nStartSeg), SEGMENT_CENTER_I (nSegment)) <= nMaxDist)))
 			return 1;
 		segP = SEGMENTS + nSegment;
 		for (nChild = 0; nChild < 6; nChild++) {

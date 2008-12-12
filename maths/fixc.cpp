@@ -1,3 +1,4 @@
+/* $Id: fixc.c,v 1.6 2004/01/08 16:48:35 schaffner Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -13,6 +14,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #ifdef HAVE_CONFIG_H
 #include <conf.h>
+#endif
+
+#ifdef RCS
+static char rcsid[] = "$Id: fixc.c,v 1.6 2004/01/08 16:48:35 schaffner Exp $";
 #endif
 
 #include <stdlib.h>
@@ -126,7 +131,7 @@ if (M == 0)	{
 		T = ((nl & 0x80000000L) != 0);
 		nl <<= 1;
 		if (Q == 0) {
-			Q = (ubyte)((0x80000000L & nh) != 0 );
+			Q = (unsigned char)((0x80000000L & nh) != 0 );
 			nh = (nh << 1) | (u_int32_t)T;
 			tmp0 = nh;
 			nh -= d;
@@ -134,10 +139,10 @@ if (M == 0)	{
 			if (Q == 0)
 				Q = tmp1;
 			else
-				Q = (ubyte)(tmp1 == 0);
+				Q = (unsigned char)(tmp1 == 0);
 			}
 		else if (Q == 1) {
-			Q = (ubyte)((0x80000000L & nh) != 0 );
+			Q = (unsigned char)((0x80000000L & nh) != 0 );
 			nh = (nh << 1) | (u_int32_t)T;
 			tmp0 = nh;
 			nh += d;
@@ -145,7 +150,7 @@ if (M == 0)	{
 			if (Q == 0)
 				Q = tmp1;
 			else
-				Q = (ubyte)(tmp1 == 0);
+				Q = (unsigned char)(tmp1 == 0);
 			}
 		T = (Q == M);
 		}
@@ -157,7 +162,7 @@ else {
 		T = ((nl & 0x80000000L) != 0);
 		nl <<= 1;
 		if (Q == 0) {
-			Q = (ubyte)((0x80000000L & nh) != 0 );
+			Q = (unsigned char)((0x80000000L & nh) != 0 );
 			nh = (nh << 1) | (u_int32_t)T;
 			tmp0 = nh;
 			nh += d;
@@ -165,10 +170,10 @@ else {
 			if (Q == 1)
 				Q = tmp1;
 			else
-				Q = (ubyte)(tmp1 == 0);
+				Q = (unsigned char)(tmp1 == 0);
 			}
 		else if (Q == 1) {
-			Q = (ubyte) ((0x80000000L & nh) != 0);
+			Q = (unsigned char) ((0x80000000L & nh) != 0);
 			nh = (nh << 1) | (u_int32_t) T;
 			tmp0 = nh;
 			nh = nh - d;
@@ -176,7 +181,7 @@ else {
 			if (Q == 1)
 				Q = tmp1;
 			else
-				Q = (ubyte) (tmp1 == 0);
+				Q = (unsigned char) (tmp1 == 0);
 			}
 		T = (Q == M);
 		}
@@ -186,9 +191,9 @@ return (r << 1) | T;
 
 // ------------------------------------------------------------------------
 
-uint FixDivQuadLongU (uint nl, uint nh, uint d)
+unsigned int FixDivQuadLongU (uint nl, uint nh, uint d)
 {
-return (uint) (((u_int64_t) nl | (((u_int64_t) nh) << 32)) / ((u_int64_t) d));
+return (unsigned int) (((u_int64_t) nl | (((u_int64_t) nh) << 32)) / ((u_int64_t) d));
 }
 
 // ------------------------------------------------------------------------

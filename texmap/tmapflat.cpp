@@ -1,3 +1,4 @@
+/* $Id: tmapflat.c,v 1.5 2003/02/18 20:15:48 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -42,10 +43,10 @@ void tmap_scanline_flat(int y, fix xleft, fix xright)
 	// setup to call assembler scanline renderer
 
 	fx_y = y;
-	fx_xleft = X2I(xleft);
-	fx_xright = X2I(xright);
+	fx_xleft = f2i(xleft);
+	fx_xright = f2i(xright);
 
-	if ( gameStates.render.grAlpha >= FADE_LEVELS )
+	if ( gameStates.render.grAlpha >= GR_ACTUAL_FADE_LEVELS )
 		cur_tmap_scanline_flat();
 	else	{
 		tmap_flat_shadeValue = gameStates.render.grAlpha;
@@ -92,11 +93,11 @@ void texture_map_flat(g3ds_tmap *t, int color)
 	compute_y_bounds(t,&vlt,&vlb,&vrt,&vrb,&max_y_vertex);
 
 	// Set top and bottom (of entire texture map) y coordinates.
-	topy = X2I(v3d[vlt].y2d);
-	boty = X2I(v3d[max_y_vertex].y2d);
+	topy = f2i(v3d[vlt].y2d);
+	boty = f2i(v3d[max_y_vertex].y2d);
 
 	// Set amount to change x coordinate for each advance to next scanline.
-	dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+	dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dy = fix_recip[dy];
 	else
@@ -104,7 +105,7 @@ void texture_map_flat(g3ds_tmap *t, int color)
 
 	dx_dy_left = compute_dx_dy(t,vlt,vlb, recip_dy);
 
-	dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+	dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 	if (dy < FIX_RECIP_TABLE_SIZE)
 		recip_dy = fix_recip[dy];
 	else
@@ -123,15 +124,15 @@ void texture_map_flat(g3ds_tmap *t, int color)
 
 		// See if we have reached the end of the current left edge, and if so, set
 		// new values for dx_dy and x,u,v
-		if (y == X2I(v3d[vlb].y2d)) {
+		if (y == f2i(v3d[vlb].y2d)) {
 			// Handle problem of double points.  Search until y coord is different.  Cannot get
 			// hung in an infinite loop because we know there is a vertex with a lower y coordinate
 			// because in the for loop, we don't scan all spanlines.
-			while (y == X2I(v3d[vlb].y2d)) {
+			while (y == f2i(v3d[vlb].y2d)) {
 				vlt = vlb;
 				vlb = prevmod(vlb,t->nv);
 			}
-			dy = X2I(t->verts[vlb].y2d) - X2I(t->verts[vlt].y2d);
+			dy = f2i(t->verts[vlb].y2d) - f2i(t->verts[vlt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
@@ -144,13 +145,13 @@ void texture_map_flat(g3ds_tmap *t, int color)
 
 		// See if we have reached the end of the current left edge, and if so, set
 		// new values for dx_dy and x.  Not necessary to set new values for u,v.
-		if (y == X2I(v3d[vrb].y2d)) {
-			while (y == X2I(v3d[vrb].y2d)) {
+		if (y == f2i(v3d[vrb].y2d)) {
+			while (y == f2i(v3d[vrb].y2d)) {
 				vrt = vrb;
 				vrb = succmod(vrb,t->nv);
 			}
 
-			dy = X2I(t->verts[vrb].y2d) - X2I(t->verts[vrt].y2d);
+			dy = f2i(t->verts[vrb].y2d) - f2i(t->verts[vrt].y2d);
 			if (dy < FIX_RECIP_TABLE_SIZE)
 				recip_dy = fix_recip[dy];
 			else
@@ -194,7 +195,7 @@ typedef struct pnt2d {
 #endif
 
 //this takes the same partms as draw_tmap, but draws a flat-shaded polygon
-void DrawTexPolyFlat(CBitmap *bp,int nverts,g3sPoint **vertbuf)
+void DrawTexPolyFlat(grsBitmap *bp,int nverts,g3sPoint **vertbuf)
 {
 	pnt2d	points[MAX_TMAP_VERTS];
 	int	i;
@@ -208,24 +209,24 @@ void DrawTexPolyFlat(CBitmap *bp,int nverts,g3sPoint **vertbuf)
 		average_light += vertbuf[i]->p3_uvl.l;
 
 	if (nverts == 4)
-		average_light = X2I(average_light * NUM_LIGHTING_LEVELS/4);
+		average_light = f2i(average_light * NUM_LIGHTING_LEVELS/4);
 	else
-		average_light = X2I(average_light * NUM_LIGHTING_LEVELS/nverts);
+		average_light = f2i(average_light * NUM_LIGHTING_LEVELS/nverts);
 
 	if (average_light < 0)
 		average_light = 0;
 	else if (average_light > NUM_LIGHTING_LEVELS-1)
 		average_light = NUM_LIGHTING_LEVELS-1;
 
-	color = paletteManager.FadeTable ()[average_light*256 + bp->avgColor];
-	CCanvas::Current ()->SetColor(color);
+	color = grFadeTable[average_light*256 + bp->bmAvgColor];
+	GrSetColor(color);
 
 	for (i=0;i<nverts;i++) {
-		points[i].x = I2X (vertbuf[i]->p3_screen.x);
-		points[i].y = I2X (vertbuf[i]->p3_screen.y);
+		points[i].x = vertbuf[i]->p3_screen.x;
+		points[i].y = vertbuf[i]->p3_screen.y;
 	}
 
-	gr_upoly_tmap(nverts,reinterpret_cast<int*> (points));
+	gr_upoly_tmap(nverts,(int *) points);
 
 }
 #ifdef __WATCOMC__

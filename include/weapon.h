@@ -1,3 +1,4 @@
+/* $Id: weapon.h,v 1.6 2003/10/11 09:28:38 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -23,7 +24,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define WIF_PLACABLE        1   // can be placed by level designer
 
 typedef struct tWeaponInfo {
-	sbyte   renderType;        // How to draw 0=laser, 1=blob, 2=CObject
+	sbyte   renderType;        // How to draw 0=laser, 1=blob, 2=tObject
 	sbyte   persistent;         // 0 = dies when it hits something, 1 = continues (eg, fusion cannon)
 	short   nModel;          // Model num if rendertype==2.
 	short   nInnerModel;    // Model num of inner part if rendertype==2.
@@ -41,7 +42,7 @@ typedef struct tWeaponInfo {
 	short   wall_hitSound;     // What sound for impact with tWall
 
 	sbyte   destroyable;        // If !0, this weapon can be destroyed by another weapon.
-	sbyte   matter;             // Flag: set if this CObject is matter (as opposed to energy)
+	sbyte   matter;             // Flag: set if this tObject is matter (as opposed to energy)
 	sbyte   bounce;             // 1==always bounces, 2=bounces twice
 	sbyte   homingFlag;        // Set if this weapon can home in on a target.
 
@@ -59,15 +60,15 @@ typedef struct tWeaponInfo {
 	fix fire_wait;              // Time until this weapon can be fired again.
 
 	/* not present in shareware datafiles */
-	fix multi_damage_scale;     // Scale damage by this amount when applying to CPlayerData in multiplayer.  F1_0 means no change.
+	fix multi_damage_scale;     // Scale damage by this amount when applying to tPlayer in multiplayer.  F1_0 means no change.
 
 	tBitmapIndex bitmap;        // Pointer to bitmap if rendertype==0 or 1.
 
 	fix blob_size;              // Size of blob if blob nType
 	fix xFlashSize;             // How big to draw the flash
 	fix impact_size;            // How big of an impact
-	fix strength [NDL];          // How much damage it can inflict
-	fix speed [NDL];             // How fast it can move, difficulty level based.
+	fix strength[NDL];          // How much damage it can inflict
+	fix speed[NDL];             // How fast it can move, difficulty level based.
 	fix mass;                   // How much mass it has
 	fix drag;                   // How much drag it has
 	fix thrust;                 // How much thrust it has
@@ -83,7 +84,7 @@ typedef struct tWeaponInfo {
 } __pack__ tWeaponInfo;
 
 typedef struct tD1WeaponInfo {
-	sbyte	renderType;				// How to draw 0=laser, 1=blob, 2=CObject
+	sbyte	renderType;				// How to draw 0=laser, 1=blob, 2=tObject
 	sbyte	nModel;					// Model num if rendertype==2.
 	sbyte	nInnerModel;			// Model num of inner part if rendertype==2.
 	sbyte	persistent;					//	0 = dies when it hits something, 1 = continues (eg, fusion cannon)
@@ -100,8 +101,8 @@ typedef struct tD1WeaponInfo {
 
 	sbyte	nVClipIndex;				//	Vclip to render for the weapon, itself.
 	sbyte	destroyable;				//	If !0, this weapon can be destroyed by another weapon.
-	sbyte	matter;						//	Flag: set if this CObject is matter (as opposed to energy)
-	sbyte	bounce;						//	Flag: set if this CObject bounces off walls
+	sbyte	matter;						//	Flag: set if this tObject is matter (as opposed to energy)
+	sbyte	bounce;						//	Flag: set if this tObject bounces off walls
 
 	sbyte	homingFlag;				//	Set if this weapon can home in on a target.
 	sbyte	dum1, dum2, dum3;
@@ -114,8 +115,8 @@ typedef struct tD1WeaponInfo {
 	fix	blob_size;					// Size of blob if blob nType
 	fix	xFlashSize;					// How big to draw the flash
 	fix	impact_size;				// How big of an impact
-	fix	strength [NDL];				// How much damage it can inflict
-	fix	speed [NDL];					// How fast it can move, difficulty level based.
+	fix	strength[NDL];				// How much damage it can inflict
+	fix	speed[NDL];					// How fast it can move, difficulty level based.
 	fix	mass;							// How much mass it has
 	fix	drag;							// How much drag it has
 	fix	thrust;						//	How much thrust it has
@@ -133,13 +134,13 @@ typedef struct D2D1_weapon_info {
 	sbyte	fireCount;					//	Number of bursts fired from EACH GUN per firing.  For weapons which fire from both sides, 3*fireCount shots will be fired.
 	sbyte	ammo_usage;					//	How many units of ammunition it uses.
 	sbyte	destroyable;				//	If !0, this weapon can be destroyed by another weapon.
-	sbyte	matter;						//	Flag: set if this CObject is matter (as opposed to energy)
-	sbyte	bounce;						//	Flag: set if this CObject bounces off walls
+	sbyte	matter;						//	Flag: set if this tObject is matter (as opposed to energy)
+	sbyte	bounce;						//	Flag: set if this tObject bounces off walls
 	sbyte	homingFlag;				//	Set if this weapon can home in on a target.
 	fix	energy_usage;				//	How much fuel is consumed to fire this weapon.
 	fix	fire_wait;					//	Time until this weapon can be fired again.
-	fix	strength [NDL];				// How much damage it can inflict
-	fix	speed [NDL];					// How fast it can move, difficulty level based.
+	fix	strength[NDL];				// How much damage it can inflict
+	fix	speed[NDL];					// How fast it can move, difficulty level based.
 	fix	mass;							// How much mass it has
 	fix	drag;							// How much drag it has
 	fix	thrust;						//	How much thrust it has
@@ -169,7 +170,7 @@ typedef struct D2D1_weapon_info {
 
 #define REARM_TIME                  (F1_0)
 
-#define WEAPON_DEFAULT_LIFETIME     (F1_0*12)   // Lifetime of an CObject if a bozo forgets to define it.
+#define WEAPON_DEFAULT_LIFETIME     (F1_0*12)   // Lifetime of an tObject if a bozo forgets to define it.
 
 #define WEAPON_TYPE_WEAK_LASER      0
 #define WEAPON_TYPE_STRONG_LASER    1
@@ -194,7 +195,7 @@ typedef struct D2D1_weapon_info {
 //given a weapon index, return the flag value
 #define  HAS_FLAG(index)  (1<<(index))
 
-// Weapon flags, if CPlayerData->weaponFlags & WEAPON_FLAG is set, then the CPlayerData has this weapon
+// Weapon flags, if tPlayer->weaponFlags & WEAPON_FLAG is set, then the tPlayer has this weapon
 #define HAS_LASER_FLAG      HAS_FLAG(LASER_INDEX)
 #define HAS_VULCAN_FLAG     HAS_FLAG(VULCAN_INDEX)
 #define HAS_SPREADFIRE_FLAG HAS_FLAG(SPREADFIRE_INDEX)
@@ -238,40 +239,40 @@ typedef struct D2D1_weapon_info {
 
 #define NUM_SMART_CHILDREN  6   // Number of smart children created by default.
 
-extern D2D1_weapon_info weaponInfoD2D1 [D1_MAX_WEAPON_TYPES];
-extern void DoSelectWeapon(int nWeapon, int secondaryFlag);
+extern D2D1_weapon_info weaponInfoD2D1[D1_MAX_WEAPON_TYPES];
+extern void DoSelectWeapon(int weapon_num, int secondaryFlag);
 extern void ShowWeaponStatus(void);
 
-extern ubyte primaryWeaponToWeaponInfo [MAX_PRIMARY_WEAPONS];
-extern ubyte secondaryWeaponToWeaponInfo [MAX_SECONDARY_WEAPONS];
+extern ubyte primaryWeaponToWeaponInfo[MAX_PRIMARY_WEAPONS];
+extern ubyte secondaryWeaponToWeaponInfo[MAX_SECONDARY_WEAPONS];
 
 //for each Secondary weapon, which gun it fires out of
-extern ubyte secondaryWeaponToGunNum [MAX_SECONDARY_WEAPONS];
+extern ubyte secondaryWeaponToGunNum[MAX_SECONDARY_WEAPONS];
 
 //for each primary weapon, what kind of powerup gives weapon
-extern ubyte primaryWeaponToPowerup [MAX_SECONDARY_WEAPONS];
+extern ubyte primaryWeaponToPowerup[MAX_SECONDARY_WEAPONS];
 
 //for each Secondary weapon, what kind of powerup gives weapon
-extern ubyte secondaryWeaponToPowerup [MAX_SECONDARY_WEAPONS];
+extern ubyte secondaryWeaponToPowerup[MAX_SECONDARY_WEAPONS];
 
 //flags whether the last time we use this weapon, it was the 'super' version
-extern ubyte bLastWeaponWasSuper [2] [MAX_PRIMARY_WEAPONS];
+extern ubyte bLastWeaponWasSuper [2][MAX_PRIMARY_WEAPONS];
 
 extern void AutoSelectWeapon(int weaponType, int auto_select);        //parm is primary or secondary
-extern void SelectWeapon (int nWeapon, int secondaryFlag, int bPrintMessage, int bWaitForRearm);
+extern void SelectWeapon(int weapon_num, int secondaryFlag, int print_message,int wait_for_rearm);
 
-extern char 	*pszShortPrimaryWeaponNames [];
-extern char 	*pszShortSecondaryWeaponNames [];
-extern char 	*pszPrimaryWeaponNames [];
-extern char 	*pszSecondaryWeaponNames [];
-extern int  	nMaxPrimaryAmmo [MAX_PRIMARY_WEAPONS];
-extern ubyte   nMaxSecondaryAmmo [MAX_SECONDARY_WEAPONS];
-extern sbyte   bIsEnergyWeapon [MAX_WEAPON_TYPES];
+extern char 	*pszShortPrimaryWeaponNames[];
+extern char 	*pszShortSecondaryWeaponNames[];
+extern char 	*pszPrimaryWeaponNames[];
+extern char 	*pszSecondaryWeaponNames[];
+extern int  	nMaxPrimaryAmmo[MAX_PRIMARY_WEAPONS];
+extern ubyte   nMaxSecondaryAmmo[MAX_SECONDARY_WEAPONS];
+extern sbyte   bIsEnergyWeapon[MAX_WEAPON_TYPES];
 
 #define HAS_WEAPON_FLAG 1
 #define HAS_ENERGY_FLAG 2
 #define HAS_AMMO_FLAG       4
-#define  HAS_ALL (HAS_WEAPON_FLAG | HAS_ENERGY_FLAG | HAS_AMMO_FLAG)
+#define  HAS_ALL (HAS_WEAPON_FLAG|HAS_ENERGY_FLAG|HAS_AMMO_FLAG)
 
 //-----------------------------------------------------------------------------
 // Return:
@@ -280,45 +281,38 @@ extern sbyte   bIsEnergyWeapon [MAX_WEAPON_TYPES];
 //      HAS_ENERGY_FLAG
 //      HAS_AMMO_FLAG
 //      HAS_SUPER_FLAG
-int PlayerHasWeapon (int nWeapon, int secondaryFlag, int nPlayer, int bAll);
+extern int PlayerHasWeapon(int weapon_num, int secondaryFlag, int nPlayer, int bAll);
 
 //called when one of these weapons is picked up
 //when you pick up a secondary, you always get the weapon & ammo for it
-int PickupSecondary (CObject *objP, int nWeaponIndex, int nAmount, int nPlayer);
+int PickupSecondary (tObject *objP, int weapon_index, int count, int nPlayer);
 
 //called when a primary weapon is picked up
 //returns true if actually picked up
-int PickupPrimary (int nWeaponIndex, int nPlayer);
+int PickupPrimary (int weapon_index, int nPlayer);
 
 //called when ammo (for the vulcan cannon) is picked up
-int PickupAmmo (int classFlag, int nWeaponIndex, int ammoCount, int nPlayer);
+int PickupAmmo(int classFlag,int weapon_index,int ammoCount, int nPlayer);
 
-int PickupLaser (CObject *objP, int nId, int nPlayer);
-int PickupSuperLaser (CObject *objP, int nId, int nPlayer);
-int PickupQuadLaser (CObject *objP, int nId, int nPlayer);
-int PickupGun (CObject *objP, int nId, int nPlayer);
-int PickupGatlingGun (CObject *objP, int nId, int nPlayer);
-int PickupVulcanAmmo (CObject *objP, int nPlayer);
+extern int AttemptToStealItem(tObject *objp, int player_num);
 
-int AttemptToStealItem (CObject *objp, int player_num);
-
-//this function is for when the CPlayerData intentionally drops a powerup
-extern int SpitPowerup (CObject *spitter, ubyte id, int seed);
+//this function is for when the tPlayer intentionally drops a powerup
+extern int SpitPowerup(tObject *spitter, ubyte id, int seed);
 
 #define SMEGA_ID    40
 
-void RockTheMineFrame (void);
-void ShakerRockStuff (void);
-void InitShakerDetonates (void);
-void tactile_set_button_jolt (void);
+extern void RockTheMineFrame(void);
+extern void ShakerRockStuff(void);
+extern void InitShakerDetonates(void);
+extern void tactile_set_button_jolt (void);
 
 /*
  * reads n tWeaponInfo structs from a CFILE
  */
-int ReadWeaponInfos (tWeaponInfo *wi, int n, CFile& cf, int fileVersion);
+extern int WeaponInfoReadN(tWeaponInfo *wi, int n, CFILE *fp, int fileVersion);
 
-extern ubyte nWeaponOrder [2] [11];
-extern ubyte nDefaultWeaponOrder [2] [11];
+extern ubyte nWeaponOrder [2][11];
+extern ubyte nDefaultWeaponOrder [2][11];
 
 #define primaryOrder		(nWeaponOrder [0])
 #define secondaryOrder	(nWeaponOrder [1])

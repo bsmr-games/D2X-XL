@@ -1,3 +1,4 @@
+/* $Id: paging.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,7 +25,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 void PagingTouchAll ();
 int PagingGaugeSize ();
-void PagingTouchObject (CObject *objP);
+void PagingTouchObject (tObject *objP);
 void PagingTouchObjects (int nType);
 
 #endif /* _PAGING_H */

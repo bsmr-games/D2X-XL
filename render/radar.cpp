@@ -1,3 +1,4 @@
+/* $Id: render.c, v 1.18 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -24,6 +25,9 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "render.h"
 #include "gauges.h"
 #include "automap.h"
+#include "network.h"
+#include "ogl_defs.h"
+#include "ogl_lib.h"
 #include "ogl_render.h"
 
 // -----------------------------------------------------------------------------------
@@ -34,13 +38,13 @@ int radarRanges [] = {100, 150, 200};
 #define RADAR_SLICES	40
 #define BLIP_SLICES	40
 
-static vmsAngVec	aRadar = vmsAngVec::Create(F1_0 / 4, 0, 0);
+static vmsAngVec	aRadar = {F1_0 / 4, 0, 0};
 static vmsMatrix	mRadar;
 static float		yRadar = 20;
 
-void RenderRadarBlip (CObject *objP, float r, float g, float b, float a)
+void RenderRadarBlip (tObject *objP, float r, float g, float b, float a)
 {
-	CFixVector	n, v [2];
+	vmsVector	n, v [2];
 	fix			m;
 	float			h, s;
 
@@ -53,15 +57,15 @@ if (bInitSinCos) {
 	OglComputeSinCos (sizeofa (sinCosBlip), sinCosBlip);
 	bInitSinCos = 0;
 	}
-n = objP->info.position.vPos;
-G3TransformPoint (n, n, 0);
-if ((m = n.Mag()) > RADAR_RANGE * F1_0)
+n = objP->position.vPos;
+G3TransformPoint (&n, &n, 0);
+if ((m = VmVecMag (&n)) > RADAR_RANGE * F1_0)
 	return;
 if (m) {
-	//HUDMessage (0, "%1.2f", X2F (m));
-	v [0][X] = FixDiv (n[X], m) * 15; // /= RADAR_RANGE;
-	v [0][Y] = FixDiv (n[Y], m) * 20; // /= RADAR_RANGE;
-	v [0][Z] = n[X] / RADAR_RANGE;
+	//HUDMessage (0, "%1.2f", f2fl (m));
+	v [0].p.x = FixDiv (n.p.x, m) * 15; // /= RADAR_RANGE;
+	v [0].p.y = FixDiv (n.p.y, m) * 20; // /= RADAR_RANGE;
+	v [0].p.z = n.p.x / RADAR_RANGE;
 	//VmVecNormalize (&n);
 	}
 else {
@@ -76,7 +80,7 @@ else {
 	glColor4f (r, g, b, a);
  	OglDrawEllipse (RADAR_SLICES, GL_POLYGON, 10, 0, 10.0f / 3.0f, 0, sinCosRadar);
 	glColor4f (0.5f, 0.5f, 0.5f, 0.8f);
-	//glEnable (GL_LINE_SMOOTH);
+	glEnable (GL_LINE_SMOOTH);
  	OglDrawEllipse (RADAR_SLICES, GL_LINE_LOOP, 10, 0, 10.0f / 3.0f, 0, sinCosRadar);
  	OglDrawEllipse (RADAR_SLICES, GL_LINE_LOOP, 20.0f / 3.0f, 0, 20.0f / 9.0f, 0, sinCosRadar);
  	OglDrawEllipse (RADAR_SLICES, GL_LINE_LOOP, 10.0f / 3.0f, 0, 10.0f / 9.0f, 0, sinCosRadar);
@@ -86,29 +90,29 @@ else {
 	glVertex2f (10, 0);
 	glVertex2f (-10, 0);
 	glEnd ();
-	//glDisable (GL_LINE_SMOOTH);
+	glDisable (GL_LINE_SMOOTH);
 	glLineWidth (2);
 	glPopMatrix ();
 	return;
 	}
-v[0] *= FixDiv(1, 3);
-h = X2F (n[Z]) / RADAR_RANGE;
+VmVecScaleFrac (v, 1, 3);
+h = f2fl (n.p.z) / RADAR_RANGE;
 glPushMatrix ();
 glTranslatef (0, yRadar + h * 10.0f / 3.0f, 50);
 glPushMatrix ();
-s = 1.0f - (float) fabs (X2F (m) / RADAR_RANGE);
+s = 1.0f - (float) fabs (f2fl (m) / RADAR_RANGE);
 h = 3 * s;
 a += a * h;
 glColor4f (r + r * h, g + g * h, b + b * h, (float) sqrt (a));
-glTranslatef (X2F (v [0][X]), X2F (v [0][Y]), X2F (v [0][Z]));
+glTranslatef (f2fl (v [0].p.x), f2fl (v [0].p.y), f2fl (v [0].p.z));
 OglDrawEllipse (BLIP_SLICES, GL_POLYGON, 0.33f + 0.33f * s, 0, 0.33f + 0.33f * s, 0, sinCosBlip);
 glPopMatrix ();
 #if 1
 v [1] = v [0];
-v [1][Y] = 0;
+v [1].p.y = 0;
 glBegin (GL_LINES);
-OglVertex3x (v [0][X], v [0][Y], v [0][Z]);
-OglVertex3x (v [1][X], v [1][Y], v [1][Z]);
+OglVertex3x (v [0].p.x, v [0].p.y, v [0].p.z);
+OglVertex3x (v [1].p.x, v [1].p.y, v [1].p.z);
 glEnd ();
 #endif
 glPopMatrix ();
@@ -142,12 +146,10 @@ if (!bHaveShipColors) {
 void RenderRadar (void)
 {
 	int			i, bStencil;
-	CObject		*objP;
+	tObject		*objP;
 	GLint			depthFunc;
 	tRgbColorf	*pc;
 
-if (gameStates.app.bNostalgia)
-	return;
 if (HIDE_HUD)
 	return;
 if (gameStates.render.automap.bDisplay)
@@ -157,41 +159,40 @@ if (!(i = EGI_FLAG (nRadar, 0, 1, 0)))
 bStencil = StencilOff ();
 InitShipColors ();
 yRadar = (i == 1) ? 20.0f : -20.0f;
-mRadar = vmsMatrix::Create (aRadar);
-glDisable (GL_CULL_FACE);
+VmAngles2Matrix (&mRadar, &aRadar);
+glDisable (GL_CULL_FACE);	
 glGetIntegerv (GL_DEPTH_FUNC, &depthFunc);
 glDepthFunc (GL_ALWAYS);
 glEnable (GL_BLEND);
 glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 glActiveTexture (GL_TEXTURE0);
 glDisable (GL_TEXTURE_2D);
-glLineWidth (1);
-pc = radarColor + gameOpts->render.automap.nColor;
-RenderRadarBlip (gameData.objs.consoleP, pc->red, pc->green, pc->blue, 2.0f / 3.0f); //0.5, 0.75, 0.5, 2.0f / 3.0f);
 glLineWidth (3);
-FORALL_OBJS (objP, i) {
-	if ((objP->info.nType == OBJ_PLAYER) && (objP != gameData.objs.consoleP)) {
-		if (AM_SHOW_PLAYERS && AM_SHOW_PLAYER (objP->info.nId)) {
-			pc = shipColors + (IsTeamGame ? GetTeam (objP->info.nId) : objP->info.nId);
+pc = radarColor + gameOpts->render.automap.nColor;
+RenderRadarBlip (gameData.objs.console, pc->red, pc->green, pc->blue, 2.0f / 3.0f); //0.5, 0.75, 0.5, 2.0f / 3.0f);
+for (i = 0, objP = OBJECTS; i <= gameData.objs.nLastObject; i++, objP++) {
+	if ((objP->nType == OBJ_PLAYER) && (objP != gameData.objs.console)) {
+		if (AM_SHOW_PLAYERS && AM_SHOW_PLAYER (objP->id)) {
+			pc = shipColors + (IsTeamGame ? GetTeam (objP->id) : objP->id);
 			RenderRadarBlip (objP, pc->red, pc->green, pc->blue, 0.9f / 4);
 			}
 		}
-	else if (objP->info.nType == OBJ_ROBOT) {
+	else if (objP->nType == OBJ_ROBOT) {
 		if (AM_SHOW_ROBOTS) {
-			if (ROBOTINFO (objP->info.nId).companion)
+			if (ROBOTINFO (objP->id).companion)
 				RenderRadarBlip (objP, guidebotColor.red, guidebotColor.green, guidebotColor.blue, 0.9f / 4);
 			else
 				RenderRadarBlip (objP, robotColor.red, robotColor.green, robotColor.blue, 0.9f / 4);
 			}
 		}
-	else if (objP->info.nType == OBJ_POWERUP) {
+	else if (objP->nType == OBJ_POWERUP) {
 		if (AM_SHOW_POWERUPS (2))
 			RenderRadarBlip (objP, powerupColor.red, powerupColor.green, powerupColor.blue, 0.9f / 4);
 		}
 	}
 glLineWidth (1);
 glDepthFunc (depthFunc);
-glEnable (GL_CULL_FACE);
+glEnable (GL_CULL_FACE);	
 StencilOn (bStencil);
 }
 

@@ -52,7 +52,7 @@
 
 #define TEXTURE_COMPRESSION	0
 
-#if DBG
+#ifdef _DEBUG
 #	define DBG_SHADERS			0
 #else
 #	define DBG_SHADERS			0
@@ -251,7 +251,7 @@ void OglViewport (int x, int y, int w, int h);
 
 //------------------------------------------------------------------------------
 
-extern const char *pszOglExtensions;
+extern char *pszOglExtensions;
 
 //------------------------------------------------------------------------------
 

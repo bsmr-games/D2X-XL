@@ -1,3 +1,4 @@
+/* $Id: titles.h,v 1.3 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -19,10 +20,10 @@ extern int	Skip_briefing_screens;
 
 // Descent 1 briefings
 
-extern int ShowTitleScreen (const char *filename, int bAllowKeys, int from_hog_only);
-extern int ShowBriefingScreen (const char *filename, int bAllowKeys);
-extern void ShowTitleFlick (const char *name, int bAllowKeys);
-extern void DoBriefingScreens(const char *filename,int nLevel);
+extern int ShowTitleScreen (char *filename, int bAllowKeys, int from_hog_only);
+extern int ShowBriefingScreen (char *filename, int bAllowKeys);
+extern void ShowTitleFlick (char *name, int bAllowKeys);
+extern void DoBriefingScreens(char *filename,int nLevel);
 extern char *GetBriefingScreen (int nLevel);
 
 extern void show_endgame_briefing(void);

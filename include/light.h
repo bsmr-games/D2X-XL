@@ -1,3 +1,4 @@
+/* $Id: light.h,v 1.2 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -25,15 +26,15 @@ extern void SetDynamicLight (void);
 
 int LightingMethod (void);
 
-// compute the average dynamic light in a CSegment.  Takes the CSegment number
+// compute the average dynamic light in a tSegment.  Takes the tSegment number
 fix ComputeSegDynamicLight (int nSegment);
 
-// compute the lighting for an CObject.  Takes a pointer to the CObject,
+// compute the lighting for an tObject.  Takes a pointer to the tObject,
 // and possibly a rotated 3d point.  If the point isn't specified, the
-// CObject's center point is rotated.
-fix ComputeObjectLight(CObject *obj,CFixVector *rotated_pnt);
+// tObject's center point is rotated.
+fix ComputeObjectLight(tObject *obj,vmsVector *rotated_pnt);
 
-void ComputeEngineGlow (CObject *obj, fix *engine_glowValue);
+void ComputeEngineGlow (tObject *obj, fix *engine_glowValue);
 
 // returns ptr to flickering light structure, or NULL if can't find
 tVariableLight *FindVariableLight (int nSegment, int nSide);
@@ -47,7 +48,7 @@ void EnableVariableLight (int nSegment, int nSide);
 // returns 1 if ok, 0 if error
 int AddVariableLight(int nSegment, int nSide, fix delay, unsigned long mask);
 
-void ReadVariableLight (tVariableLight *fl, CFile& cf);
+void ReadVariableLight (tVariableLight *fl, CFILE *fp);
 
 void InitTextureBrightness (void);
 

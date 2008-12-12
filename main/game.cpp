@@ -1,3 +1,4 @@
+/* $Id: game.c,v 1.25 2003/12/08 22:32:56 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,6 +16,10 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+char game_rcsid[] = "$Id: game.c,v 1.25 2003/12/08 22:32:56 btb Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,10 +28,16 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <time.h>
 
 #include "inferno.h"
+#include "ogl_defs.h"
 #include "ogl_lib.h"
 #include "ogl_render.h"
+#include "pstypes.h"
+#include "console.h"
+#include "gr.h"
+#include "game.h"
 #include "key.h"
 #include "object.h"
+#include "objrender.h"
 #include "objeffects.h"
 #include "objsmoke.h"
 #include "transprender.h"
@@ -38,49 +49,92 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "iff.h"
 #include "pcx.h"
 #include "timer.h"
+#include "cameras.h"
 #include "render.h"
+#include "laser.h"
 #include "screens.h"
 #include "textures.h"
 #include "slew.h"
 #include "gauges.h"
 #include "texmap.h"
+#include "3d.h"
+#include "effects.h"
 #include "menu.h"
 #include "gameseg.h"
+#include "wall.h"
+#include "ai.h"
+#include "fuelcen.h"
+#include "digi.h"
+#include "ibitblt.h"
 #include "u_mem.h"
+#include "palette.h"
+#include "morph.h"
 #include "light.h"
 #include "newdemo.h"
 #include "collide.h"
+#include "weapon.h"
+#include "sounds.h"
+#include "args.h"
+#include "loadgame.h"
 #include "automap.h"
 #include "text.h"
+#include "powerup.h"
 #include "fireball.h"
+#include "newmenu.h"
+#ifdef NETWORK
+#include "network.h"
+#endif
 #include "gamefont.h"
+#include "endlevel.h"
+#include "joydefs.h"
 #include "kconfig.h"
 #include "mouse.h"
+#include "switch.h"
+#include "controls.h"
+#include "songs.h"
 #include "gamepal.h"
+#include "particles.h"
+#include "lightmap.h"
+#include "oof.h"
 #include "sphere.h"
+#include "weapon.h"
+
+#include "multi.h"
+#include "desc_id.h"
+#include "reactor.h"
+#include "pcx.h"
+#include "state.h"
+#include "piggy.h"
 #include "textdata.h"
+#include "multibot.h"
+#include "ai.h"
+#include "robot.h"
+#include "playsave.h"
+#include "fix.h"
+#include "hudmsg.h"
 #include "tracker.h"
+#include "particles.h"
+#include "banlist.h"
 #include "input.h"
 #include "interp.h"
 #include "cheats.h"
 #include "rle.h"
+#include "digi.h"
+#include "sphere.h"
 #include "hiresmodels.h"
+#include "dropobject.h"
 #include "monsterball.h"
 #include "dropobject.h"
 #include "trackobject.h"
+#include "slowmotion.h"
 #include "soundthreads.h"
 #include "sparkeffect.h"
-#include "createmesh.h"
-#ifdef __macosx__
-#include "SDL/SDL_syswm.h"
-#else
-#include "SDL_syswm.h"
-#endif
-#include "renderthreads.h"
-#include "fvi.h"
-#include "banlist.h"
+#include "systemkeys.h"
 
 u_int32_t nCurrentVGAMode;
+
+void GamePaletteStepUp (int r, int g, int b);
+
 
 #ifdef MWPROFILER
 #include <profiler.h>
@@ -98,7 +152,7 @@ void FreeHoardData (void);
 int ReadControls (void);		// located in gamecntl.c
 void DoFinalBossFrame (void);
 
-#if DBG
+#ifdef _DEBUG
 int	MarkCount = 0;                 // number of debugging marks set
 int	Speedtest_startTime;
 int	Speedtest_segnum;
@@ -108,7 +162,7 @@ int	SpeedtestCount=0;				//	number of times to do the debug test.
 #endif
 
 #if defined (TIMER_TEST) && defined (_DEBUG)
-fix TimerValue,actual_lastTimerValue,_xLastFrameTime;
+fix TimerValue,actual_lastTimerValue,_last_frametime;
 int gameData.time.xStops,gameData.time.xStarts;
 int gameData.time.xStopped,gameData.time.xStarted;
 #endif
@@ -133,14 +187,14 @@ int	*Toggle_var = &Dummy_var;
 char faded_in;
 #endif
 
-#if DBG                          //these only exist if debugging
+#ifdef _DEBUG                          //these only exist if debugging
 
 int bGameDoubleBuffer = 1;     //double buffer by default
 fix xFixedFrameTime = 0;          //if non-zero, set frametime to this
 
 #endif
 
-CBitmap bmBackground;
+grsBitmap bmBackground;
 
 #define BACKGROUND_NAME "statback.pcx"
 
@@ -153,17 +207,42 @@ void PowerupGrabCheatAll (void);
 //	Other functions
 void MultiCheckForKillGoalWinner ();
 void MultiCheckForEntropyWinner ();
+void RestoreGameSurfaces ();
+
+// window functions
+
+void GrowWindow (void);
+void ShrinkWindow (void);
 
 // text functions
 
-#if DBG
+void FillBackground ();
+
+#ifdef _DEBUG
 void ShowFrameRate (void);
+void ftoa (char *string, fix f);
 #endif
 
 //	==============================================================================================
 
+void LoadBackgroundBitmap ()
+{
+	int pcx_error;
+
+if (bmBackground.bmTexBuf)
+	D2_FREE (bmBackground.bmTexBuf);
+bmBackground.bmTexBuf=NULL;
+pcx_error = PCXReadBitmap (gameStates.app.cheats.bJohnHeadOn ? (char *) "johnhead.pcx" : (char *) BACKGROUND_NAME,
+							&bmBackground, BM_LINEAR,0);
+if (pcx_error != PCX_ERROR_NONE)
+	Error ("File %s - PCX error: %s",BACKGROUND_NAME,pcx_errormsg (pcx_error));
+GrRemapBitmapGood (&bmBackground, NULL, -1, -1);
+}
+
+
+//------------------------------------------------------------------------------
 //this is called once per game
-void InitGame (void)
+void InitGame ()
 {
 atexit (CloseGame);             //for cleanup
 /*---*/PrintLog ("Initializing game data\n  Objects ...\n");
@@ -177,30 +256,40 @@ InitAISystem ();
 /*---*/PrintLog ("  exploding walls...\n");
 InitExplodingWalls ();
 /*---*/PrintLog ("  particle systems...\n");
-particleManager.Shutdown ();
-particleManager.Init ();
+InitSmoke ();
 /*---*/PrintLog ("  loading background bitmap...\n");
 LoadBackgroundBitmap ();
-InitAutomapData ();
-InitDefaultPlayerShip ();
 nClearWindow = 2;		//	do portal only window clear.
 InitDetailLevels (gameStates.app.nDetailLevel);
-gameStates.render.color.bRenderLightmaps =
-	gameStates.render.color.bLightmapsOk &&
-	gameStates.render.bAmbientColor &&
-	gameOpts->render.color.bUseLightmaps;
-gameStates.ogl.bGlTexMerge =
-	gameOpts->ogl.bGlTexMerge &&
+gameStates.render.color.bRenderLightMaps =
+	gameStates.render.color.bLightMapsOk && 
+	gameStates.render.bAmbientColor && 
+	gameOpts->render.color.bUseLightMaps;
+gameStates.ogl.bGlTexMerge = 
+	gameOpts->ogl.bGlTexMerge && 
 	gameStates.render.textures.bGlsTexMergeOk;
-fpDrawTexPolyMulti = gameStates.render.color.bRenderLightmaps ? G3DrawTexPolyLightmap : G3DrawTexPolyMulti;
+fpDrawTexPolyMulti = gameStates.render.color.bRenderLightMaps ? G3DrawTexPolyLightmap : G3DrawTexPolyMulti;
 }
 
 //------------------------------------------------------------------------------
 
-void ShowInGameWarning (const char *s)
+void ResetPaletteAdd ()
 {
-if (screen.Width () && screen.Height ()) {
-	const char	*hs, *ps = strstr (s, "Error");
+gameStates.ogl.palAdd.red = 
+gameStates.ogl.palAdd.green =
+gameStates.ogl.palAdd.blue	= 0;
+gameData.render.xFlashEffect = 0;
+gameData.render.xTimeFlashLastPlayed = 0;
+GrPaletteStepUp (0, 0, 0);
+//gameStates.ogl.bDoPalStep = !(gameOpts->ogl.bSetGammaRamp && gameStates.ogl.bBrightness);
+}
+
+//------------------------------------------------------------------------------
+
+void ShowInGameWarning (char *s)
+{
+if (grdCurScreen) {
+	char	*hs, *ps = strstr (s, "Error");
 
 	if (ps > s) {	//skip trailing non alphanum chars
 		for (hs = ps - 1; (hs > s) && !isalnum (*hs); hs++)
@@ -227,8 +316,8 @@ if (screen.Width () && screen.Height ()) {
 
 //------------------------------------------------------------------------------
 //these should be in gr.h
-#define cv_w  Bitmap ().Width ()
-#define cv_h  Bitmap ().Height ()
+#define cv_w  cvBitmap.bmProps.w
+#define cv_h  cvBitmap.bmProps.h
 
 extern void NDRecordCockpitChange (int);
 
@@ -248,17 +337,16 @@ if (gameStates.render.vr.nRenderMode != VR_NONE)
 	gameStates.render.cockpit.nMode = CM_FULL_SCREEN;
 if (gameStates.video.nScreenMode == SCREEN_EDITOR)
 	gameStates.render.cockpit.nMode = CM_FULL_SCREEN;
-CCanvas::SetCurrent (NULL);
-fontManager.SetCurrent (GAME_FONT);
+GrSetCurrentCanvas (NULL);
+GrSetCurFont (GAME_FONT);
 
-if (bGameCockpitCopyCode) {
-	delete[] bGameCockpitCopyCode;
-	bGameCockpitCopyCode  = NULL;
-	}
+if (bGameCockpitCopyCode)
+	D2_FREE (bGameCockpitCopyCode);
+bGameCockpitCopyCode  = NULL;
 switch (gameStates.render.cockpit.nMode) {
 	case CM_FULL_COCKPIT:
 	case CM_REAR_VIEW:
-     	gameData.render.window.hMax = (screen.Height () * 2) / 3;
+     	gameData.render.window.hMax = (grdCurScreen->scHeight * 2) / 3;
 		if (gameData.render.window.h > gameData.render.window.hMax)
 			gameData.render.window.h = gameData.render.window.hMax;
 		if (gameData.render.window.w > gameData.render.window.wMax)
@@ -269,7 +357,7 @@ switch (gameStates.render.cockpit.nMode) {
 		break;
 
 	case CM_FULL_SCREEN:
-		gameData.render.window.hMax = screen.Height ();
+		gameData.render.window.hMax = grdCurScreen->scHeight;
 		gameData.render.window.h = gameData.render.window.hMax;
 		gameData.render.window.w = gameData.render.window.wMax;
 		gameData.render.window.x = (gameData.render.window.wMax - gameData.render.window.w)/2;
@@ -279,12 +367,12 @@ switch (gameStates.render.cockpit.nMode) {
 
 	case CM_STATUS_BAR:
 		{
-		int h = gameData.pig.tex.bitmaps [0][gameData.pig.tex.cockpitBmIndex [CM_STATUS_BAR + (gameStates.video.nDisplayMode ? (gameData.models.nCockpits / 2) : 0)].index].Height ();
+		int h = gameData.pig.tex.bitmaps [0][gameData.pig.tex.cockpitBmIndex [CM_STATUS_BAR + (gameStates.video.nDisplayMode ? (gameData.models.nCockpits / 2) : 0)].index].bmProps.h;
 		if (gameStates.app.bDemoData)
 			h *= 2;
-		if (screen.Height () > 480)
-			h = (int) ((double) h * (double) screen.Height () / 480.0);
-     	gameData.render.window.hMax = screen.Height () - h;
+		if (grdCurScreen->scHeight > 480)
+			h = (int) ((double) h * (double) grdCurScreen->scHeight / 480.0);
+     	gameData.render.window.hMax = grdCurScreen->scHeight - h;
 		gameData.render.window.h = gameData.render.window.hMax;
 		gameData.render.window.w = gameData.render.window.wMax;
 		gameData.render.window.x = (gameData.render.window.wMax - gameData.render.window.w) / 2;
@@ -294,15 +382,15 @@ switch (gameStates.render.cockpit.nMode) {
 		break;
 
 	case CM_LETTERBOX: {
-		int x = 0;
-		int w = gameStates.render.vr.buffers.render[0].Width ();		//VR_render_width;
-		int h = (int) ((gameStates.render.vr.buffers.render [0].Height () * 7) / 10 / ((double) screen.Height () / (double) screen.Width () / 0.75));
-		int y = (gameStates.render.vr.buffers.render [0].Height () - h) / 2;
+		int x = 0; 
+		int w = gameStates.render.vr.buffers.render[0].cvBitmap.bmProps.w;		//VR_render_width;
+		int h = (int) ((gameStates.render.vr.buffers.render[0].cvBitmap.bmProps.h * 7) / 10 / ((double) grdCurScreen->scHeight / (double) grdCurScreen->scWidth / 0.75));
+		int y = (gameStates.render.vr.buffers.render[0].cvBitmap.bmProps.h - h) / 2;
 		GameInitRenderSubBuffers (x, y, w, h);
 		break;
 		}
 	}
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 gameStates.render.cockpit.nShieldFlash = 0;
 }
 
@@ -342,50 +430,50 @@ gameStates.render.vr.bEyeOffsetChanged = 2;
 void GameInitRenderSubBuffers (int x, int y, int w, int h)
 {
 if (!bScanlineDouble) {
-	gameStates.render.vr.buffers.render[0].SetupPane (&gameStates.render.vr.buffers.subRender[0], x, y, w, h);
-	gameStates.render.vr.buffers.render[1].SetupPane (&gameStates.render.vr.buffers.subRender[1], x, y, w, h);
+	GrInitSubCanvas (&gameStates.render.vr.buffers.subRender[0], &gameStates.render.vr.buffers.render[0], x, y, w, h);
+	GrInitSubCanvas (&gameStates.render.vr.buffers.subRender[1], &gameStates.render.vr.buffers.render[1], x, y, w, h);
 	}
 }
 
 //------------------------------------------------------------------------------
 
 // Sets up the canvases we will be rendering to (NORMAL VERSION)
-void GameInitRenderBuffers (int nScreenSize, int render_w, int render_h, int render_method, int flags)
+void GameInitRenderBuffers (int screen_mode, int render_w, int render_h, int render_method, int flags)
 {
-//	if (vga_check_mode (nScreenSize) != 0)
+//	if (vga_check_mode (screen_mode) != 0)
 //		Error ("Cannot set requested video mode");
 
-gameStates.render.vr.nScreenSize = nScreenSize;
-gameStates.render.vr.nScreenFlags = flags;
+gameStates.render.vr.nScreenMode	=	screen_mode;
+gameStates.render.vr.nScreenFlags	=  flags;
 //NEWVR
 VRResetParams ();
-gameStates.render.vr.nRenderMode = render_method;
-gameData.render.window.w = render_w;
-gameData.render.window.h = render_h;
+gameStates.render.vr.nRenderMode 	= render_method;
+gameData.render.window.w 		= render_w;
+gameData.render.window.h		= render_h;
 if (gameStates.render.vr.buffers.offscreen) {
-	gameStates.render.vr.buffers.offscreen->Destroy ();
+	GrFreeCanvas (gameStates.render.vr.buffers.offscreen);
 	}
 
-if ((gameStates.render.vr.nRenderMode == VR_AREA_DET) || (gameStates.render.vr.nRenderMode==VR_INTERLACED))	{
+if ((gameStates.render.vr.nRenderMode==VR_AREA_DET) || (gameStates.render.vr.nRenderMode==VR_INTERLACED))	{
 	if (render_h*2 < 200)	{
-		gameStates.render.vr.buffers.offscreen = CCanvas::Create (render_w, 200);
+		gameStates.render.vr.buffers.offscreen = GrCreateCanvas (render_w, 200);
 		}
 	else {
-		gameStates.render.vr.buffers.offscreen = CCanvas::Create (render_w, render_h*2);
+		gameStates.render.vr.buffers.offscreen = GrCreateCanvas (render_w, render_h*2);
 		}
-	gameStates.render.vr.buffers.offscreen->SetupPane (&gameStates.render.vr.buffers.render[0], 0, 0, render_w, render_h);
-	gameStates.render.vr.buffers.offscreen->SetupPane (&gameStates.render.vr.buffers.render[1], 0, render_h, render_w, render_h);
+	GrInitSubCanvas (&gameStates.render.vr.buffers.render[0], gameStates.render.vr.buffers.offscreen, 0, 0, render_w, render_h);
+	GrInitSubCanvas (&gameStates.render.vr.buffers.render[1], gameStates.render.vr.buffers.offscreen, 0, render_h, render_w, render_h);
 	}
 else {
 	if (render_h < 200) {
-		gameStates.render.vr.buffers.offscreen = CCanvas::Create (render_w, 200);
+		gameStates.render.vr.buffers.offscreen = GrCreateCanvas (render_w, 200);
 		}
 	else {
-		gameStates.render.vr.buffers.offscreen = CCanvas::Create (render_w, render_h);
+		gameStates.render.vr.buffers.offscreen = GrCreateCanvas (render_w, render_h);
       }
-	gameStates.render.vr.buffers.offscreen->SetMode (BM_OGL);
-	gameStates.render.vr.buffers.offscreen->SetupPane (&gameStates.render.vr.buffers.render[0], 0, 0, render_w, render_h);
-	gameStates.render.vr.buffers.offscreen->SetupPane (&gameStates.render.vr.buffers.render[1], 0, 0, render_w, render_h);
+	gameStates.render.vr.buffers.offscreen->cvBitmap.bmProps.nType = BM_OGL;
+	GrInitSubCanvas (&gameStates.render.vr.buffers.render[0], gameStates.render.vr.buffers.offscreen, 0, 0, render_w, render_h);
+	GrInitSubCanvas (&gameStates.render.vr.buffers.render[1], gameStates.render.vr.buffers.offscreen, 0, 0, render_w, render_h);
 	}
 GameInitRenderSubBuffers (0, 0, render_w, render_h);
 }
@@ -449,6 +537,8 @@ return gameData.time.nPaused > 0;
 
 //------------------------------------------------------------------------------
 
+extern ubyte joydefs_calibrating;
+
 void GameFlushInputs ()
 {
 	int dx,dy;
@@ -476,7 +566,7 @@ gameData.time.xLast = TimerGetFixedSeconds ();
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 extern int bSavingMovieFrames;
 int Movie_fixed_frametime;
 #else
@@ -485,8 +575,11 @@ int Movie_fixed_frametime;
 #endif
 
 
-void CalcFrameTime (void)
+void CalcFrameTime ()
 {
+	fix 	timerValue,
+			last_frametime = gameData.time.xFrame,
+			minFrameTime = (MAXFPS ? f1_0 / MAXFPS : 1);
 
 if (gameData.app.bGamePaused) {
 	gameData.time.xLast = TimerGetFixedSeconds ();
@@ -494,49 +587,58 @@ if (gameData.app.bGamePaused) {
 	gameData.time.xRealFrame = 0;
 	return;
 	}
-
-fix 	timerValue,
-		xLastFrameTime = gameData.time.xFrame;
-GetSlowTicks ();
-#if 1
-	fix xMinFrameTime = (MAXFPS ? f1_0 / MAXFPS : 1);
+#if defined (TIMER_TEST) && defined (_DEBUG)
+_last_frametime = last_frametime;
+#endif
 do {
 	timerValue = TimerGetFixedSeconds ();
    gameData.time.xFrame = timerValue - gameData.time.xLast;
+	timer_delay (1);
 	if (MAXFPS < 2)
 		break;
-	G3_SLEEP (1);
-	} while (gameData.time.xFrame < xMinFrameTime);
-#else
-int	tFrameTime, txMinFrameTime;
-
-if (MAXFPS) {
-	txMinFrameTime = 1000 / MAXFPS;
-#if 0
-	static float tSlack = 0;
-	tSlack += 1000.0f / MAXFPS - txMinFrameTime;
-	if (tSlack >= 1) {
-		txMinFrameTime += (int) tSlack;
-		tSlack -= (int) tSlack;
-		}
+	} while (gameData.time.xFrame < minFrameTime);
+#if defined (TIMER_TEST) && defined (_DEBUG)
+TimerValue = timerValue;
 #endif
-	}
-
-if (MAXFPS > 1) {
-	tFrameTime = gameStates.app.nSDLTicks - gameData.time.tLast;
-	if (tFrameTime < txMinFrameTime)
-		G3_SLEEP (txMinFrameTime - tFrameTime);
-	}
-timerValue = SECS2X (gameStates.app.nSDLTicks);
+#ifdef _DEBUG
+if ((gameData.time.xFrame <= 0) || 
+	 (gameData.time.xFrame > F1_0) || 
+	 (gameStates.app.nFunctionMode == FMODE_EDITOR) || 
+	 (gameData.demo.nState == ND_STATE_PLAYBACK)) {
+#if TRACE
+//con_printf (1,"Bad gameData.time.xFrame - value = %x\n",gameData.time.xFrame);
 #endif
-gameData.time.xFrame = timerValue - gameData.time.xLast;
-gameData.time.xRealFrame = gameData.time.xFrame;
+if (gameData.time.xFrame == 0)
+	Int3 ();	//	Call Mike or Matt or John!  Your interrupts are probably trashed!
+	}
+#endif
+#if defined (TIMER_TEST) && defined (_DEBUG)
+actual_lastTimerValue = gameData.time.xLast;
+#endif
 if (gameStates.app.cheats.bTurboMode)
 	gameData.time.xFrame *= 2;
+// Limit frametime to be between 5 and 150 fps.
+gameData.time.xRealFrame = gameData.time.xFrame;
 gameData.time.xLast = timerValue;
-gameData.time.tLast = SDL_GetTicks ();
 if (gameData.time.xFrame < 0)						//if bogus frametimed:\temp\dm_test.
-	gameData.time.xFrame = xLastFrameTime;		//d:\temp\dm_test.then use time from last frame
+	gameData.time.xFrame = last_frametime;		//d:\temp\dm_test.then use time from last frame
+#ifdef _DEBUG
+if (xFixedFrameTime) 
+	gameData.time.xFrame = xFixedFrameTime;
+#endif
+#ifdef _DEBUG
+// Pause here!!!
+if (Debug_pause) {
+	int c = 0;
+	while (!c)
+		c = KeyPeekKey ();
+	if (c == KEY_P)       {
+		Debug_pause = 0;
+		c = KeyInKey ();
+		}
+	gameData.time.xLast = TimerGetFixedSeconds ();
+	}
+#endif
 #if Arcade_mode
 gameData.time.xFrame /= 2;
 #endif
@@ -561,19 +663,15 @@ else
 
 //--unused-- int Auto_flythrough=0;  //if set, start flythough automatically
 
-void MovePlayerToSegment (CSegment *segP,int tSide)
+void MovePlayerToSegment (tSegment *segP,int tSide)
 {
-	CFixVector vp;
+	vmsVector vp;
 
-COMPUTE_SEGMENT_CENTER (&gameData.objs.consoleP->info.position.vPos,segP);
+COMPUTE_SEGMENT_CENTER (&gameData.objs.console->position.vPos,segP);
 COMPUTE_SIDE_CENTER (&vp,segP,tSide);
-vp -= gameData.objs.consoleP->info.position.vPos;
-/*
-gameData.objs.consoleP->info.position.mOrient = vmsMatrix::Create(vp, NULL, NULL);
-*/
-// TODO: MatrixCreateFCheck
-gameData.objs.consoleP->info.position.mOrient = vmsMatrix::CreateF(vp);
-gameData.objs.consoleP->RelinkToSeg (SEG_IDX (segP));
+VmVecDec (&vp,&gameData.objs.console->position.vPos);
+VmVector2Matrix (&gameData.objs.console->position.mOrient, &vp, NULL, NULL);
+RelinkObject (OBJ_IDX (gameData.objs.console), SEG_IDX (segP));
 }
 
 //------------------------------------------------------------------------------
@@ -586,10 +684,10 @@ void GameDrawTimeLeft ()
 	int i;
 	static int nId = 0;
 
-fontManager.SetCurrent (GAME_FONT);    //GAME_FONT
-fontManager.SetColorRGBi (RED_RGBA, 1, 0, 0);
-timevar=I2X (netGame.xPlayTimeAllowed*5*60);
-i = X2I (timevar-gameStates.app.xThisLevelTime) + 1;
+GrSetCurFont (GAME_FONT);    //GAME_FONT
+GrSetFontColorRGBi (RED_RGBA, 1, 0, 0);
+timevar=i2f (netGame.xPlayTimeAllowed*5*60);
+i = f2i (timevar-gameStates.app.xThisLevelTime) + 1;
 sprintf (temp_string, TXT_TIME_LEFT, i);
 if (i >= 0)
 	nId = GrString (0, 32, temp_string, &nId);
@@ -598,21 +696,26 @@ if (i >= 0)
 
 //------------------------------------------------------------------------------
 
+void do_photos ();
+void level_with_floor ();
+
 void modex_clear_box (int x,int y,int w,int h)
 {
-	CCanvas *canvP;
+	gsrCanvas *temp_canv,*save_canv;
 
-CCanvas::Push ();
-canvP = CCanvas::Create (w,h);
-CCanvas::SetCurrent (canvP);
-CCanvas::Current ()->Clear (BLACK_RGBA);
-CCanvas::Pop ();
-GrBitmapM (x,y, canvP, 0);
-canvP->Destroy ();
+	save_canv = grdCurCanv;
+	temp_canv = GrCreateCanvas (w,h);
+	GrSetCurrentCanvas (temp_canv);
+	GrClearCanvas (BLACK_RGBA);
+	GrSetCurrentCanvas (save_canv);
+	GrBitmapM (x,y,&temp_canv->cvBitmap, 0);
+	GrFreeCanvas (temp_canv);
 
 }
 
 //------------------------------------------------------------------------------
+
+extern void modex_printf (int x,int y,char *s,grsFont *font,int color);
 
 // mac routine to drop contents of screen to a pict file using copybits
 // save a PICT to a file
@@ -695,15 +798,15 @@ end:
 //------------------------------------------------------------------------------
 
 //initialize flying
-void FlyInit (CObject *objP)
+void FlyInit (tObject *objP)
 {
-	objP->info.controlType = CT_FLYING;
-	objP->info.movementType = MT_PHYSICS;
+	objP->controlType = CT_FLYING;
+	objP->movementType = MT_PHYSICS;
 
-	objP->mType.physInfo.velocity.SetZero();
-	objP->mType.physInfo.thrust.SetZero();
-	objP->mType.physInfo.rotVel.SetZero();
-	objP->mType.physInfo.rotThrust.SetZero();
+	VmVecZero (&objP->mType.physInfo.velocity);
+	VmVecZero (&objP->mType.physInfo.thrust);
+	VmVecZero (&objP->mType.physInfo.rotVel);
+	VmVecZero (&objP->mType.physInfo.rotThrust);
 }
 
 //void morph_test (), morph_step ();
@@ -711,11 +814,18 @@ void FlyInit (CObject *objP)
 
 //	------------------------------------------------------------------------------------
 
+void test_animStates ();
+
+#include "fvi.h"
+
 //put up the help message
 void DoShowHelp ()
 {
 ShowHelp ();
 }
+
+
+extern int been_in_editor;
 
 //	------------------------------------------------------------------------------------
 
@@ -779,8 +889,8 @@ int	Ab_scale = 4;
 //@@	rx = (Ab_scale * FixMul (d_rand () - 16384, F1_0/8 + (((gameData.time.xGame + 0x4000)*4) & 0x3fff)))/16;
 //@@	rz = (Ab_scale * FixMul (d_rand () - 16384, F1_0/2 + ((gameData.time.xGame*4) & 0xffff)))/16;
 //@@
-//@@	gameData.objs.consoleP->mType.physInfo.rotVel.x += rx;
-//@@	gameData.objs.consoleP->mType.physInfo.rotVel.z += rz;
+//@@	gameData.objs.console->mType.physInfo.rotVel.x += rx;
+//@@	gameData.objs.console->mType.physInfo.rotVel.z += rz;
 //@@
 //@@}
 
@@ -805,7 +915,7 @@ else if ((gameStates.gameplay.xLastAfterburnerCharge && (Controls [0].afterburne
 	if (gameData.physics.xAfterburnerCharge && Controls [0].afterburnerState && 
 		 (LOCALPLAYER.flags & PLAYER_FLAGS_AFTERBURNER)) {
 		DigiLinkSoundToObject3 ((short) SOUND_AFTERBURNER_IGNITE, (short) LOCALPLAYER.nObject, 
-										1, F1_0, I2X (256), AFTERBURNER_LOOP_START, AFTERBURNER_LOOP_END, NULL, 0, SOUNDCLASS_PLAYER);
+										1, F1_0, i2f (256), AFTERBURNER_LOOP_START, AFTERBURNER_LOOP_END, NULL, 0, SOUNDCLASS_PLAYER);
 #ifdef NETWORK
 		if (gameData.app.nGameMode & GM_MULTI)
 			MultiSendSoundFunction (3, (char) SOUND_AFTERBURNER_IGNITE);
@@ -814,7 +924,7 @@ else if ((gameStates.gameplay.xLastAfterburnerCharge && (Controls [0].afterburne
 	else {
 		DigiKillSoundLinkedToObject (LOCALPLAYER.nObject);
 		DigiLinkSoundToObject2 ((short) SOUND_AFTERBURNER_PLAY, (short) LOCALPLAYER.nObject, 
-										0, F1_0, I2X (256), SOUNDCLASS_PLAYER);
+										0, F1_0, i2f (256), SOUNDCLASS_PLAYER);
 #ifdef NETWORK
 		if (gameData.app.nGameMode & GM_MULTI)
 		 	MultiSendSoundFunction (0,0);
@@ -825,14 +935,140 @@ gameStates.gameplay.bLastAfterburnerState = Controls [0].afterburnerState;
 gameStates.gameplay.xLastAfterburnerCharge = gameData.physics.xAfterburnerCharge;
 }
 
+// -- //	------------------------------------------------------------------------------------
+// -- //	if energy < F1_0/2, recharge up to F1_0/2
+// -- void recharge_energy_frame (void)
+// -- {
+// -- 	if (LOCALPLAYER.energy < gameData.weapons.info[0].energy_usage) {
+// -- 		LOCALPLAYER.energy += gameData.time.xFrame/4;
+// --
+// -- 		if (LOCALPLAYER.energy > gameData.weapons.info[0].energy_usage)
+// -- 			LOCALPLAYER.energy = gameData.weapons.info[0].energy_usage;
+// -- 	}
+// -- }
+
+//	Amount to diminish guns towards normal, per second.
+#define	DIMINISH_RATE	16		//	gots to be a power of 2, else change the code in DiminishPaletteTowardsNormal
+
+ //adds to rgb values for palette flash
+void PALETTE_FLASH_ADD (int dr, int dg, int db)
+{
+	int	maxVal;
+
+	maxVal = gameData.render.xFlashEffect ? 60 : MAX_PALETTE_ADD;
+#if 0
+	dMax = maxVal - gameStates.ogl.palAdd.red;
+	h = maxVal - gameStates.ogl.palAdd.green;
+	if (h < dMax)
+		dMax = h;
+	h = maxVal - gameStates.ogl.palAdd.blue;
+	if (h < dMax)
+		dMax = h;
+	//the following code will keep the color of the flash effect
+	//by limiting the intensity increase of the other color components
+	//if one color component hits the ceiling.
+	if ((dr > dMax) || (dg > dMax) || (db > dMax))
+		dr = dg = db = dMax;
+#endif
+	gameStates.ogl.palAdd.red += dr;
+	gameStates.ogl.palAdd.green += dg;
+	gameStates.ogl.palAdd.blue += db;
+	CLAMP (gameStates.ogl.palAdd.red, -maxVal, maxVal);
+	CLAMP (gameStates.ogl.palAdd.green, -maxVal, maxVal);
+	CLAMP (gameStates.ogl.palAdd.blue, -maxVal, maxVal);
+}
+
+//	------------------------------------------------------------------------------------
+//	Diminish palette effects towards normal.
+
+void DiminishPaletteTowardsNormal (void)
+{
+	int	dec_amount = 0;
+
+	//	Diminish at DIMINISH_RATE units/second.
+	//	For frame rates > DIMINISH_RATE Hz, use randomness to achieve this.
+if (gameData.time.xFrame < F1_0/DIMINISH_RATE) {
+	if (d_rand () < gameData.time.xFrame*DIMINISH_RATE/2)	//	Note: d_rand () is in 0d:\temp\dm_test32767, and 8 Hz means decrement every frame
+		dec_amount = 1;
+	}
+else {
+	dec_amount = f2i (gameData.time.xFrame*DIMINISH_RATE);		// one second = DIMINISH_RATE counts
+	if (dec_amount == 0)
+		dec_amount++;						// make sure we decrement by something
+	}
+
+if (gameData.render.xFlashEffect) {
+	int	force_do = 0;
+
+	//	Part of hack system to force update of palette after exiting a menu.
+	if (gameData.render.xTimeFlashLastPlayed) {
+		force_do = 1;
+		gameStates.ogl.palAdd.red ^= 1;	//	Very Tricky!  In GrPaletteStepUp, if all stepups same as last time, won't do anything!
+		}
+
+	if ((gameData.render.xTimeFlashLastPlayed + F1_0/8 < gameData.time.xGame) || (gameData.render.xTimeFlashLastPlayed > gameData.time.xGame)) {
+		DigiPlaySample (SOUND_CLOAK_OFF, gameData.render.xFlashEffect/4);
+		gameData.render.xTimeFlashLastPlayed = gameData.time.xGame;
+		}
+
+	gameData.render.xFlashEffect -= gameData.time.xFrame;
+	if (gameData.render.xFlashEffect < 0)
+		gameData.render.xFlashEffect = 0;
+
+	if (force_do || (d_rand () > 4096)) {
+      if ((gameData.demo.nState==ND_STATE_RECORDING) && (gameStates.ogl.palAdd.red || gameStates.ogl.palAdd.green || gameStates.ogl.palAdd.blue))
+	      NDRecordPaletteEffect (gameStates.ogl.palAdd.red, gameStates.ogl.palAdd.green, gameStates.ogl.palAdd.blue);
+		GamePaletteStepUp (gameStates.ogl.palAdd.red, gameStates.ogl.palAdd.green, gameStates.ogl.palAdd.blue);
+		return;
+		}
+
+	}
+
+if (gameStates.ogl.palAdd.red > 0) { 
+	gameStates.ogl.palAdd.red -= dec_amount; 
+	if (gameStates.ogl.palAdd.red < 0) 
+		gameStates.ogl.palAdd.red = 0; 
+	}
+else if (gameStates.ogl.palAdd.red < 0) { 
+	gameStates.ogl.palAdd.red += dec_amount; 
+	if (gameStates.ogl.palAdd.red > 0) 
+		gameStates.ogl.palAdd.red = 0; 
+	}
+if (gameStates.ogl.palAdd.green > 0) { 
+	gameStates.ogl.palAdd.green -= dec_amount; 
+	if (gameStates.ogl.palAdd.green < 0) 
+		gameStates.ogl.palAdd.green = 0; 
+	}
+else if (gameStates.ogl.palAdd.green < 0) { 
+	gameStates.ogl.palAdd.green += dec_amount; 
+	if (gameStates.ogl.palAdd.green > 0) 
+		gameStates.ogl.palAdd.green = 0; 
+	}
+if (gameStates.ogl.palAdd.blue > 0) { 
+	gameStates.ogl.palAdd.blue -= dec_amount; 
+	if (gameStates.ogl.palAdd.blue < 0) 
+		gameStates.ogl.palAdd.blue = 0; 
+	}
+else if (gameStates.ogl.palAdd.blue < 0) { 
+	gameStates.ogl.palAdd.blue += dec_amount; 
+	if (gameStates.ogl.palAdd.blue > 0) 
+		gameStates.ogl.palAdd.blue = 0; 
+	}
+
+if ((gameData.demo.nState==ND_STATE_RECORDING) && 
+		(gameStates.ogl.palAdd.red || gameStates.ogl.palAdd.green || gameStates.ogl.palAdd.blue))
+	NDRecordPaletteEffect (gameStates.ogl.palAdd.red, gameStates.ogl.palAdd.green, gameStates.ogl.palAdd.blue);
+GamePaletteStepUp (gameStates.ogl.palAdd.red, gameStates.ogl.palAdd.green, gameStates.ogl.palAdd.blue);
+}
+
 //------------------------------------------------------------------------------
 
-#define ADD_HELP_OPT(_text)	m [opt].nType = NM_TYPE_TEXT; m [opt++].text = const_cast<char*> (_text);
+#define ADD_HELP_OPT(_text)	m [opt].nType = NM_TYPE_TEXT; m [opt++].text = (_text);
 
 void ShowHelp ()
 {
 	int nitems, opt = 0;
-	tMenuItem m [40];
+	tMenuItem m[30];
 	#ifdef MACINTOSH
 	char command_help[64], pixel_double_help[64], save_help[64], restore_help[64];
 	#endif
@@ -848,8 +1084,6 @@ void ShowHelp ()
 	ADD_HELP_OPT (save_help);
 	ADD_HELP_OPT (restore_help);
 #endif
-	ADD_HELP_OPT (TXT_HELP_QUICKSAVE);
-	ADD_HELP_OPT (TXT_HELP_QUICKLOAD);
 	ADD_HELP_OPT (TXT_HELP_F2);
 	ADD_HELP_OPT (TXT_HELP_F3);
 	ADD_HELP_OPT (TXT_HELP_F4);
@@ -886,14 +1120,16 @@ void ShowHelp ()
 	ADD_HELP_OPT (command_help);
 #endif
 	nitems = opt;
-	paletteManager.SaveEffectAndReset ();
+	FullPaletteSave ();
 	ExecMenutiny2 (NULL, TXT_KEYS, nitems, m, NULL);
-	paletteManager.LoadEffect ();
+	PaletteRestore ();
 }
 
 //------------------------------------------------------------------------------
 
 //temp function until Matt cleans up game sequencing
+extern void temp_reset_stuff_onLevel ();
+
 //deal with rear view - switch it on, or off, or whatever
 void CheckRearView ()
 {
@@ -902,7 +1138,7 @@ void CheckRearView ()
 
 	static int leave_mode;
 	static fix entryTime;
-#if DBG
+#ifdef _DEBUG
 	if (Controls [0].rearViewDownCount) {		//key/button has gone down
 #else
 	if (Controls [0].rearViewDownCount && !gameStates.render.bExternalView) {		//key/button has gone down
@@ -1024,9 +1260,9 @@ gameStates.app.bGameAborted = 0;
 gameStates.render.cockpit.nLastDrawn[0] = -1;				// Force cockpit to redraw next time a frame renders.
 gameStates.render.cockpit.nLastDrawn[1] = -1;				// Force cockpit to redraw next time a frame renders.
 gameStates.app.bEndLevelSequence = 0;
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 SetScreenMode (SCREEN_GAME);
-paletteManager.ResetEffect ();
+ResetPaletteAdd ();
 SetWarnFunc (ShowInGameWarning);
 #if TRACE
 //con_printf (CONDBG, "   InitCockpit d:\temp\dm_test.\n");
@@ -1040,17 +1276,17 @@ InitGauges ();
 //gameStates.input.keys.bRepeat = 0;                // Don't allow repeat in game
 gameStates.input.keys.bRepeat = 1;                // Do allow repeat in game
 #ifdef EDITOR
-	if (gameData.segs.segments[gameData.objs.consoleP->info.nSegment].nSegment == -1)      //CSegment no longer exists
-		gameData.objs.consoleP->RelinkToSeg (SEG_IDX (Cursegp));
+	if (gameData.segs.segments[gameData.objs.console->nSegment].nSegment == -1)      //tSegment no longer exists
+		RelinkObject (OBJ_IDX (gameData.objs.console), SEG_IDX (Cursegp));
 
-	if (!check_obj_seg (gameData.objs.consoleP))
+	if (!check_obj_seg (gameData.objs.console))
 		MovePlayerToSegment (Cursegp,Curside);
 #endif
-gameData.objs.viewerP = gameData.objs.consoleP;
+gameData.objs.viewer = gameData.objs.console;
 #if TRACE
 //con_printf (CONDBG, "   FlyInit d:\temp\dm_test.\n");
 #endif
-FlyInit (gameData.objs.consoleP);
+FlyInit (gameData.objs.console);
 gameStates.app.bGameSuspended = 0;
 ResetTime ();
 gameData.time.xFrame = 0;			//make first frame zero
@@ -1074,7 +1310,7 @@ if (gameStates.app.nFunctionMode != newFuncMode) {
 	gameStates.app.nLastFuncMode = gameStates.app.nFunctionMode;
 	if ((gameStates.app.nFunctionMode = newFuncMode) == FMODE_GAME)
 		gameStates.app.bEnterGame = 2;
-#if DBG
+#ifdef _DEBUG
 	else if (newFuncMode == FMODE_MENU)
 		gameStates.app.bEnterGame = 0;
 #endif
@@ -1098,49 +1334,46 @@ if (pfnTIRStart)
 	pfnTIRStart ();
 if (!setjmp (gameExitPoint)) {
 for (;;) {
-	PROF_START
-	int playerShields;
+	int player_shields;
 		// GAME LOOP!
-#if DBG
+#ifdef _DEBUG
 	if (gameStates.render.automap.bDisplay)
 #endif
 	gameStates.render.automap.bDisplay = 0;
 	gameStates.app.bConfigMenu = 0;
-	if (gameData.objs.consoleP != OBJECTS + LOCALPLAYER.nObject) {
+	if (gameData.objs.console != &gameData.objs.objects[LOCALPLAYER.nObject]) {
 #if TRACE
 	    //con_printf (CONDBG,"gameData.multiplayer.nLocalPlayer=%d nObject=%d",gameData.multiplayer.nLocalPlayer,LOCALPLAYER.nObject);
 #endif
-	    //Assert (gameData.objs.consoleP == &OBJECTS[LOCALPLAYER.nObject]);
+	    //Assert (gameData.objs.console == &gameData.objs.objects[LOCALPLAYER.nObject]);
 		}
-	playerShields = LOCALPLAYER.shields;
+	player_shields = LOCALPLAYER.shields;
 	gameStates.app.nExtGameStatus = GAMESTAT_RUNNING;
-	if (!GameLoop (1, 1)) {		// Do game loop with rendering and reading controls.
-		PROF_END(ptFrame);
+	if (!GameLoop (1, 1))		// Do game loop with rendering and reading controls.
 		continue;
-		}
 	if (gameStates.app.bSingleStep) {
 		while (!(c = KeyInKey ()))
 			;
 		if (c == KEY_ALTED + KEY_CTRLED + KEY_ESC)
 			gameStates.app.bSingleStep = 0;
 		}
-	//if the CPlayerData is taking damage, give up guided missile control
-	if (LOCALPLAYER.shields != playerShields)
+	//if the tPlayer is taking damage, give up guided missile control
+	if (LOCALPLAYER.shields != player_shields)
 		ReleaseGuidedMissile (gameData.multiplayer.nLocalPlayer);
 	//see if redbook song needs to be restarted
 	SongsCheckRedbookRepeat ();	// Handle RedBook Audio Repeating.
 	if (gameStates.app.bConfigMenu) {
 		int double_save = bScanlineDouble;
 		if (!IsMultiGame) {
-			paletteManager.SaveEffect ();
-			paletteManager.ResetEffect ();
-			paletteManager.LoadEffect  ();
+			PaletteSave (); 
+			ResetPaletteAdd ();
+			GrPaletteStepLoad (NULL); 
 			}
 		ConfigMenu ();
 		if (bScanlineDouble != double_save)
 			InitCockpit ();
-		if (!IsMultiGame)
-			paletteManager.LoadEffect ();
+		if (!IsMultiGame) 
+			PaletteRestore ();
 		}
 	if (gameStates.render.automap.bDisplay) {
 		int	save_w = gameData.render.window.w,
@@ -1149,25 +1382,25 @@ for (;;) {
 		gameStates.app.bEnterGame = 1;
 		//	FlushInput ();
 		//	StopPlayerMovement ();
-		gameStates.video.nScreenMode = -1;
+		gameStates.video.nScreenMode = -1; 
 		SetScreenMode (SCREEN_GAME);
-		gameData.render.window.w = save_w;
+		gameData.render.window.w = save_w; 
 		gameData.render.window.h = save_h;
 		InitCockpit ();
 		gameStates.render.cockpit.nLastDrawn [0] =
 		gameStates.render.cockpit.nLastDrawn [1] = -1;
 		}
-	if ((gameStates.app.nFunctionMode != FMODE_GAME) &&
-		 gameData.demo.bAuto && !gameOpts->demo.bRevertFormat &&
+	if ((gameStates.app.nFunctionMode != FMODE_GAME) && 
+		 gameData.demo.bAuto && !gameOpts->demo.bRevertFormat && 
 		 (gameData.demo.nState != ND_STATE_NORMAL)) {
 		int choice, fmode;
 		fmode = gameStates.app.nFunctionMode;
 		SetFunctionMode (FMODE_GAME);
-		paletteManager.SaveEffect ();
-		paletteManager.ResetEffect ();
-		paletteManager.LoadEffect  ();
+		PaletteSave ();
+		ResetPaletteAdd ();
+		GrPaletteStepLoad (NULL);
 		choice = ExecMessageBox (NULL, NULL, 2, TXT_YES, TXT_NO, TXT_ABORT_AUTODEMO);
-		paletteManager.LoadEffect ();
+		PaletteRestore ();
 		SetFunctionMode (fmode);
 		if (choice)
 			SetFunctionMode (FMODE_GAME);
@@ -1175,21 +1408,16 @@ for (;;) {
 			gameData.demo.bAuto = 0;
 			NDStopPlayback ();
 			SetFunctionMode (FMODE_MENU);
-			}
+			} 
 		}
-	if ((gameStates.app.nFunctionMode != FMODE_GAME) &&
-		 (gameData.demo.nState != ND_STATE_PLAYBACK) &&
+	if ((gameStates.app.nFunctionMode != FMODE_GAME) &&  
+		 (gameData.demo.nState != ND_STATE_PLAYBACK) &&  
 		 (gameStates.app.nFunctionMode != FMODE_EDITOR) &&
 		 !gameStates.multi.bIWasKicked) {
 		if (QuitSaveLoadMenu ())
 			SetFunctionMode (FMODE_GAME);
 		}
 	gameStates.multi.bIWasKicked = 0;
-	PROF_END(ptFrame);
-#if PROFILING
-	if (gameData.app.nFrameCount % 10000 == 0)
-		memset (&gameData.profiler, 0, sizeof (gameData.profiler));
-#endif
 	if (gameStates.app.nFunctionMode != FMODE_GAME)
 		longjmp (gameExitPoint, 0);
 		}
@@ -1215,7 +1443,7 @@ if (gameStates.render.cockpit.nModeSave != -1) {
 	gameStates.render.cockpit.nModeSave = -1;
 	}
 if (gameStates.app.nFunctionMode != FMODE_EDITOR)
-	paletteManager.FadeOut ();			// Fade out before going to menu
+	GrPaletteFadeOut (NULL,32,0);			// Fade out before going to menu
 //@@	if ((!demo_playing) && (!multi_game) && (gameStates.app.nFunctionMode != FMODE_EDITOR))	{
 //@@		MaybeAddPlayerScore (gameStates.app.bGameAborted);
 //@@	}
@@ -1227,11 +1455,12 @@ SetFunctionMode (FMODE_EXIT);		// get out of game in Apple OEM version
 #endif
 if (pfnTIRStop)
 	pfnTIRStop ();
-meshBuilder.DestroyVBOs ();
 }
 
 //-----------------------------------------------------------------------------
 //called at the end of the program
+
+void _CDECL_ D2X_SDL_Close(void);
 
 void _CDECL_ CloseGame (void)
 {
@@ -1255,7 +1484,7 @@ RLECacheClose ();
 BMFreeExtraObjBitmaps ();
 BMFreeExtraModels ();
 PrintLog ("unloading render buffers\n");
-FreeTranspItems ();
+FreeRenderItems ();
 PrintLog ("unloading string pool\n");
 FreeStringPool ();
 PrintLog ("unloading level messages\n");
@@ -1276,22 +1505,25 @@ FreeHiresModels (0);
 PrintLog ("unloading tracker list\n");
 DestroyTrackerList ();
 PrintLog ("unloading lightmap data\n");
-lightmapManager.Destroy ();
+DestroyLightMaps ();
 PrintLog ("unloading particle data\n");
-particleManager.Shutdown ();
+DestroyAllSmoke ();
 PrintLog ("unloading shield sphere data\n");
-gameData.render.shield.Destroy ();
-gameData.render.monsterball.Destroy ();
+DestroySphere (&gameData.render.shield);
+DestroySphere (&gameData.render.monsterball);
 PrintLog ("unloading HUD icons\n");
 FreeInventoryIcons ();
 FreeObjTallyIcons ();
 PrintLog ("unloading extra texture data\n");
 FreeExtraImages ();
+PrintLog ("unloading shield data\n");
+FreeSphereCoord ();
 PrintLog ("unloading palettes\n");
-gameData.segs.skybox.Destroy ();
+FreePalettes ();
+FreeSkyBoxSegList ();
 CloseDynLighting ();
-if (gameStates.render.vr.buffers.offscreen) {
-	gameStates.render.vr.buffers.offscreen->Destroy ();
+if (gameStates.render.vr.buffers.offscreen)	{
+	GrFreeCanvas (gameStates.render.vr.buffers.offscreen);
 	gameStates.render.vr.buffers.offscreen = NULL;
 }
 PrintLog ("unloading gauge data\n");
@@ -1299,19 +1531,18 @@ CloseGaugeCanvases ();
 PrintLog ("restoring effect bitmaps\n");
 RestoreEffectBitmapIcons ();
 if (bGameCockpitCopyCode) {
-	delete[] bGameCockpitCopyCode;
+	D2_FREE (bGameCockpitCopyCode);
 	bGameCockpitCopyCode = NULL;
 }
-if (bmBackground.Buffer ()) {
+if (bmBackground.bmTexBuf) {
 	PrintLog ("unloading background bitmap\n");
-	bmBackground.DestroyBuffer ();
+	D2_FREE (bmBackground.bmTexBuf);
 	}
 ClearWarnFunc (ShowInGameWarning);     //don't use this func anymore
 PrintLog ("unloading custom background data\n");
 NMFreeAltBg (1);
-banList.Save ();
-banList.Destroy ();
-PrintLog ("peak memory consumption: %ld bytes\n", nMaxAllocd);
+SaveBanList ();
+FreeBanList ();
 SDL_Quit ();
 #if 0
 if (fErr) {
@@ -1323,32 +1554,33 @@ if (fErr) {
 
 //-----------------------------------------------------------------------------
 
-CCanvas *GetCurrentGameScreen (void)
+gsrCanvas *GetCurrentGameScreen ()
 {
 return gameStates.render.vr.buffers.screenPages + gameStates.render.vr.nCurrentPage;
 }
 
 //-----------------------------------------------------------------------------
+extern void kconfig_center_headset ();
 
-#if DBG
+#ifdef _DEBUG
 void SpeedtestFrame (void);
-uint nDebugSlowdown = 0;
+Uint32 nDebugSlowdown = 0;
 #endif
 
 #ifdef EDITOR
-extern void player_follow_path (CObject *objP);
+extern void player_follow_path (tObject *objP);
 extern void check_create_player_path (void);
 
 #endif
 
 //returns ptr to escort robot, or NULL
-CObject *find_escort ()
+tObject *find_escort ()
 {
 	int 		i;
-	CObject	*objP = OBJECTS.Buffer ();
+	tObject	*objP = gameData.objs.objects;
 
-FORALL_ROBOT_OBJS (objP, i)
-	if (IS_GUIDEBOT (objP))
+for (i = 0; i <= gameData.objs.nLastObject; i++, objP++)
+	if ((objP->nType == OBJ_ROBOT) && ROBOTINFO (objP->id).companion)
 		return objP;
 return NULL;
 }
@@ -1358,39 +1590,49 @@ return NULL;
 extern void ProcessSmartMinesFrame (void);
 extern void DoSeismicStuff (void);
 
-#if DBG
+#ifdef _DEBUG
 int bSavingMovieFrames=0;
 int __Movie_frame_num=0;
 
 #define MAX_MOVIE_BUFFER_FRAMES 250
 #define MOVIE_FRAME_SIZE	 (320 * 200)
 
-ubyte *movieFrameBuffer;
+ubyte *Movie_frame_buffer;
 int nMovieFrames;
+ubyte Movie_pal[768];
 char movie_path[50] = ".\\";
 
-CBitmap bmMovie;
+grsBitmap bmMovie;
 
 void flush_movie_buffer ()
 {
 	char savename[128];
 	int f;
 
-StopTime ();
+	StopTime ();
 #if TRACE
 	//con_printf (CONDBG,"Flushing movie bufferd:\temp\dm_test.");
 #endif
-bmMovie.SetBuffer (movieFrameBuffer);
-for (f = 0;f < nMovieFrames; f++) {
-	sprintf (savename, "%sfrm%04d.pcx",movie_path,__Movie_frame_num);
-	__Movie_frame_num++;
-	pcx_write_bitmap (savename, &bmMovie);
-	bmMovie.SetBuffer (bmMovie.Buffer () + MOVIE_FRAME_SIZE);
+	bmMovie.bmTexBuf = Movie_frame_buffer;
+
+	for (f=0;f<nMovieFrames;f++) {
+		sprintf (savename, "%sfrm%04d.pcx",movie_path,__Movie_frame_num);
+		__Movie_frame_num++;
+		pcx_write_bitmap (savename, &bmMovie);
+		bmMovie.bmTexBuf += MOVIE_FRAME_SIZE;
+
+		if (f % 5 == 0) {
+#if TRACE
+			//con_printf (CONDBG,"%3d/%3d\10\10\10\10\10\10\10",f,nMovieFrames);
+#endif
+		}		
 	}
 
-nMovieFrames = 0;
-bmMovie.SetBuffer (NULL);
-StartTime (0);
+	nMovieFrames=0;
+#if TRACE
+	//con_printf (CONDBG,"done   \n");
+#endif
+	StartTime (0);
 }
 
 //-----------------------------------------------------------------------------
@@ -1405,8 +1647,8 @@ void toggle_movie_saving ()
 		tMenuItem m[1];
 
 		memset (m, 0, sizeof (m));
-		m[0].nType=NM_TYPE_INPUT;
-		m[0].text_len = 50;
+		m[0].nType=NM_TYPE_INPUT; 
+		m[0].text_len = 50; 
 		m[0].text = movie_path;
 		exit = ExecMenu (NULL, "Directory for movie frames?" , 1, & (m[0]), NULL, NULL);
 
@@ -1421,17 +1663,24 @@ void toggle_movie_saving ()
 			strcat (movie_path,"\\");
 
 
-		if (!movieFrameBuffer) {
-			movieFrameBuffer = new ubyte [MAX_MOVIE_BUFFER_FRAMES * MOVIE_FRAME_SIZE];
-			if (!movieFrameBuffer) {
+		if (!Movie_frame_buffer) {
+			Movie_frame_buffer = (ubyte *) D2_ALLOC (MAX_MOVIE_BUFFER_FRAMES * MOVIE_FRAME_SIZE);
+			if (!Movie_frame_buffer) {
 				Int3 ();
 				bSavingMovieFrames=0;
 			}
 
 			nMovieFrames=0;
 
-			bmMovie.Init (BM_LINEAR, 0, 0, 320, 200, 1, NULL);
-			bmMovie.SetFlags (0);
+			bmMovie.bmProps.x = bmMovie.bmProps.y = 0;
+			bmMovie.bmProps.w = 320;
+			bmMovie.bmProps.h = 200;
+			bmMovie.bmProps.nType = BM_LINEAR;
+			bmMovie.bmProps.flags = 0;
+			bmMovie.bmProps.rowSize = 320;
+			//bmMovie.bmHandle = 0;
+
+			GrPaletteRead (Movie_pal);		//get actual palette from the hardware
 
 			if (gameData.demo.nState == ND_STATE_PLAYBACK)
 				gameData.demo.bInterpolate = 0;
@@ -1450,10 +1699,13 @@ void toggle_movie_saving ()
 
 void save_movie_frame ()
 {
-memcpy (movieFrameBuffer + nMovieFrames * MOVIE_FRAME_SIZE, screen.Canvas ()->Buffer (), MOVIE_FRAME_SIZE);
-nMovieFrames++;
-if (nMovieFrames == MAX_MOVIE_BUFFER_FRAMES)
-	flush_movie_buffer ();
+	memcpy (Movie_frame_buffer+nMovieFrames*MOVIE_FRAME_SIZE,grdCurScreen->scCanvas.cvBitmap.bmTexBuf,MOVIE_FRAME_SIZE);
+
+	nMovieFrames++;
+
+	if (nMovieFrames == MAX_MOVIE_BUFFER_FRAMES)
+		flush_movie_buffer ();
+
 }
 
 #endif
@@ -1462,26 +1714,26 @@ if (nMovieFrames == MAX_MOVIE_BUFFER_FRAMES)
 //if water or fire level, make occasional sound
 void DoAmbientSounds ()
 {
-if (gameStates.app.bPlayerIsDead)
-	return;
+	int has_water,has_lava;
+	short sound;
 
-	int	bLava, bWater;
-	short nSound;
+	has_lava = (gameData.segs.segment2s[gameData.objs.console->nSegment].s2Flags & S2F_AMBIENT_LAVA);
+	has_water = (gameData.segs.segment2s[gameData.objs.console->nSegment].s2Flags & S2F_AMBIENT_WATER);
 
-	bLava = (SEGMENT2S [gameData.objs.consoleP->info.nSegment].s2Flags & S2F_AMBIENT_LAVA);
-	bWater = (SEGMENT2S [gameData.objs.consoleP->info.nSegment].s2Flags & S2F_AMBIENT_WATER);
-
-if (bLava) {							//has lava
-	nSound = SOUND_AMBIENT_LAVA;
-	if (bWater && (d_rand () & 1))	//both, pick one
-		nSound = SOUND_AMBIENT_WATER;
+	if (has_lava) {							//has lava
+		sound = SOUND_AMBIENT_LAVA;
+		if (has_water && (d_rand () & 1))	//both, pick one
+			sound = SOUND_AMBIENT_WATER;
 	}
-else if (bWater)						//just water
-	nSound = SOUND_AMBIENT_WATER;
-else
-	return;
-if (((d_rand () << 3) < gameData.time.xFrame))	//play the nSound
-	DigiPlaySample (nSound, (fix) (d_rand () + f1_0 / 2));
+	else if (has_water)						//just water
+		sound = SOUND_AMBIENT_WATER;
+	else
+		return;
+
+	if (((d_rand () << 3) < gameData.time.xFrame)) {						//play the sound
+		fix volume = d_rand () + f1_0/2;
+		DigiPlaySample (sound, volume);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -1514,21 +1766,21 @@ if (gameData.fusion.xAutoFireTime) {
 		}
 	else {
 		fix			xBump;
-		CFixVector	vRand;
-
+		vmsVector	vRand;
+	
 		static time_t t0 = 0;
 		time_t t = gameStates.app.nSDLTicks;
 		if (t - t0 < 30)
 			return 0;
 		t0 = t;
 		gameData.laser.nGlobalFiringCount = 0;
-		gameData.objs.consoleP->mType.physInfo.rotVel[X] += (d_rand () - 16384)/8;
-		gameData.objs.consoleP->mType.physInfo.rotVel[Z] += (d_rand () - 16384)/8;
-		vRand = CFixVector::Random();
+		gameData.objs.console->mType.physInfo.rotVel.p.x += (d_rand () - 16384)/8;
+		gameData.objs.console->mType.physInfo.rotVel.p.z += (d_rand () - 16384)/8;
+		MakeRandomVector (&vRand);
 		xBump = F1_0*4;
 		if (gameData.fusion.xCharge > F1_0*2)
 			xBump = gameData.fusion.xCharge*4;
-		BumpOneObject (gameData.objs.consoleP, &vRand, xBump);
+		BumpOneObject (gameData.objs.console, &vRand, xBump);
 		}
 	}
 return 1;
@@ -1557,31 +1809,31 @@ SaveScreenShot (0, 0);
 
 //-----------------------------------------------------------------------------
 
-int PlayerHasHeadlight (int nPlayer)
+int PlayerHasHeadLight (int nPlayer)
 {
 return EGI_FLAG (headlight.bAvailable, 0, 0, 0) &&
-		 (EGI_FLAG (headlight.bBuiltIn, 0, 1, 0) ||
+		 (EGI_FLAG (headlight.bBuiltIn, 0, 1, 0) || 
 		  ((gameData.multiplayer.players [(nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer].flags & PLAYER_FLAGS_HEADLIGHT) != 0));
 }
 
 //-----------------------------------------------------------------------------
 
-int HeadlightIsOn (int nPlayer)
+int HeadLightIsOn (int nPlayer)
 {
-#if DBG
-if (!PlayerHasHeadlight (nPlayer))
+#ifdef _DEBUG
+if (!PlayerHasHeadLight (nPlayer))
 	return 0;
 if (!(gameData.multiplayer.players [(nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer].flags & PLAYER_FLAGS_HEADLIGHT_ON))
 	return 0;
 return 1;
 #else
-return PlayerHasHeadlight (nPlayer) && ((gameData.multiplayer.players [(nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer].flags & PLAYER_FLAGS_HEADLIGHT_ON) != 0);
+return PlayerHasHeadLight (nPlayer) && ((gameData.multiplayer.players [(nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer].flags & PLAYER_FLAGS_HEADLIGHT_ON) != 0);
 #endif
 }
 
 //-----------------------------------------------------------------------------
 
-void SetPlayerHeadlight (int nPlayer, int bOn)
+void SetPlayerHeadLight (int nPlayer, int bOn)
 {
 if (bOn)
 	gameData.multiplayer.players [(nPlayer < 0) ? gameData.multiplayer.nLocalPlayer : nPlayer].flags |= PLAYER_FLAGS_HEADLIGHT_ON;
@@ -1591,17 +1843,17 @@ else
 
 //-----------------------------------------------------------------------------
 
-void DrainHeadlightPower (void)
+void DrainHeadLightPower (void)
 {
 	static int bTurnedOff = 0;
 
 if (!EGI_FLAG (headlight.bDrainPower, 0, 0, 1))
 	return;
-if (!HeadlightIsOn (-1))
+if (!HeadLightIsOn (-1))
 	return;
 
 LOCALPLAYER.energy -= (gameData.time.xFrame * 3 / 8);
-if (LOCALPLAYER.energy < I2X (10)) {
+if (LOCALPLAYER.energy < i2f (10)) {
 	if (!bTurnedOff) {
 		LOCALPLAYER.flags &= ~PLAYER_FLAGS_HEADLIGHT_ON;
 		bTurnedOff = 1;
@@ -1620,201 +1872,219 @@ if (LOCALPLAYER.energy <= 0) {
 }
 
 //-----------------------------------------------------------------------------
-
-void DoEffectsFrame (void)
-{
-//PrintLog ("DoEffectsFrame \n");
-if (gameStates.app.bMultiThreaded && gameData.app.bUseMultiThreading [rtEffects] && tiEffects.pThread) {
-	while (tiEffects.bExec)
-		G3_SLEEP (0);
-	tiEffects.bExec = 1;
-	}
-else {
-	lightningManager.DoFrame ();
-	DoEnergySparkFrame ();
-	DoParticleFrame ();
-	}
-}
-
-//-----------------------------------------------------------------------------
 // -- extern void lightning_frame (void);
 
 void GameRenderFrame ();
 void OmegaChargeFrame (void);
 void FlickerLights ();
 
-//int bLog = 0;
+extern time_t t_currentTime, t_savedTime;
 
-int GameLoop (int bRenderFrame, int bReadControls)
+int GameLoop (int RenderFlag, int bReadControls)
 {
 gameStates.app.bGameRunning = 1;
 gameStates.render.nFrameFlipFlop = !gameStates.render.nFrameFlipFlop;
-gameData.objs.nLastObject [1] = gameData.objs.nLastObject [0];
-if (!MultiProtectGame ()) {
-	SetFunctionMode (FMODE_MENU);
-	return 1;
+GetSlowTicks ();
+#ifdef _DEBUG
+//	Used to slow down frame rate for testing things.
+//	RenderFlag = 1; // DEBUG
+//	GrPaletteStepLoad (gamePalette);
+if (nDebugSlowdown) {
+	time_t	t = SDL_GetTicks ();
+	while (SDL_GetTicks () - t < nDebugSlowdown)
+		;
 	}
-if (gameStates.gameplay.bMineMineCheat) {
-	DoWowieCheat (0, 0);
-	GasolineCheat (0);
-	}
-AutoBalanceTeams ();
-MultiSendTyping ();
-MultiSendWeapons (0);
-MultiSyncKills ();
-MultiRefillPowerups ();
-UpdatePlayerStats ();
-UpdatePlayerWeaponInfo ();
-paletteManager.FadeEffect ();		//	Should leave palette effect up for as long as possible by putting right before render.
-//PrintLog ("DoAfterburnerStuff\n");
-DoAfterburnerStuff ();
-//PrintLog ("DoCloakStuff\n");
-DoCloakStuff ();
-//PrintLog ("DoInvulnerableStuff\n");
-DoInvulnerableStuff ();
-//PrintLog ("RemoveObsoleteStuckObjects \n");
-RemoveObsoleteStuckObjects ();
-//PrintLog ("InitAIFrame \n");
-InitAIFrame ();
-//PrintLog ("DoFinalBossFrame\n");
-DoFinalBossFrame ();
-// -- lightning_frame ();
-// -- recharge_energy_frame ();
-//PrintLog ("DrainHeadlightPower\n");
-DrainHeadlightPower ();
-#ifdef EDITOR
-check_create_player_path ();
-player_follow_path (gameData.objs.consoleP);
 #endif
 
-if (IsMultiGame) {
-	AddServerToTracker ();
-   MultiDoFrame ();
-	CheckMonsterballScore ();
-	if (netGame.xPlayTimeAllowed && (gameStates.app.xThisLevelTime >= I2X ((netGame.xPlayTimeAllowed * 5 * 60))))
-       MultiCheckForKillGoalWinner ();
-	else
-		MultiCheckForEntropyWinner ();
-  }
-if (bRenderFrame) {
-	if (gameStates.render.cockpit.bRedraw) {			//screen need redrawing?
-		//PrintLog ("InitCockpit\n");
-		InitCockpit ();
-		gameStates.render.cockpit.bRedraw = 0;
-	}
-	//PrintLog ("GameRenderFrame\n");
-	GameRenderFrame ();
-	gameStates.app.bUsingConverter = 0;
-#if DBG
-	if (bSavingMovieFrames)
-		save_movie_frame ();
+#ifdef _DEBUG
+	if (FindArg ("-invulnerability")) {
+		LOCALPLAYER.flags |= PLAYER_FLAGS_INVULNERABLE;
+		SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+		}
 #endif
+	if (!MultiProtectGame ()) {
+		SetFunctionMode (FMODE_MENU);
+		return 1;
+		}
+	if (gameStates.gameplay.bMineMineCheat) {
+		DoWowieCheat (0, 0);
+		GasolineCheat (0);
+		}
+	AutoBalanceTeams ();
+	MultiSendTyping ();
+	MultiSendWeapons (0);
+	MultiSyncKills ();
+	MultiRefillPowerups ();
+	//MultiSendMonsterball (0, 0);
+	UpdatePlayerStats ();
+	UpdatePlayerWeaponInfo ();
+	DiminishPaletteTowardsNormal ();		//	Should leave palette effect up for as long as possible by putting right before render.
+//PrintLog ("DoAfterburnerStuff\n");
+	DoAfterburnerStuff ();
+//PrintLog ("DoCloakStuff\n");
+	DoCloakStuff ();
+//PrintLog ("DoInvulnerableStuff\n");
+	DoInvulnerableStuff ();
+//PrintLog ("DoInvulnerableStuff \n");
+	RemoveObsoleteStuckObjects ();
+//PrintLog ("RemoveObsoleteStuckObjects \n");
+	InitAIFrame ();
+//PrintLog ("InitAIFrame \n");
+	DoFinalBossFrame ();
+// -- lightning_frame ();
+	// -- recharge_energy_frame ();
+DrainHeadLightPower ();
+#ifdef EDITOR
+	check_create_player_path ();
+	player_follow_path (gameData.objs.console);
+#endif
+
+#ifdef NETWORK
+	if (IsMultiGame) {
+		AddServerToTracker ();
+      MultiDoFrame ();
+		CheckMonsterballScore ();
+		if (netGame.xPlayTimeAllowed && gameStates.app.xThisLevelTime>=i2f ((netGame.xPlayTimeAllowed*5*60)))
+          MultiCheckForKillGoalWinner ();
+		else 
+			MultiCheckForEntropyWinner ();
+     }
+#endif
+
+	if (RenderFlag) {
+		if (gameStates.render.cockpit.bRedraw) {			//screen need redrawing?
+			InitCockpit ();
+			gameStates.render.cockpit.bRedraw = 0;
+		}
+//PrintLog ("GameRenderFrame\n");
+		GameRenderFrame ();
+		gameStates.app.bUsingConverter = 0;
+		//show_extraViews ();		//missile view, buddy bot, etc.
+
+#ifdef _DEBUG
+		if (bSavingMovieFrames)
+			save_movie_frame ();
+#endif
+
 	}
-//PrintLog ("CalcFrameTime\n");
-CalcFrameTime ();
-//PrintLog ("DeadPlayerFrame\n");
-DeadPlayerFrame ();
-if (gameData.demo.nState != ND_STATE_PLAYBACK) {
-	DoReactorDeadFrame ();
-	}
+	CalcFrameTime ();
+	DeadPlayerFrame ();
+	if (gameData.demo.nState != ND_STATE_PLAYBACK) {
+		DoReactorDeadFrame ();
+		}
 //PrintLog ("ProcessSmartMinesFrame \n");
-ProcessSmartMinesFrame ();
+	ProcessSmartMinesFrame ();
 //PrintLog ("DoSeismicStuff\n");
-DoSeismicStuff ();
-//PrintLog ("DoEffectsFrame\n");
-DoEffectsFrame ();
+	DoSeismicStuff ();
+//PrintLog ("DoSmokeFrame \n");
+	DoSmokeFrame ();
+	DoEnergySparkFrame ();
+//PrintLog ("DoFlashFrame \n");
+	DoLightningFrame ();
 //PrintLog ("DoAmbientSounds\n");
-DoAmbientSounds ();
-#if DBG
-if (gameData.speedtest.bOn)
-	SpeedtestFrame ();
+	DoAmbientSounds ();
+#ifdef _DEBUG
+	if (gameData.speedtest.bOn)
+		SpeedtestFrame ();
 #endif
-if (bReadControls)
-	ReadControls ();
-else
-	memset (&Controls, 0, sizeof (Controls));
+	if (bReadControls) {
+//PrintLog ("ReadControls\n");
+		ReadControls ();
+		}
+	else
+		memset (&Controls, 0, sizeof (Controls));
 //PrintLog ("DropPowerups\n");
-DropPowerups ();
-gameData.time.xGame += gameData.time.xFrame;
-if (gameData.time.xGame < 0 || gameData.time.xGame > I2X (0x7fff - 600)) {
-	gameData.time.xGame = gameData.time.xFrame;	//wrap when goes negative, or gets within 10 minutes
-	}
-if (IsMultiGame && netGame.xPlayTimeAllowed)
-   gameStates.app.xThisLevelTime +=gameData.time.xFrame;
+	DropPowerups ();
+	gameData.time.xGame += gameData.time.xFrame;
+	if (f2i (gameData.time.xGame)/10 != f2i (gameData.time.xGame-gameData.time.xFrame)/10) {
+		}
+	if (gameData.time.xGame < 0 || gameData.time.xGame > i2f (0x7fff - 600)) {
+		gameData.time.xGame = gameData.time.xFrame;	//wrap when goes negative, or gets within 10 minutes
+		}
+#ifdef _DEBUG
+	if (FindArg ("-checktime") != 0)
+		if (gameData.time.xGame >= i2f (600))		//wrap after 10 minutes
+			gameData.time.xGame = gameData.time.xFrame;
+#endif
+#ifdef NETWORK
+   if ((gameData.app.nGameMode & GM_MULTI) && netGame.xPlayTimeAllowed)
+       gameStates.app.xThisLevelTime +=gameData.time.xFrame;
+#endif
 //PrintLog ("DigiSyncSounds\n");
-DigiSyncSounds ();
-if (gameStates.app.bEndLevelSequence) {
-	DoEndLevelFrame ();
-	PowerupGrabCheatAll ();
-	DoSpecialEffects ();
-	return 1;					//skip everything else
-	}
-if (gameData.demo.nState != ND_STATE_PLAYBACK) {
+	DigiSyncSounds ();
+	if (gameStates.app.bEndLevelSequence) {
+		DoEndLevelFrame ();
+		PowerupGrabCheatAll ();
+		DoSpecialEffects ();
+		return 1;					//skip everything else
+		}
+	if (gameData.demo.nState != ND_STATE_PLAYBACK) {
 //PrintLog ("DoExplodingWallFrame\n");
-	DoExplodingWallFrame ();
-	}
-if ((gameData.demo.nState != ND_STATE_PLAYBACK) || (gameData.demo.nVcrState != ND_STATE_PAUSED)) {
+		DoExplodingWallFrame ();
+		}
+	if ((gameData.demo.nState != ND_STATE_PLAYBACK) || (gameData.demo.nVcrState != ND_STATE_PAUSED)) {
 //PrintLog ("DoSpecialEffects\n");
-	DoSpecialEffects ();
+		DoSpecialEffects ();
 //PrintLog ("WallFrameProcess\n");
-	WallFrameProcess ();
+		WallFrameProcess ();
 //PrintLog ("TriggersFrameProcess\n");
-	TriggersFrameProcess ();
-	}
-if (gameData.reactor.bDestroyed && (gameData.demo.nState == ND_STATE_RECORDING)) {
-	NDRecordControlCenterDestroyed ();
-	}
-UpdateFlagClips ();
-MultiSetFlagPos ();
-SetPlayerPaths ();
+		TriggersFrameProcess ();
+		}
+	if (gameData.reactor.bDestroyed && (gameData.demo.nState == ND_STATE_RECORDING)) {
+			NDRecordControlCenterDestroyed ();
+		}
 //PrintLog ("FlashFrame\n");
-FlashFrame ();
-if (gameData.demo.nState == ND_STATE_PLAYBACK) {
-	NDPlayBackOneFrame ();
-	if (gameData.demo.nState != ND_STATE_PLAYBACK)
-		longjmp (gameExitPoint, 0);		// Go back to menu
-	}
-else { // Note the link to above!
-	LOCALPLAYER.homingObjectDist = -1;		//	Assume not being tracked.  LaserDoWeaponSequence modifies this.
-	//PrintLog ("UpdateAllObjects\n");
-	if (!UpdateAllObjects ())
-		return 0;
-	//PrintLog ("PowerupGrabCheatAll \n");
-	PowerupGrabCheatAll ();
-	if (gameStates.app.bEndLevelSequence)	//might have been started during move
-		return 1;
-	//PrintLog ("FuelcenUpdateAll\n");
-	FuelcenUpdateAll ();
-	//PrintLog ("DoAIFrameAll\n");
-	DoAIFrameAll ();
-	if (AllowedToFireLaser ()) {
-		//PrintLog ("FireLaser\n");
-		FireLaser ();				// Fire Laser!
+	UpdateFlagClips ();
+	MultiSetFlagPos ();
+	SetPlayerPaths ();
+	FlashFrame ();
+	if (gameData.demo.nState == ND_STATE_PLAYBACK) {
+		NDPlayBackOneFrame ();
+		if (gameData.demo.nState != ND_STATE_PLAYBACK) {
+			 longjmp (gameExitPoint, 0);		// Go back to menu
+			}
 		}
-	if (!FusionBump ())
-		return 1;
-	if (gameData.laser.nGlobalFiringCount) {
-		//	Don't cap here, gets capped in CreateNewWeapon and is based on whether in multiplayer mode, MK, 3/27/95
-		// if (gameData.fusion.xCharge > F1_0*2)
-		// 	gameData.fusion.xCharge = F1_0*2;
-		gameData.laser.nGlobalFiringCount -= LocalPlayerFireLaser ();	//LaserFireObject (LOCALPLAYER.nObject, gameData.weapons.nPrimary);
+	else { // Note the link to above!
+		LOCALPLAYER.homingObjectDist = -1;		//	Assume not being tracked.  LaserDoWeaponSequence modifies this.
+//PrintLog ("UpdateAllObjects\n");
+		if (!UpdateAllObjects ())
+			return 0;
+//PrintLog ("PowerupGrabCheatAll \n");
+		PowerupGrabCheatAll ();
+		if (gameStates.app.bEndLevelSequence)	//might have been started during move
+			return 1;
+//PrintLog ("FuelcenUpdateAll\n");
+		FuelcenUpdateAll ();
+//PrintLog ("DoAIFrameAll\n");
+		DoAIFrameAll ();
+		if (AllowedToFireLaser ()) {
+//PrintLog ("FireLaser\n");
+			FireLaser ();				// Fire Laser!
+			}
+		if (!FusionBump ())
+			return 1;
+		if (gameData.laser.nGlobalFiringCount) {
+			//	Don't cap here, gets capped in CreateNewLaser and is based on whether in multiplayer mode, MK, 3/27/95
+			// if (gameData.fusion.xCharge > F1_0*2)
+			// 	gameData.fusion.xCharge = F1_0*2;
+			gameData.laser.nGlobalFiringCount -= LocalPlayerFireLaser ();	//LaserFireObject (LOCALPLAYER.nObject, gameData.weapons.nPrimary);
+			}
+		if (gameData.laser.nGlobalFiringCount < 0)
+			gameData.laser.nGlobalFiringCount = 0;
 		}
-	if (gameData.laser.nGlobalFiringCount < 0)
-		gameData.laser.nGlobalFiringCount = 0;
-	}
-if (gameStates.render.bDoAppearanceEffect) {
-	CreatePlayerAppearanceEffect (gameData.objs.consoleP);
-	gameStates.render.bDoAppearanceEffect = 0;
+	if (gameStates.render.bDoAppearanceEffect) {
+		CreatePlayerAppearanceEffect (gameData.objs.console);
+		gameStates.render.bDoAppearanceEffect = 0;
+#ifdef NETWORK
 	if (IsMultiGame && netGame.invul) {
 		LOCALPLAYER.flags |= PLAYER_FLAGS_INVULNERABLE;
-		LOCALPLAYER.invulnerableTime = gameData.time.xGame-I2X (27);
+		LOCALPLAYER.invulnerableTime = gameData.time.xGame-i2f (27);
 		bFakingInvul = 1;
-		SetupSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
+		SetSpherePulse (gameData.multiplayer.spherePulse + gameData.multiplayer.nLocalPlayer, 0.02f, 0.5f);
 		}
+#endif
 	}
-//PrintLog ("DoSlowMotionFrame\n");
 DoSlowMotionFrame ();
-//PrintLog ("CheckInventory\n");
 CheckInventory ();
 //PrintLog ("OmegaChargeFrame \n");
 OmegaChargeFrame ();
@@ -1839,8 +2109,8 @@ for (nSegment = 0; nSegment <= gameData.segs.nLastSegment; nSegment++) {
 	bIsSlideSeg = 0;
 	for (nSide = 0; nSide < 6; nSide++) {
 		nTexture = gameData.segs.segments [nSegment].sides [nSide].nBaseTex;
-		if (gameData.pig.tex.tMapInfoP [nTexture].slide_u  ||
-			 gameData.pig.tex.tMapInfoP [nTexture].slide_v) {
+		if (gameData.pig.tex.pTMapInfo [nTexture].slide_u  || 
+			 gameData.pig.tex.pTMapInfo [nTexture].slide_v) {
 			if (!bIsSlideSeg) {
 				bIsSlideSeg = 1;
 				gameData.segs.slideSegs [gameData.segs.nSlideSegs].nSegment = nSegment;
@@ -1874,15 +2144,15 @@ for (h = 0; h < gameData.segs.nSlideSegs; h++) {
 		if (!(sides & (1 << nSide)))
 			continue;
 		tmn = sideP->nBaseTex;
-		slideU = (fix) gameData.pig.tex.tMapInfoP [tmn].slide_u;
-		slideV = (fix) gameData.pig.tex.tMapInfoP [tmn].slide_v;
+		slideU = (fix) gameData.pig.tex.pTMapInfo [tmn].slide_u;
+		slideV = (fix) gameData.pig.tex.pTMapInfo [tmn].slide_v;
 		if (!(slideU || slideV))
 			continue;
-#if DBG
+#ifdef _DEBUG
 			if ((nSegment == nDbgSeg) && ((nDbgSide < 0) || (nSide == nDbgSide)))
 				nSegment = nSegment;
 #endif
-		i = (SEGMENT2S [nSegment].special == SEGMENT_IS_SKYBOX) ? 3 : 8;
+		i = (gameData.segs.segment2s [nSegment].special == SEGMENT_IS_SKYBOX) ? 3 : 8;
 		slideU = FixMul (gameData.time.xFrame, slideU << i);
 		slideV = FixMul (gameData.time.xFrame, slideV << i);
 		for (i = 0, uvlP = sideP->uvls; i < 4; i++) {
@@ -1925,10 +2195,10 @@ void FireLaser ()
 if (gameData.weapons.firing [0].nDuration)
 	gameData.laser.nGlobalFiringCount += WI_fireCount (i);
 if ((gameData.weapons.nPrimary == FUSION_INDEX) && gameData.laser.nGlobalFiringCount) {
-	if ((LOCALPLAYER.energy < F1_0 * 2) &&
+	if ((LOCALPLAYER.energy < F1_0 * 2) && 
 		 (gameData.fusion.xAutoFireTime == 0)) {
 		gameData.laser.nGlobalFiringCount = 0;
-		}
+		} 
 	else {
 		flFrameTime += gameData.time.xFrame;
 		if (gameData.fusion.xCharge == 0)
@@ -1939,24 +2209,24 @@ if ((gameData.weapons.nPrimary == FUSION_INDEX) && gameData.laser.nGlobalFiringC
 		if (LOCALPLAYER.energy <= 0) {
 			LOCALPLAYER.energy = 0;
 			gameData.fusion.xAutoFireTime = gameData.time.xGame - 1;	//	Fire now!
-			}
+			} 
 		else
 			gameData.fusion.xAutoFireTime = gameData.time.xGame + flFrameTime/2 + 1;
 		if (gameStates.limitFPS.bFusion && !gameStates.app.tick40fps.bTick)
 			return;
 		if (gameData.fusion.xCharge < F1_0*2)
-			paletteManager.BumpEffect (gameData.fusion.xCharge >> 11, 0, gameData.fusion.xCharge >> 11);
+			PALETTE_FLASH_ADD (gameData.fusion.xCharge >> 11, 0, gameData.fusion.xCharge >> 11);
 		else
-			paletteManager.BumpEffect (gameData.fusion.xCharge >> 11, gameData.fusion.xCharge >> 11, 0);
+			PALETTE_FLASH_ADD (gameData.fusion.xCharge >> 11, gameData.fusion.xCharge >> 11, 0);
 		if (gameData.time.xGame < gameData.fusion.xLastSoundTime)		//gametime has wrapped
 			gameData.fusion.xNextSoundTime = gameData.fusion.xLastSoundTime = gameData.time.xGame;
 		if (gameData.fusion.xNextSoundTime < gameData.time.xGame) {
 			if (gameData.fusion.xCharge > F1_0*2) {
 				DigiPlaySample (11, F1_0);
-				ApplyDamageToPlayer (gameData.objs.consoleP, gameData.objs.consoleP, d_rand () * 4);
-				}
+				ApplyDamageToPlayer (gameData.objs.console, gameData.objs.console, d_rand () * 4);
+				} 
 			else {
-				CreateAwarenessEvent (gameData.objs.consoleP, WEAPON_ROBOT_COLLISION);
+				CreateAwarenessEvent (gameData.objs.console, PA_WEAPON_ROBOT_COLLISION);
 				DigiPlaySample (SOUND_FUSION_WARMUP, F1_0);
 				if (gameData.app.nGameMode & GM_MULTI)
 					MultiSendPlaySound (SOUND_FUSION_WARMUP, F1_0);
@@ -1971,38 +2241,42 @@ if ((gameData.weapons.nPrimary == FUSION_INDEX) && gameData.laser.nGlobalFiringC
 
 
 //	-------------------------------------------------------------------------------------------------------
-//	If CPlayerData is close enough to nObject, which ought to be a powerup, pick it up!
+//	If tPlayer is close enough to nObject, which ought to be a powerup, pick it up!
 //	This could easily be made difficulty level dependent.
-void PowerupGrabCheat (CObject *playerP, int nObject)
+void PowerupGrabCheat (tObject *playerP, int nObject)
 {
-	CObject		*powerupP = OBJECTS + nObject;
-	tTransformation	*posP = OBJPOS (playerP);
-	CFixVector	vCollision;
+	tObject		*powerupP = OBJECTS + nObject;
+	tPosition	*posP = OBJPOS (playerP);
+	vmsVector	vCollision;
 
-Assert (powerupP->info.nType == OBJ_POWERUP);
-if (powerupP->info.nFlags & OF_SHOULD_BE_DEAD)
+Assert (powerupP->nType == OBJ_POWERUP);
+if (powerupP->flags & OF_SHOULD_BE_DEAD)
 	return;
-if (CFixVector::Dist (powerupP->info.position.vPos, posP->vPos) >=
-	 2 * (playerP->info.xSize + powerupP->info.xSize) / (gameStates.app.bHaveExtraGameInfo [IsMultiGame] + 1))
+if (VmVecDistQuick (&powerupP->position.vPos, &posP->vPos) >= 
+	 2 * (playerP->size + powerupP->size) / (gameStates.app.bHaveExtraGameInfo [IsMultiGame] + 1))
 	return;
-vCollision = CFixVector::Avg (powerupP->info.position.vPos, posP->vPos);
+VmVecAvg (&vCollision, &powerupP->position.vPos, &posP->vPos);
 CollidePlayerAndPowerup (playerP, powerupP, &vCollision);
 }
 
 //	-------------------------------------------------------------------------------------------------------
 //	Make it easier to pick up powerups.
-//	For all powerups in this CSegment, pick them up at up to twice pickuppable distance based on dot product
-//	from CPlayerData to powerup and CPlayerData's forward vector.
+//	For all powerups in this tSegment, pick them up at up to twice pickuppable distance based on dot product
+//	from tPlayer to powerup and tPlayer's forward vector.
 //	This has the effect of picking them up more easily left/right and up/down, but not making them disappear
-//	way before the CPlayerData gets there.
+//	way before the tPlayer gets there.
 void PowerupGrabCheatAll (void)
 {
 if (gameStates.app.tick40fps.bTick) {
-	short nObject = SEGMENTS [gameData.objs.consoleP->info.nSegment].objects;
+	tSegment	*segP;
+	int		nObject;
+
+	segP = gameData.segs.segments + gameData.objs.console->nSegment;
+	nObject = segP->objects;
 	while (nObject != -1) {
-		if (OBJECTS [nObject].info.nType == OBJ_POWERUP)
-			PowerupGrabCheat (gameData.objs.consoleP, nObject);
-		nObject = OBJECTS [nObject].info.nNextInSeg;
+		if (gameData.objs.objects[nObject].nType == OBJ_POWERUP)
+			PowerupGrabCheat (gameData.objs.console, nObject);
+		nObject = gameData.objs.objects[nObject].next;
 		}
 	}
 }
@@ -2012,19 +2286,19 @@ int	nLastLevelPathCreated = -1;
 #ifdef SHOW_EXIT_PATH
 
 //	------------------------------------------------------------------------------------------------------------------
-//	Create path for CPlayerData from current CSegment to goal CSegment.
+//	Create path for tPlayer from current tSegment to goal tSegment.
 //	Return true if path created, else return false.
 int MarkPlayerPathToSegment (int nSegment)
 {
 	int		i;
-	CObject	*objP = gameData.objs.consoleP;
+	tObject	*objP = gameData.objs.console;
 	short		player_path_length=0;
 	int		player_hide_index=-1;
 
 if (nLastLevelPathCreated == gameData.missions.nCurrentLevel)
 	return 0;
 nLastLevelPathCreated = gameData.missions.nCurrentLevel;
-if (CreatePathPoints (objP, objP->info.nSegment, nSegment, gameData.ai.freePointSegs, &player_path_length, 100, 0, 0, -1) == -1) {
+if (CreatePathPoints (objP, objP->nSegment, nSegment, gameData.ai.freePointSegs, &player_path_length, 100, 0, 0, -1) == -1) {
 #if TRACE
 	//con_printf (CONDBG, "Unable to form path of length %i for myself\n", 100);
 #endif
@@ -2041,24 +2315,25 @@ if ((int) (gameData.ai.freePointSegs - gameData.ai.pointSegs) + MAX_PATH_LENGTH*
 	}
 for (i = 1; i < player_path_length; i++) {
 	short			nSegment, nObject;
-	CFixVector	vSegCenter;
-	CObject		*objP;
+	vmsVector	seg_center;
+	tObject		*objP;
 
 	nSegment = gameData.ai.pointSegs [player_hide_index + i].nSegment;
 #if TRACE
 	//con_printf (CONDBG, "%3i ", nSegment);
 #endif
-	vSegCenter = gameData.ai.pointSegs[player_hide_index+i].point;
-	nObject = CreatePowerup (POW_ENERGY, -1, nSegment, vSegCenter, 1);
+	seg_center = gameData.ai.pointSegs[player_hide_index+i].point;
+	nObject = CreateObject (OBJ_POWERUP, POW_ENERGY, -1, nSegment, &seg_center, &vmdIdentityMatrix,
+								   gameData.objs.pwrUp.info [POW_ENERGY].size, CT_POWERUP, MT_NONE, RT_POWERUP, 1);
 	if (nObject == -1) {
 		Int3 ();		//	Unable to drop energy powerup for path
 		return 1;
 		}
-	objP = OBJECTS + nObject;
-	objP->rType.vClipInfo.nClipIndex = gameData.objs.pwrUp.info [objP->info.nId].nClipIndex;
+	objP = gameData.objs.objects + nObject;
+	objP->rType.vClipInfo.nClipIndex = gameData.objs.pwrUp.info [objP->id].nClipIndex;
 	objP->rType.vClipInfo.xFrameTime = gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].xFrameTime;
 	objP->rType.vClipInfo.nCurFrame = 0;
-	objP->info.xLifeLeft = F1_0*100 + d_rand () * 4;
+	objP->lifeleft = F1_0*100 + d_rand () * 4;
 	}
 return 1;
 }
@@ -2081,22 +2356,21 @@ return 0;
 
 
 //-----------------------------------------------------------------------------
-#if DBG
+#ifdef _DEBUG
 int	Max_objCount_mike = 0;
 
-//	Shows current number of used OBJECTS.
+//	Shows current number of used gameData.objs.objects.
 void show_freeObjects (void)
 {
 	if (!(gameData.app.nFrameCount & 8)) {
-		int		i;
-		CObject	*objP;
-		int		count = 0;
+		int	i;
+		int	count=0;
 
 #if TRACE
-		//con_printf (CONDBG, "gameData.objs.nLastObject [0] = %3i, MAX_OBJECTS = %3i, now used = ", gameData.objs.nLastObject [0], MAX_OBJECTS);
+		//con_printf (CONDBG, "gameData.objs.nLastObject = %3i, MAX_OBJECTS = %3i, now used = ", gameData.objs.nLastObject, MAX_OBJECTS);
 #endif
-		FORALL_OBJS (objP, i)
-			if (objP->info.nType != OBJ_NONE)
+		for (i=0; i<=gameData.objs.nLastObject; i++)
+			if (gameData.objs.objects[i].nType != OBJ_NONE)
 				count++;
 #if TRACE
 		//con_printf (CONDBG, "%3i", count);
@@ -2118,29 +2392,15 @@ void show_freeObjects (void)
 
 //-----------------------------------------------------------------------------
 /*
- * reads a tVariableLight structure from a CFile
+ * reads a tVariableLight structure from a CFILE
  */
-void ReadVariableLight (tVariableLight *fl, CFile& cf)
+void ReadVariableLight (tVariableLight *fl, CFILE *fp)
 {
-fl->nSegment = cf.ReadShort ();
-fl->nSide = cf.ReadShort ();
-fl->mask = cf.ReadInt ();
-fl->timer = cf.ReadFix ();
-fl->delay = cf.ReadFix ();
-}
-
-//------------------------------------------------------------------------------
-
-void LoadBackgroundBitmap (void)
-{
-	int pcx_error;
-
-bmBackground.DestroyBuffer ();
-pcx_error = PCXReadBitmap (gameStates.app.cheats.bJohnHeadOn ? reinterpret_cast<char*> ("johnhead.pcx") : reinterpret_cast<char*> (BACKGROUND_NAME),
-									&bmBackground, BM_LINEAR,0);
-if (pcx_error != PCX_ERROR_NONE)
-	Error ("File %s - PCX error: %s",BACKGROUND_NAME,pcx_errormsg (pcx_error));
-bmBackground.Remap (NULL, -1, -1);
+	fl->nSegment = CFReadShort (fp);
+	fl->nSide = CFReadShort (fp);
+	fl->mask = CFReadInt (fp);
+	fl->timer = CFReadFix (fp);
+	fl->delay = CFReadFix (fp);
 }
 
 //-----------------------------------------------------------------------------

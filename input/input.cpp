@@ -1,3 +1,4 @@
+/* $Id: KConfig.c,v 1.27 2003/12/18 11:24:04 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,16 +16,25 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE EVE.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid [] = "$Id: KConfig.c,v 1.27 2003/12/18 11:24:04 btb Exp $";
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <time.h>
 #include <math.h>
 
 #include "error.h"
 #include "inferno.h"
+#include "gr.h"
+#include "mono.h"
 #include "key.h"
+#include "palette.h"
+#include "game.h"
 #include "gamefont.h"
 #include "iff.h"
 #include "u_mem.h"
@@ -33,22 +43,41 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE EVE.  ALL RIGHTS RESERVED.
 #include "mouse.h"
 #include "kconfig.h"
 #include "gauges.h"
+#include "joydefs.h"
+#include "songs.h"
 #include "render.h"
+#include "digi.h"
+#include "newmenu.h"
 #include "endlevel.h"
+#include "multi.h"
 #include "timer.h"
 #include "text.h"
+#include "player.h"
+#include "menu.h"
 #include "automap.h"
+#include "args.h"
+#include "light.h"
+#include "ai.h"
+#include "reactor.h"
+#include "network.h"
+#include "hudmsg.h"
+#include "ogl_defs.h"
+#include "object.h"
+#include "inferno.h"
+#include "kconfig.h"
 #include "input.h"
 #include "gamecntl.h"
 #if defined (TACTILE)
-#	include "tactile.h"
+ #include "tactile.h"
 #endif
+#include "collide.h"
+#include "weapon.h"
 
 #ifdef USE_LINUX_JOY
 #include "joystick.h"
 #endif
 #ifdef WIN32
-tTransRotInfo	tirInfo;
+tTIRInfo	tirInfo;
 #endif
 
 tControlInfo Controls [4];
@@ -66,6 +95,7 @@ tControlInfo Controls [4];
 static int	kcFrameCount = 0;
 static int	nMaxTurnRate;
 
+#define JOYMOUSE_SENSITIVITY	2
 #define FASTPITCH	(gameStates.app.bHaveExtraGameInfo [IsMultiGame] ? extraGameInfo [IsMultiGame].bFastPitch : 2)
 
 //------------------------------------------------------------------------------
@@ -103,6 +133,17 @@ return 1;
 //added on 2/7/99 by Victor Rachels for jostick state setting
 int d2xJoystick_ostate [20]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 //end this section adition - VR
+#endif
+
+#ifdef _DEBUG
+# define TT_THRESHOLD 0xFFFF
+# define DEFTIME time_t _t0 = SDL_GetTicks (); time_t _t = _t0; time_t _dt;
+# define TAKETIME (_c,_i) _dt = SDL_GetTicks (); _t = _dt;
+# define TAKETIME0 (_c) _dt = SDL_GetTicks ();
+#else
+# define TAKETIME (_c,_i)
+# define TAKETIME0 (_c)
+# define DEFTIME
 #endif
 
 //------------------------------------------------------------------------------
@@ -195,7 +236,7 @@ return (int) ((AttenuateAxis (h, i) * gameStates.input.kcPollTime) / 128);
 int ControlsReadJoystick (int *joyAxis)
 {
 	int	rawJoyAxis [JOY_MAX_AXES];
-	ulong channelMasks;
+	unsigned long channelMasks;
 	int	i, bUseJoystick = 0;
 	fix	ctime = 0;
 
@@ -282,14 +323,13 @@ else {
 
 void ControlsReadFCS (int rawAxis)
 {
-	int raw_button, button;
-	tJoyAxisCal	cal [4];
+	int raw_button, button, axis_min [4], axis_center [4], axis_max [4];
 
 if (gameStates.input.nJoyType != CONTROL_THRUSTMASTER_FCS) 
 	return;
-JoyGetCalVals (cal, sizeofa (cal));
-if (cal [3].nMax > 1)
-	raw_button = (rawAxis * 100) / cal [3].nMax;
+JoyGetCalVals (axis_min, axis_center, axis_max);
+if (axis_max [3] > 1)
+	raw_button = (rawAxis*100) /axis_max [3];
 else
 	raw_button = 0;
 if (raw_button > 88)
@@ -336,7 +376,7 @@ inline int HaveKeyCount (kcItem *k, int i)
 
 if (v == 255)
 	return 0;
-#if DBG
+#ifdef _DEBUG
 v = KeyDownCount (v);
 if (!v)
 	return 0;
@@ -356,7 +396,7 @@ if (v == 255)
 	return 0;
 if (KeyFlags (v))
 	return 0;
-#if DBG
+#ifdef _DEBUG
 if (v = KeyDownCount (v))
 	return v;
 return 0;
@@ -567,8 +607,7 @@ if (bGetSlideBank == 2) {
 		if ((v = HaveKey (kcKeyboard, 38 + i)) < 255) 
 			*nCruiseSpeed += key_signs [i] * FixDiv (speedFactor * KeyDownTime (v) * 5, gameStates.input.kcPollTime);
 	for (i = 0; i < 2; i++)
-		if (((v = HaveKey (kcKeyboard, 
- + i)) < 255) && KeyDownCount (v))
+		if (((v = HaveKey (kcKeyboard, 42 + i)) < 255) && KeyDownCount (v))
 			*nCruiseSpeed = 0;
 	}
 
@@ -625,7 +664,7 @@ return h;
 
 inline int DeltaAxis (int v)
 {
-#if DBG
+#ifdef _DEBUG
 int a = gameOpts->input.joystick.bLinearSens ? joyAxis [v] * 16 / joy_sens_mod [v % 4] : joyAxis [v];
 if (a)
 	HUDMessage (0, "%d", a);
@@ -887,7 +926,7 @@ if (bGetSlideBank == 2) {
 					dx += dz;
 				}
 			else {
-				//dz = dz * screen.Width () / screen.Height ();
+				//dz = dz * grdCurScreen->scWidth / grdCurScreen->scHeight;
 				if (dx < dz)
 					dx = 0;
 				else
@@ -1084,16 +1123,16 @@ else if (gameOpts->input.trackIR.nMode == 1) {
 else {
 	viewInfo.bUsePlayerHeadAngles = 1;
 	if (gameOpts->input.trackIR.bMove [0]) {
-		viewInfo.playerHeadAngles[HA] = (fixang) -tirInfo.fvRot.z / 4 * (gameOpts->input.trackIR.sensitivity [0] + 1);
-		viewInfo.playerHeadAngles[PA] = (fixang) tirInfo.fvRot.y / 4 * (gameOpts->input.trackIR.sensitivity [1] + 1);
+		viewInfo.playerHeadAngles.h = (fixang) -tirInfo.fvRot.z / 4 * (gameOpts->input.trackIR.sensitivity [0] + 1);
+		viewInfo.playerHeadAngles.p = (fixang) tirInfo.fvRot.y / 4 * (gameOpts->input.trackIR.sensitivity [1] + 1);
 		}
 	else
-		viewInfo.playerHeadAngles[HA] = 
-		viewInfo.playerHeadAngles[PA] = 0;
+		viewInfo.playerHeadAngles.h = 
+		viewInfo.playerHeadAngles.p = 0;
 	if (gameOpts->input.trackIR.bMove [1])
-		viewInfo.playerHeadAngles[BA] = (fixang) tirInfo.fvRot.x / 4 * (gameOpts->input.trackIR.sensitivity [2] + 1);
+		viewInfo.playerHeadAngles.b = (fixang) tirInfo.fvRot.x / 4 * (gameOpts->input.trackIR.sensitivity [2] + 1);
 	else
-		viewInfo.playerHeadAngles[BA] = 0;
+		viewInfo.playerHeadAngles.b = 0;
 	}
 fDeadzone = 256.0f * gameOpts->input.trackIR.nDeadzone;
 fScale = 16384.0f / (16384.0f - fDeadzone);
@@ -1187,10 +1226,8 @@ gameStates.input.kcFrameTime = (float) gameStates.input.kcPollTime / kcFrameCoun
 #if 1
 nMaxTurnRate = (int) gameStates.input.kcFrameTime;
 #else
-nMaxTurnRate = (int) (gameStates.input.kcFrameTime * (1.0f - X2F (gameData.pig.ship.player->maxRotThrust)));
+nMaxTurnRate = (int) (gameStates.input.kcFrameTime * (1.0f - f2fl (gameData.pig.ship.player->maxRotThrust)));
 #endif
-if (CheckGameConfig ())
-	SDL_Delay (gameData.app.nFrameCount % 100);
 return 0;
 }
 
@@ -1260,16 +1297,16 @@ if (!gameOpts->legacy.bInput)
 #endif
 
 SetControlType ();
-bUseJoystick = gameOpts->input.joystick.bUse && ControlsReadJoystick (reinterpret_cast<int*> (&joyAxis [0]));
+bUseJoystick = gameOpts->input.joystick.bUse && ControlsReadJoystick ((int *) &joyAxis [0]);
 if (gameOpts->input.mouse.bUse)
 	if (gameStates.input.bCybermouseActive) {
 //		ReadOWL (kc_external_control);
 //		CybermouseAdjust ();
 		} 
 	else if (gameStates.input.nMouseType == CONTROL_CYBERMAN)
-		bUseMouse = ControlsReadCyberman (reinterpret_cast<int*> (&mouseAxis [0]), &nMouseButtons);
+		bUseMouse = ControlsReadCyberman ((int *) &mouseAxis [0], &nMouseButtons);
 	else
-		bUseMouse = ControlsReadMouse (reinterpret_cast<int*> (&mouseAxis [0]), &nMouseButtons);
+		bUseMouse = ControlsReadMouse ((int *) &mouseAxis [0], &nMouseButtons);
 else {
 	mouseAxis [0] =
 	mouseAxis [1] =
@@ -1280,12 +1317,11 @@ else {
 pitchTime = headingTime = 0;
 memset (Controls + 1, 0, 3 * sizeof (tControlInfo));
 for (i = 0; i < 3; i++) {
-	ControlsDoKeyboard (&bSlideOn, &bBankOn, &pitchTime, &headingTime, reinterpret_cast<int*> (&gameStates.input.nCruiseSpeed), i);
+	ControlsDoKeyboard (&bSlideOn, &bBankOn, &pitchTime, &headingTime, (int *) &gameStates.input.nCruiseSpeed, i);
 	if (bUseJoystick)
-		ControlsDoJoystick (&bSlideOn, &bBankOn, &pitchTime, &headingTime, reinterpret_cast<int*> (&gameStates.input.nCruiseSpeed), i);
+		ControlsDoJoystick (&bSlideOn, &bBankOn, &pitchTime, &headingTime, (int *) &gameStates.input.nCruiseSpeed, i);
 	if (bUseMouse)
-		ControlsDoMouse (reinterpret_cast<int*> (&mouseAxis [0]), nMouseButtons, &bSlideOn, &bBankOn, &pitchTime, &headingTime, 
-							  reinterpret_cast<int*> (&gameStates.input.nCruiseSpeed), i);
+		ControlsDoMouse ((int *) &mouseAxis [0], nMouseButtons, &bSlideOn, &bBankOn, &pitchTime, &headingTime, (int *) &gameStates.input.nCruiseSpeed, i);
 	Controls [0].pitchTime = Controls [1].pitchTime + Controls [2].pitchTime + Controls [3].pitchTime;
 	Controls [0].headingTime = Controls [1].headingTime + Controls [2].headingTime + Controls [3].headingTime;
 	Controls [0].bankTime = Controls [1].bankTime + Controls [2].bankTime + Controls [3].bankTime;
@@ -1294,13 +1330,13 @@ for (i = 0; i < 3; i++) {
 		}
 	}
 if (gameOpts->input.bUseHotKeys)
-	ControlsDoD2XKeys (&bSlideOn, &bBankOn, &pitchTime, &headingTime, reinterpret_cast<int*> (&gameStates.input.nCruiseSpeed), i);
+	ControlsDoD2XKeys (&bSlideOn, &bBankOn, &pitchTime, &headingTime, (int *) &gameStates.input.nCruiseSpeed, i);
 #ifdef WIN32
 if (ControlsReadTrackIR ())
 	ControlsDoTrackIR ();
 #endif
-if (gameStates.input.nCruiseSpeed > I2X (100)) 
-	gameStates.input.nCruiseSpeed = I2X (100);
+if (gameStates.input.nCruiseSpeed > i2f (100)) 
+	gameStates.input.nCruiseSpeed = i2f (100);
 else if (gameStates.input.nCruiseSpeed < 0) 
 	gameStates.input.nCruiseSpeed = 0;
 if (!Controls [0].forwardThrustTime)
@@ -1316,7 +1352,7 @@ if (nBankSensMod > 2) {
 //----------- Clamp values between -gameStates.input.kcPollTime and gameStates.input.kcPollTime
 if (gameStates.input.kcPollTime > F1_0) {
 #if TRACE
-	con_printf (1, "Bogus frame time of %.2f seconds\n", X2F (gameStates.input.kcPollTime));
+	con_printf (1, "Bogus frame time of %.2f seconds\n", f2fl (gameStates.input.kcPollTime));
 #endif
 	gameStates.input.kcPollTime = F1_0;
 	}
@@ -1353,13 +1389,13 @@ if (gameStates.render.nZoomFactor > F1_0) {
 	Controls [0].headingTime = (Controls [0].headingTime * 100) / r;
 	Controls [0].pitchTime = (Controls [0].pitchTime * 100) / r;
 	Controls [0].bankTime = (Controls [0].bankTime * 100) / r;
-#if DBG
+#ifdef _DEBUG
 	r = (int) ((double) gameStates.render.nZoomFactor * 100.0 / (double) F1_0);
 	HUDMessage (0, "x %d.%02d", r / 100, r % 100);
 #endif
 	}
 //	KCCLAMP (Controls [0].afterburnerTime, gameStates.input.kcPollTime);
-#if DBG
+#ifdef _DEBUG
 if (gameStates.input.keys.pressed [KEY_DELETE])
 	memset (&Controls, 0, sizeof (tControlInfo));
 #endif
@@ -1381,8 +1417,8 @@ gameStates.input.nCruiseSpeed=0;
 void CybermouseAdjust ()
  {
 /*	if (gameData.multiplayer.nLocalPlayer > -1)	{
-		OBJECTS [LOCALPLAYER.nObject].mType.physInfo.flags &= (~PF_TURNROLL);	// Turn off roll when turning
-		OBJECTS [LOCALPLAYER.nObject].mType.physInfo.flags &= (~PF_LEVELLING);	// Turn off leveling to nearest tSide.
+		gameData.objs.objects [LOCALPLAYER.nObject].mType.physInfo.flags &= (~PF_TURNROLL);	// Turn off roll when turning
+		gameData.objs.objects [LOCALPLAYER.nObject].mType.physInfo.flags &= (~PF_LEVELLING);	// Turn off leveling to nearest tSide.
 		gameOpts->gameplay.nAutoLeveling = 0;
 
 		if (kc_externalVersion > 0) {	
@@ -1390,14 +1426,14 @@ void CybermouseAdjust ()
 			vmsAngVec * Kconfig_abs_movement;
 			char * oem_message;
 
-			Kconfig_abs_movement = reinterpret_cast<vmsAngVec*> (((uint)kc_external_control + sizeof (tControlInfo));
+			Kconfig_abs_movement = (vmsAngVec *) ((uint)kc_external_control + sizeof (tControlInfo);
 
 			if (Kconfig_abs_movement->p || Kconfig_abs_movement->b || Kconfig_abs_movement->h)	{
 				VmAngles2Matrix (&tempm,Kconfig_abs_movement);
-				VmMatMul (&ViewMatrix,&OBJECTS [LOCALPLAYER.nObject].info.position.mOrient,&tempm);
-				OBJECTS [LOCALPLAYER.nObject].info.position.mOrient = ViewMatrix;	
+				VmMatMul (&ViewMatrix,&gameData.objs.objects [LOCALPLAYER.nObject].position.mOrient,&tempm);
+				gameData.objs.objects [LOCALPLAYER.nObject].position.mOrient = ViewMatrix;	
 			}
-			oem_message = reinterpret_cast<char*> (((uint)Kconfig_abs_movement + sizeof (vmsAngVec));
+			oem_message = (char *) ((uint)Kconfig_abs_movement + sizeof (vmsAngVec);
 			if (oem_message [0] != '\0')
 				HUDInitMessage (oem_message);
 		}

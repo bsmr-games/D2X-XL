@@ -1,3 +1,4 @@
+/* $Id: interp.c, v 1.14 2003/03/19 19:21:34 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -13,6 +14,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #ifdef HAVE_CONFIG_H
 #include <conf.h>
+#endif
+
+#ifdef RCS
+static char rcsid [] = "$Id: interp.c, v 1.14 2003/03/19 19:21:34 btb Exp $";
 #endif
 
 #include <math.h>
@@ -40,24 +45,24 @@ pm->nFaceVerts = pa->nFaces * 3;
 
 void G3GetASEModelItems (int nModel, tASEModel *pa, tG3Model *pm, float fScale)
 {
-	tASESubModelList	*pml = pa->subModels;
+	tASESubModelList	*pml = pa->pSubModels;
 	tASESubModel		*psa;
 	tASEFace				*pfa;
 	tG3SubModel			*psm;
-	tG3ModelFace		*pmf = pm->faces.Buffer ();
-	tG3ModelVertex		*pmv = pm->faceVerts.Buffer ();
-	CBitmap				*bmP;
+	tG3ModelFace		*pmf = pm->pFaces;
+	tG3ModelVertex		*pmv = pm->pFaceVerts;
+	grsBitmap			*bmP;
 	int					h, i, nFaces, iFace, nVerts = 0, nIndex = 0;
 	int					bTextured;
 
-for (pml = pa->subModels; pml; pml = pml->pNextModel) {
+for (pml = pa->pSubModels; pml; pml = pml->pNextModel) {
 	psa = &pml->sm;
-	psm = pm->subModels + psa->nId;
-#if DBG
+	psm = pm->pSubModels + psa->nId;
+#ifdef _DEBUG
 	strcpy (psm->szName, psa->szName);
 #endif
 	psm->nParent = psa->nParent;
-	psm->faces = pmf;
+	psm->pFaces = pmf;
 	psm->nFaces = nFaces = psa->nFaces;
 	psm->bGlow = psa->bGlow;
 	psm->bRender = psa->bRender;
@@ -74,38 +79,41 @@ for (pml = pa->subModels; pml; pml = pml->pNextModel) {
 	psm->iFrame = 0;
 	psm->tFrame = 0;
 	psm->nFrames = psa->bBarrel ? 32 : 0;
-	psm->vOffset = psa->vOffset.ToFix();
+	VmVecFloatToFix (&psm->vOffset, &psa->vOffset);
 	G3InitSubModelMinMax (psm);
-	for (pfa = psa->faces.Buffer (), iFace = 0; iFace < nFaces; iFace++, pfa++, pmf++) {
+	for (pfa = psa->pFaces, iFace = 0; iFace < nFaces; iFace++, pfa++, pmf++) {
 		pmf->nIndex = nIndex;
 #if 1
 		i = psa->nBitmap;
 #else
 		i = pfa->nBitmap;
 #endif
-		bmP = pa->textures.m_bitmaps + i;
-		bTextured = !bmP->Flat ();
+		bmP = pa->textures.pBitmaps + i;
+		bTextured = !bmP->bmFlat;
 		pmf->nBitmap = bTextured ? i : -1;
 		pmf->nVerts = 3;
 		pmf->nId = iFace;
-		pmf->vNormal = pfa->vNormal.ToFix();
+		VmVecFloatToFix (&pmf->vNormal, &pfa->vNormal);
 		for (i = 0; i < 3; i++, pmv++) {
 			h = pfa->nVerts [i];
 			if ((pmv->bTextured = bTextured))
 				pmv->baseColor.red =
 				pmv->baseColor.green =
 				pmv->baseColor.blue = 1;
-			else 
-				bmP->GetAvgColor (&pmv->baseColor);
+			else {
+				pmv->baseColor.red = (float) bmP->bmAvgRGB.red / 255.0f;
+				pmv->baseColor.green = (float) bmP->bmAvgRGB.green / 255.0f;
+				pmv->baseColor.blue = (float) bmP->bmAvgRGB.blue / 255.0f;
+				}
 			pmv->baseColor.alpha = 1;
 			pmv->renderColor = pmv->baseColor;
-			pmv->normal = psa->verts [h].normal;
-			pmv->vertex = psa->verts [h].vertex * fScale;
-			if (psa->texCoord.Buffer ())
-				pmv->texCoord = psa->texCoord [pfa->nTexCoord [i]];
+			pmv->normal = psa->pVerts [h].normal;
+			VmVecScale (&pmv->vertex, &psa->pVerts [h].vertex, fScale);
+			if (psa->pTexCoord)
+				pmv->texCoord = psa->pTexCoord [pfa->nTexCoord [i]];
 			h += nVerts;
-			pm->verts [h] = pmv->vertex;
-			pm->vertNorms [h] = pmv->normal;
+			pm->pVerts [h] = pmv->vertex;
+			pm->pVertNorms [h] = pmv->normal;
 			pmv->nIndex = h;
 			G3SetSubModelMinMax (psm, &pmv->vertex);
 			nIndex++;
@@ -117,7 +125,7 @@ for (pml = pa->subModels; pml; pml = pml->pNextModel) {
 
 //------------------------------------------------------------------------------
 
-int G3BuildModelFromASE (CObject *objP, int nModel)
+int G3BuildModelFromASE (tObject *objP, int nModel)
 {
 	tASEModel	*pa = gameData.models.modelToASE [1][nModel];
 	tG3Model		*pm;
@@ -128,7 +136,7 @@ if (!pa) {
 	if (!pa)
 		return 0;
 	}
-#if DBG
+#ifdef _DEBUG
 HUDMessage (0, "optimizing model");
 #endif
 PrintLog ("         optimizing ASE model %d\n", nModel);
@@ -137,13 +145,12 @@ G3CountASEModelItems (pa, pm);
 if (!G3AllocModel (pm))
 	return 0;
 G3GetASEModelItems (nModel, pa, pm, 1.0f); //(nModel == 108) || (nModel == 110)) ? 1.145f : 1.0f);
-pm->textures = pa->textures.m_bitmaps;
-pm->nTextures = pa->textures.m_nBitmaps;
+pm->pTextures = pa->textures.pBitmaps;
+pm->nTextures = pa->textures.nBitmaps;
 memset (pm->teamTextures, 0xFF, sizeof (pm->teamTextures));
 for (i = 0; i < pm->nTextures; i++)
-	if ((j = (int) pm->textures [i].Team ()))
+	if ((j = (int) pm->pTextures [i].bmTeam))
 		pm->teamTextures [j - 1] = i;
-pm->nType = 2;
 gameData.models.polyModels [nModel].rad = G3ModelSize (objP, pm, nModel, 1);
 G3SetupModel (pm, 1, 1);
 #if 1

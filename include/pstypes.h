@@ -1,3 +1,4 @@
+/* $Id: pstypes.h,v 1.33 2005/01/25 21:20:29 schaffner Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -31,7 +32,6 @@ typedef unsigned char ubyte;
 #if defined(_WIN32)
 typedef unsigned short ushort;
 typedef unsigned int uint;
-typedef unsigned long ulong;
 #endif
 
 #if defined(_WIN32) || defined(__sun__) // platforms missing (u_)int??_t
@@ -53,14 +53,14 @@ typedef unsigned long ulong;
 #endif
 
 #ifdef _WIN32
-# include <stdlib.h> // this is where minand max are defined
+# include <stdlib.h> // this is where min and max are defined
 #endif
-//#ifndef min
-//#	define min(a,b) (((a)>(b))?(b):(a))
-//#endif
-//#ifndef max
-//#	define max(a,b) (((a)<(b))?(b):(a))
-//#endif
+#ifndef min
+#	define min(a,b) (((a)>(b))?(b):(a))
+#endif
+#ifndef max
+#	define max(a,b) (((a)<(b))?(b):(a))
+#endif
 
 #if defined(_WIN32)
 # ifdef __MINGW32__
@@ -81,7 +81,7 @@ typedef unsigned long ulong;
 #endif
 
 #ifdef __macosx__
-#	define ushort ushort
+#	define ushort unsigned short
 #endif
 
 #ifndef NULL

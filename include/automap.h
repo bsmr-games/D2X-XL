@@ -1,3 +1,4 @@
+/* $Id: automap.h,v 1.4 2003/11/15 00:36:54 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -28,7 +29,5 @@ extern ubyte bAutomapVisited [MAX_SEGMENTS_D2X];
 										 (GetTeam (gameData.multiplayer.nLocalPlayer) == GetTeam (_i)))
 #define AM_SHOW_ROBOTS			EGI_FLAG (bRobotsOnRadar, 0, 1, 0)
 #define AM_SHOW_POWERUPS(_i)	((EGI_FLAG (bPowerupsOnRadar, 0, 1, 0) >= (_i)) && (!IsMultiGame || IsCoopGame))
-
-void InitAutomapData (void);
 
 #endif //_AUTOMAP_H

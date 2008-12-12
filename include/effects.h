@@ -1,3 +1,4 @@
+/* $Id: effects.h,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -70,13 +71,16 @@ void StopEffect(int effect_num);
 //restart a stopped effect
 void RestartEffect(int effect_num);
 
+#if 0
+#define EClipReadN(ec, n, fp) CFRead(ec, sizeof(tEffectClip), n, fp)
+#else
 /*
  * reads n tEffectClip structs from a CFILE
  */
-void ReadEffectClip (tEffectClip& ec, CFile& cf);
-int ReadEffectClips (CArray<tEffectClip>& ec, int n, CFile& cf);
+extern int EClipReadN(tEffectClip *ec, int n, CFILE *fp);
+#endif
 
-CBitmap *SetupHiresAnim (short *frameP, int nFrames, int nBaseTex, int bIndirect, int bObj, int *pnFrames);
+grsBitmap *SetupHiresAnim (short *frameP, int nFrames, int nBaseTex, int bIndirect, int bObj, int *pnFrames);
 void ResetPogEffects (void);
 void CacheObjectEffects (void);
 

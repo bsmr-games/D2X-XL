@@ -6,13 +6,13 @@
 //------------------------------------------------------------------------------
 
 #define	SHOW_SMOKE	\
-			(!gameStates.app.bNostalgia && EGI_FLAG (bUseParticles, 1, 1, 0))
+			(!gameStates.app.bNostalgia && EGI_FLAG (bUseSmoke, 1, 1, 0))
 
 #define MAX_SHRAPNEL_LIFE	(2 * F1_0)
 
 #define SHIP_MAX_PARTS				50
 #define PLR_PART_LIFE				-4000
-#define PLR_PART_SPEED				50
+#define PLR_PART_SPEED				40
 
 #define BOT_MAX_PARTS				250
 #define BOT_PART_LIFE				-6000
@@ -20,7 +20,7 @@
 
 #define MSL_MAX_PARTS				500
 #define MSL_PART_LIFE				-3000
-#define MSL_PART_SPEED				50
+#define MSL_PART_SPEED				30
 
 #define LASER_MAX_PARTS				250
 #define LASER_PART_LIFE				-750
@@ -32,7 +32,7 @@
 
 #define DEBRIS_MAX_PARTS			250
 #define DEBRIS_PART_LIFE			-2000
-#define DEBRIS_PART_SPEED			50
+#define DEBRIS_PART_SPEED			30
 
 #define STATIC_SMOKE_MAX_PARTS	1000
 #define STATIC_SMOKE_PART_LIFE	-3200
@@ -46,39 +46,39 @@ void KillPlayerSmoke (int i);
 void ResetPlayerSmoke (void);
 void InitObjectSmoke (void);
 void ResetObjectSmoke (void);
-void KillPlayerBullets (CObject *objP);
-void KillGatlingSmoke (CObject *objP);
+void KillPlayerBullets (tObject *objP);
 //static inline int RandN (int n);
 void CreateDamageExplosion (int h, int i);
-void DoPlayerSmoke (CObject *objP, int i);
-void DoRobotSmoke (CObject *objP);
-void DoMissileSmoke (CObject *objP);
-int DoObjectSmoke (CObject *objP);
+void DoPlayerSmoke (tObject *objP, int i);
+void DoRobotSmoke (tObject *objP);
+void DoMissileSmoke (tObject *objP);
+int DoObjectSmoke (tObject *objP);
 void PlayerSmokeFrame (void);
 void RobotSmokeFrame (void);
-void DoParticleFrame (void);
+void DoSmokeFrame (void);
+void DoSmokeFrame (void);
 void InitObjectSmoke (void);
 void ResetPlayerSmoke (void);
 void ResetRobotSmoke (void);
 
-int CreateShrapnels (CObject *parentObjP);
-void DestroyShrapnels (CObject *objP);
-int UpdateShrapnels (CObject *objP);
-void DrawShrapnels (CObject *objP);
+int CreateShrapnels (tObject *parentObjP);
+void DestroyShrapnels (tObject *objP);
+int UpdateShrapnels (tObject *objP);
+void DrawShrapnels (tObject *objP);
 
 //------------------------------------------------------------------------------
 
-#if DBG
+#ifdef _DEBUG
 
-void KillObjectParticleSystem (int i);
+void KillObjectSmoke (int i);
 
 #else
 
 static inline void KillObjectSmoke (int i)
 {
-if ((i >= 0) && (particleManager.GetObjectSystem (i) >= 0)) {
-	particleManager.SetLife (particleManager.GetObjectSystem (i), 0);
-	particleManager.SetObjectSystem (i, -1);
+if ((i >= 0) && (gameData.smoke.objects [i] >= 0)) {
+	SetSmokeLife (gameData.smoke.objects [i], 0);
+	gameData.smoke.objects [i] = -1;
 	}
 }
 

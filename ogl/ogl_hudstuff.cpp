@@ -21,7 +21,6 @@
 
 #include "inferno.h"
 #include "error.h"
-#include "u_mem.h"
 #include "maths.h"
 #include "mouse.h"
 #include "input.h"
@@ -34,7 +33,7 @@
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpDeadzone = NULL;
+grsBitmap *bmpDeadzone = NULL;
 int bHaveDeadzone = 0;
 
 int LoadDeadzone (void)
@@ -51,7 +50,8 @@ return bHaveDeadzone > 0;
 void FreeDeadzone (void)
 {
 if (bmpDeadzone) {
-	delete bmpDeadzone;
+	GrFreeBitmap (bmpDeadzone);
+	bmpDeadzone = NULL;
 	bHaveDeadzone = 0;
 	}
 }
@@ -60,7 +60,7 @@ if (bmpDeadzone) {
 
 void OglDrawMouseIndicator (void)
 {
-	float 	scale = (float) screen.Width () / (float) screen.Height ();
+	float 	scale = (float) grdCurScreen->scWidth / (float) grdCurScreen->scHeight;
 
 	static tSinCosf sinCos30 [30];
 	static tSinCosf sinCos12 [12];
@@ -82,26 +82,26 @@ glCallList (mouseIndList);
 else {
 	glNewList (mouseIndList, GL_COMPILE_AND_EXECUTE);
 #endif
-	glEnable (GL_LINE_SMOOTH);
+	glEnable (GL_SMOOTH);
 	glColor4f (1.0f, 0.8f, 0.0f, 0.9f);
 	glPushMatrix ();
 	glTranslatef ((float) (mouseData.x) / (float) SWIDTH, 1.0f - (float) (mouseData.y) / (float) SHEIGHT, 0);
 	glScalef (scale / 320.0f, scale / 200.0f, scale);//the positions are based upon the standard reticle at 320x200 res.
 	glLineWidth (3);
-	OglDrawEllipse (12, GL_LINE_LOOP, 1.5f, 0, 1.5f * (float) screen.Height () / (float) screen.Width (), 0, sinCos12);
+	OglDrawEllipse (12, GL_LINE_LOOP, 1.5f, 0, 1.5f * (float) grdCurScreen->scHeight / (float) grdCurScreen->scWidth, 0, sinCos12);
 	glPopMatrix ();
 	glPushMatrix ();
 	glTranslatef (0.5f, 0.5f, 0);
 	if (LoadDeadzone ()) {
-		tCanvasColor c = {-1, 1, {255, 255, 255, 128}};
+		grsColor c = {-1, 1, {255, 255, 255, 128}};
 		OglUBitMapMC (0, 0, 16, 16, bmpDeadzone, &c, 1, 0);
 		r = (float) CalcDeadzone (0, gameOpts->input.mouse.nDeadzone);
-		w = r / (float) screen.Width ();
-		h = r / (float) screen.Height ();
+		w = r / (float) grdCurScreen->scWidth;
+		h = r / (float) grdCurScreen->scHeight;
 		glEnable (GL_TEXTURE_2D);
-		if (bmpDeadzone->Bind (1, -1)) 
+		if (OglBindBmTex (bmpDeadzone, 1, -1)) 
 			return;
-		bmpDeadzone->Texture ()->Wrap (GL_CLAMP);
+		OglTexWrap (bmpDeadzone->glTexture, GL_CLAMP);
 		glColor4f (1.0f, 1.0f, 1.0f, 0.8f / (float) gameOpts->input.mouse.nDeadzone);
 		glBegin (GL_QUADS);
 		glTexCoord2f (0, 0);
@@ -121,10 +121,10 @@ else {
 		glColor4d (1.0f, 0.8, 0.0f, 1.0f / (3.0f + 0.5 * gameOpts->input.mouse.nDeadzone));
 		glLineWidth ((GLfloat) (4 + 2 * gameOpts->input.mouse.nDeadzone));
 		r = (float) CalcDeadzone (0, gameOpts->input.mouse.nDeadzone) / 4;
-		OglDrawEllipse (30, GL_LINE_LOOP, r, 0, r * (float) screen.Height () / (float) screen.Width (), 0, sinCos30);
+		OglDrawEllipse (30, GL_LINE_LOOP, r, 0, r * (float) grdCurScreen->scHeight / (float) grdCurScreen->scWidth, 0, sinCos30);
 		}
 	glPopMatrix ();
-	glDisable (GL_LINE_SMOOTH);
+	glDisable (GL_SMOOTH);
 	glLineWidth (1);
 #if 0
 	glEndList ();
@@ -141,7 +141,7 @@ float darker_g [4]={32.0f/256, 128.0f/256, 32.0f/256, 1.0f};
 
 void OglDrawReticle (int cross, int primary, int secondary)
 {
-	float scale = (float)nCanvasHeight / (float) screen.Height ();
+	float scale = (float)nCanvasHeight / (float) grdCurScreen->scHeight;
 
 	static tSinCosf sinCos8 [8];
 	static tSinCosf sinCos12 [12];
@@ -157,15 +157,14 @@ if (bInitSinCos) {
 glPushMatrix ();
 //	glTranslated (0.5, 0.5, 0);
 glTranslated (
-	(CCanvas::Current ()->Width ()/2+CCanvas::Current ()->Left ()) / (float) gameStates.ogl.nLastW, 
-	1.0f - (CCanvas::Current ()->Height ()/ ((gameStates.render.cockpit.nMode == CM_FULL_COCKPIT) ? 2 : 2) +
-	CCanvas::Current ()->Top ()) / (float) gameStates.ogl.nLastH, 
+	(grdCurCanv->cvBitmap.bmProps.w/2+grdCurCanv->cvBitmap.bmProps.x) / (float) gameStates.ogl.nLastW, 
+	1.0f - (grdCurCanv->cvBitmap.bmProps.h/ ((gameStates.render.cockpit.nMode == CM_FULL_COCKPIT) ? 2 : 2)+grdCurCanv->cvBitmap.bmProps.y)/ (float)gameStates.ogl.nLastH, 
 	0);
 glScaled (scale/320.0f, scale/200.0f, scale);//the positions are based upon the standard reticle at 320x200 res.
 glDisable (GL_TEXTURE_2D);
 
 glLineWidth (5);
-glEnable (GL_LINE_SMOOTH);
+glEnable (GL_SMOOTH);
 if (cross_lh [cross])
 	glCallList (cross_lh [cross]);
 else {
@@ -249,7 +248,7 @@ else {
 		}
 	glEndList ();
 	}
-glDisable (GL_LINE_SMOOTH);
+glDisable (GL_SMOOTH);
 glLineWidth (1);
 glPopMatrix ();
 }

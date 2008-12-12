@@ -1,3 +1,4 @@
+/* $Id: globvars.c,v 1.4 2002/07/17 21:55:19 bradleyb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,10 +16,14 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: globvars.c,v 1.4 2002/07/17 21:55:19 bradleyb Exp $";
+#endif
+
 #include "3d.h"
 #include "globvars.h"
 
-CViewInfo	viewInfo;
+tViewInfo	viewInfo;
 
 int			nCanvasWidth;		//the actual width
 int			nCanvasHeight;		//the actual height
@@ -26,8 +31,10 @@ int			nCanvasHeight;		//the actual height
 fix			xCanvW2;				//fixed-point width/2
 fix			xCanvH2;				//fixed-point height/2
 
+#ifdef __powerc
 double		fxCanvW2;
 double		fxCanvH2;
+#endif
 
 //vertex buffers for polygon drawing and clipping
 g3sPoint * Vbuf0[MAX_POINTS_IN_POLY];

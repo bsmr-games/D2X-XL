@@ -51,11 +51,11 @@ struct sound_slot {
  int looped;    // Play this sample looped?
  fix pan;       // 0 = far left, 1 = far right
  fix volume;    // 0 = nothing, 1 = fully on
- //changed on 980905 by adb from char * to ubyte * 
- ubyte *samples;
+ //changed on 980905 by adb from char * to unsigned char * 
+ unsigned char *samples;
  //end changes by adb
- uint length; // Length of the sample
- uint position; // Position we are at at the moment.
+ unsigned int length; // Length of the sample
+ unsigned int position; // Position we are at at the moment.
  LPDIRECTSOUNDBUFFER lpsb;
 } SoundSlots[MAX_SOUND_SLOTS];
 
@@ -182,8 +182,8 @@ int D1vol2DSvol(fix d1v){
 	 if (d1v<=0)
 		 return -10000;
 	 else
-//		 return log2(X2F(d1v))*1000;//no log2? hm.
-		 return log(X2F(d1v))/log(2)*1000.0;
+//		 return log2(f2fl(d1v))*1000;//no log2? hm.
+		 return log(f2fl(d1v))/log(2)*1000.0;
 }
 
 // Volume 0-F1_0
@@ -205,14 +205,17 @@ TryNextChannel:
 	{
 		if ((SoundSlots[SampleHandles[next_handle]].volume > gameStates.sound.digi.nVolume) && (ntries < gameStates.sound.digi.nMaxChannels))
 		{
+			//mprintf((0, "Not stopping loud sound %d.\n", next_handle));
 			next_handle++;
 			if (next_handle >= gameStates.sound.digi.nMaxChannels)
 				next_handle = 0;
 			ntries++;
 			goto TryNextChannel;
 		}
+		//mprintf((0, "[SS:%d]", next_handle));
 		SampleHandles[next_handle] = -1;
 	}
+	// end edit by adb
 
 	slot = get_free_slot();
 	if (slot < 0)
@@ -223,7 +226,7 @@ TryNextChannel:
 	SoundSlots[slot].length = Sounddat(nSound)->length;
 	SoundSlots[slot].volume = FixMul(gameStates.sound.digi.nVolume, volume);
 	SoundSlots[slot].pan = pan;
-	SoundSlots[slot].info.position.vPosition = 0;
+	SoundSlots[slot].position.vPosition = 0;
 	SoundSlots[slot].looped = 0;
 	SoundSlots[slot].playing = 1;
 
@@ -259,7 +262,7 @@ TryNextChannel:
 		IDirectSoundBuffer_Unlock(SoundSlots[slot].lpsb, ptr1, len1, ptr2, len2);
 	}
 
-	IDirectSoundBuffer_SetPan(SoundSlots[slot].lpsb, ((int)(X2F(pan) * 20000.0)) - 10000);
+	IDirectSoundBuffer_SetPan(SoundSlots[slot].lpsb, ((int)(f2fl(pan) * 20000.0)) - 10000);
 	IDirectSoundBuffer_SetVolume(SoundSlots[slot].lpsb, D1vol2DSvol(SoundSlots[slot].volume));
 	IDirectSoundBuffer_Play(SoundSlots[slot].lpsb, 0, 0, 0);
 
@@ -507,7 +510,7 @@ void DigiPauseMidi() {}
 void DigiResumeMidi() {}
 #endif
 
-#if DBG
+#ifdef _DEBUG
 void DigiDebug()
 {
 	int i;
@@ -521,5 +524,8 @@ void DigiDebug()
 		if (DigiIsChannelPlaying(i))
 			n_voices++;
 	}
+
+	mprintf_at((0, 2, 0, "DIGI: Active Sound Channels: %d/%d (HMI says %d/32)      ", n_voices, gameStates.sound.digi.nMaxChannels, -1));
+	//mprintf_at((0, 3, 0, "DIGI: Number locked sounds:  %d                          ", digiTotal_locks ));
 }
 #endif

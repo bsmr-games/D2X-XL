@@ -1,3 +1,4 @@
+/* $Id: netmisc.h,v 1.5 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -39,8 +40,8 @@ void BEReceiveNetGamePacket(ubyte *data, tNetgameInfo *netgame, int liteFlag);
 void BESendExtraGameInfo(ubyte *server, ubyte *node, ubyte *netAddress);
 void BEReceiveExtraGameInfo(ubyte *data, tExtraGameInfo *extraGameInfo);
 void BESendMissingObjFrames(ubyte *server, ubyte *node, ubyte *netAddress);
-void BEReceiveMissingObjFrames(ubyte *data, tMissingObjFrames *missingObjFrames);
-void BESwapObject (CObject *obj);
+void BEReceiveMissingObjFrames(ubyte *data, tMissingObjFrames *extraGameInfo);
+void BESwapObject (tObject *obj);
 
 #if defined(WORDS_BIGENDIAN) || defined(__BIG_ENDIAN__)
 
@@ -93,8 +94,8 @@ void BESwapObject (CObject *obj);
 
 #define SendBroadcastMissingObjFramesPacket() \
 	BESendMissingObjFrames(NULL, NULL, NULL)
-#define ReceiveMissingObjFramesPacket(data, missingObjFrames) \
-	BEReceiveMissingObjFrames((ubyte *) data, missingObjFrames);
+#define ReceiveMissingObjFramesPacket(data, _extraGameInfo) \
+	BEReceiveMissingObjFrames(data, _extraGameInfo);
 #define SendInternetMissingObjFramesPacket(server, node) \
 	BESendMissingObjFrames(server, node, NULL)
 
@@ -141,11 +142,11 @@ void BESwapObject (CObject *obj);
 	memcpy((ubyte *)(_extraGameInfo), data, sizeof(tExtraGameInfo))
 
 #define SendMissingObjFramesPacket(server, node, netAddress) \
-	IPXSendPacketData((ubyte *) &networkData.sync.objs.missingFrames, sizeof(tMissingObjFrames), server, node, netAddress)
+	IPXSendPacketData((ubyte *) &networkData.missingObjFrames, sizeof(tMissingObjFrames), server, node, netAddress)
 #define SendInternetMissingObjFramesPacket(server, node) \
-	IPXSendInternetPacketData((ubyte *) &networkData.sync [0].objs.missingFrames, sizeof(tMissingObjFrames), server, node)
+	IPXSendInternetPacketData((ubyte *) &networkData.missingObjFrames, sizeof(tMissingObjFrames), server, node)
 #define SendBroadcastMissingObjFramesPacket() \
-	IPXSendBroadcastData((ubyte *) &networkData.sync [0].objs.missingFrames, sizeof(tMissingObjFrames))
+	IPXSendBroadcastData((ubyte *) &networkData.missingObjFrames, sizeof(tMissingObjFrames))
 #define ReceiveMissingObjFramesPacket(data, _missingObjFrames) \
 	memcpy((ubyte *)(_missingObjFrames), data, sizeof(tMissingObjFrames))
 

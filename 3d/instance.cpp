@@ -1,3 +1,4 @@
+/* $Id: instance.c,v 1.4 2002/07/17 21:55:19 bradleyb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -7,7 +8,7 @@ IN USING, DISPLAYING,  AND CREATING DERIVATIVE WORKS THEREOF, SO LONG AS
 SUCH USE, DISPLAY OR CREATION IS FOR NON-COMMERCIAL, ROYALTY OR REVENUE
 FREE PURPOSES.  IN NO EVENT SHALL THE END-USER USE THE COMPUTER CODE
 CONTAINED HEREIN FOR REVENUE-BEARING PURPOSES.  THE END-USER UNDERSTANDS
-AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.
+AND AGREES TO THE TERMS HEREIN AND ACCEPTS THE SAME BY USE OF THIS FILE.  
 COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
@@ -28,7 +29,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define MAX_INSTANCE_DEPTH	10
 
-struct CViewInfo instanceStack [MAX_INSTANCE_DEPTH];
+struct tViewInfo instanceStack [MAX_INSTANCE_DEPTH];
 
 int nInstanceDepth = 0;
 
@@ -48,7 +49,7 @@ glMultMatrixf (pm);
 
 //------------------------------------------------------------------------------
 
-void VmsMove(const CFixVector& pv)
+void VmsMove (vmsVector *pv)
 {
 glVectorf p;
 OglMove (OOF_VecVms2Gl (p, pv));
@@ -56,20 +57,20 @@ OglMove (OOF_VecVms2Gl (p, pv));
 
 //------------------------------------------------------------------------------
 
-inline void VmsRot(const vmsMatrix& pm)
+inline void VmsRot (vmsMatrix *pm)
 {
 glMatrixf m;
 
 memset (m, 0, sizeof (m));
-m [0] = X2F (pm[RVEC][X]);
-m [1] = X2F (pm[RVEC][Y]);
-m [2] = X2F (pm[RVEC][Z]);
-m [4] = X2F (pm[UVEC][X]);
-m [5] = X2F (pm[UVEC][Y]);
-m [6] = X2F (pm[UVEC][Z]);
-m [8] = X2F (pm[FVEC][X]);
-m [9] = X2F (pm[FVEC][Y]);
-m [10] = X2F (pm[FVEC][Z]);
+m [0] = f2fl (pm->rVec.p.x);
+m [1] = f2fl (pm->rVec.p.y);
+m [2] = f2fl (pm->rVec.p.z);
+m [4] = f2fl (pm->uVec.p.x);
+m [5] = f2fl (pm->uVec.p.y);
+m [6] = f2fl (pm->uVec.p.z);
+m [8] = f2fl (pm->fVec.p.x);
+m [9] = f2fl (pm->fVec.p.y);
+m [10] = f2fl (pm->fVec.p.z);
 m [15] = 1;
 OglRot (m);
 }
@@ -81,12 +82,6 @@ int G3PushMatrix (void)
 if (nInstanceDepth >= MAX_INSTANCE_DEPTH)
 	return 0;
 instanceStack [nInstanceDepth++] = viewInfo;
-#if 0
-glMatrixMode (GL_PROJECTION);
-glPushMatrix ();
-#endif
-glMatrixMode (GL_MODELVIEW);
-glPushMatrix ();
 return 1;
 }
 
@@ -97,73 +92,74 @@ int G3PopMatrix (void)
 if (nInstanceDepth <= 0)
 	return 0;
 viewInfo = instanceStack [--nInstanceDepth];
-#if 0
-glMatrixMode (GL_PROJECTION);
-glPopMatrix ();
-#endif
-glMatrixMode (GL_MODELVIEW);
-glPopMatrix ();
 return 1;
 }
 
 //------------------------------------------------------------------------------
 //instance at specified point with specified orientation
-//if matrix==NULL, don't modify matrix.  This will be like doing an offset
-void G3StartInstanceMatrix(const CFixVector& vPos, const vmsMatrix& mOrient)
+//if matrix==NULL, don't modify matrix.  This will be like doing an offset   
+void G3StartInstanceMatrix (vmsVector *vPos, vmsMatrix *mOrient)
 {
-	CFixVector	vOffs;
+	vmsVector	vOffs;
 	vmsMatrix	mTrans, mRot;
+
+if (gameStates.ogl.bUseTransform) {
+	vmsVector	h;
+
+	glMatrixMode (GL_MODELVIEW);
+	glPushMatrix ();
+	if (nInstanceDepth) {
+		glScalef (-1.0f, -1.0f, -1.0f);
+		VmsMove (vPos);
+		glScalef (-1.0f, -1.0f, -1.0f);
+		if (mOrient)
+			VmsRot (mOrient);
+		}
+	else {
+		glLoadIdentity ();
+		//glScalef (f2fl (viewInfo.scale.p.x), f2fl (viewInfo.scale.p.y), -f2fl (viewInfo.scale.p.z));
+		glScalef (1, 1, -1);
+		OglRot (viewInfo.glViewf);
+		VmVecSub (&h, &viewInfo.pos, vPos);
+		VmsMove (&h);
+		if (gameData.models.nScale) {
+			float fScale = f2fl (gameData.models.nScale);
+			glScalef (fScale, fScale, fScale);
+			}
+		if (mOrient)
+			VmsRot (mOrient);
+		}
+	}
 
 //Assert (nInstanceDepth < MAX_INSTANCE_DEPTH);
 if (!G3PushMatrix ())
 	return;
-if (gameStates.ogl.bUseTransform) {
-	CFixVector	h;
-
-	if (nInstanceDepth > 1) {
-		glScalef (-1.0f, -1.0f, -1.0f);
-		VmsMove (vPos);
-		glScalef (-1.0f, -1.0f, -1.0f);
-		VmsRot (mOrient);
-	}
-	else {
-		glLoadIdentity ();
-		//glScalef (X2F (viewInfo.scale.p.x), X2F (viewInfo.scale.p.y), -X2F (viewInfo.scale.p.z));
-		glScalef (1, 1, -1);
-		OglRot (viewInfo.glViewf);
-		h = viewInfo.pos - vPos;
-		VmsMove (h);
-		VmsRot (mOrient);
-		if (!gameData.models.vScale.IsZero ()) {
-			CFloatVector fScale = gameData.models.vScale.ToFloat ();
-			glScalef (fScale [X], fScale [Y], fScale [Z]);
-			}
-		}
-	}
-
 //step 1: subtract object position from view position
-vOffs = viewInfo.pos - vPos;
-
+VmVecSub (&vOffs, &viewInfo.pos, vPos);
+if (mOrient) {
 	int i;
-	//step 2: rotate view vector through CObject matrix
-	viewInfo.pos = mOrient * vOffs;
-	//step 3: rotate CObject matrix through view_matrix (vm = ob * vm)
-	mTrans = mOrient.Transpose ();
+	//step 2: rotate view vector through tObject matrix
+	VmVecRotate (&viewInfo.pos, &vOffs, mOrient);
+	//step 3: rotate tObject matrix through view_matrix (vm = ob * vm)
+	VmCopyTransposeMatrix (&mTrans, mOrient);
 	for (i = 0; i < 2; i++) {
-		mRot = mTrans * viewInfo.view [i];
+		VmMatMul (&mRot, &mTrans, viewInfo.view + i);
 		viewInfo.view [i] = mRot;
-		viewInfo.viewf [i] = viewInfo.view [i].ToFloat ();
+		VmsMatToFloat (viewInfo.viewf + i, viewInfo.view + i);
 		}
-
-viewInfo.posf = viewInfo.pos.ToFloat();
+	}
+VmVecFixToFloat (&viewInfo.posf, &viewInfo.pos);
 }
 
 //------------------------------------------------------------------------------
 //instance at specified point with specified orientation
 //if angles==NULL, don't modify matrix.  This will be like doing an offset
-void G3StartInstanceAngles (const CFixVector& pos, const vmsAngVec& angles) 
+void G3StartInstanceAngles (vmsVector *pos, vmsAngVec *angles)
 {
-G3StartInstanceMatrix(pos, vmsMatrix::Create(angles));
+	vmsMatrix tm;
+
+VmAngles2Matrix (&tm, angles ? angles : &avZero);
+G3StartInstanceMatrix (pos, &tm);
 }
 
 //------------------------------------------------------------------------------
@@ -172,14 +168,12 @@ void G3DoneInstance ()
 {
 if (!G3PopMatrix ())
 	return;
-#if 0
 if (gameStates.ogl.bUseTransform) {
 	glMatrixMode (GL_MODELVIEW);
 	glPopMatrix ();
 	}
 VmVecFixToFloat (&viewInfo.posf, &viewInfo.pos);
 VmsMatToFloat (viewInfo.viewf, viewInfo.view);
-#endif
 }
 
 //------------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 #include <string.h> // for mem* functions
 #ifndef _WIN32
-#	include <unistd.h>
-#	include <sys/types.h>
-#	include <sys/stat.h>
-#	include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #endif
 
 #include "mvelib.h"
@@ -21,8 +21,8 @@ mve_cb_SetPalette mve_setpalette;
 
 // private utility functions
 
-static short _mve_get_short (ubyte *data);
-static ushort _mve_get_ushort (ubyte *data);
+static short _mve_get_short (unsigned char *data);
+static unsigned short _mve_get_ushort (unsigned char *data);
 
 // private functions for mvefile
 
@@ -112,7 +112,7 @@ return _mve_get_short (movie->cur_chunk + movie->next_segment);
 //-----------------------------------------------------------------------
 // get nType of next tSegment in chunk (0xff if no more segments in chunk)
 
-ubyte mvefile_get_next_segmentMajor (MVEFILE *movie)
+unsigned char mvefile_get_next_segmentMajor (MVEFILE *movie)
 {
 // if nothing is cached, fail
 if (movie->cur_chunk == NULL  ||  movie->next_segment >= movie->cur_fill)
@@ -128,7 +128,7 @@ return movie->cur_chunk[movie->next_segment + 2];
 // get subtype (version) of next tSegment in chunk (0xff if no more segments in
 // chunk)
 
-ubyte mvefile_get_next_segmentMinor (MVEFILE *movie)
+unsigned char mvefile_get_next_segmentMinor (MVEFILE *movie)
 {
 // if nothing is cached, fail
 if (movie->cur_chunk == NULL  ||  movie->next_segment >= movie->cur_fill)
@@ -143,7 +143,7 @@ return movie->cur_chunk[movie->next_segment + 3];
 //-----------------------------------------------------------------------
 // see next tSegment (return NULL if no next tSegment)
 
-ubyte *mvefile_get_next_segment (MVEFILE *movie)
+unsigned char *mvefile_get_next_segment (MVEFILE *movie)
 {
 // if nothing is cached, fail
 if (movie->cur_chunk == NULL  ||  movie->next_segment >= movie->cur_fill)
@@ -221,7 +221,7 @@ _mvestream_reset (movie);
 //-----------------------------------------------------------------------
 // set tSegment nType handler
 
-void mve_set_handler (MVESTREAM *movie, ubyte major, MVESEGMENTHANDLER handler)
+void mve_set_handler (MVESTREAM *movie, unsigned char major, MVESEGMENTHANDLER handler)
 {
 if (major < 32)
 	movie->handlers[major] = handler;
@@ -240,8 +240,8 @@ movie->context = context;
 
 int mve_play_next_chunk (MVESTREAM *movie)
 {
-    ubyte major, minor;
-    ubyte *data;
+    unsigned char major, minor;
+    unsigned char *data;
     int len;
 
 // loop over segments
@@ -274,7 +274,7 @@ return 1;
 
 static MVEFILE *_mvefile_alloc (void)
 {
-MVEFILE *file = reinterpret_cast<MVEFILE*> (mve_alloc (sizeof (MVEFILE)));
+MVEFILE *file = (MVEFILE *)mve_alloc (sizeof (MVEFILE));
 file->stream = NULL;
 file->cur_chunk = NULL;
 file->buf_size = 0;
@@ -284,13 +284,13 @@ return file;
 }
 
 //-----------------------------------------------------------------------
-// free an MVE file
+// D2_FREE an MVE file
 
 static void _mvefile_free (MVEFILE *movie)
 {
-// free the stream
+// D2_FREE the stream
 movie->stream = NULL;
-// free the buffer
+// D2_FREE the buffer
 if (movie->cur_chunk)
 	mve_free (movie->cur_chunk);
 movie->cur_chunk = NULL;
@@ -298,12 +298,12 @@ movie->cur_chunk = NULL;
 movie->buf_size = 0;
 movie->cur_fill = 0;
 movie->next_segment = 0;
-// free the struct
+// D2_FREE the struct
 mve_free (movie);
 }
 
 //-----------------------------------------------------------------------
-// open the file stream in thie CObject
+// open the file stream in thie tObject
 
 static int _mvefile_open (MVEFILE *file, void *stream)
 {
@@ -331,7 +331,7 @@ file->next_segment = 0;
 
 static int _mvefile_read_header (MVEFILE *movie)
 {
-    ubyte buffer[26];
+    unsigned char buffer[26];
 
 // check the file is open
 if (!movie->stream)
@@ -356,7 +356,7 @@ return 1;
 
 static void _mvefile_set_buffer_size (MVEFILE *movie, int buf_size)
 {
-    ubyte *new_buffer;
+    unsigned char *new_buffer;
     int new_len;
 
 // check if this would be a redundant operation
@@ -364,11 +364,11 @@ if (buf_size  <=  movie->buf_size)
    return;
 // allocate new buffer
 new_len = 100 + buf_size;
-new_buffer = reinterpret_cast<ubyte*> (mve_alloc (new_len));
+new_buffer = (unsigned char *)mve_alloc (new_len);
 // copy old data
 if (movie->cur_chunk  &&  movie->cur_fill)
    memcpy (new_buffer, movie->cur_chunk, movie->cur_fill);
-// free old buffer
+// D2_FREE old buffer
 if (movie->cur_chunk) {
    mve_free (movie->cur_chunk);
    movie->cur_chunk = 0;
@@ -382,8 +382,8 @@ movie->buf_size = new_len;
 
 static int _mvefile_fetch_next_chunk (MVEFILE *movie)
 {
-    ubyte buffer[4];
-    ushort length;
+    unsigned char buffer[4];
+    unsigned short length;
 
 // fail if not open
 if (!movie->stream)
@@ -405,7 +405,7 @@ return 1;
 
 //-----------------------------------------------------------------------
 
-static short _mve_get_short (ubyte *data)
+static short _mve_get_short (unsigned char *data)
 {
 short value = data[0] | (data[1] << 8);
 
@@ -414,9 +414,9 @@ return value;
 
 //-----------------------------------------------------------------------
 
-static ushort _mve_get_ushort (ubyte *data)
+static unsigned short _mve_get_ushort (unsigned char *data)
 {
-ushort value = data[0] | (data[1] << 8);
+unsigned short value = data[0] | (data[1] << 8);
 
 return value;
 }
@@ -429,7 +429,7 @@ static MVESTREAM *_mvestream_alloc (void)
     MVESTREAM *movie;
 
 // allocate and zero-initialize everything
-movie = reinterpret_cast<MVESTREAM*> (mve_alloc (sizeof (MVESTREAM)));
+movie = (MVESTREAM *)mve_alloc (sizeof (MVESTREAM));
 movie->movie = NULL;
 movie->context = 0;
 memset (movie->handlers, 0, sizeof (movie->handlers));
@@ -437,7 +437,7 @@ return movie;
 }
 
 //-----------------------------------------------------------------------
-// free an MVESTREAM
+// D2_FREE an MVESTREAM
 
 static void _mvestream_free (MVESTREAM *movie)
 {
@@ -448,12 +448,12 @@ movie->movie = NULL;
 // clear context and handlers
 movie->context = NULL;
 memset (movie->handlers, 0, sizeof (movie->handlers));
-// free the struct
+// D2_FREE the struct
 mve_free (movie);
 }
 
 //-----------------------------------------------------------------------
-// open an MVESTREAM CObject
+// open an MVESTREAM tObject
 
 static int _mvestream_open (MVESTREAM *movie, void *stream)
 {
@@ -467,20 +467,6 @@ return (movie->movie == NULL) ? 0 : 1;
 static void _mvestream_reset (MVESTREAM *movie)
 {
 mvefile_reset (movie->movie);
-}
-
-//-----------------------------------------------------------------------
-
-void* MVE_Alloc (uint size)
-{
-return reinterpret_cast<void*> (new ubyte [size]);
-}
-
-//-----------------------------------------------------------------------
-
-void MVE_Free (void* ptr)
-{
-delete reinterpret_cast<ubyte*> (ptr);
 }
 
 //-----------------------------------------------------------------------

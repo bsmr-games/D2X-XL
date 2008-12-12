@@ -1,32 +1,31 @@
 #ifndef _TRANSPRENDER_H
 #define _TRANSPRENDER_H
 
-#include "particles.h"
-#include "lightning.h"
+#include "inferno.h"
 
 //------------------------------------------------------------------------------
 
 #define ITEM_DEPTHBUFFER_SIZE	100000
 #define ITEM_BUFFER_SIZE		100000
 
-typedef enum tTranspItemType {
-	tiSprite,
-	tiSpark,
-	tiSphere,
-	tiParticle,
-	tiLightning,
-	tiThruster,
-	tiObject,
-	tiPoly,
-	tiTexPoly,
-	tiFlatPoly,
-} tTranspItemType;
+typedef enum tRenderItemType {
+	riSprite,
+	riSphere,
+	riParticle,
+	riLightning,
+	riLightningSegment,
+	riThruster,
+	riObject,
+	riPoly,
+	riTexPoly,
+	riFlatPoly
+} tRenderItemType;
 
-typedef struct tTranspPoly {
-	tFace				*faceP;
+typedef struct tRIPoly {
+	grsFace				*faceP;
 	grsTriangle			*triP;
-	CBitmap				*bmP;
-	CFloatVector				vertices [4];
+	grsBitmap			*bmP;
+	fVector				vertices [4];
 	tTexCoord2f			texCoord [4];
 	tRgbaColorf			color [4];
 	short					sideLength [4];
@@ -37,89 +36,84 @@ typedef struct tTranspPoly {
 	char					nColors;
 	char					bDepthMask;
 	char					bAdditive;
-} tTranspPoly;
+} tRIPoly;
 
-typedef struct tTranspObject {
-	CObject				*objP;
-} tTranspObject;
+typedef struct tRIObject {
+	tObject				*objP;
+} tRIObject;
 
-typedef struct tTranspSprite {
-	CBitmap				*bmP;
-	CFloatVector				position;
+typedef struct tRISprite {
+	grsBitmap			*bmP;
+	fVector				position;
 	tRgbaColorf			color;
 	int					nWidth;
 	int					nHeight;
 	char					nFrame;
 	char					bColor;
 	char					bAdditive;
-	char					bDepthMask;
-	float					fSoftRad;
-} tTranspSprite;
+} tRISprite;
 
-typedef struct tTranspSpark {
-	CFloatVector				position;
-	int					nSize;
-	char					nFrame;
-	char					nType;
-} tTranspSpark;
-
-typedef struct tTranspParticle {
-	CParticle			*particle;
+typedef struct tRIParticle {
+	tParticle			*particle;
 	float					fBrightness;
-} tTranspParticle;
+} tRIParticle;
 
-typedef enum tTranspSphereType {
+typedef enum tRISphereType {
 	riSphereShield,
 	riMonsterball
-} tTranspSphereType;
+} tRISphereType;
 
-typedef struct tTranspSphere {
-	tTranspSphereType	nType;
+typedef struct tRISphere {
+	tRISphereType		nType;
 	tRgbaColorf			color;
-	CObject				*objP;
-} tTranspSphere;
+	tObject				*objP;
+} tRISphere;
 
-typedef struct tTranspLightning {
-	CLightning			*lightning;
+typedef struct tRILightning {
+	tLightning			*lightning;
+	short					nLightnings;
 	short					nDepth;
-} tTranspLightning;
+} tRILightning;
 
-typedef struct tTranspLightTrail {
-	CBitmap					*bmP;
-	CFloatVector					vertices [7];
-	tTexCoord2f				texCoord [7];
+typedef struct tRILightningSegment {
+	fVector					vLine [2];
+	fVector					vPlasma [4];
 	tRgbaColorf				color;
-	char						bTrail;
-} tTranspLightTrail;
+	short						nDepth;
+	char						bStart;
+	char						bEnd;
+	char						bPlasma;
+} tRILightningSegment;
 
-typedef struct tTranspItem {
-	struct tTranspItem	*pNextItem;
-	struct tTranspItem	*parentP;
-	tTranspItemType		nType;
+typedef struct tRIThruster {
+	grsBitmap				*bmP;
+	fVector					vertices [7];
+	tTexCoord2f				texCoord [7];
+	char						bFlame;
+} tRIThruster;
+
+typedef struct tRenderItem {
+	struct tRenderItem	*pNextItem;
+	tRenderItemType		nType;
 	int						nItem;
 	int						z;
-	bool						bValid;
-	bool						bRendered;
 	union {
-		tTranspPoly					poly;
-		tTranspObject				object;
-		tTranspSprite				sprite;
-		tTranspSpark				spark;
-		tTranspParticle			particle;
-		tTranspSphere				sphere;
-		tTranspLightning			lightning;
-		tTranspLightTrail			thruster;
+		tRIPoly					poly;
+		tRIObject				object;
+		tRISprite				sprite;
+		tRIParticle				particle;
+		tRISphere				sphere;
+		tRILightning			lightning;
+		tRILightningSegment	lightningSegment;
+		tRIThruster				thruster;
 	} item;
-} tTranspItem;
+} tRenderItem;
 
-typedef struct tTranspItemBuffer {
-	tTranspItem		**depthBufP;
-	tTranspItem		*itemListP;
-	int				nMinOffs;
-	int				nMaxOffs;
+typedef struct tRenderItemBuffer {
+	tRenderItem		**pDepthBuffer;
+	tRenderItem		*pItemList;
 	int				nItems;
 	int				nFreeItems;
-	int				nCurType;
 	int				nPrevType;
 	int				zMin;
 	int				zMax;
@@ -132,47 +126,44 @@ typedef struct tTranspItemBuffer {
 	char				bClientTexCoord;
 	char				bDepthMask;
 	char				bDisplay;
-	char				bHaveParticles;
-	char				bLightmaps;
-	char				bUseLightmaps;
-	char				bDecal;
+	char				bLightMaps;
+	char				bUseLightMaps;
 	char				bSplitPolys;
-	CBitmap			*bmP [3];
-} tTranspItemBuffer;
+	grsBitmap		*bmP;
+} tRenderItemBuffer;
 
-typedef struct tTranspItemData {
-	tTranspItem		item;
+typedef struct tRenderItemData {
+	tRenderItem		item;
 	int				nType;
 	int				nSize;
 	int				nDepth;
 	int				nIndex;
-	} tTranspItemData;
+	} tRenderItemData;
 
-int AllocTranspItemBuffer (void);
-void FreeTranspItemBuffer (void);
-void ResetTranspItemBuffer (void);
-void InitTranspItemBuffer (int zMin, int zMax);
-int AddTranspItem (tTranspItemType nType, void *itemData, int itemSize, int nDepth, int nIndex);
-int TIAddFace (tFace *faceP);
-int TIAddPoly (tFace *faceP, grsTriangle *triP, CBitmap *bmP,
-					CFloatVector *vertices, char nVertices, tTexCoord2f *texCoord, tRgbaColorf *color,
+int AllocRenderItemBuffer (void);
+void FreeRenderItemBuffer (void);
+void ResetRenderItemBuffer (void);
+void InitRenderItemBuffer (int zMin, int zMax);
+int AddRenderItem (tRenderItemType nType, void *itemData, int itemSize, int nDepth, int nIndex);
+int RIAddFace (grsFace *faceP);
+int RIAddPoly (grsFace *faceP, grsTriangle *triP, grsBitmap *bmP, 
+					fVector *vertices, char nVertices, tTexCoord2f *texCoord, tRgbaColorf *color, 
 					tFaceColor *altColor, char nColors, char bDepthMask, int nPrimitive, int nWrap, int bAdditive,
 					short nSegment);
-int TIAddObject (CObject *objP);
-int TIAddSprite (CBitmap *bmP, const CFixVector& position, tRgbaColorf *color,
-					  int nWidth, int nHeight, char nFrame, char bAdditive, float fSoftRad);
-int TIAddSpark (const CFixVector& position, char nType, int nSize, char nFrame);
-int TIAddSphere (tTranspSphereType nType, float red, float green, float blue, float alpha, CObject *objP);
-int TIAddParticle (CParticle *particle, float fBrightness, int nThread);
-int TIAddLightning (CLightning *lightningP, short nDepth);
-int TIAddLightTrail (CBitmap *bmP, CFloatVector *vThruster, tTexCoord2f *tcThruster, CFloatVector *vFlame, tTexCoord2f *tcFlame, tRgbaColorf *colorP);
-void RenderTranspItems (void);
+int RIAddObject (tObject *objP);
+int RIAddSprite (grsBitmap *bmP, vmsVector *position, tRgbaColorf *color, int nWidth, int nHeight, char nFrame, char bAdditive);
+int RIAddSphere (tRISphereType nType, float red, float green, float blue, float alpha, tObject *objP);
+int RIAddParticle (tParticle *particle, float fBrightness, int nThread);
+int RIAddLightnings (tLightning *lightnings, short nLightnings, short nDepth);
+int RIAddLightningSegment (fVector *vLine, fVector *vPlasma, tRgbaColorf *color, 
+									char bPlasma, char bStart, char bEnd, short nDepth);
+int RIAddThruster (grsBitmap *bmP, fVector *vThruster, tTexCoord2f *tcThruster, fVector *vFlame, tTexCoord2f *tcFlame);
+void RenderItems (void);
 void StartRenderThreads (void);
 void EndRenderThreads (void);
-void FreeTranspItems (void);
-tTranspItem *TISetParent (int nChild, int nParent);
+void FreeRenderItems (void);
 
-extern tTranspItemBuffer transpItems;
+extern tRenderItemBuffer renderItems;
 
 //------------------------------------------------------------------------------
 

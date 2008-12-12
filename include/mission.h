@@ -1,3 +1,4 @@
+/* $Id: mission.h,v 1.16 2003/11/24 23:11:26 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -94,10 +95,5 @@ int LoadMission (int nMission);
 //Returns true if mission loaded ok, else false.
 int LoadMissionByName(char *szMissionName, int nSubFolder);
 int FindMissionByName(char *szMissionName, int nSubFolder);
-
-static inline bool MsnHasGameVer (const char *pszMission)
-{
-return (pszMission [0] == '[') && ::isdigit (pszMission [1]) && (pszMission [2] == ']');
-}
 
 #endif

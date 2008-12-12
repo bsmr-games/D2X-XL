@@ -1,3 +1,4 @@
+/* $Id: slew.c,v 1.4 2003/10/10 09:36:35 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -15,19 +16,27 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include <conf.h>
 #endif
 
+#ifdef RCS
+static char rcsid[] = "$Id: slew.c,v 1.4 2003/10/10 09:36:35 btb Exp $";
+#endif
+
 #include <stdlib.h>
 
 #include "inferno.h"
+#include "game.h"
+#include "vecmat.h"
 #include "key.h"
 #include "joy.h"
+#include "object.h"
 #include "error.h"
 #include "physics.h"
+#include "joydefs.h"
 #include "input.h"
 #include "args.h"
 
 //variables for slew system
 
-CObject *slewObjP=NULL;	//what CObject is slewing, or NULL if none
+tObject *slewObjP=NULL;	//what tObject is slewing, or NULL if none
 
 #define JOY_NULL 15
 #define ROT_SPEED 8		//rate of rotation while key held down
@@ -40,13 +49,13 @@ int slew_stop(void);
 
 
 // -------------------------------------------------------------------
-//say start slewing with this CObject
-void slew_init(CObject *objP)
+//say start slewing with this tObject
+void slew_init(tObject *objP)
 {
 	slewObjP = objP;
 
-	slewObjP->info.controlType = CT_SLEW;
-	slewObjP->info.movementType = MT_NONE;
+	slewObjP->controlType = CT_SLEW;
+	slewObjP->movementType = MT_NONE;
 
 	slew_stop();		//make sure not moving
 }
@@ -54,66 +63,66 @@ void slew_init(CObject *objP)
 
 int slew_stop()
 {
-	if (!slewObjP || slewObjP->info.controlType!=CT_SLEW) return 0;
+	if (!slewObjP || slewObjP->controlType!=CT_SLEW) return 0;
 
-	slewObjP->mType.physInfo.velocity.SetZero();
+	VmVecZero(&slewObjP->mType.physInfo.velocity);
 	return 1;
 }
 
 void slew_reset_orient()
 {
-if (!slewObjP || slewObjP->info.controlType!=CT_SLEW) 
+if (!slewObjP || slewObjP->controlType!=CT_SLEW) 
 	return;
-slewObjP->info.position.mOrient[RVEC][X] = 
-slewObjP->info.position.mOrient[UVEC][Y] = 
-slewObjP->info.position.mOrient[FVEC][Z] = f1_0;
-slewObjP->info.position.mOrient[RVEC][Y] = 
-slewObjP->info.position.mOrient[RVEC][Z] = 
-slewObjP->info.position.mOrient[UVEC][X] =
-slewObjP->info.position.mOrient[UVEC][Z] = 
-slewObjP->info.position.mOrient[FVEC][X] = 
-slewObjP->info.position.mOrient[FVEC][Y] = 0;
+slewObjP->position.mOrient.rVec.p.x = 
+slewObjP->position.mOrient.uVec.p.y = 
+slewObjP->position.mOrient.fVec.p.z = f1_0;
+slewObjP->position.mOrient.rVec.p.y = 
+slewObjP->position.mOrient.rVec.p.z = 
+slewObjP->position.mOrient.uVec.p.x =
+slewObjP->position.mOrient.uVec.p.z = 
+slewObjP->position.mOrient.fVec.p.x = 
+slewObjP->position.mOrient.fVec.p.y = 0;
 }
 
-int do_slew_movement(CObject *objP, int check_keys, int check_joy )
+int do_slew_movement(tObject *objP, int check_keys, int check_joy )
 {
 	int moved = 0;
-	CFixVector svel, movement;				//scaled velocity (per this frame)
+	vmsVector svel, movement;				//scaled velocity (per this frame)
 	vmsMatrix rotmat,new_pm;
 	int joy_x,joy_y,btns;
 	int joyx_moved,joyy_moved;
 	vmsAngVec rotang;
 
-	if (!slewObjP || slewObjP->info.controlType!=CT_SLEW) return 0;
+	if (!slewObjP || slewObjP->controlType!=CT_SLEW) return 0;
 
 	if (check_keys) {
 		if (gameStates.app.nFunctionMode == FMODE_EDITOR) {
 			if (FindArg("-jasen"))
-				objP->mType.physInfo.velocity[X] += VEL_SPEED * (KeyDownTime(KEY_PAD3) - KeyDownTime(KEY_PAD1));
+				objP->mType.physInfo.velocity.p.x += VEL_SPEED * (KeyDownTime(KEY_PAD3) - KeyDownTime(KEY_PAD1));
 			else
-				objP->mType.physInfo.velocity[X] += VEL_SPEED * (KeyDownTime(KEY_PAD9) - KeyDownTime(KEY_PAD7));
-			objP->mType.physInfo.velocity[Y] += VEL_SPEED * (KeyDownTime(KEY_PADMINUS) - KeyDownTime(KEY_PADPLUS));
-			objP->mType.physInfo.velocity[Z] += VEL_SPEED * (KeyDownTime(KEY_PAD8) - KeyDownTime(KEY_PAD2));
+				objP->mType.physInfo.velocity.p.x += VEL_SPEED * (KeyDownTime(KEY_PAD9) - KeyDownTime(KEY_PAD7));
+			objP->mType.physInfo.velocity.p.y += VEL_SPEED * (KeyDownTime(KEY_PADMINUS) - KeyDownTime(KEY_PADPLUS));
+			objP->mType.physInfo.velocity.p.z += VEL_SPEED * (KeyDownTime(KEY_PAD8) - KeyDownTime(KEY_PAD2));
 
-			rotang[PA] = (KeyDownTime(KEY_LBRACKET) - KeyDownTime(KEY_RBRACKET))/ROT_SPEED ;
+			rotang.p = (KeyDownTime(KEY_LBRACKET) - KeyDownTime(KEY_RBRACKET))/ROT_SPEED ;
 			if (FindArg("-jasen"))
-				rotang[BA]  = (KeyDownTime(KEY_PAD7) - KeyDownTime(KEY_PAD9))/ROT_SPEED;
+				rotang.b  = (KeyDownTime(KEY_PAD7) - KeyDownTime(KEY_PAD9))/ROT_SPEED;
 			else
-				rotang[BA]  = (KeyDownTime(KEY_PAD1) - KeyDownTime(KEY_PAD3))/ROT_SPEED;
-			rotang[HA]  = (KeyDownTime(KEY_PAD6) - KeyDownTime(KEY_PAD4))/ROT_SPEED;
+				rotang.b  = (KeyDownTime(KEY_PAD1) - KeyDownTime(KEY_PAD3))/ROT_SPEED;
+			rotang.h  = (KeyDownTime(KEY_PAD6) - KeyDownTime(KEY_PAD4))/ROT_SPEED;
 		}
 		else {
-			objP->mType.physInfo.velocity[X] += VEL_SPEED * Controls [0].sidewaysThrustTime;
-			objP->mType.physInfo.velocity[Y] += VEL_SPEED * Controls [0].verticalThrustTime;
-			objP->mType.physInfo.velocity[Z] += VEL_SPEED * Controls [0].forwardThrustTime;
+			objP->mType.physInfo.velocity.p.x += VEL_SPEED * Controls [0].sidewaysThrustTime;
+			objP->mType.physInfo.velocity.p.y += VEL_SPEED * Controls [0].verticalThrustTime;
+			objP->mType.physInfo.velocity.p.z += VEL_SPEED * Controls [0].forwardThrustTime;
 
-			rotang[PA] = Controls [0].pitchTime/ROT_SPEED ;
-			rotang[BA]  = Controls [0].bankTime/ROT_SPEED;
-			rotang[HA]  = Controls [0].headingTime/ROT_SPEED;
+			rotang.p = Controls [0].pitchTime/ROT_SPEED ;
+			rotang.b  = Controls [0].bankTime/ROT_SPEED;
+			rotang.h  = Controls [0].headingTime/ROT_SPEED;
 		}
 	}
 	else
-		rotang[PA] = rotang[BA]  = rotang[HA]  = 0;
+		rotang.p = rotang.b  = rotang.h  = 0;
 
 	//check for joystick movement
 
@@ -128,41 +137,40 @@ int do_slew_movement(CObject *objP, int check_keys, int check_joy )
 		if (abs(joy_y) < JOY_NULL) joy_y = 0;
 
 		if (btns) {
-			if (!rotang[PA]) 
-				rotang[PA] = (fixang) FixMul (-joy_y * 512,gameData.time.xFrame);
+			if (!rotang.p) 
+				rotang.p = (fixang) FixMul (-joy_y * 512,gameData.time.xFrame);
 			}
 		else {
 			if (joyy_moved) 
-				objP->mType.physInfo.velocity[Z] = -joy_y * 8192;
+				objP->mType.physInfo.velocity.p.z = -joy_y * 8192;
 			}
-		if (!rotang[HA]) 
-			rotang[HA] = (fixang) FixMul(joy_x * 512,gameData.time.xFrame);
+		if (!rotang.h) 
+			rotang.h = (fixang) FixMul(joy_x * 512,gameData.time.xFrame);
 
 		if (joyx_moved) old_joy_x = joy_x;
 		if (joyy_moved) old_joy_y = joy_y;
 	}
 
-	moved = rotang[PA] | rotang[BA] | rotang[HA];
+	moved = rotang.p | rotang.b | rotang.h;
 
-	rotmat = vmsMatrix::Create(rotang);
-	// TODO MM
-	new_pm = objP->info.position.mOrient * rotmat;
-	objP->info.position.mOrient = new_pm;
-	vmsMatrix::Transpose(new_pm);		//make those columns rows
+	VmAngles2Matrix(&rotmat,&rotang);
+	VmMatMul(&new_pm,&objP->position.mOrient,&rotmat);
+	objP->position.mOrient = new_pm;
+	VmTransposeMatrix(&new_pm);		//make those columns rows
 
-	moved |= objP->mType.physInfo.velocity[X] | objP->mType.physInfo.velocity[Y] | objP->mType.physInfo.velocity[Z];
+	moved |= objP->mType.physInfo.velocity.p.x | objP->mType.physInfo.velocity.p.y | objP->mType.physInfo.velocity.p.z;
 
 	svel = objP->mType.physInfo.velocity;
-	svel *= gameData.time.xFrame;		//movement in this frame
-	movement = new_pm * svel;
+	VmVecScale(&svel,gameData.time.xFrame);		//movement in this frame
+	VmVecRotate(&movement,&svel,&new_pm);
 
-//	objP->info.vLastPos = objP->info.position.vPos;
-	objP->info.position.vPos += movement;
+//	objP->vLastPos = objP->position.vPos;
+	VmVecInc(&objP->position.vPos,&movement);
 
-	moved |= (movement[X] || movement[Y] || movement[Z]);
+	moved |= (movement.p.x || movement.p.y || movement.p.z);
 
 	if (moved)
-		UpdateObjectSeg(objP);	//update CSegment id
+		UpdateObjectSeg(objP);	//update tSegment id
 
 	return moved;
 }

@@ -1,3 +1,4 @@
+/* $Id: joy.c,v 1.12 2003/04/12 00:11:46 btb Exp $ */
 /*
  *
  * SDL joystick support
@@ -31,10 +32,10 @@ char bJoyPresent = 0;
 int joyDeadzone [4] = {32767 / 10, 32767 / 10, 32767 / 10, 32767 / 10};	//10% of max. range
 
 static struct tJoyInfo {
-	int			nAxes;
-	int			nButtons;
-	tJoyAxis		axes [MAX_JOYSTICKS * JOY_MAX_AXES];
-	tJoyButton	buttons [MAX_JOYSTICKS * JOY_MAX_BUTTONS];
+	int		n_axes;
+	int		n_buttons;
+	struct	joyaxis axes [MAX_JOYSTICKS * JOY_MAX_AXES];
+	struct	joybutton buttons [MAX_JOYSTICKS * JOY_MAX_BUTTONS];
 } joyInfo;
 
 tSdlJoystick /*tSdlJoystick*/ sdlJoysticks [MAX_JOYSTICKS];
@@ -47,7 +48,7 @@ void joy_button_handler (SDL_JoyButtonEvent *jbe)
 
 if ((jbe->which >= MAX_JOYSTICKS) || (jbe->button > MAX_BUTTONS_PER_JOYSTICK))
 	return;
-button = sdlJoysticks [jbe->which].buttonMap [jbe->button] + jbe->which * MAX_BUTTONS_PER_JOYSTICK;
+button = sdlJoysticks [jbe->which].button_map [jbe->button] + jbe->which * MAX_BUTTONS_PER_JOYSTICK;
 joyInfo.buttons [button].state = jbe->state;
 switch (jbe->type) {
 	case SDL_JOYBUTTONDOWN:
@@ -69,7 +70,7 @@ void joy_hat_handler (SDL_JoyHatEvent *jhe)
 
 	if (jhe->which >= MAX_JOYSTICKS)
 		return;
-	hat = sdlJoysticks [jhe->which].hatMap [jhe->hat] + jhe->which * MAX_BUTTONS_PER_JOYSTICK;
+	hat = sdlJoysticks [jhe->which].hat_map [jhe->hat] + jhe->which * MAX_BUTTONS_PER_JOYSTICK;
 	//Save last state of the hat-button
 	joyInfo.buttons [hat  ].lastState = joyInfo.buttons [hat  ].state;
 	joyInfo.buttons [hat+1].lastState = joyInfo.buttons [hat+1].state;
@@ -106,8 +107,8 @@ void joy_axis_handler(SDL_JoyAxisEvent *jae)
 
 	if (jae->which >= MAX_JOYSTICKS)
 		return;
-	axis = sdlJoysticks [jae->which].axisMap [jae->axis] + jae->which * MAX_AXES_PER_JOYSTICK;
-	joyInfo.axes [axis].nValue = jae->value;
+	axis = sdlJoysticks [jae->which].axis_map [jae->axis] + jae->which * MAX_AXES_PER_JOYSTICK;
+	joyInfo.axes [axis].value = jae->value;
 	if (jae->which)
 		axis = 0;
 }
@@ -138,36 +139,36 @@ int JoyInit()
 		joyP->handle = SDL_JoystickOpen (i);
 		if (joyP->handle) {
 			bJoyPresent = 1;
-			if((joyP->nAxes = SDL_JoystickNumAxes (joyP->handle)) > MAX_AXES_PER_JOYSTICK) {
-				Warning (TXT_JOY_AXESNO, joyP->nAxes, MAX_AXES_PER_JOYSTICK);
-				joyP->nAxes = MAX_AXES_PER_JOYSTICK;
+			if((joyP->n_axes = SDL_JoystickNumAxes (joyP->handle)) > MAX_AXES_PER_JOYSTICK) {
+				Warning (TXT_JOY_AXESNO, joyP->n_axes, MAX_AXES_PER_JOYSTICK);
+				joyP->n_axes = MAX_AXES_PER_JOYSTICK;
 				}
 
-			if((joyP->nButtons = SDL_JoystickNumButtons (joyP->handle)) > MAX_BUTTONS_PER_JOYSTICK) {
-				Warning (TXT_JOY_BUTTONNO, joyP->nButtons, MAX_BUTTONS_PER_JOYSTICK);
-				joyP->nButtons = MAX_BUTTONS_PER_JOYSTICK;
+			if((joyP->n_buttons = SDL_JoystickNumButtons (joyP->handle)) > MAX_BUTTONS_PER_JOYSTICK) {
+				Warning (TXT_JOY_BUTTONNO, joyP->n_buttons, MAX_BUTTONS_PER_JOYSTICK);
+				joyP->n_buttons = MAX_BUTTONS_PER_JOYSTICK;
 				}
-			if((joyP->nHats = SDL_JoystickNumHats (joyP->handle)) > MAX_HATS_PER_JOYSTICK) {
-				Warning (TXT_JOY_HATNO, joyP->nHats, MAX_HATS_PER_JOYSTICK);
-				joyP->nHats = MAX_HATS_PER_JOYSTICK;
+			if((joyP->n_hats = SDL_JoystickNumHats (joyP->handle)) > MAX_HATS_PER_JOYSTICK) {
+				Warning (TXT_JOY_HATNO, joyP->n_hats, MAX_HATS_PER_JOYSTICK);
+				joyP->n_hats = MAX_HATS_PER_JOYSTICK;
 				}
 #if TRACE
-			con_printf(CON_VERBOSE, "sdl-joystick: %d axes\n", joyP->nAxes);
-			con_printf(CON_VERBOSE, "sdl-joystick: %d buttons\n", joyP->nButtons);
-			con_printf(CON_VERBOSE, "sdl-joystick: %d hats\n", joyP->nHats);
+			con_printf(CON_VERBOSE, "sdl-joystick: %d axes\n", joyP->n_axes);
+			con_printf(CON_VERBOSE, "sdl-joystick: %d buttons\n", joyP->n_buttons);
+			con_printf(CON_VERBOSE, "sdl-joystick: %d hats\n", joyP->n_hats);
 #endif
 			memset (&joyInfo, 0, sizeof (joyInfo));
-			for (j = 0; j < joyP->nAxes; j++)
-				joyP->axisMap [j] = joyInfo.nAxes++;
-			for (j = 0; j < joyP->nButtons; j++)
-				joyP->buttonMap [j] = joyInfo.nButtons++;
-			for (j = 0; j < joyP->nHats; j++) {
-				joyP->hatMap [j] = joyInfo.nButtons;
+			for (j = 0; j < joyP->n_axes; j++)
+				joyP->axis_map [j] = joyInfo.n_axes++;
+			for (j = 0; j < joyP->n_buttons; j++)
+				joyP->button_map [j] = joyInfo.n_buttons++;
+			for (j = 0; j < joyP->n_hats; j++) {
+				joyP->hat_map [j] = joyInfo.n_buttons;
 				//a hat counts as four buttons
-				joybutton_text [joyInfo.nButtons++] = i ? TNUM_HAT2_U : TNUM_HAT_U;
-				joybutton_text [joyInfo.nButtons++] = i ? TNUM_HAT2_R : TNUM_HAT_R;
-				joybutton_text [joyInfo.nButtons++] = i ? TNUM_HAT2_D : TNUM_HAT_D;
-				joybutton_text [joyInfo.nButtons++] = i ? TNUM_HAT2_L : TNUM_HAT_L;
+				joybutton_text [joyInfo.n_buttons++] = i ? TNUM_HAT2_U : TNUM_HAT_U;
+				joybutton_text [joyInfo.n_buttons++] = i ? TNUM_HAT2_R : TNUM_HAT_R;
+				joybutton_text [joyInfo.n_buttons++] = i ? TNUM_HAT2_D : TNUM_HAT_D;
+				joybutton_text [joyInfo.n_buttons++] = i ? TNUM_HAT2_L : TNUM_HAT_L;
 				}
 			joyP++;
 			gameStates.input.nJoysticks++;
@@ -178,8 +179,8 @@ int JoyInit()
 #endif		
 		}
 #if TRACE
-		con_printf(CON_VERBOSE, "sdl-joystick: %d axes (total)\n", joyInfo.nAxes);
-		con_printf(CON_VERBOSE, "sdl-joystick: %d buttons (total)\n", joyInfo.nButtons);
+		con_printf(CON_VERBOSE, "sdl-joystick: %d axes (total)\n", joyInfo.n_axes);
+		con_printf(CON_VERBOSE, "sdl-joystick: %d buttons (total)\n", joyInfo.n_buttons);
 #endif
 	}
 return bJoyPresent;
@@ -199,13 +200,15 @@ void JoyGetPos(int *x, int *y)
 {
 	int axis [JOY_MAX_AXES];
 
-if (!gameStates.input.nJoysticks) {
-	*x = *y = 0;
-	return;
+	if (!gameStates.input.nJoysticks) {
+		*x=*y=0;
+		return;
 	}
-JoyReadRawAxis (JOY_ALL_AXIS, axis);
-*x = JoyGetScaledReading (axis [0], 0);
-*y = JoyGetScaledReading (axis [1], 1);
+
+	JoyReadRawAxis (JOY_ALL_AXIS, axis);
+
+	*x = JoyGetScaledReading (axis [0], 0 );
+	*y = JoyGetScaledReading (axis [1], 1 );
 }
 
 //------------------------------------------------------------------------------
@@ -272,10 +275,10 @@ return time;
 
 //------------------------------------------------------------------------------
 
-uint JoyReadRawAxis (uint mask, int * axis)
+unsigned int JoyReadRawAxis (unsigned int mask, int * axis )
 {
 	int i;
-	uint channel_masks = 0;
+	unsigned int channel_masks = 0;
 
 if (!gameStates.input.nJoysticks)
 	return 0;
@@ -284,91 +287,97 @@ if (gameOpts->legacy.bInput)
    event_poll(SDL_JOYEVENTMASK);	//polled in main/KConfig.c:read_bm_all()
 #endif
 for (i = 0; i < JOY_MAX_AXES; i++)
-	if ((axis [i] = joyInfo.axes [i].nValue)) {
+	if ((axis [i] = joyInfo.axes [i].value)) {
 		channel_masks |= (1 << i);
-		//joyInfo.axes [i].nValue = 0;
+		//joyInfo.axes [i].value = 0;
 		}
 return channel_masks;
 }
 
-//------------------------------------------------------------------------------
-
-void JoyFlush (void)
+void JoyFlush()
 {
 	int i;
 
-if (!gameStates.input.nJoysticks)
-	return;
+	if (!gameStates.input.nJoysticks)
+		return;
 
-for (i = 0; i < MAX_JOYSTICKS * JOY_MAX_BUTTONS; i++) {
-	joyInfo.buttons [i].xTimeWentDown = 0;
-	joyInfo.buttons [i].numDowns = 0;
+	for (i = 0; i < MAX_JOYSTICKS * JOY_MAX_BUTTONS; i++) {
+		joyInfo.buttons [i].xTimeWentDown = 0;
+		joyInfo.buttons [i].numDowns = 0;
 	}
 
 }
 
 //------------------------------------------------------------------------------
 
-int JoyGetButtonState (int nButton)
+int JoyGetButtonState (int nButton )
 {
-if (!gameStates.input.nJoysticks)
-	return 0;
-if (nButton >= JOY_MAX_BUTTONS)
-	return 0;
+	if (!gameStates.input.nJoysticks)
+		return 0;
+
+if(nButton >= JOY_MAX_BUTTONS)
+		return 0;
 #ifndef FAST_EVENTPOLL
 if (gameOpts->legacy.bInput)
    event_poll(SDL_JOYEVENTMASK);	//polled in main/KConfig.c:read_bm_all()
 #endif
-return joyInfo.buttons [nButton].state;
+	return joyInfo.buttons [nButton].state;
 }
 
 //------------------------------------------------------------------------------
 
-void JoyGetCalVals (tJoyAxisCal *cal, int nAxes)
+void JoyGetCalVals(int *axis_min, int *axis_center, int *axis_max)
 {
 	int i;
 
-if (!nAxes)
-	nAxes = JOY_MAX_AXES;
-for (i = 0; i < nAxes; i++)
-	cal [i] = joyInfo.axes [i].cal;
+	for (i = 0; i < JOY_MAX_AXES; i++) {
+		axis_center [i] = joyInfo.axes [i].center_val;
+		axis_min [i] = joyInfo.axes [i].min_val;
+		axis_max [i] = joyInfo.axes [i].max_val;
+	}
 }
 
 //------------------------------------------------------------------------------
 
-void JoySetCalVals (tJoyAxisCal *cal, int nAxes)
+void JoySetCalVals(int *axis_min, int *axis_center, int *axis_max)
 {
-	int i, j;
+	int i;
 
-for (i = j = 0; i < JOY_MAX_AXES; i++, j = (j + 1) % nAxes)
-	joyInfo.axes [i].cal = cal [j];
+	for (i = 0; i < JOY_MAX_AXES; i++) {
+		joyInfo.axes [i].center_val = axis_center [i];
+		joyInfo.axes [i].min_val = axis_min [i];
+		joyInfo.axes [i].max_val = axis_max [i];
+	}
 }
 
 //------------------------------------------------------------------------------
 
-int JoyGetScaledReading (int raw, int nAxis)
+int JoyGetScaledReading (int raw, int axis_num )
 {
 #if 1
-return (raw + 128) / 256;
+	return (raw + 128) / 256;
 #else
 	int d, x;
 
-	raw -= joyInfo.axes [nAxis].cal.nCenter;
+	raw -= joyInfo.axes [axis_num].center_val;
 	if (raw < 0)
-		d = joyInfo.axes [nAxis].cal.nCenter - joyInfo.axes [nAxis].cal.nMin;
+		d = joyInfo.axes [axis_num].center_val - joyInfo.axes [axis_num].min_val;
 	else if (raw > 0)
-		d = joyInfo.axes [nAxis].cal.nMax - joyInfo.axes [nAxis].cal.nCenter;
+		d = joyInfo.axes [axis_num].max_val - joyInfo.axes [axis_num].center_val;
 	else
 		d = 0;
+
 	if (d)
 		x = ((raw << 7) / d);
 	else
 		x = 0;
+
 	if (x < -128)
 		x = -128;
 	if (x > 127)
 		x = 127;
-	d = (joyDeadzone [nAxis % 4]) * 6;
+
+	d = (joyDeadzone [axis_num % 4]) * 6;
 	if ((x > (-d)) && (x < d))
 		x = 0;
 
@@ -378,7 +387,7 @@ return (raw + 128) / 256;
 
 //------------------------------------------------------------------------------
 
-void JoySetSlowReading (int flag)
+void JoySetSlowReading (int flag )
 {
 }
 
