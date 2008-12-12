@@ -12,14 +12,14 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 */
 
 /*
- * $Source: /cvs/cvsroot/d2x/main/editor/tSegment.c,v $
+ * $Source: /cvs/cvsroot/d2x/main/editor/segment.c,v $
  * $Revision: 1.1 $
  * $Author: bradleyb $
  * $Date: 2001/10/25 02:27:17 $
  *
- * Interrogation functions for tSegment data structure.
+ * Interrogation functions for segment data structure.
  *
- * $Log: tSegment.c,v $
+ * $Log: segment.c,v $
  * Revision 1.1  2001/10/25 02:27:17  bradleyb
  * attempt at support for editor, makefile changes, etc
  *
@@ -34,7 +34,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * for bitmaps.tbl.
  * 
  * Revision 1.191  1995/02/22  15:28:30  allender
- * remove anonymous unions from tObject structure
+ * remove anonymous unions from object structure
  * 
  * Revision 1.190  1995/02/02  02:59:40  yuan
  * Working on exterminating bogus matcen_nums... (harmless though)
@@ -52,7 +52,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * validation functions moved from editor to game.
  * 
  * Revision 1.185  1994/10/30  14:13:17  mike
- * rip out local tSegment stuff.
+ * rip out local segment stuff.
  * 
  * Revision 1.184  1994/10/27  10:04:24  matt
  * When triangulating, don't use WID() to see if connected, look at children
@@ -61,19 +61,19 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * debug code for matt.
  * 
  * Revision 1.182  1994/10/24  16:34:00  mike
- * Force render after mine compress to prevent bugs in tSegment selection via clicking in 3d window.
+ * Force render after mine compress to prevent bugs in segment selection via clicking in 3d window.
  * 
  * Revision 1.181  1994/10/20  18:16:15  mike
- * Initialize gameData.reactor.triggers.nLinks in create_new_mine.
+ * Initialize gameData.reactor.triggers.num_links in create_new_mine.
  * 
  * Revision 1.180  1994/10/18  16:29:14  mike
- * Write function to automatically fix bogus segnums in tSegment array.
+ * Write function to automatically fix bogus segnums in segment array.
  * 
  * Revision 1.179  1994/10/08  17:10:41  matt
- * Correctly set currentLevel_num when loading/creating mine in editor
+ * Correctly set current_level_num when loading/creating mine in editor
  * 
  * Revision 1.178  1994/09/25  14:17:51  mike
- * Initialize (to 0) gameData.matCens.nBotCenters and gameData.walls.nOpenDoors at mine creation.
+ * Initialize (to 0) gameData.matCens.nRobotCenters and gameData.walls.nOpenDoors at mine creation.
  * 
  * Revision 1.177  1994/09/20  14:36:06  mike
  * Write function to find overlapping segments.
@@ -106,7 +106,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * 
  * Revision 1.168  1994/07/21  13:27:17  matt
  * Ripped out remants of old demo system, and added demo
- * disables tObject movement and game options from menu.
+ * disables object movement and game options from menu.
  * 
  * Revision 1.167  1994/07/19  20:15:48  matt
  * Name for each level now saved in the .SAV file & stored in gameData.missions.szCurrentLevel
@@ -118,7 +118,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * *** empty log message ***
  * 
  * Revision 1.164  1994/06/15  15:42:40  mike
- * Initialize xAvgSegLight field in new segments.
+ * Initialize static_light field in new segments.
  * 
  * Revision 1.163  1994/06/13  17:49:19  mike
  * Fix bug in med_validate_side which was toasting lighting for removable walls.
@@ -129,12 +129,12 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * causing physics bugs.
  * 
  * Revision 1.161  1994/06/08  18:14:16  mike
- * Fix triangulation of sides in hallways (ie, where there is no tWall),
+ * Fix triangulation of sides in hallways (ie, where there is no wall),
  * so they get triangulated the same way, so find_new_seg doesn't get
  * stuck in an infinite recursion.
  * 
  * Revision 1.160  1994/06/08  11:44:31  mike
- * Fix bug in normals not being opposite on opposite sides of a tSegment.
+ * Fix bug in normals not being opposite on opposite sides of a segment.
  * Problem occurred due to difference in handling of remainder in signed divide.
  * 
  * Revision 1.159  1994/05/31  19:00:15  yuan
@@ -147,7 +147,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Add bfs_parse.
  * 
  * Revision 1.156  1994/05/23  14:56:46  mike
- * make current tSegment be add tSegment.,
+ * make current segment be add segment.,
  * 
  */
 
@@ -166,7 +166,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "segment.h"
-// #include "tSegment2.h"
+// #include "segment2.h"
 #include "editor.h"
 #include "error.h"
 #include "object.h"
@@ -180,7 +180,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "fuelcen.h"
 #include "cntrlcen.h"
 #include "seguvs.h"
-#include "loadgame.h"
+#include "gameseq.h"
 
 #include "medwall.h"
 #include "hostage.h"
@@ -189,29 +189,29 @@ int	Do_duplicate_vertex_check = 0;		// Gets set to 1 in med_create_duplicate_ver
 
 #define	BOTTOM_STUFF	0
 
-//	Remap all vertices in polygons in a tSegment through translation table xlate_verts.
+//	Remap all vertices in polygons in a segment through translation table xlate_verts.
 #if BOTTOM_STUFF
-void remap_vertices(tSegment *segp, int *xlate_verts)
+void remap_vertices(segment *segp, int *xlate_verts)
 {
-	int	nSide, facenum, polynum, v;
+	int	sidenum, facenum, polynum, v;
 
-	for (nSide=0; nSide<MAX_SIDES_PER_SEGMENT; nSide++)
-		for (facenum=0; facenum<segp->sides[nSide].num_faces; facenum++)
-			for (polynum=0; polynum<segp->sides[nSide].faces[facenum].num_polys; polynum++) {
-				poly *pp = &segp->sides[nSide].faces[facenum].polys[polynum];
+	for (sidenum=0; sidenum<MAX_SIDES_PER_SEGMENT; sidenum++)
+		for (facenum=0; facenum<segp->sides[sidenum].num_faces; facenum++)
+			for (polynum=0; polynum<segp->sides[sidenum].faces[facenum].num_polys; polynum++) {
+				poly *pp = &segp->sides[sidenum].faces[facenum].polys[polynum];
 				for (v=0; v<pp->num_vertices; v++)
 					pp->verts[v] = xlate_verts[pp->verts[v]];
 			}
 }
 
 //	Copy everything from sourceside to destside except sourceside->faces[xx].polys[xx].verts
-void copy_side_except_vertex_ids(tSide *destside, tSide *sourceside)
+void copy_side_except_vertex_ids(side *destside, side *sourceside)
 {
 	int	facenum, polynum, v;
 
 	destside->num_faces = sourceside->num_faces;
 	destside->tri_edge = sourceside->tri_edge;
-	destside->nWall = sourceside->nWall;
+	destside->wall_num = sourceside->wall_num;
 
 	for (facenum=0; facenum<sourceside->num_faces; facenum++) {
 		face *destface = &destside->faces[facenum];
@@ -225,9 +225,9 @@ void copy_side_except_vertex_ids(tSide *destside, tSide *sourceside)
 			poly *sourcepoly = &sourceface->polys[polynum];
 
 			destpoly->num_vertices = sourcepoly->num_vertices;
-			destpoly->faceType = sourcepoly->faceType;
-			destpoly->nBaseTex = sourcepoly->nBaseTex;
-			destpoly->nOvlTex = sourcepoly->nOvlTex;
+			destpoly->face_type = sourcepoly->face_type;
+			destpoly->tmap_num = sourcepoly->tmap_num;
+			destpoly->tmap_num2 = sourcepoly->tmap_num2;
 
 			for (v=0; v<sourcepoly->num_vertices; v++)
 				destpoly->uvls[v] = sourcepoly->uvls[v];
@@ -236,8 +236,8 @@ void copy_side_except_vertex_ids(tSide *destside, tSide *sourceside)
 	}
 }
 
-//	[tSide] [index] [cur:next]
-//	To remap the vertices on a tSide after a forward rotation
+//	[side] [index] [cur:next]
+//	To remap the vertices on a side after a forward rotation
 byte xlate_previous[6][4][2] = {
 { {7, 3}, {3, 2}, {2, 6}, {6, 7} },		// remapping left to left
 { {5, 4}, {4, 0}, {7, 3}, {6, 7} },		// remapping back to top
@@ -247,18 +247,18 @@ byte xlate_previous[6][4][2] = {
 { {4, 0}, {0, 1}, {3, 2}, {7, 3} },		// remapping top to front
 };
 
-void remap_vertices_previous(tSegment *segp, int nSide)
+void remap_vertices_previous(segment *segp, int sidenum)
 {
 	int	v, w, facenum, polynum;
 
-	for (facenum=0; facenum<segp->sides[nSide].num_faces; facenum++) {
-		for (polynum=0; polynum<segp->sides[nSide].faces[facenum].num_polys; polynum++) {
-			poly *pp = &segp->sides[nSide].faces[facenum].polys[polynum];
+	for (facenum=0; facenum<segp->sides[sidenum].num_faces; facenum++) {
+		for (polynum=0; polynum<segp->sides[sidenum].faces[facenum].num_polys; polynum++) {
+			poly *pp = &segp->sides[sidenum].faces[facenum].polys[polynum];
 
 			for (v=0; v<pp->num_vertices; v++) {
 				for (w=0; w<4; w++) {
-					if (pp->verts[v] == xlate_previous[nSide][w][0]) {
-						pp->verts[v] = xlate_previous[nSide][w][1];
+					if (pp->verts[v] == xlate_previous[sidenum][w][0]) {
+						pp->verts[v] = xlate_previous[sidenum][w][1];
 						break;
 					}
 				}
@@ -277,18 +277,18 @@ byte xlate_previous_right[6][4][2] = {
 { {3, 2}, {0, 3}, {1, 0}, {2, 1} },		// front to front
 };
 
-void remap_vertices_previous_right(tSegment *segp, int nSide)
+void remap_vertices_previous_right(segment *segp, int sidenum)
 {
 	int	v, w, facenum, polynum;
 
-	for (facenum=0; facenum<segp->sides[nSide].num_faces; facenum++) {
-		for (polynum=0; polynum<segp->sides[nSide].faces[facenum].num_polys; polynum++) {
-			poly *pp = &segp->sides[nSide].faces[facenum].polys[polynum];
+	for (facenum=0; facenum<segp->sides[sidenum].num_faces; facenum++) {
+		for (polynum=0; polynum<segp->sides[sidenum].faces[facenum].num_polys; polynum++) {
+			poly *pp = &segp->sides[sidenum].faces[facenum].polys[polynum];
 
 			for (v=0; v<pp->num_vertices; v++) {
 				for (w=0; w<4; w++) {
-					if (pp->verts[v] == xlate_previous_right[nSide][w][0]) {
-						pp->verts[v] = xlate_previous_right[nSide][w][1];
+					if (pp->verts[v] == xlate_previous_right[sidenum][w][0]) {
+						pp->verts[v] = xlate_previous_right[sidenum][w][1];
 						break;
 					}
 				}
@@ -301,9 +301,9 @@ void remap_vertices_previous_right(tSegment *segp, int nSide)
 
 // -----------------------------------------------------------------------------------
 //	Takes top to front
-void med_rotate_segment_forward(tSegment *segp)
+void med_rotate_segment_forward(segment *segp)
 {
-	tSegment	seg_copy;
+	segment	seg_copy;
 	int		i;
 
 	seg_copy = *segp;
@@ -335,9 +335,9 @@ void med_rotate_segment_forward(tSegment *segp)
 
 // -----------------------------------------------------------------------------------
 //	Takes top to right
-void med_rotate_segment_right(tSegment *segp)
+void med_rotate_segment_right(segment *segp)
 {
-	tSegment	seg_copy;
+	segment	seg_copy;
 	int		i;
 
 	seg_copy = *segp;
@@ -377,23 +377,23 @@ void make_curside_bottom_side(void)
 		case WFRONT:	med_rotate_segment_forward(Cursegp);	break;
 		case WBACK:		med_rotate_segment_forward(Cursegp);	med_rotate_segment_forward(Cursegp);	med_rotate_segment_forward(Cursegp);	break;
 	}
-	UpdateFlags = UF_WORLD_CHANGED;
+	Update_flags = UF_WORLD_CHANGED;
 }
 #endif
 
 int ToggleBottom(void)
 {
 	Render_only_bottom = !Render_only_bottom;
-	UpdateFlags = UF_WORLD_CHANGED;
+	Update_flags = UF_WORLD_CHANGED;
 	return 0;
 }
-	
+		
 // ---------------------------------------------------------------------------------------------
 //           ---------- Segment interrogation functions ----------
 // ----------------------------------------------------------------------------
-//	Return a pointer to the list of vertex indices for the current tSegment in vp and
+//	Return a pointer to the list of vertex indices for the current segment in vp and
 //	the number of vertices in *nv.
-void med_get_vertex_list(tSegment *s,int *nv,short **vp)
+void med_get_vertex_list(segment *s,int *nv,short **vp)
 {
 	*vp = s->verts;
 	*nv = MAX_VERTICES_PER_SEGMENT;
@@ -403,18 +403,18 @@ void med_get_vertex_list(tSegment *s,int *nv,short **vp)
 //	Return number of times vertex vi appears in all segments.
 //	This function can be used to determine whether a vertex is used exactly once in
 //	all segments, in which case it can be freely moved because it is not connected
-//	to any other tSegment.
-int med_vertexCount(int vi)
+//	to any other segment.
+int med_vertex_count(int vi)
 {
 	int		s,v;
-	tSegment	*sp;
+	segment	*sp;
 	int		count;
 
 	count = 0;
 
 	for (s=0; s<MAX_SEGMENTS; s++) {
 		sp = &gameData.segs.segments[s];
-		if (sp->nSegment != -1)
+		if (sp->segnum != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 				if (sp->verts[v] == vi)
 					count++;
@@ -426,19 +426,19 @@ int med_vertexCount(int vi)
 // -------------------------------------------------------------------------------
 int is_free_vertex(int vi)
 {
-	return med_vertexCount(vi) == 1;
+	return med_vertex_count(vi) == 1;
 }
 
 
 // -------------------------------------------------------------------------------
-// Move a D2_FREE vertex in the tSegment by adding the vector *vofs to its coordinates.
+// Move a d_free vertex in the segment by adding the vector *vofs to its coordinates.
 //	Error handling:
-// 	If the point is not D2_FREE then:
+// 	If the point is not d_free then:
 //		If the point is not valid (probably valid = in 0..7) then:
-//		If adding *vofs will cause a degenerate tSegment then:
-//	Note, pi is the point index relative to the tSegment, not an absolute point index.
+//		If adding *vofs will cause a degenerate segment then:
+//	Note, pi is the point index relative to the segment, not an absolute point index.
 // For example, 3 is always the front upper left vertex.
-void med_move_vertex(tSegment *sp, int pi, vmsVector *vofs)
+void med_move_vertex(segment *sp, int pi, vms_vector *vofs)
 {
 	int	abspi;
 
@@ -446,25 +446,25 @@ void med_move_vertex(tSegment *sp, int pi, vmsVector *vofs)
 
 	abspi = sp->verts[pi];
 
-	// Make sure vertex abspi is D2_FREE.  If it is D2_FREE, it appears exactly once in gameData.segs.vertices
-	Assert(med_vertexCount(abspi) == 1);
+	// Make sure vertex abspi is d_free.  If it is d_free, it appears exactly once in gameData.segs.vertices
+	Assert(med_vertex_count(abspi) == 1);
 
 	Assert(abspi <= MAX_SEGMENT_VERTICES);			// Make sure vertex id is not bogus.
 
 	VmVecAdd(&gameData.segs.vertices[abspi],&gameData.segs.vertices[abspi],vofs);
 
-	// Here you need to validate the geometry of the tSegment, which will be quite tricky.
+	// Here you need to validate the geometry of the segment, which will be quite tricky.
 	// You need to make sure:
-	//		The tSegment is not concave.
+	//		The segment is not concave.
 	//		None of the sides are concave.
 	ValidateSegment(sp);
 
 }
 
 // -------------------------------------------------------------------------------
-//	Move a D2_FREE tWall in the tSegment by adding the vector *vofs to its coordinates.
+//	Move a d_free wall in the segment by adding the vector *vofs to its coordinates.
 //	Wall indices: 0/1/2/3/4/5 = left/top/right/bottom/back/front
-void med_move_wall(tSegment *sp,int wi, vmsVector *vofs)
+void med_move_wall(segment *sp,int wi, vms_vector *vofs)
 {
 	char *vp;
 	int	i;
@@ -488,7 +488,7 @@ int fnear(fix f1, fix f2)
 }
 
 // -------------------------------------------------------------------------------
-int vnear(vmsVector *vp1, vmsVector *vp2)
+int vnear(vms_vector *vp1, vms_vector *vp2)
 {
 	return fnear(vp1->x, vp2->x) && fnear(vp1->y, vp2->y) && fnear(vp1->z, vp2->z);
 }
@@ -497,12 +497,12 @@ int vnear(vmsVector *vp1, vmsVector *vp2)
 //	Add the vertex *vp to the global list of vertices, return its index.
 //	Search until a matching vertex is found (has nearly the same coordinates) or until gameData.segs.nVertices
 // vertices have been looked at without a match.  If no match, add a new vertex.
-int med_add_vertex(vmsVector *vp)
+int med_add_vertex(vms_vector *vp)
 {
 	int	v,free_index;
 	int	count;					// number of used vertices found, for loops exits when count == gameData.segs.nVertices
 
-//	set_vertexCounts();
+//	set_vertex_counts();
 
 	Assert(gameData.segs.nVertices < MAX_SEGMENT_VERTICES);
 
@@ -515,7 +515,7 @@ int med_add_vertex(vmsVector *vp)
 				return v;
 			}
 		} else if (free_index == -1)
-			free_index = v;					// we want free_index to be the first D2_FREE slot to add a vertex
+			free_index = v;					// we want free_index to be the first d_free slot to add a vertex
 
 	if (free_index == -1)
 		free_index = gameData.segs.nVertices;
@@ -537,18 +537,18 @@ int med_add_vertex(vmsVector *vp)
 }
 
 // ------------------------------------------------------------------------------------------
-//	Returns the index of a D2_FREE tSegment.
+//	Returns the index of a d_free segment.
 //	Scans the gameData.segs.segments array.
 int get_free_segment_number(void)
 {
-	int	nSegment;
+	int	segnum;
 
-	for (nSegment=0; nSegment<MAX_SEGMENTS; nSegment++)
-		if (gameData.segs.segments[nSegment].nSegment == -1) {
+	for (segnum=0; segnum<MAX_SEGMENTS; segnum++)
+		if (gameData.segs.segments[segnum].segnum == -1) {
 			gameData.segs.nSegments++;
-			if (nSegment > gameData.segs.nLastSegment)
-				gameData.segs.nLastSegment = nSegment;
-			return nSegment;
+			if (segnum > gameData.segs.nLastSegment)
+				gameData.segs.nLastSegment = segnum;
+			return segnum;
 		}
 
 	Assert(0);
@@ -557,22 +557,22 @@ int get_free_segment_number(void)
 }
 
 // -------------------------------------------------------------------------------
-//	Create a new tSegment, duplicating exactly, including vertex ids and children, the passed tSegment.
-int med_create_duplicate_segment(tSegment *sp)
+//	Create a new segment, duplicating exactly, including vertex ids and children, the passed segment.
+int med_create_duplicate_segment(segment *sp)
 {
-	int	nSegment;
+	int	segnum;
 
-	nSegment = get_free_segment_number();
+	segnum = get_free_segment_number();
 
-	gameData.segs.segments[nSegment] = *sp;
+	gameData.segs.segments[segnum] = *sp;	
 
-	return nSegment;
+	return segnum;
 }
 
 // -------------------------------------------------------------------------------
 //	Add the vertex *vp to the global list of vertices, return its index.
 //	This is the same as med_add_vertex, except that it does not search for the presence of the vertex.
-int med_create_duplicate_vertex(vmsVector *vp)
+int med_create_duplicate_vertex(vms_vector *vp)
 {
 	int	free_index;
 
@@ -601,7 +601,7 @@ int med_create_duplicate_vertex(vmsVector *vp)
 
 // -------------------------------------------------------------------------------
 //	Set the vertex *vp at index vnum in the global list of vertices, return its index (just for compatibility).
-int med_set_vertex(int vnum,vmsVector *vp)
+int med_set_vertex(int vnum,vms_vector *vp)
 {
 	Assert(vnum < MAX_VERTICES);
 
@@ -613,7 +613,7 @@ int med_set_vertex(int vnum,vmsVector *vp)
 		gameData.segs.nVertices++;
 		if ((vnum > gameData.segs.nLastVertex) && (vnum < NEW_SEGMENT_VERTICES)) {
 #if TRACE
-			con_printf (CONDBG,"Warning -- setting a previously unset vertex, index = %i.\n",vnum);
+			con_printf (CON_DEBUG,"Warning -- setting a previously unset vertex, index = %i.\n",vnum);
 #endif
 			gameData.segs.nLastVertex = vnum;
 		}
@@ -625,94 +625,94 @@ int med_set_vertex(int vnum,vmsVector *vp)
 
 
 //	----
-//	A tSide is determined to be degenerate if the cross products of 3 consecutive points does not point outward.
-int check_for_degenerate_side(tSegment *sp, int nSide)
+//	A side is determined to be degenerate if the cross products of 3 consecutive points does not point outward.
+int check_for_degenerate_side(segment *sp, int sidenum)
 {
-	char			*vp = sideToVerts[nSide];
-	vmsVector	vec1, vec2, cross, vec_to_center;
-	vmsVector	segc, sidec;
+	char			*vp = sideToVerts[sidenum];
+	vms_vector	vec1, vec2, cross, vec_to_center;
+	vms_vector	segc, sidec;
 	fix			dot;
-	int			degeneracyFlag = 0;
+	int			degeneracy_flag = 0;
 
 	COMPUTE_SEGMENT_CENTER(&segc, sp);
-	COMPUTE_SIDE_CENTER(&sidec, sp, nSide);
+	COMPUTE_SIDE_CENTER(&sidec, sp, sidenum);
 	VmVecSub(&vec_to_center, &segc, &sidec);
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[1]]], &gameData.segs.vertices[sp->verts[vp[0]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[1]]], &gameData.segs.vertices[sp->verts[(int) vp[0]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
-		degeneracyFlag |= 1;
+		degeneracy_flag |= 1;
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[3]]], &gameData.segs.vertices[sp->verts[vp[2]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[3]]], &gameData.segs.vertices[sp->verts[(int) vp[2]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
-		degeneracyFlag |= 1;
+		degeneracy_flag |= 1;
 
-	return degeneracyFlag;
+	return degeneracy_flag;
 
 }
 
 // -------------------------------------------------------------------------------
-void create_removable_wall(tSegment *sp, int nSide, int nBaseTex)
+void create_removable_wall(segment *sp, int sidenum, int tmap_num)
 {
-	CreateWallsOnSide(sp, nSide);
+	CreateWallsOnSide(sp, sidenum);
 
-	sp->sides[nSide].nBaseTex = nBaseTex;
+	sp->sides[sidenum].tmap_num = tmap_num;
 
-	assign_default_uvs_to_side(sp, nSide);
-	assign_light_to_side(sp, nSide);
+	assign_default_uvs_to_side(sp, sidenum);
+	assign_light_to_side(sp, sidenum);
 }
 
 //	----
-//	See if a tSegment has gotten turned inside out, or something.
+//	See if a segment has gotten turned inside out, or something.
 //	If so, set global Degenerate_segment_found and return 1, else return 0.
-int check_for_degenerate_segment(tSegment *sp)
+int check_for_degenerate_segment(segment *sp)
 {
-	vmsVector	fVec, rVec, uVec, cross;
+	vms_vector	fvec, rvec, uvec, cross;
 	fix			dot;
-	int			i, degeneracyFlag = 0;				// degeneracy flag for current tSegment
+	int			i, degeneracy_flag = 0;				// degeneracy flag for current segment
 
-	extract_forward_vector_from_segment(sp, &fVec);
-	extract_right_vector_from_segment(sp, &rVec);
-	extract_up_vector_from_segment(sp, &uVec);
+	extract_forward_vector_from_segment(sp, &fvec);
+	extract_right_vector_from_segment(sp, &rvec);
+	extract_up_vector_from_segment(sp, &uvec);
 
-	vmsVector::normalize(&fVec);
-	vmsVector::normalize(&rVec);
-	vmsVector::normalize(&uVec);
+	VmVecNormalize(&fvec);
+	VmVecNormalize(&rvec);
+	VmVecNormalize(&uvec);
 
-	VmVecCross(&cross, &fVec, &rVec);
-	dot = vmsVector::dot(cross, uVec);
+	VmVecCross(&cross, &fvec, &rvec);
+	dot = VmVecDot(&cross, &uvec);
 
 	if (dot > 0)
-		degeneracyFlag = 0;
+		degeneracy_flag = 0;
 	else {
 #if TRACE
-		con_printf (CONDBG, "tSegment #%i is degenerate due to cross product check.\n", SEG_IDX (sp));
+		con_printf (CON_DEBUG, "segment #%i is degenerate due to cross product check.\n", SEG_IDX (sp));
 #endif
-		degeneracyFlag = 1;
+		degeneracy_flag = 1;
 	}
 
-	//	Now, see if degenerate because of any tSide.
+	//	Now, see if degenerate because of any side.
 	for (i=0; i<MAX_SIDES_PER_SEGMENT; i++)
-		degeneracyFlag |= check_for_degenerate_side(sp, i);
+		degeneracy_flag |= check_for_degenerate_side(sp, i);
 
-	Degenerate_segment_found |= degeneracyFlag;
+	Degenerate_segment_found |= degeneracy_flag;
 
-	return degeneracyFlag;
+	return degeneracy_flag;
 
 }
 
@@ -728,19 +728,19 @@ int check_for_degenerate_segment(tSegment *sp)
 //	We should also have the functions:
 //		mat_a = mat_b * scalar;				// we now have mat_a = mat_a * scalar;
 //		mat_a = mat_b + mat_c * scalar;	// or maybe not, maybe this is not primitive
-void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
+void make_orthogonal(vms_matrix *rmat,vms_matrix *smat)
 {
-	vmsMatrix		tmat;
-	vmsVector		tvec1,tvec2;
+	vms_matrix		tmat;
+	vms_vector		tvec1,tvec2;
 	double				dot;
 
 	// Copy source matrix to work area.
 	tmat = *smat;
 
 	// Normalize the three rows of the matrix tmat.
-	vmsVector::normalize(&tmat.xrow);
-	vmsVector::normalize(&tmat.yrow);
-	vmsVector::normalize(&tmat.zrow);
+	VmVecNormalize(&tmat.xrow);
+	VmVecNormalize(&tmat.yrow);
+	VmVecNormalize(&tmat.zrow);
 
 	//	Now, compute the first vector.
 	// This is very easy -- just copy the (normalized) source vector.
@@ -754,12 +754,12 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				b' = the second row of rmat
 
 	// Compute: transpose(q1) * b
-	dot = fVector::dotProd(&rmat->zrow,&tmat.yrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.yrow);
 
 	// Compute: b - dot * q1
-	rmat->yrow.x = tmat.yrow.x - FixMul(dot,rmat->zrow.x);
-	rmat->yrow.y = tmat.yrow.y - FixMul(dot,rmat->zrow.y);
-	rmat->yrow.z = tmat.yrow.z - FixMul(dot,rmat->zrow.z);
+	rmat->yrow.x = tmat.yrow.x - fixmul(dot,rmat->zrow.x);
+	rmat->yrow.y = tmat.yrow.y - fixmul(dot,rmat->zrow.y);
+	rmat->yrow.z = tmat.yrow.z - fixmul(dot,rmat->zrow.z);
 
 	// Now, compute the third vector.
 	// From page 173 of Strang, we use the equation:
@@ -770,18 +770,18 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				c' = the third row of rmat
 
 	// Compute: q1*c
-	dot = fVector::dotProd(&rmat->zrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.xrow);
 
-	tvec1.x = FixMul(dot,rmat->zrow.x);
-	tvec1.y = FixMul(dot,rmat->zrow.y);
-	tvec1.z = FixMul(dot,rmat->zrow.z);
+	tvec1.x = fixmul(dot,rmat->zrow.x);
+	tvec1.y = fixmul(dot,rmat->zrow.y);
+	tvec1.z = fixmul(dot,rmat->zrow.z);
 
 	// Compute: q2*c
-	dot = fVector::dotProd(&rmat->yrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->yrow,&tmat.xrow);
 
-	tvec2.x = FixMul(dot,rmat->yrow.x);
-	tvec2.y = FixMul(dot,rmat->yrow.y);
-	tvec2.z = FixMul(dot,rmat->yrow.z);
+	tvec2.x = fixmul(dot,rmat->yrow.x);
+	tvec2.y = fixmul(dot,rmat->yrow.y);
+	tvec2.z = fixmul(dot,rmat->yrow.z);
 
 	VmVecSub(&rmat->xrow,VmVecSub(&rmat->xrow,&tmat.xrow,&tvec1),&tvec2);
 }
@@ -789,20 +789,20 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 #endif
 
 // ------------------------------------------------------------------------------------------
-// Given a tSegment, extract the rotation matrix which defines it.
+// Given a segment, extract the rotation matrix which defines it.
 // Do this by extracting the forward, right, up vectors and then making them orthogonal.
 // In the process of making the vectors orthogonal, favor them in the order forward, up, right.
 // This means that the forward vector will remain unchanged.
-void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
+void med_extract_matrix_from_segment(segment *sp,vms_matrix *rotmat)
 {
-	vmsVector	forwardvec,upvec;
+	vms_vector	forwardvec,upvec;
 
 	extract_forward_vector_from_segment(sp,&forwardvec);
 	extract_up_vector_from_segment(sp,&upvec);
 
 	if (((forwardvec.x == 0) && (forwardvec.y == 0) && (forwardvec.z == 0)) || ((upvec.x == 0) && (upvec.y == 0) && (upvec.z == 0))) {
 #if TRACE
-		con_printf (CONDBG, "Trapped null vector in med_extract_matrix_from_segment, returning identity matrix.\n");
+		con_printf (CON_DEBUG, "Trapped null vector in med_extract_matrix_from_segment, returning identity matrix.\n");
 #endif
 		*rotmat = vmdIdentityMatrix;
 		return;
@@ -812,21 +812,21 @@ void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
 	VmVector2Matrix(rotmat,&forwardvec,&upvec,NULL);
 
 #if 0
-	vmsMatrix	rm;
+	vms_matrix	rm;
 
 	extract_forward_vector_from_segment(sp,&rm.zrow);
 	extract_right_vector_from_segment(sp,&rm.xrow);
 	extract_up_vector_from_segment(sp,&rm.yrow);
 
-	vmsVector::normalize(&rm.xrow);
-	vmsVector::normalize(&rm.yrow);
-	vmsVector::normalize(&rm.zrow);
+	VmVecNormalize(&rm.xrow);
+	VmVecNormalize(&rm.yrow);
+	VmVecNormalize(&rm.zrow);
 
 	make_orthogonal(rotmat,&rm);
 
-	vmsVector::normalize(&rotmat->xrow);
-	vmsVector::normalize(&rotmat->yrow);
-	vmsVector::normalize(&rotmat->zrow);
+	VmVecNormalize(&rotmat->xrow);
+	VmVecNormalize(&rotmat->yrow);
+	VmVecNormalize(&rotmat->zrow);
 
 // *rotmat = rm; // include this line (and remove the call to make_orthogonal) if you don't want the matrix orthogonalized
 #endif
@@ -834,12 +834,12 @@ void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
 }
 
 // ------------------------------------------------------------------------------------------
-//	Given a rotation matrix *rotmat which describes the orientation of a tSegment
-//	and a tSide destside, return the rotation matrix which describes the orientation for the tSide.
-void	set_matrix_based_on_side(vmsMatrix *rotmat,int destside)
+//	Given a rotation matrix *rotmat which describes the orientation of a segment
+//	and a side destside, return the rotation matrix which describes the orientation for the side.
+void	set_matrix_based_on_side(vms_matrix *rotmat,int destside)
 {
-        vmsAngVec      rotvec,*tmpvec;
-        vmsMatrix      r1,rtemp;
+        vms_angvec      rotvec,*tmpvec;
+        vms_matrix      r1,rtemp;
 
 	switch (destside) {
 		case WLEFT:
@@ -896,7 +896,7 @@ void change_vertex_occurrences(int dest, int src)
 
 	// now scan all segments, changing occurrences of src to dest
 	for (s=0; s<=gameData.segs.nLastSegment; s++)
-		if (gameData.segs.segments[s].nSegment != -1)
+		if (gameData.segs.segments[s].segnum != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 				if (gameData.segs.segments[s].verts[v] == src)
 					gameData.segs.segments[s].verts[v] = dest;
@@ -923,7 +923,7 @@ void compress_vertices(void)
 				// Ok, hole is the index of a hole, vert is the index of a vertex which follows it.
 				// Copy vert into hole, update pointers to it.
 				gameData.segs.vertices[hole] = gameData.segs.vertices[vert];
-			
+				
 				change_vertex_occurrences(hole, vert);
 
 				vert--;
@@ -944,20 +944,20 @@ void compress_segments(void)
 	seg = gameData.segs.nLastSegment;
 
 	for (hole=0; hole < seg; hole++)
-		if (gameData.segs.segments[hole].nSegment == -1) {
-			// found an unused tSegment which is a hole if a used tSegment follows (not necessarily immediately) it.
-			for ( ; (seg>hole) && (gameData.segs.segments[seg].nSegment == -1); seg--)
+		if (gameData.segs.segments[hole].segnum == -1) {
+			// found an unused segment which is a hole if a used segment follows (not necessarily immediately) it.
+			for ( ; (seg>hole) && (gameData.segs.segments[seg].segnum == -1); seg--)
 				;
 
 			if (seg > hole) {
 				int		f,g,l,s,t,w;
-				tSegment	*sp;
-				int nObject;
+				segment	*sp;
+				int objnum;
 
-				// Ok, hole is the index of a hole, seg is the index of a tSegment which follows it.
+				// Ok, hole is the index of a hole, seg is the index of a segment which follows it.
 				// Copy seg into hole, update pointers to it, update Cursegp, Markedsegp if necessary.
 				gameData.segs.segments[hole] = gameData.segs.segments[seg];
-				gameData.segs.segments[seg].nSegment = -1;
+				gameData.segs.segments[seg].segnum = -1;
 
 				if (Cursegp == &gameData.segs.segments[seg])
 					Cursegp = &gameData.segs.segments[hole];
@@ -973,30 +973,30 @@ void compress_segments(void)
 
 				// Fix walls
 				for (w=0;w<gameData.walls.nWalls;w++)
-					if (gameData.walls.walls[w].nSegment == seg)
-						gameData.walls.walls[w].nSegment = hole;
+					if (gameData.walls.walls[w].segnum == seg)
+						gameData.walls.walls[w].segnum = hole;
 
 				// Fix fuelcenters, robotcens, and triggers... added 2/1/95 -Yuan
 				for (f=0;f<gameData.matCens.nFuelCenters;f++)
-					if (gameData.matCens.fuelCenters[f].nSegment == seg)
-						gameData.matCens.fuelCenters[f].nSegment = hole;
+					if (gameData.matCens.fuelCenters[f].segnum == seg)
+						gameData.matCens.fuelCenters[f].segnum = hole;
 
-				for (f=0;f<gameData.matCens.nBotCenters;f++)
-					if (gameData.matCens.botGens[f].nSegment == seg)
-						gameData.matCens.botGens[f].nSegment = hole;
+				for (f=0;f<gameData.matCens.nRobotCenters;f++)
+					if (gameData.matCens.robotCenters[f].segnum == seg)
+						gameData.matCens.robotCenters[f].segnum = hole;
 
 				for (t=0;t<gameData.trigs.nTriggers;t++)
-					for (l=0;l<gameData.trigs.triggers[t].nLinks;l++)
+					for (l=0;l<gameData.trigs.triggers[t].num_links;l++)
 						if (gameData.trigs.triggers[t].seg[l] == seg)
 							gameData.trigs.triggers[t].seg[l] = hole;
 
 				sp = &gameData.segs.segments[hole];
 				for (s=0; s<MAX_SIDES_PER_SEGMENT; s++) {
 					if (IS_CHILD(sp->children[s])) {
-						tSegment *csegp;
+						segment *csegp;
 						csegp = &gameData.segs.segments[sp->children[s]];
 
-						// Find out on what tSide the tSegment connection to the former seg is on in *csegp.
+						// Find out on what side the segment connection to the former seg is on in *csegp.
 						for (t=0; t<MAX_SIDES_PER_SEGMENT; t++) {
 							if (csegp->children[t] == seg) {
 								csegp->children[t] = hole;					// It used to be connected to seg, so make it connected to hole
@@ -1005,10 +1005,10 @@ void compress_segments(void)
 					}	// end if
 				}	// end for s
 
-				//Update tObject tSegment pointers
-				for (nObject = sp->objects; nObject != -1; nObject = gameData.objs.objects[nObject].next) {
-					Assert(gameData.objs.objects[nObject].nSegment == seg);
-					gameData.objs.objects[nObject].nSegment = hole;
+				//Update object segment pointers
+				for (objnum = sp->objects; objnum != -1; objnum = gameData.objs.objects[objnum].next) {
+					Assert(gameData.objs.objects[objnum].segnum == seg);
+					gameData.objs.objects[objnum].segnum = hole;
 				}
 
 				seg--;
@@ -1032,7 +1032,7 @@ void med_combine_duplicate_vertices(byte *vlp)
 
 	for (v=0; v<gameData.segs.nLastVertex; v++)		// Note: ok to do to <, rather than <= because w for loop starts at v+1
 		if (vlp[v]) {
-			vmsVector *vvp = &gameData.segs.vertices[v];
+			vms_vector *vvp = &gameData.segs.vertices[v];
 			for (w=v+1; w<=gameData.segs.nLastVertex; w++)
 				if (vlp[w]) {	//	used to be Vertex_active[w]
 					if (vnear(vvp, &gameData.segs.vertices[w])) {
@@ -1045,8 +1045,8 @@ void med_combine_duplicate_vertices(byte *vlp)
 
 // ------------------------------------------------------------------------------
 //	Compress mine at gameData.segs.segments and gameData.segs.vertices by squeezing out all holes.
-//	If no holes (ie, an unused tSegment followed by a used tSegment), then no action.
-//	If Cursegp or Markedsegp is a tSegment which gets moved to fill in a hole, then
+//	If no holes (ie, an unused segment followed by a used segment), then no action.
+//	If Cursegp or Markedsegp is a segment which gets moved to fill in a hole, then
 //	they are properly updated.
 void med_compress_mine(void)
 {
@@ -1057,68 +1057,68 @@ void med_compress_mine(void)
 
 	compress_segments();
 	compress_vertices();
-	set_vertexCounts();
+	set_vertex_counts();
 
 	//--repair-- create_local_segment_data();
 
-	//	This is necessary becuase a tSegment search (due to click in 3d window) uses the previous frame's
-	//	tSegment information, which could get changed by this.
-	UpdateFlags = UF_WORLD_CHANGED;
+	//	This is necessary becuase a segment search (due to click in 3d window) uses the previous frame's
+	//	segment information, which could get changed by this.
+	Update_flags = UF_WORLD_CHANGED;
 }
 
 
 // ------------------------------------------------------------------------------------------
 //	Copy texture map ids for each face in sseg to dseg.
-void copy_tmap_ids(tSegment *dseg, tSegment *sseg)
+void copy_tmap_ids(segment *dseg, segment *sseg)
 {
 	int	s;
 
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++) {
-		dseg->sides[s].nBaseTex = sseg->sides[s].nBaseTex;
-		dseg->sides[s].nOvlTex = 0;
+		dseg->sides[s].tmap_num = sseg->sides[s].tmap_num;
+		dseg->sides[s].tmap_num2 = 0;
 	}
 }
 
 // ------------------------------------------------------------------------------------------
-//	Attach a tSegment with a rotated orientation.
+//	Attach a segment with a rotated orientation.
 // Return value:
 //  0 = successful attach
 //  1 = No room in gameData.segs.segments[].
 //  2 = No room in gameData.segs.vertices[].
-//  3 = newside != WFRONT -- for now, the new tSegment must be attached at its (own) front tSide
+//  3 = newside != WFRONT -- for now, the new segment must be attached at its (own) front side
 //	 4 = already a face attached on destseg:destside
-int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside, int newside,vmsMatrix *attmat)
+int med_attach_segment_rotated(segment *destseg, segment *newseg, int destside, int newside,vms_matrix *attmat)
 {
 	char			*dvp;
-	tSegment		*nsp;
-	tSegment2	*nsp2;
-	int			tSide,v;
-	vmsMatrix	rotmat,rotmat1,rotmat2,rotmat3,rotmat4;
-	vmsVector	vr,vc,tvs[4],xlate_vec;
-	int			nSegment;
-	vmsVector	forvec,upvec;
+	segment		*nsp;
+	segment2	*nsp2;
+	int			side,v;
+	vms_matrix	rotmat,rotmat1,rotmat2,rotmat3,rotmat4;
+	vms_vector	vr,vc,tvs[4],xlate_vec;
+	int			segnum;
+	vms_vector	forvec,upvec;
 
-	// Return if already a face attached on this tSide.
+	// Return if already a face attached on this side.
 	if (IS_CHILD(destseg->children[destside]))
 		return 4;
 
-	nSegment = get_free_segment_number();
+	segnum = get_free_segment_number();
 
-	forvec = attmat->fVec;
-	upvec = attmat->uVec;
+	forvec = attmat->fvec;
+	upvec = attmat->uvec;
 
-	//	We are pretty confident we can add the tSegment.
-	nsp = &gameData.segs.segments[nSegment];
-	nsp2 = &gameData.segs.segment2s[nSegment];
+	//	We are pretty confident we can add the segment.
+	nsp = &gameData.segs.segments[segnum];
+	nsp2 = &gameData.segs.segment2s[segnum];
 
-	nsp->nSegment = nSegment;
+	nsp->segnum = segnum;
 	nsp->objects = -1;
-	nsp2->nMatCen = -1;
+	nsp2->matcen_num = -1;
 
 	// Copy group value.
 	nsp->group = destseg->group;
 
-	// Add tSegment to proper group list.
+	// Add segment to proper group list.
 	if (nsp->group > -1)
 		add_segment_to_group(nSEG_IDX (sp), nsp->group);
 
@@ -1126,20 +1126,20 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	copy_tmap_ids(nsp,newseg);
 
 	// clear all connections
-	for (tSide=0; tSide<MAX_SIDES_PER_SEGMENT; tSide++) {
-		nsp->children[tSide] = -1;
-		nsp->sides[tSide].nWall = NO_WALL;
+	for (side=0; side<MAX_SIDES_PER_SEGMENT; side++) {
+		nsp->children[side] = -1;
+		nsp->sides[side].wall_num = NO_WALL;	
 	}
 
 	// Form the connection
-	destseg->children[destside] = nSegment;
-//	destseg->sides[destside].renderFlag = 0;
+	destseg->children[destside] = segnum;
+//	destseg->sides[destside].render_flag = 0;
 	nsp->children[newside] = destSEG_IDX (seg);
 
 	// Copy vertex indices of the four vertices forming the joint
 	dvp = sideToVerts[destside];
 
-	// Set the vertex indices for the four vertices forming the front of the new tSide
+	// Set the vertex indices for the four vertices forming the front of the new side
 	for (v=0; v<4; v++)
                 nsp->verts[v] = destseg->verts[(int) dvp[v]];
 
@@ -1151,10 +1151,10 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	med_extract_matrix_from_segment(destseg,&rotmat);		// get orientation matrix for destseg (orthogonal rotation matrix)
 	set_matrix_based_on_side(&rotmat,destside);
 	VmVector2Matrix(&rotmat1,&forvec,&upvec,NULL);
-	VmMatMul(&rotmat4,&rotmat,&rotmat1);			// this is the desired orientation of the new tSegment
-	med_extract_matrix_from_segment(newseg,&rotmat3);		// this is the current orientation of the new tSegment
+	VmMatMul(&rotmat4,&rotmat,&rotmat1);			// this is the desired orientation of the new segment
+	med_extract_matrix_from_segment(newseg,&rotmat3);		// this is the current orientation of the new segment
 	VmTransposeMatrix(&rotmat3);								// get the inverse of the current orientation matrix
-	VmMatMul(&rotmat2,&rotmat4,&rotmat3);			// now rotmat2 takes the current tSegment to the desired orientation
+	VmMatMul(&rotmat2,&rotmat4,&rotmat3);			// now rotmat2 takes the current segment to the desired orientation
 
 	// Warning -- look at this line!
 	VmTransposeMatrix(&rotmat2);	// added 12:33 pm, 10/01/93
@@ -1163,11 +1163,11 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	COMPUTE_SIDE_CENTER(&vc,newseg,newside);
 	VmVecRotate(&vr,&vc,&rotmat2);
 
-	// Now rotate the D2_FREE vertices in the tSegment
+	// Now rotate the d_free vertices in the segment
 	for (v=0; v<4; v++)
 		VmVecRotate(&tvs[v],&gameData.segs.vertices[newseg->verts[v+4]],&rotmat2);
 
-	// Now translate the new tSegment so that the center point of the attaching faces are the same.
+	// Now translate the new segment so that the center point of the attaching faces are the same.
 	COMPUTE_SIDE_CENTER(&vc,destseg,destside);
 	VmVecSub(&xlate_vec,&vc,&vr);
 
@@ -1177,14 +1177,14 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 		nsp->verts[v+4] = med_add_vertex(&tvs[v]);
 	}
 
-	set_vertexCounts();
+	set_vertex_counts();
 
 	// Now all the vertices are in place.  Create the faces.
 	ValidateSegment(nsp);
 
 	//	Say to not render at the joint.
-//	destseg->sides[destside].renderFlag = 0;
-//	nsp->sides[newside].renderFlag = 0;
+//	destseg->sides[destside].render_flag = 0;
+//	nsp->sides[newside].render_flag = 0;
 
 	Cursegp = nsp;
 
@@ -1194,7 +1194,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 // ------------------------------------------------------------------------------------------
-void scale_free_vertices(tSegment *sp,vmsVector *vp,fix scale_factor,int min_side,int max_side)
+void scale_free_vertices(segment *sp,vms_vector *vp,fix scale_factor,int min_side,int max_side)
 {
 	int	i;
 	char	*verts;
@@ -1203,41 +1203,41 @@ void scale_free_vertices(tSegment *sp,vmsVector *vp,fix scale_factor,int min_sid
 
 	for (i=0; i<4; i++)
                 if (is_free_vertex(sp->verts[(int) verts[i]])) {
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].x = FixMul(vp->x,scale_factor)/2;
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].y = FixMul(vp->y,scale_factor)/2;
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].z = FixMul(vp->z,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].x = fixmul(vp->x,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].y = fixmul(vp->y,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].z = fixmul(vp->z,scale_factor)/2;
 		}
 
 	verts = sideToVerts[max_side];
 
 	for (i=0; i<4; i++)
                 if (is_free_vertex(sp->verts[(int) verts[i]])) {
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].x = FixMul(vp->x,scale_factor)/2;
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].y = FixMul(vp->y,scale_factor)/2;
-                        gameData.segs.vertices[sp->verts[(int) verts[i]]].z = FixMul(vp->z,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].x = fixmul(vp->x,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].y = fixmul(vp->y,scale_factor)/2;
+                        gameData.segs.vertices[sp->verts[(int) verts[i]]].z = fixmul(vp->z,scale_factor)/2;
 		}
 }
 
 
 // ------------------------------------------------------------------------------------------
-// Attach tSide newside of newseg to tSide destside of destseg.
+// Attach side newside of newseg to side destside of destseg.
 // Copies *newseg into global array gameData.segs.segments, increments gameData.segs.nSegments.
-// Forms a weld between the two segments by making the new tSegment fit to the old tSegment.
-// Updates number of faces per tSide if necessitated by new vertex coordinates.
+// Forms a weld between the two segments by making the new segment fit to the old segment.
+// Updates number of faces per side if necessitated by new vertex coordinates.
 //	Updates Cursegp.
 // Return value:
 //  0 = successful attach
 //  1 = No room in gameData.segs.segments[].
 //  2 = No room in gameData.segs.vertices[].
-//  3 = newside != WFRONT -- for now, the new tSegment must be attached at its (own) front tSide
-//	 4 = already a face attached on tSide newside
-int med_attach_segment(tSegment *destseg, tSegment *newseg, int destside, int newside)
+//  3 = newside != WFRONT -- for now, the new segment must be attached at its (own) front side
+//	 4 = already a face attached on side newside
+int med_attach_segment(segment *destseg, segment *newseg, int destside, int newside)
 {
 	int		rval;
-	tSegment	*ocursegp = Cursegp;
+	segment	*ocursegp = Cursegp;
 
-	vmsAngVec	tang = {0,0,0};
-	vmsMatrix	rotmat;
+	vms_angvec	tang = {0,0,0};
+	vms_matrix	rotmat;
 
 	VmAngles2Matrix(&rotmat,&tang);
 	rval = med_attach_segment_rotated(destseg,newseg,destside,newside,&rotmat);
@@ -1250,7 +1250,7 @@ int med_attach_segment(tSegment *destseg, tSegment *newseg, int destside, int ne
 
 // -------------------------------------------------------------------------------
 //	Delete a vertex, sort of.
-//	Decrement the vertex count.  If the count goes to 0, then the vertex is D2_FREE (has been deleted).
+//	Decrement the vertex count.  If the count goes to 0, then the vertex is d_free (has been deleted).
 void delete_vertex(short v)
 {
 	Assert(v < MAX_VERTICES);			// abort if vertex is not in array gameData.segs.vertices
@@ -1277,7 +1277,7 @@ void update_num_vertices(void)
 // -------------------------------------------------------------------------------
 //	Set Vertex_active to number of occurrences of each vertex.
 //	Set gameData.segs.nVertices.
-void set_vertexCounts(void)
+void set_vertex_counts(void)
 {
 	int	s,v;
 
@@ -1288,7 +1288,7 @@ void set_vertexCounts(void)
 
 	// Count number of occurrences of each vertex.
 	for (s=0; s<=gameData.segs.nLastSegment; s++)
-		if (gameData.segs.segments[s].nSegment != -1)
+		if (gameData.segs.segments[s].segnum != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++) {
 				if (!Vertex_active[gameData.segs.segments[s].verts[v]])
 					gameData.segs.nVertices++;
@@ -1297,46 +1297,46 @@ void set_vertexCounts(void)
 }
 
 // -------------------------------------------------------------------------------
-//	Delete all vertices in tSegment *sp from the vertex list if they are not contained in another tSegment.
+//	Delete all vertices in segment *sp from the vertex list if they are not contained in another segment.
 //	This is kind of a dangerous routine.  It modifies the global array Vertex_active, using the field as
 //	a count.
-void delete_vertices_in_segment(tSegment *sp)
+void delete_vertices_in_segment(segment *sp)
 {
 	int	v;
 
 //	init_vertices();
 
-	set_vertexCounts();
+	set_vertex_counts();
 
-	// Subtract one count for each appearance of vertex in deleted tSegment
+	// Subtract one count for each appearance of vertex in deleted segment
 	for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 		delete_vertex(sp->verts[v]);
 
 	update_num_vertices();
 }
 
-extern void ValidateSegmentSide(tSegment *sp, int nSide);
+extern void ValidateSegmentSide(segment *sp, int sidenum);
 
 // -------------------------------------------------------------------------------
-//	Delete tSegment *sp in gameData.segs.segments array.
+//	Delete segment *sp in gameData.segs.segments array.
 // Return value:
 //		0	successfully deleted.
 //		1	unable to delete.
-int med_delete_segment(tSegment *sp)
+int med_delete_segment(segment *sp)
 {
-	int		s,tSide,nSegment;
-	int 		nObject;
+	int		s,side,segnum;
+	int 		objnum;
 
-	nSegment = SEG_IDX (sp);
+	segnum = SEG_IDX (sp);
 
-	// Cannot delete tSegment if only tSegment.
+	// Cannot delete segment if only segment.
 	if (gameData.segs.nSegments == 1)
 		return 1;
 
-	// Don't try to delete if tSegment doesn't exist.
-	if (sp->nSegment == -1) {
+	// Don't try to delete if segment doesn't exist.
+	if (sp->segnum == -1) {
 #if TRACE
-		con_printf (CONDBG,"Tried to delete a non-existent tSegment (nSegment == -1)\n");
+		con_printf (CON_DEBUG,"Tried to delete a non-existent segment (segnum == -1)\n");
 #endif
 		return 1;
 	}
@@ -1348,22 +1348,22 @@ int med_delete_segment(tSegment *sp)
 
 	gameData.segs.nSegments--;
 
-	// If deleted tSegment has walls on any tSide, wipe out the tWall.
-	for (tSide=0; tSide < MAX_SIDES_PER_SEGMENT; tSide++)
-		if (IS_WALL (WallNumP (sp, tSide))) 
-			wall_remove_side(sp, tSide);
+	// If deleted segment has walls on any side, wipe out the wall.
+	for (side=0; side < MAX_SIDES_PER_SEGMENT; side++)
+		if (IS_WALL (WallNumP (sp, side))) 
+			wall_remove_side(sp, side);
 
-	// Find out what this tSegment was connected to and break those connections at the other end.
-	for (tSide=0; tSide < MAX_SIDES_PER_SEGMENT; tSide++)
-		if (IS_CHILD(sp->children[tSide])) {
-			tSegment	*csp;									// the connecting tSegment
+	// Find out what this segment was connected to and break those connections at the other end.
+	for (side=0; side < MAX_SIDES_PER_SEGMENT; side++)
+		if (IS_CHILD(sp->children[side])) {
+			segment	*csp;									// the connecting segment
 			int		s;
 
-			csp = gameData.segs.segments + sp->children[tSide];
+			csp = gameData.segs.segments + sp->children[side];
 			for (s=0; s<MAX_SIDES_PER_SEGMENT; s++)
-				if (csp->children[s] == nSegment) {
-					csp->children[s] = -1;				// this is the tSide of connection, break it
-					ValidateSegmentSide(csp,s);					// we have converted a connection to a tSide so validate the tSegment
+				if (csp->children[s] == segnum) {
+					csp->children[s] = -1;				// this is the side of connection, break it
+					ValidateSegmentSide(csp,s);					// we have converted a connection to a side so validate the segment
 					med_propagate_tmaps_to_back_side(csp,s,0);
 				}
 			Cursegp = csp;
@@ -1371,45 +1371,45 @@ int med_delete_segment(tSegment *sp)
 			copy_uvs_seg_to_seg(&New_segment,Cursegp);
 		}
 
-	sp->nSegment = -1;										// Mark tSegment as inactive.
+	sp->segnum = -1;										// Mark segment as inactive.
 
-	// If deleted tSegment = marked tSegment, then say there is no marked tSegment
+	// If deleted segment = marked segment, then say there is no marked segment
 	if (sp == Markedsegp)
 		Markedsegp = 0;
-
-	//	If deleted tSegment = a Group tSegment ptr, then wipe it out.
+	
+	//	If deleted segment = a Group segment ptr, then wipe it out.
 	for (s=0;s<num_groups;s++) 
 		if (sp == Groupsegp[s]) 
 			Groupsegp[s] = 0;
 
-	// If deleted tSegment = group tSegment, wipe it off the group list.
+	// If deleted segment = group segment, wipe it off the group list.
 	if (sp->group > -1) 
-			DeleteSegmentFromGroup(SEG_IDX (sp), sp->group);
+			delete_segment_from_group(SEG_IDX (sp), sp->group);
 
-	// If we deleted something which was not connected to anything, must now select a new current tSegment.
+	// If we deleted something which was not connected to anything, must now select a new current segment.
 	if (Cursegp == sp)
 		for (s=0; s<MAX_SEGMENTS; s++)
-			if ((gameData.segs.segments[s].nSegment != -1) && (s!=nSegment) ) {
+			if ((gameData.segs.segments[s].segnum != -1) && (s!=segnum) ) {
 				Cursegp = &gameData.segs.segments[s];
 				med_create_new_segment_from_cursegp();
 		   	break;
 			}
 
-	// If deleted tSegment contains gameData.objs.objects, wipe out all gameData.objs.objects
+	// If deleted segment contains gameData.objs.objects, wipe out all gameData.objs.objects
 	if (sp->objects != -1) 	{
-//		if (nObject == gameData.objs.objects[nObject].next) {
-//			gameData.objs.objects[nObject].next = -1;
+//		if (objnum == gameData.objs.objects[objnum].next) {
+//			gameData.objs.objects[objnum].next = -1;
 //		}
-		for (nObject=sp->objects;nObject!=-1;nObject=gameData.objs.objects[nObject].next) 	{
+		for (objnum=sp->objects;objnum!=-1;objnum=gameData.objs.objects[objnum].next) 	{
 
-			//if an tObject is in the seg, delete it
-			//if the tObject is the tPlayer, move to new curseg
+			//if an object is in the seg, delete it
+			//if the object is the player, move to new curseg
 
-			if (nObject == (OBJ_IDX (gameData.objs.console)))	{
-				COMPUTE_SEGMENT_CENTER(&gameData.objs.console->position.vPos,Cursegp);
-				RelinkObject(nObject,CurSEG_IDX (segp));
+			if (objnum == (OBJ_IDX (gameData.objs.console)))	{
+				COMPUTE_SEGMENT_CENTER(&gameData.objs.console->pos,Cursegp);
+				RelinkObject(objnum,CurSEG_IDX (segp));
 			} else
-				ReleaseObject(nObject);
+				ReleaseObject(objnum);
 		}
 	}
 
@@ -1425,37 +1425,37 @@ int med_delete_segment(tSegment *sp)
 
 // ------------------------------------------------------------------------------------------
 //	Copy texture maps from sseg to dseg
-void copy_tmaps_to_segment(tSegment *dseg, tSegment *sseg)
+void copy_tmaps_to_segment(segment *dseg, segment *sseg)
 {
 	int	s;
 
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++) {
-		dseg->sides[s].nType = sseg->sides[s].nType;
-		dseg->sides[s].nBaseTex = sseg->sides[s].nBaseTex;
-		dseg->sides[s].nOvlTex = sseg->sides[s].nOvlTex;
+		dseg->sides[s].type = sseg->sides[s].type;
+		dseg->sides[s].tmap_num = sseg->sides[s].tmap_num;
+		dseg->sides[s].tmap_num2 = sseg->sides[s].tmap_num2;
 	}
 
 }
 
 // ------------------------------------------------------------------------------------------
-// Rotate the tSegment *seg by the pitch, bank, heading defined by *rot, destructively
-// modifying its four D2_FREE vertices in the global array gameData.segs.vertices.
-// It is illegal to rotate a tSegment which has connectivity != 1.
+// Rotate the segment *seg by the pitch, bank, heading defined by *rot, destructively
+// modifying its four d_free vertices in the global array gameData.segs.vertices.
+// It is illegal to rotate a segment which has connectivity != 1.
 // Pitch, bank, heading are about the point which is the average of the four points
-// forming the tSide of connection.
+// forming the side of connection.
 // Return value:
 //  0 = successful rotation
 //  1 = Connectivity makes rotation illegal (connected to 0 or 2+ segments)
-//  2 = Rotation causes degeneracy, such as self-intersecting tSegment.
-//	 3 = Unable to rotate because not connected to exactly 1 tSegment.
-int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
+//  2 = Rotation causes degeneracy, such as self-intersecting segment.
+//	 3 = Unable to rotate because not connected to exactly 1 segment.
+int med_rotate_segment(segment *seg, vms_matrix *rotmat)
 {
-	tSegment	*destseg;
+	segment	*destseg;
         int             newside=0,destside,s;
 	int		count;
 	int		back_side,side_tmaps[MAX_SIDES_PER_SEGMENT];
 
-	// Find tSide of attachment
+	// Find side of attachment
 	count = 0;
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++)
 		if (IS_CHILD(seg->children[s])) {
@@ -1463,7 +1463,7 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 			newside = s;
 		}
 
-	// Return if passed in tSegment is connected to other than 1 tSegment.
+	// Return if passed in segment is connected to other than 1 segment.
 	if (count != 1)
 		return 3;
 
@@ -1472,13 +1472,13 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 	destside = 0;
 	while ((destseg->children[destside] != SEG_IDX (seg)) && (destside < MAX_SIDES_PER_SEGMENT))
 		destside++;
-	
-	// Before deleting the tSegment, copy its texture maps to New_segment
+		
+	// Before deleting the segment, copy its texture maps to New_segment
 	copy_tmaps_to_segment(&New_segment,seg);
 
 	if (med_delete_segment(seg)) {
 #if TRACE
-		con_printf (CONDBG,"Error in rotation: Unable to delete tSegment %i\n",SEG_IDX (seg));
+		con_printf (CON_DEBUG,"Error in rotation: Unable to delete segment %i\n",SEG_IDX (seg));
 #endif
 		}
 	if (Curside == WFRONT)
@@ -1486,10 +1486,10 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 
 	med_attach_segment_rotated(destseg,&New_segment,destside,AttachSide,rotmat);
 
-	//	Save nBaseTex on each tSide to restore after call to med_propagate_tmaps_to_segments and _back_side
+	//	Save tmap_num on each side to restore after call to med_propagate_tmaps_to_segments and _back_side
 	//	which will change the tmap nums.
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++)
-		side_tmaps[s] = seg->sides[s].nBaseTex;
+		side_tmaps[s] = seg->sides[s].tmap_num;
 
 	back_side = sideOpposite[FindConnectedSide(destseg, seg)];
 
@@ -1498,15 +1498,15 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++)
 		if (s != back_side)
-			seg->sides[s].nBaseTex = side_tmaps[s];
+			seg->sides[s].tmap_num = side_tmaps[s];
 
 	return	0;
 }
 
 // ----------------------------------------------------------------------------------------
-int med_rotate_segment_ang(tSegment *seg, vmsAngVec *ang)
+int med_rotate_segment_ang(segment *seg, vms_angvec *ang)
 {
-	vmsMatrix	rotmat;
+	vms_matrix	rotmat;
 
 	return med_rotate_segment(seg,VmAngles2Matrix(&rotmat,ang);
 }
@@ -1517,7 +1517,7 @@ int med_rotate_segment_ang(tSegment *seg, vmsAngVec *ang)
 //	Compute the sum of the distances between the four pairs of points.
 //	The connections are:
 //		firstv1 : 0		(firstv1+1)%4 : 1		(firstv1+2)%4 : 2		(firstv1+3)%4 : 3
-fix seg_seg_vertexDistsum(tSegment *seg1, int side1, tSegment *seg2, int side2, int firstv1)
+fix seg_seg_vertex_distsum(segment *seg1, int side1, segment *seg2, int side2, int firstv1)
 {
 	fix	distsum;
 	int	secondv;
@@ -1536,8 +1536,8 @@ fix seg_seg_vertexDistsum(tSegment *seg1, int side1, tSegment *seg2, int side2, 
 
 // ----------------------------------------------------------------------------
 //	Determine how to connect two segments together with the least amount of twisting.
-//	Returns vertex index in 0..3 on first tSegment.  Assumed ordering of vertices
-//	on second tSegment is 0,1,2,3.
+//	Returns vertex index in 0..3 on first segment.  Assumed ordering of vertices
+//	on second segment is 0,1,2,3.
 //	So, if return value is 2, connect 2:0 3:1 0:2 1:3.
 //	Theory:
 //		We select an ordering of vertices for connection.  For the first pair of vertices to be connected,
@@ -1545,19 +1545,19 @@ fix seg_seg_vertexDistsum(tSegment *seg1, int side1, tSegment *seg2, int side2, 
 //		to the other.  Compute the dot products of these vectors with the original vector.  Add them up.
 //		The close we are to 3, the better fit we have.  Reason:  The largest value for the dot product is
 //		1.0, and this occurs for a parallel set of vectors.
-int get_index_of_best_fit(tSegment *seg1, int side1, tSegment *seg2, int side2)
+int get_index_of_best_fit(segment *seg1, int side1, segment *seg2, int side2)
 {
 	int	firstv;
-	fix	minDistance;
+	fix	min_distance;
 	int	best_index=0;
 
-	minDistance = F1_0*30000;
+	min_distance = F1_0*30000;
 
 	for (firstv=0; firstv<4; firstv++) {
 		fix t;
-		t = seg_seg_vertexDistsum(seg1, side1, seg2, side2, firstv);
-		if (t <= minDistance) {
-			minDistance = t;
+		t = seg_seg_vertex_distsum(seg1, side1, seg2, side2, firstv);
+		if (t <= min_distance) {
+			min_distance = t;
 			best_index = firstv;
 		}
 	}
@@ -1570,9 +1570,9 @@ int get_index_of_best_fit(tSegment *seg1, int side1, tSegment *seg2, int side2)
 #define MAX_VALIDATIONS 50
 
 // ----------------------------------------------------------------------------
-//	Remap uv coordinates in all sides in tSegment *sp which have a vertex in vp[4].
+//	Remap uv coordinates in all sides in segment *sp which have a vertex in vp[4].
 //	vp contains absolute vertex indices.
-void remap_side_uvs(tSegment *sp,int *vp)
+void remap_side_uvs(segment *sp,int *vp)
 {
 	int	s,i,v;
 
@@ -1606,25 +1606,25 @@ void assign_default_uvs_to_curseg(void)
 
 // ----------------------------------------------------------------------------
 //	Modify seg2 to share side2 with seg1:side1.  This forms a connection between
-//	two segments without creating a new tSegment.  It modifies seg2 by sharing
+//	two segments without creating a new segment.  It modifies seg2 by sharing
 //	vertices from seg1.  seg1 is not modified.  Four vertices from seg2 are
 //	deleted.
 //	Return code:
 //		0			joint formed
-//		1			-- no, this is legal! -- unable to form joint because one or more vertices of side2 is not D2_FREE
+//		1			-- no, this is legal! -- unable to form joint because one or more vertices of side2 is not d_free
 //		2			unable to form joint because side1 is already used
-int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
+int med_form_joint(segment *seg1, int side1, segment *seg2, int side2)
 {
 	char		*vp1,*vp2;
 	int		bfi,v,s,sv,s1,nv;
 	int		lost_vertices[4],remap_vertices[4];
 	int		validation_list[MAX_VALIDATIONS];
 
-	//	Make sure that neither tSide is connected.
+	//	Make sure that neither side is connected.
 	if (IS_CHILD(seg1->children[side1]) || IS_CHILD(seg2->children[side2]))
 		return 2;
 
-	// Make sure there is no tWall there 
+	// Make sure there is no wall there 
 	if (IS_WALL (WallNumP (seg1, side1)) || IS_WALL (WallNumP (seg2, side2)))
 		return 2;
 
@@ -1645,18 +1645,18 @@ int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 
 	// Now, in all segments, replace all occurrences of vertices in lost_vertices with remap_vertices
 
-	// Put the one tSegment we know are being modified into the validation list.
-	// Note: seg1 does not require a full validation, only a validation of the affected tSide.  Its vertices do not move.
+	// Put the one segment we know are being modified into the validation list.
+	// Note: seg1 does not require a full validation, only a validation of the affected side.  Its vertices do not move.
 	nv = 1;
 	validation_list[0] = SEG_IDX (seg2);
 
 	for (v=0; v<4; v++)
 		for (s=0; s<=gameData.segs.nLastSegment; s++)
-			if (gameData.segs.segments[s].nSegment != -1)
+			if (gameData.segs.segments[s].segnum != -1)
 				for (sv=0; sv<MAX_VERTICES_PER_SEGMENT; sv++)
 					if (gameData.segs.segments[s].verts[sv] == lost_vertices[v]) {
 						gameData.segs.segments[s].verts[sv] = remap_vertices[v];
-						// Add tSegment to list of segments to be validated.
+						// Add segment to list of segments to be validated.
 						for (s1=0; s1<nv; s1++)
 							if (validation_list[s1] == s)
 								break;
@@ -1677,23 +1677,23 @@ int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 		warn_if_concave_segment(&gameData.segs.segments[validation_list[s]]);
 	}
 
-	set_vertexCounts();
+	set_vertex_counts();
 
 	//	Make sure connection is open, ie renderable.
-//	seg1->sides[side1].renderFlag = 0;
-//	seg2->sides[side2].renderFlag = 0;
+//	seg1->sides[side1].render_flag = 0;
+//	seg2->sides[side2].render_flag = 0;
 
-//--// debug -- check all segments, make sure if a children[s] == -1, then tSide[s].num_faces != 0
+//--// debug -- check all segments, make sure if a children[s] == -1, then side[s].num_faces != 0
 //--{
-//--int seg,tSide;
+//--int seg,side;
 //--for (seg=0; seg<MAX_SEGMENTS; seg++)
-//--	if (gameData.segs.segments[seg].nSegment != -1)
-//--		for (tSide=0; tSide<MAX_SIDES_PER_SEGMENT; tSide++)
-//--			if (gameData.segs.segments[seg].children[tSide] == -1) {
-//--				if (gameData.segs.segments[seg].sides[tSide].num_faces == 0) {
+//--	if (gameData.segs.segments[seg].segnum != -1)
+//--		for (side=0; side<MAX_SIDES_PER_SEGMENT; side++)
+//--			if (gameData.segs.segments[seg].children[side] == -1) {
+//--				if (gameData.segs.segments[seg].sides[side].num_faces == 0) {
 //--					Int3();
 //--				}
-//--			} else if (gameData.segs.segments[seg].sides[tSide].num_faces != 0) {
+//--			} else if (gameData.segs.segments[seg].sides[side].num_faces != 0) {
 //--				Int3();
 //--			}
 //--}
@@ -1702,16 +1702,16 @@ int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 }
 
 // ----------------------------------------------------------------------------
-//	Create a new tSegment and use it to form a bridge between two existing segments.
-//	Specify two tSegment:tSide pairs.  If either tSegment:tSide is not open (ie, tSegment->children[tSide] != -1)
+//	Create a new segment and use it to form a bridge between two existing segments.
+//	Specify two segment:side pairs.  If either segment:side is not open (ie, segment->children[side] != -1)
 //	then it is not legal to form the brider.
 //	Return:
-//		0	bridge tSegment formed
+//		0	bridge segment formed
 //		1	unable to form bridge because one (or both) of the sides is not open.
 //	Note that no new vertices are created by this process.
-int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2)
+int med_form_bridge_segment(segment *seg1, int side1, segment *seg2, int side2)
 {
-	tSegment		*bs;
+	segment		*bs;
 	char			*sv;
 	int			v,bfi,i;
 
@@ -1720,15 +1720,15 @@ int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2
 
 	bs = &gameData.segs.segments[get_free_segment_number()];
 
-	bs->nSegment = SEG_IDX (bs);
+	bs->segnum = SEG_IDX (bs);
 	bs->objects = -1;
 
-	// Copy vertices from seg2 into last 4 vertices of bridge tSegment.
+	// Copy vertices from seg2 into last 4 vertices of bridge segment.
 	sv = sideToVerts[side2];
 	for (v=0; v<4; v++)
                 bs->verts[(3-v)+4] = seg2->verts[(int) sv[v]];
 
-	// Copy vertices from seg1 into first 4 vertices of bridge tSegment.
+	// Copy vertices from seg1 into first 4 vertices of bridge segment.
 	bfi = get_index_of_best_fit(seg1, side1, seg2, side2);
 
 	sv = sideToVerts[side1];
@@ -1738,7 +1738,7 @@ int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2
 	// Form connections to children, first initialize all to unconnected.
 	for (i=0; i<MAX_SIDES_PER_SEGMENT; i++) {
 		bs->children[i] = -1;
-		bs->sides[i].nWall = NO_WALL;
+		bs->sides[i].wall_num = NO_WALL;
 	}
 
 	// Now form connections between segments.
@@ -1749,7 +1749,7 @@ int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2
 	seg1->children[side1] = SEG_IDX (bs); //seg2 - gameData.segs.segments;
 	seg2->children[side2] = SEG_IDX (bs); //seg1 - gameData.segs.segments;
 
-	//	Validate bridge tSegment, and if degenerate, clean up mess.
+	//	Validate bridge segment, and if degenerate, clean up mess.
 	Degenerate_segment_found = 0;
 
 	ValidateSegment(bs);
@@ -1761,47 +1761,47 @@ int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2
                 bs->children[(int) sideOpposite[AttachSide]] = -1;
 		if (med_delete_segment(bs)) {
 #if TRACE
-			con_printf (CONDBG, "Oops, tried to delete bridge tSegment (because it's degenerate), but couldn't.\n");
+			con_printf (CON_DEBUG, "Oops, tried to delete bridge segment (because it's degenerate), but couldn't.\n");
 #endif
 			Int3();
 		}
-		editor_status("Bridge tSegment would be degenerate, not created.\n");
+		editor_status("Bridge segment would be degenerate, not created.\n");
 		return 1;
 	} else {
-		ValidateSegment(seg1);	// used to only validate tSide, but tSegment does more error checking: ,side1);
+		ValidateSegment(seg1);	// used to only validate side, but segment does more error checking: ,side1);
 		ValidateSegment(seg2);	// ,side2);
 		med_propagate_tmaps_to_segments(seg1,bs,0);
 
-		editor_status("Bridge tSegment formed.");
+		editor_status("Bridge segment formed.");
 		warn_if_concave_segment(bs);
 		return 0;
 	}
 }
 
 // -------------------------------------------------------------------------------
-//	Create a tSegment given center, dimensions, rotation matrix.
-//	Note that the created tSegment will always have planar sides and rectangular cross sections.
+//	Create a segment given center, dimensions, rotation matrix.
+//	Note that the created segment will always have planar sides and rectangular cross sections.
 //	It will be created with walls on all sides, ie not connected to anything.
-void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix width, fix height, vmsMatrix *mp)
+void med_create_segment(segment *sp,fix cx, fix cy, fix cz, fix length, fix width, fix height, vms_matrix *mp)
 {
 	int			i,f;
-	vmsVector	v0,v1,cv;
-	tSegment2 *sp2;
+	vms_vector	v0,v1,cv;
+	segment2 *sp2;
 
 	gameData.segs.nSegments++;
 
-	sp->nSegment = 1;						// What to put here?  I don't know.
-	sp2 = &gameData.segs.segment2s[sp->nSegment];
+	sp->segnum = 1;						// What to put here?  I don't know.
+	sp2 = &gameData.segs.segment2s[sp->segnum];
 
 	// Form connections to children, of which it has none.
 	for (i=0; i<MAX_SIDES_PER_SEGMENT; i++) {
 		sp->children[i] = -1;
-//		sp->sides[i].renderFlag = 0;
-		sp->sides[i].nWall = NO_WALL;
+//		sp->sides[i].render_flag = 0;
+		sp->sides[i].wall_num = NO_WALL;
 	}
 
 	sp->group = -1;
-	sp2->nMatCen = -1;
+	sp2->matcen_num = -1;
 
 	//	Create relative-to-center vertices, which are the rotated points on the box defined by length, width, height
 	sp->verts[0] = med_add_vertex(VmVecRotate(&v1,VmVecMake(&v0,+width/2,+height/2,-length/2),mp);
@@ -1813,10 +1813,10 @@ void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix wid
 	sp->verts[6] = med_add_vertex(VmVecRotate(&v1,VmVecMake(&v0,-width/2,-height/2,+length/2),mp);
 	sp->verts[7] = med_add_vertex(VmVecRotate(&v1,VmVecMake(&v0,-width/2,+height/2,+length/2),mp);
 
-	// Now create the vector which is the center of the tSegment and add that to all vertices.
+	// Now create the vector which is the center of the segment and add that to all vertices.
 	while (!VmVecMake(&cv,cx,cy,cz);
 
-	//	Now, add the center to all vertices, placing the tSegment in 3 space.
+	//	Now, add the center to all vertices, placing the segment in 3 space.
 	for (i=0; i<MAX_VERTICES_PER_SEGMENT; i++)
 		VmVecAdd(&gameData.segs.vertices[sp->verts[i]],&gameData.segs.vertices[sp->verts[i]],&cv);
 
@@ -1829,13 +1829,13 @@ void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix wid
 	for (f=0; f<MAX_SIDES_PER_SEGMENT; f++)
 		CreateWallsOnSide(sp,f);
 
-	sp->objects = -1;		//no gameData.objs.objects in this tSegment
+	sp->objects = -1;		//no gameData.objs.objects in this segment
 
-	// Assume nothing special about this tSegment
+	// Assume nothing special about this segment
 	sp2->special = 0;
 	sp2->value = 0;
-	sp2->xAvgSegLight = 0;
-	sp2->nMatCen = -1;
+	sp2->static_light = 0;
+	sp2->matcen_num = -1;
 
 	copy_tmaps_to_segment(sp, &New_segment);
 
@@ -1844,12 +1844,12 @@ void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix wid
 
 // ----------------------------------------------------------------------------------------------
 //	Create New_segment using a specified scale factor.
-void med_create_new_segment(vmsVector *scale)
+void med_create_new_segment(vms_vector *scale)
 {
 	int			s,t;
-	vmsVector	v0;
-	tSegment		*sp = &New_segment;
-	tSegment2 *sp2;
+	vms_vector	v0;
+	segment		*sp = &New_segment;
+	segment2 *sp2;
 
 	fix			length,width,height;
 
@@ -1857,8 +1857,8 @@ void med_create_new_segment(vmsVector *scale)
 	width = scale->x;
 	height = scale->y;
 
-	sp->nSegment = 1;						// What to put here?  I don't know.
-	sp2 = &gameData.segs.segment2s[sp->nSegment];
+	sp->segnum = 1;						// What to put here?  I don't know.
+	sp2 = &gameData.segs.segment2s[sp->segnum];
 
 	//	Create relative-to-center vertices, which are the points on the box defined by length, width, height
 	t = gameData.segs.nVertices;
@@ -1877,39 +1877,39 @@ void med_create_new_segment(vmsVector *scale)
 	// Form connections to children, of which it has none, init faces and tmaps.
 	for (s=0; s<MAX_SIDES_PER_SEGMENT; s++) {
 		sp->children[s] = -1;
-//		sp->sides[s].renderFlag = 0;
-		sp->sides[s].nWall = NO_WALL;
+//		sp->sides[s].render_flag = 0;
+		sp->sides[s].wall_num = NO_WALL;
 		CreateWallsOnSide(sp,s);
-		sp->sides[s].nBaseTex = s;					// assign some stupid old tmap to this tSide.
-		sp->sides[s].nOvlTex = 0;
+		sp->sides[s].tmap_num = s;					// assign some stupid old tmap to this side.
+		sp->sides[s].tmap_num2 = 0;
 	}
 
 	Seg_orientation.p = 0;	Seg_orientation.b = 0;	Seg_orientation.h = 0;
 
-	sp->objects = -1;		//no gameData.objs.objects in this tSegment
+	sp->objects = -1;		//no gameData.objs.objects in this segment
 
 	assign_default_uvs_to_segment(sp);
 
-	// Assume nothing special about this tSegment
+	// Assume nothing special about this segment
 	sp2->special = 0;
 	sp2->value = 0;
-	sp2->xAvgSegLight = 0;
-	sp2->nMatCen = -1;
+	sp2->static_light = 0;
+	sp2->matcen_num = -1;
 }
 
 // -------------------------------------------------------------------------------
 void med_create_new_segment_from_cursegp(void)
 {
-	vmsVector	scalevec;
-	vmsVector	uVec, rVec, fVec;
+	vms_vector	scalevec;
+	vms_vector	uvec, rvec, fvec;
 
-	med_extract_up_vector_from_segment_side(Cursegp, Curside, &uVec);
-	med_extract_right_vector_from_segment_side(Cursegp, Curside, &rVec);
-	extract_forward_vector_from_segment(Cursegp, &fVec);
+	med_extract_up_vector_from_segment_side(Cursegp, Curside, &uvec);
+	med_extract_right_vector_from_segment_side(Cursegp, Curside, &rvec);
+	extract_forward_vector_from_segment(Cursegp, &fvec);
 
-	scalevec.x = VmVecMag(&rVec);
-	scalevec.y = VmVecMag(&uVec);
-	scalevec.z = VmVecMag(&fVec);
+	scalevec.x = VmVecMag(&rvec);
+	scalevec.y = VmVecMag(&uvec);
+	scalevec.z = VmVecMag(&fvec);
 
 	med_create_new_segment(&scalevec);
 }
@@ -1925,7 +1925,7 @@ void init_all_vertices(void)
 		Vertex_active[v] = 0;
 
 	for (s=0; s<MAX_SEGMENTS; s++)
-		gameData.segs.segments[s].nSegment = -1;
+		gameData.segs.segments[s].segnum = -1;
 
 }
 
@@ -1934,8 +1934,8 @@ void init_all_vertices(void)
 int create_new_mine(void)
 {
 	int	s;
-	vmsVector	sizevec;
-	vmsMatrix	m1 = IDENTITY_MATRIX;
+	vms_vector	sizevec;
+	vms_matrix	m1 = IDENTITY_MATRIX;
 
 	// initialize_mine_arrays();
 
@@ -1950,31 +1950,31 @@ int create_new_mine(void)
 	gameData.missions.nCurrentLevel = 0;		//0 means not a real level
 	gameData.missions.szCurrentLevel[0] = 0;
 
-	CurObject_index = -1;
-	ResetObjects(1);		//just one tObject, the tPlayer
+	Cur_object_index = -1;
+	ResetObjects(1);		//just one object, the player
 
 	num_groups = 0;
 	current_group = -1;
 
 	gameData.segs.nVertices = 0;		// Number of vertices in global array.
 	gameData.segs.nSegments = 0;		// Number of segments in global array, will get increased in med_create_segment
-	Cursegp = gameData.segs.segments;	// Say current tSegment is the only tSegment.
-	Curside = WBACK;		// The active tSide is the back tSide
-	Markedsegp = 0;		// Say there is no marked tSegment.
+	Cursegp = gameData.segs.segments;	// Say current segment is the only segment.
+	Curside = WBACK;		// The active side is the back side
+	Markedsegp = 0;		// Say there is no marked segment.
 	Markedside = WBACK;	//	Shouldn't matter since Markedsegp == 0, but just in case...
 	for (s=0;s<MAX_GROUPS+1;s++) {
-		GroupList[s].num_segments = 0;	
-		GroupList[s].num_vertices = 0;	
+		GroupList[s].num_segments = 0;		
+		GroupList[s].num_vertices = 0;		
 		Groupsegp[s] = NULL;
 		Groupside[s] = 0;
 	}
 
-	gameData.matCens.nBotCenters = 0;
+	gameData.matCens.nRobotCenters = 0;
 	gameData.walls.nOpenDoors = 0;
 	WallInit();
-	TriggerInit();
+	trigger_init();
 
-	// Create New_segment, which is the tSegment we will be adding at each instance.
+	// Create New_segment, which is the segment we will be adding at each instance.
 	med_create_new_segment(VmVecMake(&sizevec,DEFAULT_X_SIZE,DEFAULT_Y_SIZE,DEFAULT_Z_SIZE);		// New_segment = gameData.segs.segments[0];
 //	med_create_segment(gameData.segs.segments,0,0,0,DEFAULT_X_SIZE,DEFAULT_Y_SIZE,DEFAULT_Z_SIZE,vm_mat_make(&m1,F1_0,0,0,0,F1_0,0,0,0,F1_0);
 	med_create_segment(gameData.segs.segments,0,0,0,DEFAULT_X_SIZE,DEFAULT_Y_SIZE,DEFAULT_Z_SIZE,&m1);
@@ -1985,16 +1985,16 @@ int create_new_mine(void)
 
 	//--repair-- create_local_segment_data();
 
-	gameData.reactor.triggers.nLinks = 0;
+	gameData.reactor.triggers.num_links = 0;
 
     //editor_status("New mine created.");
 	return	0;			// say no error
 }
 
 // --------------------------------------------------------------------------------------------------
-// Copy a tSegment from *ssp to *dsp.  Do not simply copy the struct.  Use *dsp's vertices, copying in
+// Copy a segment from *ssp to *dsp.  Do not simply copy the struct.  Use *dsp's vertices, copying in
 //	just the values, not the indices.
-void med_copy_segment(tSegment *dsp,tSegment *ssp)
+void med_copy_segment(segment *dsp,segment *ssp)
 {
 	int	v;
 	int	verts_copy[MAX_VERTICES_PER_SEGMENT];
@@ -2016,35 +2016,35 @@ void med_copy_segment(tSegment *dsp,tSegment *ssp)
 }
 
 // -----------------------------------------------------------------------------
-//	Create coordinate axes in orientation of specified tSegment, stores vertices at *vp.
-void create_coordinate_axes_from_segment(tSegment *sp,short *vertnums)
+//	Create coordinate axes in orientation of specified segment, stores vertices at *vp.
+void create_coordinate_axes_from_segment(segment *sp,short *vertnums)
 {
-	vmsMatrix	rotmat;
-	vmsVector t;
+	vms_matrix	rotmat;
+	vms_vector t;
 
 	med_extract_matrix_from_segment(sp,&rotmat);
 
 	COMPUTE_SEGMENT_CENTER(&gameData.segs.vertices[vertnums[0]],sp);
 
-	t = rotmat.rVec;
+	t = rotmat.rvec;
 	VmVecScale(&t,i2f(32);
 	VmVecAdd(&gameData.segs.vertices[vertnums[1]],&gameData.segs.vertices[vertnums[0]],&t);
 
-	t = rotmat.uVec;
+	t = rotmat.uvec;
 	VmVecScale(&t,i2f(32);
 	VmVecAdd(&gameData.segs.vertices[vertnums[2]],&gameData.segs.vertices[vertnums[0]],&t);
 
-	t = rotmat.fVec;
+	t = rotmat.fvec;
 	VmVecScale(&t,i2f(32);
 	VmVecAdd(&gameData.segs.vertices[vertnums[3]],&gameData.segs.vertices[vertnums[0]],&t);
 }
 
 // -----------------------------------------------------------------------------
-//	Determine if a tSegment is concave. Returns true if concave
-int check_seg_concavity(tSegment *s)
+//	Determine if a segment is concave. Returns true if concave
+int check_seg_concavity(segment *s)
 {
 	int sn,vn;
-	vmsVector n0,n1;
+	vms_vector n0,n1;
 
 	for (sn=0;sn<MAX_SIDES_PER_SEGMENT;sn++)
 		for (vn=0;vn<=4;vn++) {
@@ -2054,9 +2054,9 @@ int check_seg_concavity(tSegment *s)
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+1)%4]]],
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+2)%4]]]);
 
-			//vmsVector::normalize(&n1);
+			//VmVecNormalize(&n1);
 
-			if (vn>0) if (fVector::dotProd(&n0,&n1) < f0_5) return 1;
+			if (vn>0) if (VmVecDotProd(&n0,&n1) < f0_5) return 1;
 
 			n0 = n1;
 		}
@@ -2070,13 +2070,13 @@ int check_seg_concavity(tSegment *s)
 void find_concave_segs()
 {
 	int i;
-	tSegment *s;
+	segment *s;
 
 	N_warning_segs = 0;
 
 	for (s=gameData.segs.segments,i=gameData.segs.nLastSegment;i>=0;s++,i--)
-		if (s->nSegment != -1)
-			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_IDX(s);
+		if (s->segnum != -1)
+			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_PTR_2_NUM(s);
 
 
 }
@@ -2096,8 +2096,8 @@ void warn_if_concave_segments(void)
 }
 
 // -----------------------------------------------------------------------------
-//	Check tSegment s, if concave, warn
-void warn_if_concave_segment(tSegment *s)
+//	Check segment s, if concave, warn
+void warn_if_concave_segment(segment *s)
 {
     char temp[1];
 	int	result;
@@ -2108,7 +2108,7 @@ void warn_if_concave_segment(tSegment *s)
 		Warning_segs[N_warning_segs++] = SEG_IDX (s);
 
         if (N_warning_segs) {
-			editor_status("*** WARNING *** New tSegment is concave! *** WARNING ***");
+			editor_status("*** WARNING *** New segment is concave! *** WARNING ***");
             sprintf( temp, "%d", N_warning_segs );
         }
         //else
@@ -2119,48 +2119,48 @@ void warn_if_concave_segment(tSegment *s)
 
 
 // -------------------------------------------------------------------------------
-//	Find tSegment adjacent to sp:tSide.
-//	Adjacent means a tSegment which shares all four vertices.
-//	Return true if tSegment found and fill in tSegment in adj_sp and tSide in adj_side.
+//	Find segment adjacent to sp:side.
+//	Adjacent means a segment which shares all four vertices.
+//	Return true if segment found and fill in segment in adj_sp and side in adj_side.
 //	Return false if unable to find, in which case adj_sp and adj_side are undefined.
-int med_find_adjacent_segment_side(tSegment *sp, int tSide, tSegment **adj_sp, int *adj_side)
+int med_find_adjacent_segment_side(segment *sp, int side, segment **adj_sp, int *adj_side)
 {
 	int			seg,s,v,vv;
 	int			abs_verts[4];
 
 	//	Stuff abs_verts[4] array with absolute vertex indices
 	for (v=0; v<4; v++)
-		abs_verts[v] = sp->verts[sideToVerts[tSide][v]];
+		abs_verts[v] = sp->verts[sideToVerts[side][v]];
 
-	//	Scan all segments, looking for a tSegment which contains the four abs_verts
+	//	Scan all segments, looking for a segment which contains the four abs_verts
 	for (seg=0; seg<=gameData.segs.nLastSegment; seg++) {
 		if (seg != SEG_IDX (sp)) {
 			for (v=0; v<4; v++) {												// do for each vertex in abs_verts
-				for (vv=0; vv<MAX_VERTICES_PER_SEGMENT; vv++)			// do for each vertex in tSegment
+				for (vv=0; vv<MAX_VERTICES_PER_SEGMENT; vv++)			// do for each vertex in segment
 					if (abs_verts[v] == gameData.segs.segments[seg].verts[vv])
-						goto fass_found1;											// Current vertex (indexed by v) is present in tSegment, try next
-				goto fass_next_seg;												// This tSegment doesn't contain the vertex indexed by v
+						goto fass_found1;											// Current vertex (indexed by v) is present in segment, try next
+				goto fass_next_seg;												// This segment doesn't contain the vertex indexed by v
 			fass_found1: ;
 			}		// end for v
 
-			//	All four vertices in sp:tSide are present in tSegment seg.
-			//	Determine tSide and return
+			//	All four vertices in sp:side are present in segment seg.
+			//	Determine side and return
 			for (s=0; s<MAX_SIDES_PER_SEGMENT; s++) {
 				for (v=0; v<4; v++) {
 					for (vv=0; vv<4; vv++) {
 						if (gameData.segs.segments[seg].verts[sideToVerts[s][v]] == abs_verts[vv])
 							goto fass_found2;
 					}
-					goto fass_next_side;											// Couldn't find vertex v in current tSide, so try next tSide.
+					goto fass_next_side;											// Couldn't find vertex v in current side, so try next side.
 				fass_found2: ;
 				}
-				// Found all four vertices in current tSide.  We are done!
+				// Found all four vertices in current side.  We are done!
 				*adj_sp = &gameData.segs.segments[seg];
 				*adj_side = s;
 				return 1;
 			fass_next_side: ;
 			}
-			Assert(0);	// Impossible -- we identified this tSegment as containing all 4 vertices of tSide "tSide", but we couldn't find them.
+			Assert(0);	// Impossible -- we identified this segment as containing all 4 vertices of side "side", but we couldn't find them.
 			return 0;
 		fass_next_seg: ;
 		}
@@ -2173,38 +2173,38 @@ int med_find_adjacent_segment_side(tSegment *sp, int tSide, tSegment **adj_sp, i
 #define JOINT_THRESHOLD	10000*F1_0 		// (Huge threshold)
 
 // -------------------------------------------------------------------------------
-//	Find tSegment closest to sp:tSide.
-//	Return true if tSegment found and fill in tSegment in adj_sp and tSide in adj_side.
+//	Find segment closest to sp:side.
+//	Return true if segment found and fill in segment in adj_sp and side in adj_side.
 //	Return false if unable to find, in which case adj_sp and adj_side are undefined.
-int med_find_closest_threshold_segment_side(tSegment *sp, int tSide, tSegment **adj_sp, int *adj_side, fix threshold)
+int med_find_closest_threshold_segment_side(segment *sp, int side, segment **adj_sp, int *adj_side, fix threshold)
 {
 	int			seg,s;
-	vmsVector  vsc, vtc; 		// original tSegment center, test tSegment center
-	fix			currentDist, closest_segDist;
+	vms_vector  vsc, vtc; 		// original segment center, test segment center
+	fix			current_dist, closest_seg_dist;
 
-	if (IS_CHILD(sp->children[tSide]))
+	if (IS_CHILD(sp->children[side]))
 		return 0;
 
-	COMPUTE_SIDE_CENTER(&vsc, sp, tSide); 
+	COMPUTE_SIDE_CENTER(&vsc, sp, side); 
 
-	closest_segDist = JOINT_THRESHOLD;
+	closest_seg_dist = JOINT_THRESHOLD;
 
-	//	Scan all segments, looking for a tSegment which contains the four abs_verts
+	//	Scan all segments, looking for a segment which contains the four abs_verts
 	for (seg=0; seg<=gameData.segs.nLastSegment; seg++) 
 		if (seg != SEG_IDX (sp)) 
 			for (s=0;s<MAX_SIDES_PER_SEGMENT;s++) {
 				if (!IS_CHILD(gameData.segs.segments[seg].children[s])) {
 					COMPUTE_SIDE_CENTER(&vtc, &gameData.segs.segments[seg], s); 
-					currentDist = VmVecDist( &vsc, &vtc );
-					if (currentDist < closest_segDist) {
+					current_dist = VmVecDist( &vsc, &vtc );
+					if (current_dist < closest_seg_dist) {
 						*adj_sp = &gameData.segs.segments[seg];
 						*adj_side = s;
-						closest_segDist = currentDist;
+						closest_seg_dist = current_dist;
 					}
 				}
-			}
+			}	
 
-	if (closest_segDist < threshold)
+	if (closest_seg_dist < threshold)
 		return 1;
 	else
 		return 0;
@@ -2215,53 +2215,49 @@ int med_find_closest_threshold_segment_side(tSegment *sp, int tSide, tSegment **
 void med_check_all_vertices()
 {
 	int		s,v;
-	tSegment	*sp;
+	segment	*sp;
 	int		count;
 
 	count = 0;
 
 	for (s=0; s<gameData.segs.nSegments; s++) {
 		sp = &gameData.segs.segments[s];
-		if (sp->nSegment != -1)
+		if (sp->segnum != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 				Assert(sp->verts[v] <= gameData.segs.nLastVertex);
-				
+					
 	}
 
 }
 
 //	-----------------------------------------------------------------------------------------------------
-void check_for_overlapping_segment(int nSegment)
+void check_for_overlapping_segment(int segnum)
 {
 	int	i, v;
-	tSegMasks	masks;
-	vmsVector	segcenter;
+	segmasks	masks;
+	vms_vector	segcenter;
 
-	COMPUTE_SEGMENT_CENTER(&segcenter, &gameData.segs.segments[nSegment]);
+	COMPUTE_SEGMENT_CENTER(&segcenter, &gameData.segs.segments[segnum]);
 
 	for (i=0;i<=gameData.segs.nLastSegment; i++) {
-		if (i != nSegment) {
-			do {
-				masks = GetSegMasks(&segcenter, i, 0);
-				} while (!masks.valid);
-			if (masks.centerMask == 0) {
+		if (i != segnum) {
+			masks = GetSegMasks(&segcenter, i, 0);
+			if (masks.centermask == 0) {
 #if TRACE
-				con_printf (CONDBG, "Segment %i center is contained in tSegment %i\n", nSegment, i);
+				con_printf (CON_DEBUG, "Segment %i center is contained in segment %i\n", segnum, i);
 #endif
 				continue;
 			}
 
 			for (v=0; v<8; v++) {
-				vmsVector	pdel, presult;
+				vms_vector	pdel, presult;
 
-				VmVecSub(&pdel, &gameData.segs.vertices[gameData.segs.segments[nSegment].verts[v]], &segcenter);
+				VmVecSub(&pdel, &gameData.segs.vertices[gameData.segs.segments[segnum].verts[v]], &segcenter);
 				VmVecScaleAdd(&presult, &segcenter, &pdel, (F1_0*15)/16);
-				do {
-					masks = GetSegMasks(&presult, i, 0);
-					} while (!masks.valid);
-				if (masks.centerMask == 0) {
+				masks = GetSegMasks(&presult, i, 0);
+				if (masks.centermask == 0) {
 #if TRACE
-					con_printf (CONDBG, "Segment %i near vertex %i is contained in tSegment %i\n", nSegment, v, i);
+					con_printf (CON_DEBUG, "Segment %i near vertex %i is contained in segment %i\n", segnum, v, i);
 #endif
 					break;
 				}
@@ -2281,11 +2277,11 @@ void check_for_overlapping_segments(void)
 
 	for (i=0; i<=gameData.segs.nLastSegment; i++) {
 #if TRACE
-		con_printf (CONDBG, "+");
+		con_printf (CON_DEBUG, "+");
 #endif
 		check_for_overlapping_segment(i);
 	}
 
-	con_printf (CONDBG, "\nDone!\n");
+	con_printf (CON_DEBUG, "\nDone!\n");
 }
 

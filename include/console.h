@@ -6,7 +6,7 @@
 #include "pstypes.h"
 
 #ifndef TRACE
-#if DBG
+#ifdef _DEBUG
 #	define TRACE	1
 #else
 #	define TRACE	0
@@ -18,11 +18,11 @@
 #define CON_URGENT   -1
 #define CON_NORMAL    0
 #define CON_VERBOSE   1
-#define CONDBG     2
+#define CON_DEBUG     2
 
 int  con_init(void);
 void con_resize(void);
-void _CDECL_ con_printf(int level, const char *fmt, ...);
+void _CDECL_ con_printf(int level, char *fmt, ...);
 
 void con_show(void);
 void con_draw(void);
@@ -31,7 +31,7 @@ int  con_events(int key);
 
 /* CVar stuff */
 typedef struct cvar_s {
-	const char *name;
+	char *name;
 	char *string;
 	dboolean archive;
 	double value;
@@ -44,10 +44,10 @@ extern cvar_t *cvar_vars;
 void cvar_registervariable (cvar_t *cvar);
 
 /* Equivalent to typing <var_name> <value> at the console */
-void cvar_set (const char *cvar_name, char *value);
+void cvar_set(char *cvar_name, char *value);
 
 /* Get a CVar's value */
-double cvar (const char *cvar_name);
+double cvar(char *cvar_name);
 
 /* Console CVars */
 /* How discriminating we are about which messages are displayed */

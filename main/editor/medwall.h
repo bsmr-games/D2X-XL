@@ -36,7 +36,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Allow two doors to be linked together
  * 
  * Revision 1.7  1994/06/20  22:30:10  yuan
- * Fixed crazy runaway tTrigger bug that Adam found
+ * Fixed crazy runaway trigger bug that Adam found
  * 
  * Revision 1.6  1994/05/30  20:22:58  yuan
  * New triggers.
@@ -46,10 +46,10 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Wall interface complete, but triggers are still in progress.
  * 
  * Revision 1.4  1994/05/18  18:22:04  yuan
- * Fixed delete tSegment and walls bug.
+ * Fixed delete segment and walls bug.
  * 
  * Revision 1.3  1994/03/17  18:08:41  yuan
- * New tWall stuff... Cut out switches....
+ * New wall stuff... Cut out switches....
  * 
  * Revision 1.2  1994/03/15  16:34:10  yuan
  * Fixed bm loader (might have some changes in walls and switches)
@@ -73,30 +73,30 @@ extern int wall_add_removable();
 // Restores all the walls to original status
 extern int wall_restore_all();
 
-// Reset a tWall.
-extern void WallReset(tSegment *seg, short tSide);
+// Reset a wall.
+extern void WallReset(segment *seg, short side);
 
-// Adds a removable tWall (medwall.c)
+// Adds a removable wall (medwall.c)
 extern int wall_add_removable();
 
 // Adds a door (medwall.c)
 extern int wall_add_door();
 
-// Adds an illusory tWall (medwall.c)
+// Adds an illusory wall (medwall.c)
 extern int wall_add_illusion();
 
-// Removes a removable tWall (medwall.c) 
+// Removes a removable wall (medwall.c) 
 extern int wall_remove_blastable(); 
 
-// Adds a tWall. (visually)
+// Adds a wall. (visually)
 extern int wall_add_to_curside();
-extern int wall_add_to_markedside(byte nType);
+extern int wall_add_to_markedside(byte type);
  
-// Removes a tWall. (visually)
+// Removes a wall. (visually)
 extern int wall_remove();
 
-// Removes a specific tSide.
-int wall_remove_side(tSegment *seg, short tSide);
+// Removes a specific side.
+int wall_remove_side(segment *seg, short side);
 
 extern int bind_wall_to_control_center();
 

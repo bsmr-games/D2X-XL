@@ -2,31 +2,34 @@
 #ifndef _PBUFFER_H_
 #define _PBUFFER_H_
 
-#ifdef _WIN32
+#ifdef _MSC_VER
 #	include <windows.h>
 #	include <stddef.h>
 #endif
 
+#if RENDER2TEXTURE == 1
+
 #ifdef _WIN32
 typedef	HDC			HGLDC;
+typedef	HANDLE		HPBUFFER;
 #else
 typedef	Display	*	HGLDC;
 typedef	GLXContext	HGLRC;
-typedef	GLXPbuffer	HPBUFFERARB;
+typedef	GLXPbuffer	HPBUFFER;
 #endif
 
 
-typedef struct tPixelBuffer {
-	HPBUFFERARB	hBuf;
-	HGLDC			hDC;
-	HGLRC			hRC;
-	GLuint		texId;
-	int			nWidth;
-	int			nHeight;
-	char			bBound;
-} tPixelBuffer;
+typedef struct _ogl_pbuffer {
+	HPBUFFER	hBuf;
+	HGLDC		hDC;
+	HGLRC		hRC;
+	GLuint	texId;
+	int		nWidth;
+	int		nHeight;
+	char		bBound;
+} ogl_pbuffer;
 
-#ifdef _WIN32
+#	ifdef _WIN32
 extern PFNWGLCREATEPBUFFERARBPROC				wglCreatePbufferARB;
 extern PFNWGLGETPBUFFERDCARBPROC					wglGetPbufferDCARB;
 extern PFNWGLRELEASEPBUFFERDCARBPROC			wglReleasePbufferDCARB;
@@ -40,38 +43,24 @@ extern PFNWGLRELEASETEXIMAGEARBPROC				wglReleaseTexImageARB;
 extern PFNWGLSETPBUFFERATTRIBARBPROC			wglSetPbufferAttribARB;
 extern PFNWGLMAKECONTEXTCURRENTARBPROC			wglMakeContextCurrentARB;
 extern PFNWGLGETCURRENTREADDCARBPROC			wglGetCurrentReadDCARB;
-#endif
+#	endif
 
-class CPBO {
-	private:
-		tPixelBuffer	m_info;
-	public:
-		CPBO () { Init (); }
-		~CPBO () { Destroy (); }
-		static void Setup (void);
-		void Init (void);
-		int Create (int nWidth, int nHeight);
-		void Destroy (void);
-		int Available (void);
-		int Enable (void);
-		int Disable (void);
-		bool Bind (void);
-		void Release (void);
-		inline int GetWidth (void) { return m_info.nWidth; }
-		inline void SetWidth (int nWidth) { m_info.nWidth = nWidth; }
-		inline int GetHeight (void) { return m_info.nHeight; }
-		inline void SetHeight (int nHeight) { m_info.nHeight = nHeight; }
-		inline GLuint GetTexId (void) { return m_info.texId; }
-		inline void SetTexId (int nTexId) { m_info.texId = nTexId; }
-		inline char Bound (void) { return m_info.bBound; }
-		inline HPBUFFERARB Handle (void) { return m_info.hBuf; }
-		inline GLuint TexId (void) { return m_info.texId; }
-};
+void OglInitPBuffer (void);
+int OglCreatePBuffer (ogl_pbuffer *pb, int nWidth, int nHeight, int nDepth);
+void OglDestroyPBuffer (ogl_pbuffer *pb);
+int OglPBufferAvail (ogl_pbuffer *pb);
+int OglEnablePBuffer (ogl_pbuffer *pb);
+int OglDisablePBuffer (ogl_pbuffer *pb);
 
 extern HGLDC	hGlDC;
 extern HGLRC	hGlRC;
-#ifndef _WIN32
+#	ifndef _WIN32
 extern GLXDrawable	hGlWindow;
-#endif
+#	endif
+
+#endif //RENDER2TEXTURE
+
+extern int bRender2TextureOk;
+extern int bUseRender2Texture;
 
 #endif //_PBUFFER_H_
