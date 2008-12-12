@@ -1,3 +1,4 @@
+/* $Id: pstypes.h,v 1.33 2005/01/25 21:20:29 schaffner Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -13,12 +14,12 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 /*
  *
- * Common types for use in Descent
+ * Common types for use in Miner
  *
  */
 
-#ifndef _PSTYPES_H
-#define _PSTYPES_H
+#ifndef _TYPES_H
+#define _TYPES_H
 
 // define a dboolean
 typedef int dboolean;
@@ -31,41 +32,34 @@ typedef unsigned char ubyte;
 #if defined(_WIN32)
 typedef unsigned short ushort;
 typedef unsigned int uint;
-typedef unsigned long ulong;
 #endif
 
 #if defined(_WIN32) || defined(__sun__) // platforms missing (u_)int??_t
 # include <SDL_types.h>
-#endif
-#ifndef __MINGW32__
-#	if defined(_WIN32)// platforms missing int??_t
- 		typedef Sint16 int16_t;
- 		typedef Sint32 int32_t;
- 		typedef Sint64 int64_t;
-#	endif // defined(_WIN32)
-#endif
-#if 1//ndef __MINGW32__
-#	if defined(_WIN32) || defined(__sun__) // platforms missing u_int??_t
- 		typedef Uint16 u_int16_t;
- 		typedef Uint32 u_int32_t;
- 		typedef Uint64 u_int64_t;
-#	endif // defined(_WIN32) || defined(__sun__)
-#endif
+#endif // macintosh
+#if defined(_WIN32) // platforms missing int??_t
+ typedef Sint16 int16_t;
+ typedef Sint32 int32_t;
+ typedef Sint64 int64_t;
+#endif // defined(_WIN32)
+#if defined(_WIN32) || defined(__sun__) // platforms missing u_int??_t
+ typedef Uint16 u_int16_t;
+ typedef Uint32 u_int32_t;
+ typedef Uint64 u_int64_t;
+#endif // defined(_WIN32) || defined(__sun__)
 
 #ifdef _WIN32
-# include <stdlib.h> // this is where minand max are defined
+# include <stdlib.h> // this is where min and max are defined
 #endif
-//#ifndef min
-//#	define min(a,b) (((a)>(b))?(b):(a))
-//#endif
-//#ifndef max
-//#	define max(a,b) (((a)<(b))?(b):(a))
-//#endif
+#ifndef min
+#define min(a,b) (((a)>(b))?(b):(a))
+#endif
+#ifndef max
+#define max(a,b) (((a)<(b))?(b):(a))
+#endif
 
 #if defined(_WIN32)
-# ifdef __MINGW32__
-#  include <sys/types.h>
-# else
+# ifndef __MINGW32__
 #  define PATH_MAX _MAX_PATH
 # endif
 # define FNAME_MAX 256
@@ -81,11 +75,16 @@ typedef unsigned long ulong;
 #endif
 
 #ifdef __macosx__
-#	define ushort ushort
+#define ushort unsigned short
+#endif
+
+#if !defined(__cplusplus) && !defined(__obj_c)
+//define a boolean
+typedef ubyte bool;
 #endif
 
 #ifndef NULL
-#	define NULL 0
+#define NULL 0
 #endif
 
 // the following stuff has nothing to do with types but needed everywhere,
@@ -112,5 +111,5 @@ typedef unsigned long ulong;
 #	define _CDECL_
 #endif
 
-#endif //_PSTYPES_H
+#endif //_TYPES_H
 

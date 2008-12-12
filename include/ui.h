@@ -24,7 +24,7 @@ typedef struct {
 
 typedef struct
 {
-	uint frame;
+	unsigned int frame;
 	int nType;
 	int data;
 } UI_EVENT;
@@ -42,14 +42,14 @@ typedef struct
 	struct gadget  * parent;    \
 	int             status;     \
 	int             oldstatus;  \
-	CCanvas *    canvas;     \
+	gsrCanvas *    canvas;     \
 	int             hotkey;     \
 	short           x1,y1,x2,y2;
 
 
 typedef struct gadget {
 	BASE_GADGET
-	ubyte rsvd[256];
+	unsigned char rsvd[256];
 } UI_GADGET;
 
 
@@ -72,7 +72,7 @@ typedef struct  {
 	int             keypress;
 	short           mouse_onme;
 	short           mouse_x, mouse_y;
-	CBitmap *    bitmap;
+	grsBitmap *    bitmap;
 } UI_GADGET_USERBOX;
 
 typedef struct  {
@@ -151,7 +151,7 @@ typedef struct  {
 	int             fake_size;
 	UI_GADGET_BUTTON * up_button;
 	UI_GADGET_BUTTON * down_button;
-	uint    last_scrolled;
+	unsigned int    last_scrolled;
 	short           drag_x, drag_y;
 	int             drag_starting;
 	int             dragging;
@@ -170,7 +170,7 @@ typedef struct  {
 	int             current_item;
 	int             selected_item;
 	int             old_current_item;
-	uint    last_scrolled;
+	unsigned int    last_scrolled;
 	int             dragging;
 	int             textheight;
 	UI_GADGET_SCROLLBAR * scrollbar;
@@ -181,9 +181,9 @@ typedef struct ui_window {
 	short           x, y;
 	short           width, height;
 	short           text_x, text_y;
-	CCanvas *    canvas;
-	CCanvas *    oldcanvas;
-	CBitmap *    background;
+	gsrCanvas *    canvas;
+	gsrCanvas *    oldcanvas;
+	grsBitmap *    background;
 	UI_GADGET *     gadget;
 	UI_GADGET *     keyboard_focus_gadget;
 	struct ui_window * next;
@@ -205,9 +205,9 @@ typedef struct  {
 	short           b3_last_status;
 	short           bg_x, bg_y;
 	short           bg_saved;
-	CBitmap *    background;
-	CBitmap *    pointer;
-	uint    time_lastpressed;
+	grsBitmap *    background;
+	grsBitmap *    pointer;
+	unsigned int    time_lastpressed;
 	short           moved;
 } UI_MOUSE;
 
@@ -223,14 +223,14 @@ typedef struct  {
 #define B1_JUST_RELEASED    (Mouse.b1_status & BUTTON_JUST_RELEASED)
 #define B1_DOUBLE_CLICKED   (Mouse.b1_status & BUTTON_DOUBLE_CLICKED)
 
-extern CFont * ui_small_font;
+extern grsFont * ui_small_font;
 
 extern UI_MOUSE Mouse;
 extern UI_WINDOW * CurWindow;
 extern UI_WINDOW * FirstWindow;
 extern UI_WINDOW * LastWindow;
 
-extern ubyte CBLACK,CGREY,CWHITE,CBRIGHT,CRED;
+extern unsigned char CBLACK,CGREY,CWHITE,CBRIGHT,CRED;
 extern UI_GADGET * selected_gadget;
 extern int last_keypress;
 
@@ -249,7 +249,7 @@ void ui_string_centered( short x, short y, char * s );
 int PopupMenu( int NumItems, char * text[] );
 
 extern void ui_mouse_init();
-extern CBitmap * ui_mouse_set_pointer( CBitmap * new );
+extern grsBitmap * ui_mouse_set_pointer( grsBitmap * new );
 
 extern void ui_mouse_process();
 extern void ui_mouse_hide();
@@ -355,8 +355,8 @@ int ui_play_events_fast( int NumberOfEvents, UI_EVENT * buffer );
 int ui_recorder_status();
 void ui_set_playback_speed( int speed );
 
-extern uint ui_number_of_events;
-extern uint ui_eventCounter;
+extern unsigned int ui_number_of_events;
+extern unsigned int ui_eventCounter;
 
 
 int ui_get_file( char * filename, char * Filespec  );

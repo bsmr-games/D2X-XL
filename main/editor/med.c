@@ -614,7 +614,7 @@ int fuelcen_delete_from_curseg() {
 //@@	vmsVector vp;
 //@@
 //@@//	int newseg,newside;
-//@@//	get_previous_segment(SEG_IDX(Cursegp),Curside,&newseg,&newside);
+//@@//	get_previous_segment(SEG_PTR_2_NUM(Cursegp),Curside,&newseg,&newside);
 //@@//	MovePlayerToSegment(&gameData.segs.segments[newseg],newside);
 //@@
 //@@	med_compute_center_point_on_side(&Player->tObjPosition,Cursegp,sideOpposite[Curside]);
@@ -622,7 +622,7 @@ int fuelcen_delete_from_curseg() {
 //@@	VmVecDec(&vp,&Player->position.vPosition);
 //@@	VmVector2Matrix(&Player->position.mOrient,&vp,NULL,NULL);
 //@@
-//@@	Player->seg = SEG_IDX(Cursegp);
+//@@	Player->seg = SEG_PTR_2_NUM(Cursegp);
 //@@
 //@@	UpdateFlags |= UF_GAME_VIEW_CHANGED;
 //@@	return 1;
@@ -650,7 +650,7 @@ void move_player_2_segment_and_rotate(tSegment *seg,int tSide)
 	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,&upvec,NULL);
 //	VmVector2Matrix(&gameData.objs.console->position.mOrient,&vp,NULL,NULL);
 
-	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_IDX(seg) );
+	RelinkObject( OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(seg) );
 
 }
 
@@ -694,18 +694,18 @@ int SetPlayerFromCursegMinusOne()
 	for (i=max=0;i<4;i++) {
 		corner_v[i] = gameData.segs.vertices[Cursegp->verts[sideToVerts[Curside][i]]];
 		G3TransformAndEncodePoint(&corner_p[i],&corner_v[i]);
-		if (labs(corner_p[i].p3_vec[X]) > max) max = labs(corner_p[i].p3_vec[X]);
-		if (labs(corner_p[i].p3_vec[Y]) > max) max = labs(corner_p[i].p3_vec[Y]);
+		if (labs(corner_p[i].p3_x) > max) max = labs(corner_p[i].p3_x);
+		if (labs(corner_p[i].p3_y) > max) max = labs(corner_p[i].p3_y);
 	}
 
-	viewDist = FixMul(viewDist,FixDiv(FixDiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_vec[Z]);
+	viewDist = FixMul(viewDist,FixDiv(FixDiv(max,SIDE_VIEW_FRAC),corner_p[0].p3_z);
 	VmVecCopyScale(&view_vec2,&view_vec,viewDist);
 	VmVecSub(&gameData.objs.console->position.vPos,&side_center,&view_vec2);
 
-	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_IDX(Cursegp) );
+	//RelinkObject(OBJ_IDX (gameData.objs.console), SEG_PTR_2_NUM(Cursegp) );
 	//UpdateObjectSeg(gameData.objs.console);		//might have backed right out of curseg
 
-	newseg = FindSegByPoint(&gameData.objs.console->position.vPos, SEG_IDX(Cursegp), 1, 0);
+	newseg = FindSegByPoint(&gameData.objs.console->position.vPos, SEG_PTR_2_NUM(Cursegp), 1, 0);
 	if (newseg != -1)
 		RelinkObject(OBJ_IDX (gameData.objs.console),newseg);
 
@@ -838,7 +838,7 @@ int GameZoomOut()
 	return 1;
 }
 
-int GameZoostd::min()
+int GameZoomIn()
 {
 	gameStates.render.xZoom = FixMul(gameStates.render.xZoom,62259);
 	UpdateFlags |= UF_GAME_VIEW_CHANGED;
@@ -1154,7 +1154,7 @@ void editor(void)
 
 	SetWarnFunc(med_show_warning);
 
-	gameStates.input.keys.bRepeat = 1;		// Allow repeat in editor
+	keyd_repeat = 1;		// Allow repeat in editor
 
 //	_MARK_("start of editor");//Nuked to compile -KRB
 
@@ -1379,7 +1379,7 @@ void editor(void)
 			find_segments(xcrd,ycrd,LargeViewBox->canvas,&LargeView,Cursegp,Big_depth);	// Sets globals N_found_segs, Found_segs
 
 			// If shift is down, then add tSegment to found list
-			if (gameStates.input.keys.pressed[ KEY_LSHIFT ] || gameStates.input.keys.pressed[ KEY_RSHIFT ])
+			if (keyd_pressed[ KEY_LSHIFT ] || keyd_pressed[ KEY_RSHIFT ])
 				subtract_found_segments_from_selected_list();
 			else
 				add_found_segments_to_selected_list();
@@ -1443,17 +1443,17 @@ void editor(void)
 				else {
 
 					//	See if either shift key is down and, if so, assign texture map
-					if (gameStates.input.keys.pressed[KEY_LSHIFT] || gameStates.input.keys.pressed[KEY_RSHIFT]) {
+					if (keyd_pressed[KEY_LSHIFT] || keyd_pressed[KEY_RSHIFT]) {
 						Cursegp = &gameData.segs.segments[seg];
 						Curside = tSide;
 						AssignTexture();
 						med_create_new_segment_from_cursegp();
 						editor_status("Texture assigned");
-					} else if (gameStates.input.keys.pressed[KEY_G])	{
+					} else if (keyd_pressed[KEY_G])	{
 						tmap = gameData.segs.segments[seg].sides[tSide].nBaseTex;
 						texpage_grab_current(tmap);
 						editor_status( "Texture grabbed." );
-					} else if (gameStates.input.keys.pressed[ KEY_LAPOSTRO] ) {
+					} else if (keyd_pressed[ KEY_LAPOSTRO] ) {
 						ui_mouse_hide();
 						moveObject_to_mouse_click();
 					} else {
@@ -1472,7 +1472,7 @@ void editor(void)
 		}
 
 		// Allow specification of LargeView using mouse
-		if (gameStates.input.keys.pressed[ KEY_LCTRL ] || gameStates.input.keys.pressed[ KEY_RCTRL ]) {
+		if (keyd_pressed[ KEY_LCTRL ] || keyd_pressed[ KEY_RCTRL ]) {
 			ui_mouse_hide();
 			if ( (Mouse.dx!=0) && (Mouse.dy!=0) ) {
 				GetMouseRotation( Mouse.dx, Mouse.dy, &MouseRotMat );
@@ -1485,7 +1485,7 @@ void editor(void)
 			ui_mouse_show();
 		}
 
-		if ( gameStates.input.keys.pressed[ KEY_Z ] ) {
+		if ( keyd_pressed[ KEY_Z ] ) {
 			ui_mouse_hide();
 			if ( Mouse.dy!=0 ) {
 				currentView->evDist += Mouse.dy*10000;

@@ -41,7 +41,7 @@ RSC=rc.exe
 # PROP Intermediate_Dir "win16\Release"
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
-# ADD CPP /nologo /Gr /Zp1 /MD /W3 /GX /O2 /I "..\..\include" /I "C:\Programme\Microsoft Platform SDK for Windows XP SP2\include" /I "\projects\SDL-1.2.13\include" /I "\projects\SDL_mixer-1.2.8" /I "\projects\libvorbis-1.1.2\include" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /D WIN_VER=0x0500 /YX /FD /c
+# ADD CPP /nologo /Gr /Zp1 /MD /W3 /GX /O2 /I "..\..\include" /I "C:\Programme\Microsoft Platform SDK for Windows XP SP2\include" /I "\projekte\SDL-1.2.13\include" /I "\projekte\SDL_mixer-1.2.8" /I "\projekte\libvorbis-1.1.2\include" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /D WIN_VER=0x0500 /YX /FD /c
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
 # ADD RSC /l 0x409 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -86,23 +86,23 @@ LIB32=link.exe -lib
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=..\..\libmve\decoder16.cpp
+SOURCE=..\..\libmve\decoder16.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\libmve\decoder8.cpp
+SOURCE=..\..\libmve\decoder8.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\libmve\mve_audio.cpp
+SOURCE=..\..\libmve\mve_audio.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\libmve\mvelib.cpp
+SOURCE=..\..\libmve\mvelib.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\libmve\mveplay.cpp
+SOURCE=..\..\libmve\mveplay.c
 # End Source File
 # End Group
 # Begin Group "Header Files"

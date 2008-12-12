@@ -9,87 +9,82 @@
 
 #include "ogl_defs.h"
 #include "ogl_lib.h"
-#include "lightmap.h"
 
 void OglDrawEllipse (int nSides, int nType, float xsc, float xo, float ysc, float yo, tSinCosf *sinCosP);
 void OglDrawCircle (int nSides, int nType);
-int G3DrawWhitePoly (int nv, g3sPoint **pointList);
-int G3DrawPolyAlpha (int nv, g3sPoint **pointlist, tRgbaColorf *color, char bDepthMask, short nSegment);
+bool G3DrawWhitePoly (int nv, g3sPoint **pointList);
+bool G3DrawPolyAlpha (int nv, g3sPoint **pointlist, tRgbaColorf *color, char bDepthMask);
 void G3FlushFaceBuffer (int bForce);
 
-int G3DrawTexPolyMulti (
+bool G3DrawTexPolyMulti (
 	int			nVerts, 
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	CBitmap		*bmBot, 
-	CBitmap		*bmTop, 
-	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
+	tOglTexture	*lightMap, 
+	vmsVector	*pvNormal,
 	int			orient, 
-	int			bBlend,
-	short			nSegment);
+	int			bBlend);
 
-int G3DrawTexPolyLightmap (
+bool G3DrawTexPolyLightmap (
 	int			nVerts, 
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	CBitmap		*bmBot, 
-	CBitmap		*bmTop, 
-	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
+	tOglTexture	*lightMap, 
+	vmsVector	*pvNormal,
 	int			orient, 
-	int			bBlend,
-	short			nSegment);
+	int			bBlend);
 
-int G3DrawTexPolyFlat (
+bool G3DrawTexPolyFlat (
 	int			nVerts, 
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	CBitmap		*bmBot, 
-	CBitmap		*bmTop, 
-	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
+	tOglTexture	*lightMap, 
+	vmsVector	*pvNormal,
 	int			orient, 
-	int			bBlend,
-	short			nSegment);
+	int			bBlend);
 
-int G3DrawTexPolySimple (
+bool G3DrawTexPolySimple (
 	int			nVertices, 
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
-	CBitmap		*bmP, 
-	CFixVector	*pvNormal,
+	grsBitmap	*bmP, 
+	vmsVector	*pvNormal,
 	int			bBlend);
 
 void OglCachePolyModelTextures (int nModel);
 
-void DrawTexPolyFlat (CBitmap *bm,int nv,g3sPoint **vertlist);
-int OglRenderArrays (CBitmap *bmP, int nFrame, CFloatVector *vertexP, int nVertices, tTexCoord2f *texCoordP, 
+void DrawTexPolyFlat (grsBitmap *bm,int nv,g3sPoint **vertlist);
+int OglRenderArrays (grsBitmap *bmP, int nFrame, fVector *vertexP, int nVertices, tTexCoord3f *texCoordP, 
 							tRgbaColorf *colorP, int nColors, int nPrimitive, int nWrap);
 
 void OglURect(int left,int top,int right,int bot);
 
-void InitGrayScaleShader (void);
-
 //------------------------------------------------------------------------------
 
-typedef	int tTexPolyMultiDrawer (int, g3sPoint **, tUVL *, tUVL *, CBitmap *, CBitmap *, tLightmap *, CFixVector *, int, int, short);
+typedef	bool tTexPolyMultiDrawer (int, g3sPoint **, tUVL *, tUVL *, grsBitmap *, grsBitmap *, tOglTexture *, vmsVector *, int, int);
 
 extern tTexPolyMultiDrawer	*fpDrawTexPolyMulti;
 
 //------------------------------------------------------------------------------
 
-extern GLhandleARB	activeShaderProg;
+extern GLhandleARB	lmProg;
+extern GLhandleARB	tmProg;
 
 //------------------------------------------------------------------------------
 
 static inline int G3DrawTexPoly (int nVerts, g3sPoint **pointList, tUVL *uvlList,
-											CBitmap *bmP, CFixVector *pvNormal, int bBlend, short nSegment)
+											grsBitmap *bmP, vmsVector *pvNormal, int bBlend)
 {
-return fpDrawTexPolyMulti (nVerts, pointList, uvlList, NULL, bmP, NULL, NULL, pvNormal, 0, bBlend, nSegment);
+return fpDrawTexPolyMulti (nVerts, pointList, uvlList, NULL, bmP, NULL, NULL, pvNormal, 0, bBlend);
 }
 
 //------------------------------------------------------------------------------

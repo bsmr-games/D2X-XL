@@ -43,8 +43,8 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /Gr /Zp1 /MD /W3 /GX /O2 /Ob2 /I "..\..\include" /I "..\..\main" /I "..\..\input\include" /I "..\..\network\win32\include" /I "..\..\audio\win32\include" /I "..\..\3d" /I "C:\Programme\Microsoft Platform SDK for Windows XP SP2\include" /I "\projects\SDL-1.2.13\include" /I "\projects\SDL_mixer-1.2.8" /I "\projects\libvorbis-1.1.2\include" /I "..\..\d2x-trackir" /D "NDEBUG" /D "RELEASE" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "NO_ASM" /D "NMONO" /D "PIGGY_USE_PAGING" /D "NEWDEMO" /D "SDL_INPUT" /D "SDL_GL_VIDEO" /D "NETWORK" /D "NATIVE_IPX" /D "OGL" /D "OGL_ZBUF" /D "FAST_EVENTPOLL" /D WIN_VER=0x0500 /D "CONSOLE" /Fr /FD /c
-# SUBTRACT CPP /YX
+# ADD CPP /nologo /Gr /Zp1 /MD /W3 /GX /O2 /Ob2 /I "..\..\include" /I "..\..\main" /I "..\..\arch\include" /I "..\..\arch\win32\include" /I "..\arch\win32" /I "..\..\arch\win32" /I "..\3d" /I "..\..\3d" /I "C:\Programme\Microsoft Platform SDK for Windows XP SP2\include" /I "\projekte\SDL-1.2.13\include" /I "\projekte\SDL_mixer-1.2.8" /I "\projekte\libvorbis-1.1.2\include" /I "..\..\d2x-trackir" /D "NDEBUG" /D "RELEASE" /D "WIN32" /D "_WINDOWS" /D "_MBCS" /D "NO_ASM" /D "NMONO" /D "PIGGY_USE_PAGING" /D "NEWDEMO" /D "SDL_INPUT" /D "SDL_GL_VIDEO" /D "NETWORK" /D "NATIVE_IPX" /D "OGL" /D "OGL_ZBUF" /D "FAST_EVENTPOLL" /D WIN_VER=0x0500 /D "CONSOLE" /FD /c
+# SUBTRACT CPP /Fr /YX
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
@@ -54,7 +54,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib opengl32.lib glu32.lib winmm.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"\programs\d2\d2x-xl-win16.exe" /libpath:"C:\Programme\Microsoft Platform SDK for Windows XP SP2\Lib" /libpath:"\Projekte\SDL-1.2.11\VisualC\SDLmain\Release" /libpath:"\Projekte\SDL-1.2.13\VisualC\SDL\win16\Release" /libpath:"\Projekte\SDL_mixer-1.2.8\VisualC\win16\Release"
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib wsock32.lib opengl32.lib glu32.lib winmm.lib /nologo /subsystem:windows /pdb:none /machine:I386 /out:"d:\programme\d2\d2x-xl-win16.exe" /libpath:"C:\Programme\Microsoft Platform SDK for Windows XP SP2\Lib" /libpath:"\Projekte\SDL-1.2.11\VisualC\SDLmain\Release" /libpath:"\Projekte\SDL-1.2.13\VisualC\SDL\win16\Release" /libpath:"\Projekte\SDL_mixer-1.2.8\VisualC\win16\Release"
 # SUBTRACT LINK32 /debug
 
 !ELSEIF  "$(CFG)" == "d2xgl - Win32 Debug"
@@ -96,398 +96,779 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Group "2d"
 
-# PROP Default_Filter "*.cpp"
+# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\2d\2dsline.cpp
+SOURCE=..\..\2d\2dsline.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\bitblt.cpp
+SOURCE=..\..\2d\bitblt.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\bitmap.cpp
+SOURCE=..\..\2d\bitmap.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\box.cpp
+SOURCE=..\..\2d\box.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\canvas.cpp
+SOURCE=..\..\2d\canvas.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\circle.cpp
+SOURCE=..\..\2d\circle.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\disc.cpp
+SOURCE=..\..\2d\disc.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\font.cpp
+SOURCE=..\..\2d\font.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\gpixel.cpp
+SOURCE=..\..\2d\gpixel.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\ibitblt.cpp
+SOURCE=..\..\2d\ibitblt.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\line.cpp
+SOURCE=..\..\2d\line.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\palette.cpp
+SOURCE=..\..\2d\palette.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\pcx.cpp
+SOURCE=..\..\2d\pcx.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\pixel.cpp
+SOURCE=..\..\2d\pixel.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\poly.cpp
+SOURCE=..\..\2d\poly.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\rect.cpp
+SOURCE=..\..\2d\rect.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\rle.cpp
+SOURCE=..\..\2d\rle.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\scalec.cpp
+SOURCE=..\..\2d\scalec.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\2d\tmerge.cpp
+SOURCE=..\..\2d\tmerge.c
 # End Source File
 # End Group
 # Begin Group "3d"
 
-# PROP Default_Filter "*.cpp"
+# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\3d\ase2model.cpp
+SOURCE=..\..\3d\clipper.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\buildmodel.cpp
+SOURCE=..\..\3d\draw.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\clipper.cpp
+SOURCE=..\..\3d\fastmodels.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\draw.cpp
+SOURCE=..\..\3d\globvars.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\fastmodels.cpp
+SOURCE=..\..\3d\hitbox.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\globvars.cpp
+SOURCE=..\..\3d\instance.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\hitbox.cpp
+SOURCE=..\..\3d\interp.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\instance.cpp
+SOURCE=..\..\3d\intersect.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\interp.cpp
+SOURCE=..\..\3d\matrix.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\intersect.cpp
+SOURCE=..\..\3d\points.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\matrix.cpp
+SOURCE=..\..\3d\rod.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\oof2model.cpp
+SOURCE=..\..\3d\setup.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\pof2model.cpp
+SOURCE=..\..\3d\shadows.c
+# End Source File
+# End Group
+# Begin Group "arch"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\digi.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\points.cpp
+SOURCE=..\..\arch\sdl\event.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\rod.cpp
+SOURCE=..\..\arch\ogl\fbuffer.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\setup.cpp
+SOURCE=..\..\arch\win32\findfile.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\3d\shadows.cpp
+SOURCE=..\..\arch\ogl\gr.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\hmpfile.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\init.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\joy.c
+# ADD CPP /I "..\..\..\SDL-1.2.8\src\joystick"
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\joydefs.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\key.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\midi.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\mingw_init.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\mouse.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_bitmap.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_color.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_defs.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_fastrender.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_hudstuff.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_lib.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_render.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_shader.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_texcache.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\ogl_texture.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\pbuffer.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\rbaudio.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\sdlgl.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\sdl\timer.c
 # End Source File
 # End Group
 # Begin Group "misc"
 
-# PROP Default_Filter "*.cpp"
+# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\misc\error.cpp
+SOURCE=..\..\misc\args.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\misc\hash.cpp
+SOURCE=..\..\cfile\cfile.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\mem\mem.cpp
+SOURCE=..\..\console\CON_console.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\misc\strio.cpp
+SOURCE=..\..\misc\d_io.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\misc\strutil.cpp
+SOURCE=..\..\misc\error.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\misc\hash.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\iff\iff.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\mem\mem.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\misc\strio.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\misc\strutil.c
 # End Source File
 # End Group
 # Begin Group "main"
 
-# PROP Default_Filter "*.cpp"
+# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\main\banlist.cpp
+SOURCE=..\..\main\ai.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\briefings.cpp
+SOURCE=..\..\main\ai2.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\cheats.cpp
+SOURCE=..\..\main\aipath.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\cmd.cpp
+SOURCE=..\..\main\autodl.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\collide.cpp
+SOURCE=..\..\main\automap.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\config.cpp
+SOURCE=..\..\main\banlist.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\console.cpp
+SOURCE=..\..\main\bm.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\controls.cpp
+SOURCE=..\..\main\briefings.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\credits.cpp
+SOURCE=..\..\main\cameras.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\crypt.cpp
+SOURCE=..\..\main\cheats.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\dropobject.cpp
+SOURCE=..\..\main\cmd.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\dumpmine.cpp
+SOURCE=..\..\main\cntrlcen.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\effects.cpp
+SOURCE=..\..\main\collide.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\endlevel.cpp
+SOURCE=..\..\main\config.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\flightpath.cpp
+SOURCE=..\..\main\console.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\fuelcen.cpp
+SOURCE=..\..\main\controls.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\fvi.cpp
+SOURCE=..\..\main\credits.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\game.cpp
+SOURCE=..\..\main\crypt.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\gamecntl.cpp
+SOURCE=..\..\main\digiobj.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\gamefont.cpp
+SOURCE=..\..\main\dropobject.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\gameseg.cpp
+SOURCE=..\..\main\dynlight.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\highscores.cpp
+SOURCE=..\..\main\effects.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\hostage.cpp
+SOURCE=..\..\main\endlevel.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\inferno.cpp
+SOURCE=..\..\main\entropy.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\kconfig.cpp
+SOURCE=..\..\main\escort.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\marker.cpp
+SOURCE=..\..\main\fastrender.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\menu.cpp
+SOURCE=..\..\main\fireball.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\mglobal.cpp
+SOURCE=..\..\main\flightpath.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\movie.cpp
+SOURCE=..\..\main\fuelcen.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\newdemo.cpp
+SOURCE=..\..\main\fvi.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\newmenu.cpp
+SOURCE=..\..\main\game.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\object.cpp
+SOURCE=..\..\main\gamecntl.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\physics.cpp
+SOURCE=..\..\main\gamefont.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\player.cpp
+SOURCE=..\..\main\gamemine.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\powerup.cpp
+SOURCE=..\..\main\gamepal.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\reactor.cpp
+SOURCE=..\..\main\gamerend.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\robot.cpp
+SOURCE=..\..\main\gamesave.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\scores.cpp
+SOURCE=..\..\main\gameseg.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\segment.cpp
+SOURCE=..\..\main\gauges.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\slew.cpp
+SOURCE=..\..\main\glare.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\slowmotion.cpp
+SOURCE=..\..\main\headlight.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\switch.cpp
+SOURCE=..\..\main\highscores.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\terrain.cpp
+SOURCE=..\..\main\hiresmodels.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\texmerge.cpp
+SOURCE=..\..\main\hoard.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\text.cpp
+SOURCE=..\..\main\hostage.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\textdata.cpp
+SOURCE=..\..\main\hud.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\trackobject.cpp
+SOURCE=..\..\main\inferno.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\vclip.cpp
+SOURCE=..\..\main\input.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\main\wall.cpp
+SOURCE=..\..\arch\win32\ipx_mcast4.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\ipx_udp.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\ipx_win.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\kconfig.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\kludge.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\laser.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\light.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\lightmap.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\lightning.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\loadgame.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\marker.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\menu.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\mglobal.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\mission.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\monsterball.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\morph.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\movie.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\multi.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\multibot.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\multimsg.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\netmenu.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\netmisc.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\network.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\newdemo.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\newmenu.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\object.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\objeffects.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\objrender.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\objsmoke.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\omega.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\oof.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\paging.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\particles.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\perlin.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\physics.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\piggy.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\player.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\playsave.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\polyobj.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\powerup.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\radar.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\render.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\renderlib.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\rendershadows.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\renderthreads.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\robot.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\scores.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\segment.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\slowmotion.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\songs.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\soundthreads.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\sphere.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\state.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\switch.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\terrain.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\texmerge.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\text.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\textdata.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\tga.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\thief.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\tracker.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\trackobject.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\transprender.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\vclip.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\wall.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\weapon.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\win32\winnet.c
 # End Source File
 # End Group
 # Begin Group "maths"
 
-# PROP Default_Filter "*.cpp"
+# PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\maths\fixc.cpp
+SOURCE=..\..\maths\fixc.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\maths\rand.cpp
+SOURCE=..\..\maths\rand.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\maths\tables.cpp
+SOURCE=..\..\maths\tables.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\maths\vecmat.cpp
+SOURCE=..\..\maths\vecmat.c
 # End Source File
 # End Group
 # Begin Group "texmap"
@@ -495,607 +876,15 @@ SOURCE=..\..\maths\vecmat.cpp
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=..\..\texmap\ntmap.cpp
+SOURCE=..\..\texmap\ntmap.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\texmap\scanline.cpp
+SOURCE=..\..\texmap\scanline.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\texmap\tmapflat.cpp
-# End Source File
-# End Group
-# Begin Group "ai"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\ai\ai.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aianimate.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aiboss.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aifire.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aiframe.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aiinit.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\ailib.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aimove.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aipath.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aisave.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\aisnipe.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\d1_ai.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\escort.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ai\thief.cpp
-# End Source File
-# End Group
-# Begin Group "network"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\network\autodl.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\win32\ipx_mcast4.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\win32\ipx_udp.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\win32\ipx_win.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\multi.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\multibot.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\multimsg.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\netmenu.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\netmisc.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_init.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_join.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_lib.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_phandler.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_process.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_read.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_send.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\network_sync.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\tracker.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\network\win32\winnet.cpp
-# End Source File
-# End Group
-# Begin Group "audio"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\audio\digi.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\digiobj.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\win32\hmpfile.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\win32\midi.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\rbaudio.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\songs.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\audio\soundthreads.cpp
-# End Source File
-# End Group
-# Begin Group "cockpit"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\cockpit\gauges.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\cockpit\hud.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\cockpit\hudicons.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\cockpit\statusbar.cpp
-# End Source File
-# End Group
-# Begin Group "effects"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\effects\fireball.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\effects\lightning.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\effects\objsmoke.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\effects\particles.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\effects\perlin.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\effects\sparkeffect.cpp
-# End Source File
-# End Group
-# Begin Group "gameio"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\gameio\bm.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\createmesh.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\gamemine.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\gamesave.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\hoard.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\iff.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\loadgame.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\loadsounds.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\loadtextures.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\mission.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\paging.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\piggy.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\playsave.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\state.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gameio\tga.cpp
-# End Source File
-# End Group
-# Begin Group "gamemodes"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\gamemodes\entropy.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\gamemodes\monsterball.cpp
-# End Source File
-# End Group
-# Begin Group "input"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\input\event.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\input.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\joy.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\joydefs.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\key.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\mouse.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\input\systemkeys.cpp
-# End Source File
-# End Group
-# Begin Group "io"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\io\args.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\io\cfile.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\io\d_io.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\io\win32\findfile.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\io\hogfile.cpp
-# End Source File
-# End Group
-# Begin Group "lighting"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\lighting\dynlight.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\lighting\headlight.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\lighting\light.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\lighting\lightmap.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\lighting\lightprecalc.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\lighting\lightshaders.cpp
-# End Source File
-# End Group
-# Begin Group "models"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\models\aseread.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\models\hiresmodels.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\models\oofmath.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\models\oofread.cpp
-# End Source File
-# End Group
-# Begin Group "ogl"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\ogl\fbuffer.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\gr.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_bitmap.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_color.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_defs.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_draw.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_fastrender.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_hudstuff.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_lib.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_palette.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_render.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_shader.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_texcache.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\ogl_texture.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\pbuffer.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\screenshot.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\ogl\sdlgl.cpp
-# End Source File
-# End Group
-# Begin Group "render"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\render\automap.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\cameras.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\fastrender.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\gamepal.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\gamerend.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\glare.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\morph.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\objeffects.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\objrender.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\oofrender.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\polyobj.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\radar.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\render.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\renderlib.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\rendershadows.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\renderthreads.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\sphere.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\render\transprender.cpp
-# End Source File
-# End Group
-# Begin Group "weapons"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\weapons\dropweapon.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\laser.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\omega.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\pickupweapon.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\seismic.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\weapon.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\weapons\weaponorder.cpp
-# End Source File
-# End Group
-# Begin Group "console"
-
-# PROP Default_Filter "*.cpp"
-# Begin Source File
-
-SOURCE=..\..\console\CON_console.cpp
+SOURCE=..\..\texmap\tmapflat.c
 # End Source File
 # End Group
 # End Group
@@ -1108,15 +897,11 @@ SOURCE=..\..\include\3d.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\ai.h
+SOURCE=..\..\main\ai.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\aistruct.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\altsound.h
+SOURCE=..\..\main\aistruct.h
 # End Source File
 # Begin Source File
 
@@ -1124,35 +909,31 @@ SOURCE=..\..\include\args.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\ase.h
+SOURCE=..\..\main\autodl.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\autodl.h
+SOURCE=..\..\main\automap.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\automap.h
+SOURCE=..\..\main\banlist.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\banlist.h
+SOURCE=..\..\2d\bitmap.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\bm.h
+SOURCE=..\..\main\bm.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\bmread.h
+SOURCE=..\..\main\bmread.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\briefings.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\buildmodel.h
+SOURCE=..\..\main\briefings.h
 # End Source File
 # Begin Source File
 
@@ -1160,7 +941,7 @@ SOURCE=..\..\include\byteswap.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\cameras.h
+SOURCE=..\..\main\cameras.h
 # End Source File
 # Begin Source File
 
@@ -1168,15 +949,15 @@ SOURCE=..\..\include\cfile.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\cheats.h
+SOURCE=..\..\main\cheats.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\checker.h
+SOURCE=..\..\2d\clip.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\clipper.h
+SOURCE=..\..\3d\clipper.h
 # End Source File
 # Begin Source File
 
@@ -1184,11 +965,15 @@ SOURCE=..\..\include\cmd.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\collide.h
+SOURCE=..\..\main\cntrlcen.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\compbit.h
+SOURCE=..\..\main\collide.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\compbit.h
 # End Source File
 # Begin Source File
 
@@ -1196,7 +981,7 @@ SOURCE=..\..\include\CON_console.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\config.h
+SOURCE=..\..\main\config.h
 # End Source File
 # Begin Source File
 
@@ -1204,11 +989,11 @@ SOURCE=..\..\include\console.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\controls.h
+SOURCE=..\..\main\controls.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\credits.h
+SOURCE=..\..\main\credits.h
 # End Source File
 # Begin Source File
 
@@ -1216,35 +1001,31 @@ SOURCE=..\..\include\d_io.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\desc_id.h
+SOURCE=..\..\main\desc_id.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\desw.h
+SOURCE=..\..\main\digi.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\digi.h
+SOURCE=..\..\main\dropobject.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\dropobject.h
+SOURCE=..\..\main\dynlight.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\dynlight.h
+SOURCE=..\..\main\effects.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\effects.h
+SOURCE=..\..\main\endlevel.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\endlevel.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\entropy.h
+SOURCE=..\..\main\entropy.h
 # End Source File
 # Begin Source File
 
@@ -1252,11 +1033,15 @@ SOURCE=..\..\include\error.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\escort.h
+SOURCE=..\..\main\escort.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\fastrender.h
+SOURCE=..\..\arch\include\event.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\arch\ogl\extgl.h
 # End Source File
 # Begin Source File
 
@@ -1268,7 +1053,7 @@ SOURCE=..\..\include\findfile.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\fireball.h
+SOURCE=..\..\main\fireball.h
 # End Source File
 # Begin Source File
 
@@ -1276,75 +1061,55 @@ SOURCE=..\..\include\fix.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\flightpath.h
+SOURCE=..\..\main\fuelcen.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\fuelcen.h
+SOURCE=..\..\main\fvi.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\fvi.h
+SOURCE=..\..\main\fvi_a.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\fvi_a.h
+SOURCE=..\..\main\game.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\game.h
+SOURCE=..\..\main\gamefont.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamecntl.h
+SOURCE=..\..\main\gamemine.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamefont.h
+SOURCE=..\..\main\gamepal.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamemine.h
+SOURCE=..\..\main\gamesave.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamepal.h
+SOURCE=..\..\main\gameseg.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamerend.h
+SOURCE=..\..\main\gamestat.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamesave.h
+SOURCE=..\..\main\gauges.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gameseg.h
+SOURCE=..\..\main\glext.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\gamestat.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\gauges.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\glare.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\glext.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\globvars.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\glxext.h
+SOURCE=..\..\3d\globvars.h
 # End Source File
 # Begin Source File
 
@@ -1360,39 +1125,23 @@ SOURCE=..\..\include\hash.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\headlight.h
+SOURCE=..\..\main\headlight.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\highscores.h
+SOURCE=..\..\main\highscores.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\hiresmodels.h
+SOURCE=..\..\main\hiresmodels.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\hitbox.h
+SOURCE=..\..\main\hostage.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\hostage.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\hud_defs.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\hudicons.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\hudmsg.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\i86.h
+SOURCE=..\..\main\hudmsg.h
 # End Source File
 # Begin Source File
 
@@ -1404,11 +1153,11 @@ SOURCE=..\..\include\iff.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\inferno.h
+SOURCE=..\..\main\inferno.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\input.h
+SOURCE=..\..\main\input.h
 # End Source File
 # Begin Source File
 
@@ -1420,31 +1169,51 @@ SOURCE=..\..\include\ipx.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\kconfig.h
+SOURCE=..\..\arch\win32\ipx_drv.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\laser.h
+SOURCE=..\..\arch\win32\include\ipx_mcast4.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\light.h
+SOURCE=..\..\arch\win32\include\ipx_udp.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\lightmap.h
+SOURCE=..\..\arch\include\joy.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\lightning.h
+SOURCE=..\..\main\joydefs.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\loadgame.h
+SOURCE=..\..\main\kconfig.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\loadgl.h
+SOURCE=..\..\arch\include\key.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\laser.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\light.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\lightmap.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\lightning.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\loadgame.h
 # End Source File
 # Begin Source File
 
@@ -1452,7 +1221,7 @@ SOURCE=..\..\include\makesig.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\marker.h
+SOURCE=..\..\main\marker.h
 # End Source File
 # Begin Source File
 
@@ -1460,15 +1229,15 @@ SOURCE=..\..\include\maths.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\menu.h
+SOURCE=..\..\main\menu.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\mission.h
+SOURCE=..\..\main\mission.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\modem.h
+SOURCE=..\..\main\modem.h
 # End Source File
 # Begin Source File
 
@@ -1480,91 +1249,59 @@ SOURCE=..\..\include\mono.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\monsterball.h
+SOURCE=..\..\main\monsterball.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\morph.h
+SOURCE=..\..\main\morph.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\movie.h
+SOURCE=..\..\arch\include\mouse.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\multi.h
+SOURCE=..\..\main\movie.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\multibot.h
+SOURCE=..\..\main\multi.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\multimsg.h
+SOURCE=..\..\main\multibot.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\netmenu.h
+SOURCE=..\..\main\multimsg.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\netmisc.h
+SOURCE=..\..\main\netmisc.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\network.h
+SOURCE=..\..\main\network.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\network_lib.h
+SOURCE=..\..\main\newdemo.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\newdemo.h
+SOURCE=..\..\main\newmenu.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\newmenu.h
+SOURCE=..\..\main\object.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\nocfile.h
+SOURCE=..\..\main\objrender.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\object.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\objeffects.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\objrender.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\objsmoke.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_bitmap.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_color.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_defs.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_fastrender.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_hudstuff.h
+SOURCE=..\..\main\objsmoke.h
 # End Source File
 # Begin Source File
 
@@ -1572,35 +1309,11 @@ SOURCE=..\..\include\ogl_init.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\ogl_lib.h
+SOURCE=..\..\main\omega.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\ogl_render.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_shader.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_texcache.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_texture.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\ogl_tmu.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\omega.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\oof.h
+SOURCE=..\..\main\oof.h
 # End Source File
 # Begin Source File
 
@@ -1608,7 +1321,7 @@ SOURCE=..\..\include\pa_enabl.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\paging.h
+SOURCE=..\..\main\paging.h
 # End Source File
 # Begin Source File
 
@@ -1616,7 +1329,7 @@ SOURCE=..\..\include\palette.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\particles.h
+SOURCE=..\..\main\particles.h
 # End Source File
 # Begin Source File
 
@@ -1628,35 +1341,31 @@ SOURCE=..\..\include\pcx.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\perlin.h
+SOURCE=..\..\main\perlin.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\physics.h
+SOURCE=..\..\main\physics.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\piggy.h
+SOURCE=..\..\main\piggy.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\player.h
+SOURCE=..\..\main\player.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\playsave.h
+SOURCE=..\..\main\playsave.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\pof.h
+SOURCE=..\..\main\polyobj.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\polyobj.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\powerup.h
+SOURCE=..\..\main\powerup.h
 # End Source File
 # Begin Source File
 
@@ -1664,35 +1373,15 @@ SOURCE=..\..\include\pstypes.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\radar.h
-# End Source File
-# Begin Source File
-
 SOURCE=..\..\include\rbaudio.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\reactor.h
+SOURCE=..\..\main\render.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\render.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\renderlib.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\rendershadows.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\renderthreads.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\reorder.h
+SOURCE=..\..\main\reorder.h
 # End Source File
 # Begin Source File
 
@@ -1700,67 +1389,59 @@ SOURCE=..\..\include\rle.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\robot.h
+SOURCE=..\..\main\robot.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\scores.h
+SOURCE=..\..\texmap\scanline.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\screens.h
+SOURCE=..\..\main\scores.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\sdlgl.h
+SOURCE=..\..\main\screens.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\segment.h
+SOURCE=..\..\main\segment.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\segpoint.h
+SOURCE=..\..\main\segpoint.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\shadows.h
+SOURCE=..\..\main\slew.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\slew.h
+SOURCE=..\..\main\slew.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\slowmotion.h
+SOURCE=..\..\main\slowmotion.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\songs.h
+SOURCE=..\..\main\songs.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\sounds.h
+SOURCE=..\..\main\sounds.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\soundthreads.h
+SOURCE=..\..\main\soundthreads.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\sparkeffect.h
+SOURCE=..\..\main\sphere.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\sphere.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\state.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\statusbar.h
+SOURCE=..\..\main\state.h
 # End Source File
 # Begin Source File
 
@@ -1772,11 +1453,11 @@ SOURCE=..\..\include\strutil.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\switch.h
+SOURCE=..\..\main\switch.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\terrain.h
+SOURCE=..\..\main\terrain.h
 # End Source File
 # Begin Source File
 
@@ -1784,23 +1465,27 @@ SOURCE=..\..\include\texmap.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\texmerge.h
+SOURCE=..\..\texmap\texmapl.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\text.h
+SOURCE=..\..\main\texmerge.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\textdata.h
+SOURCE=..\..\main\text.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\textures.h
+SOURCE=..\..\main\textdata.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\tga.h
+SOURCE=..\..\main\textures.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\main\tga.h
 # End Source File
 # Begin Source File
 
@@ -1808,15 +1493,11 @@ SOURCE=..\..\include\timer.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\tracker.h
+SOURCE=..\..\main\tracker.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\trackobject.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\transprender.h
+SOURCE=..\..\main\trackobject.h
 # End Source File
 # Begin Source File
 
@@ -1828,11 +1509,7 @@ SOURCE=..\..\include\u_mem.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\ui.h
-# End Source File
-# Begin Source File
-
-SOURCE=..\..\include\vclip.h
+SOURCE=..\..\main\vclip.h
 # End Source File
 # Begin Source File
 
@@ -1840,7 +1517,7 @@ SOURCE=..\..\include\vecmat.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\vers_id.h
+SOURCE=..\..\main\vers_id.h
 # End Source File
 # Begin Source File
 
@@ -1848,11 +1525,11 @@ SOURCE=..\..\include\vesa.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\wall.h
+SOURCE=..\..\main\wall.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\..\include\weapon.h
+SOURCE=..\..\main\weapon.h
 # End Source File
 # Begin Source File
 

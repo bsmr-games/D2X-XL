@@ -2,15 +2,9 @@
 #ifndef _OGL_DEFS_H
 #define _OGL_DEFS_H
 
-#ifdef HAVE_CONFIG_H
-#	include <conf.h>
-#endif  
-
 #ifdef _WIN32
-#	include <windows.h>
-#	include <stddef.h>
-#else
-#	define GL_GLEXT_PROTOTYPES
+#include <windows.h>
+#include <stddef.h>
 #endif
 
 #ifdef __macosx__
@@ -52,7 +46,7 @@
 
 #define TEXTURE_COMPRESSION	0
 
-#if DBG
+#ifdef _DEBUG
 #	define DBG_SHADERS			0
 #else
 #	define DBG_SHADERS			0
@@ -67,6 +61,35 @@
 extern double glFOV, glAspect;
 
 void OglSetFOV (double fov);
+
+#ifndef _WIN32
+#	define GL_GLEXT_PROTOTYPES
+#endif
+
+#ifdef OGL_RUNTIME_LOAD
+#	include "loadgl.h"
+int OglInitLoadLibrary (void);
+#else
+#	ifdef __macosx__
+#		include <OpenGL/gl.h>
+#		include <OpenGL/glu.h>
+#		include <OpenGL/glext.h>
+#	else
+#		include <GL/gl.h>
+#		include <GL/glu.h>
+#		ifdef _WIN32
+#			include <glext.h>
+#			include <wglext.h>
+#		else
+#			include <GL/glext.h>
+#			include <GL/glx.h>
+#			include <GL/glxext.h>
+#		endif
+#	endif
+//kludge: since multi texture support has been rewritten
+#	undef GL_ARB_multitexture
+#	undef GL_SGIS_multitexture
+#endif
 
 #ifndef GL_VERSION_1_1
 #	ifdef GL_EXT_texture
@@ -153,13 +176,13 @@ extern PFNGLPOINTPARAMETERFARBPROC		glPointParameterfARB;
 
 // vertex buffer objects -------------------------------------------------------
 
+extern PFNGLGENBUFFERSPROC					glGenBuffers;
+extern PFNGLBINDBUFFERPROC					glBindBuffer;
+extern PFNGLBUFFERDATAPROC					glBufferData;
+extern PFNGLMAPBUFFERPROC					glMapBuffer;
+extern PFNGLUNMAPBUFFERPROC				glUnmapBuffer;
+extern PFNGLDELETEBUFFERSPROC				glDeleteBuffers;
 #	ifdef _WIN32
-extern PFNGLGENBUFFERSPROC					glGenBuffersARB;
-extern PFNGLBINDBUFFERPROC					glBindBufferARB;
-extern PFNGLBUFFERDATAPROC					glBufferDataARB;
-extern PFNGLMAPBUFFERPROC					glMapBufferARB;
-extern PFNGLUNMAPBUFFERPROC				glUnmapBufferARB;
-extern PFNGLDELETEBUFFERSPROC				glDeleteBuffersARB;
 extern PFNGLDRAWRANGEELEMENTSPROC		glDrawRangeElements;
 #	endif
 
@@ -246,12 +269,21 @@ extern PFNGLUNIFORM1FVARBPROC					glUniform1fv;
 #define OGL_TEXENV(p,m) OGL_SETSTATE(p,m,glTexEnvi(GL_TEXTURE_ENV, p,m));
 #define OGL_TEXPARAM(p,m) OGL_SETSTATE(p,m,glTexParameteri(GL_TEXTURE_2D,p,m));
 
+#define	OGL_VIEWPORT(_x,_y,_w,_h) \
+			{if (((int) (_x) != gameStates.ogl.nLastX) || ((int) (_y) != gameStates.ogl.nLastY) || \
+				  ((int) (_w) != gameStates.ogl.nLastW) || ((int) (_h) != gameStates.ogl.nLastH)) \
+				{glViewport ((GLint) (_x), (GLint) (grdCurScreen->scCanvas.cvBitmap.bmProps.h - (_y) - (_h)), (GLsizei) (_w), (GLsizei) (_h));\
+				gameStates.ogl.nLastX = (_x); \
+				gameStates.ogl.nLastY = (_y); \
+				gameStates.ogl.nLastW = (_w); \
+				gameStates.ogl.nLastH = (_h);}}
+
+
 void OglInitExtensions (void);
-void OglViewport (int x, int y, int w, int h);
 
 //------------------------------------------------------------------------------
 
-extern const char *pszOglExtensions;
+extern char *pszOglExtensions;
 
 //------------------------------------------------------------------------------
 
