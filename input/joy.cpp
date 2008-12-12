@@ -272,10 +272,10 @@ return time;
 
 //------------------------------------------------------------------------------
 
-uint JoyReadRawAxis (uint mask, int * axis)
+unsigned int JoyReadRawAxis (unsigned int mask, int * axis)
 {
 	int i;
-	uint channel_masks = 0;
+	unsigned int channel_masks = 0;
 
 if (!gameStates.input.nJoysticks)
 	return 0;

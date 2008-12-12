@@ -3,7 +3,7 @@
  *  Code Cleanup and heavily extended by: Clemens Wacha <reflex-2000@gmx.net>
  *  Ported to use native Descent interfaces by: Bradley Bell <btb@icculus.ccOrg>
  *
- *  This is free, just be sure to give us credit when using it
+ *  This is D2_FREE, just be sure to give us credit when using it
  *  in any of your programs.
  */
 
@@ -25,7 +25,7 @@
 #include "newmenu.h"
 #include "CON_console.h"
 
-#define FG_COLOR    CCanvas::Current ()->FontColor (0)
+#define FG_COLOR    grdCurCanv->cvFontFgColor
 #define get_msecs() approx_fsec_to_msec(TimerGetApproxSeconds())
 
 
@@ -180,10 +180,10 @@ int CON_Events(int event)
  * specified value.  Preconditions: the surface in question is RGBA.
  * 0 <= a <= 255, where 0 is transparent and 255 is opaque. */
 void CON_AlphaGL(SDL_Surface *s, int alpha) {
-	ubyte val;
+	Uint8 val;
 	int x, y, w, h;
-	uint pixel;
-	ubyte r, g, b, a;
+	Uint32 pixel;
+	Uint8 r, g, b, a;
 	SDL_PixelFormat *format;
 	static char errorPrinted = 0;
 
@@ -220,9 +220,9 @@ void CON_AlphaGL(SDL_Surface *s, int alpha) {
 			 * so it usually ends up taking this route too.  Win!  Unroll loop
 			 * and use pointer arithmetic for extra speed. */
 			int numpixels = h * (w << 2);
-			ubyte *pix = reinterpret_cast<ubyte*> (s->pixels);
-			ubyte *last = pix + numpixels;
-			ubyte *pixel;
+			Uint8 *pix = (Uint8 *) (s->pixels);
+			Uint8 *last = pix + numpixels;
+			Uint8 *pixel;
 			if((numpixels & 0x7) == 0)
 				for(pixel = pix + 3; pixel < last; pixel += 32)
 					*pixel = *(pixel + 4) = *(pixel + 8) = *(pixel + 12) = *(pixel + 16) = *(pixel + 20) = *(pixel + 24) = *(pixel + 28) = val;
@@ -268,9 +268,9 @@ void CON_UpdateConsole(ConsoleInformation *console) {
 	int loop;
 	int loop2;
 	int Screenlines;
-	CCanvas *canv_save = NULL;
-	tCanvasColor	orig_color;
-	CFont		*orig_font;
+	gsrCanvas *canv_save = NULL;
+	grsColor	orig_color;
+	grsFont		*orig_font;
 
 	if(!console)
 		return;
@@ -279,11 +279,11 @@ void CON_UpdateConsole(ConsoleInformation *console) {
 	if(!CON_isVisible(console))
 		return;
 
-	Screenlines = console->ConsoleSurface->Height () / (CON_LINE_SPACE + console->ConsoleSurface->Font ()->Height ());
+	Screenlines = console->ConsoleSurface->cv_h / (CON_LINE_SPACE + console->ConsoleSurface->cvFont->ftHeight);
 
 	if(!gameOpts->menus.nStyle) {
-		canv_save = CCanvas::Current ();
-		CCanvas::SetCurrent(console->ConsoleSurface);
+		canv_save = grdCurCanv;
+		GrSetCurrentCanvas(console->ConsoleSurface);
 #if 0
 		SDL_FillRect(console->ConsoleSurface, NULL, SDL_MapRGBA(console->ConsoleSurface->format, 0, 0, 0, console->ConsoleAlpha);
 		if(console->OutputScreen->flags & SDL_OPENGLBLIT)
@@ -299,35 +299,35 @@ void CON_UpdateConsole(ConsoleInformation *console) {
 	 */
 #if 0
 	if((console->OutputScreen->flags & SDL_OPENGLBLIT) && (console->OutputScreen->format->BytesPerPixel > 2)) {
-		uint *pix = reinterpret_cast<uint*> (CurrentFont->FontSurface->pixels);
+		Uint32 *pix = (Uint32 *) (CurrentFont->FontSurface->pixels);
 		SDL_SetColorKey(CurrentFont->FontSurface, SDL_SRCCOLORKEY, *pix);
 	}
 #endif
 
 	orig_color = FG_COLOR;
-	orig_font = CCanvas::Current ()->Font ();
-	fontManager.SetCurrent (SMALL_FONT);
-	fontManager.SetColorRGBi (WHITE_RGBA, 1, 0, 0);
+	orig_font = grdCurCanv->cvFont;
+	grdCurCanv->cvFont = SMALL_FONT;
+	GrSetFontColorRGBi (WHITE_RGBA, 1, 0, 0);
 	//now draw text from last but second line to top
 	for(loop = 0; loop < Screenlines-1 && loop < console->LineBuffer - console->ConsoleScrollBack; loop++) {
 		if(console->ConsoleScrollBack != 0 && loop == 0)
 			for(loop2 = 0; loop2 < (console->VChars / 5) + 1; loop2++)
 			{
-				GrString (CON_CHAR_BORDER + (loop2*5*console->ConsoleSurface->Font ()->Width ()), 
-							 (Screenlines - loop - 2) * (CON_LINE_SPACE + console->ConsoleSurface->Font ()->Height ()), 
+				GrString (CON_CHAR_BORDER + (loop2*5*console->ConsoleSurface->cvFont->ftWidth), 
+							 (Screenlines - loop - 2) * (CON_LINE_SPACE + console->ConsoleSurface->cvFont->ftHeight), 
 							 CON_SCROLL_INDICATOR, NULL);
 			}
 		else
 		{
 			GrString(CON_CHAR_BORDER, 
-						(Screenlines - loop - 2) * (CON_LINE_SPACE + console->ConsoleSurface->Font ()->Height ()),
+						(Screenlines - loop - 2) * (CON_LINE_SPACE + console->ConsoleSurface->cvFont->ftHeight),
 						 console->ConsoleLines[console->ConsoleScrollBack + loop], NULL);
 		}
 	}
-	fontManager.SetCurrent (orig_font);
+	grdCurCanv->cvFont = orig_font;
 	FG_COLOR = orig_color;
 	if(!gameOpts->menus.nStyle)
-		CCanvas::SetCurrent(canv_save);
+		GrSetCurrentCanvas(canv_save);
 
 #if 0
 	if(console->OutputScreen->flags & SDL_OPENGLBLIT)
@@ -351,8 +351,8 @@ void CON_UpdateOffset(ConsoleInformation* console) {
 		break;
 	case CON_OPENING:
 		console->RaiseOffset += CON_OPENCLOSE_SPEED;
-		if(console->RaiseOffset >= console->ConsoleSurface->Height ()) {
-			console->RaiseOffset = console->ConsoleSurface->Height ();
+		if(console->RaiseOffset >= console->ConsoleSurface->cv_h) {
+			console->RaiseOffset = console->ConsoleSurface->cv_h;
 			console->Visible = CON_OPEN;
 		}
 		break;
@@ -366,7 +366,8 @@ void CON_UpdateOffset(ConsoleInformation* console) {
 /* Draws the console buffer to the screen if the console is "visible" */
 
 void CON_DrawConsole(ConsoleInformation *console) {
-	CBitmap *clip;
+	gsrCanvas *canv_save;
+	grsBitmap *clip;
 
 	if(!console)
 		return;
@@ -389,34 +390,34 @@ void CON_DrawConsole(ConsoleInformation *console) {
 #endif
 
 	if (gameOpts->menus.nStyle)
-		NMBlueBox (0, 0, console->ConsoleSurface->Width (), console->RaiseOffset, 1, 1.0f, 0);
+		NMBlueBox (0, 0, console->ConsoleSurface->cv_w, console->RaiseOffset, 1, 1.0f, 0);
 	else {
-		CCanvas::Push ();
-		CCanvas::SetCurrent(console->OutputScreen->Canvas ());
-		clip = console->ConsoleSurface->CreateChild (
-			0, console->ConsoleSurface->Height () - console->RaiseOffset, 
-			console->ConsoleSurface->Width (), console->RaiseOffset);
+		canv_save = grdCurCanv;
+		GrSetCurrentCanvas(&console->OutputScreen->scCanvas);
+		clip = GrCreateSubBitmap(&console->ConsoleSurface->cvBitmap, 0, 
+											 console->ConsoleSurface->cv_h - console->RaiseOffset, 
+											 console->ConsoleSurface->cv_w, console->RaiseOffset);
 		GrBitmap(console->DispX, console->DispY, clip);
-		clip->Destroy ();
+		GrFreeSubBitmap(clip);
 #if 0
 		if(console->OutputScreen->flags & SDL_OPENGLBLIT)
 			SDL_UpdateRects(console->OutputScreen, 1, &DestRect);
 #endif
-		CCanvas::Pop ();
+		GrSetCurrentCanvas(canv_save);
 		}
 }
 
 //------------------------------------------------------------------------------
 
 /* Initializes the console */
-ConsoleInformation *CON_Init(CFont *font, CScreen *DisplayScreen, int lines, int x, int y, int w, int h)
+ConsoleInformation *CON_Init(grsFont *Font, grsScreen *DisplayScreen, int lines, int x, int y, int w, int h)
 {
 	int loop;
 	ConsoleInformation *newinfo;
 
 
 	/* Create a new console struct and init it. */
-	if(!(newinfo = new ConsoleInformation)) {
+	if((newinfo = (ConsoleInformation *) D2_ALLOC(sizeof(ConsoleInformation))) == NULL) {
 		//PRINT_ERROR("Could not allocate the space for a new console info struct.\n");
 		return NULL;
 	}
@@ -436,62 +437,64 @@ ConsoleInformation *CON_Init(CFont *font, CScreen *DisplayScreen, int lines, int
 	newinfo->CursorPos = 0;
 	newinfo->CommandScrollBack = 0;
 	newinfo->OutputScreen = DisplayScreen;
-	newinfo->Prompt = reinterpret_cast<char*> (CON_DEFAULT_PROMPT);
+	newinfo->Prompt = (char *) CON_DEFAULT_PROMPT;
 	newinfo->HideKey = CON_DEFAULT_HIDEKEY;
 
 	CON_SetExecuteFunction(newinfo, Default_CmdFunction);
 	CON_SetTabCompletion(newinfo, Default_TabFunction);
 
 	/* make sure that the size of the console is valid */
-	if(w > newinfo->OutputScreen->Width () || w < font->Width () * 32)
-		w = newinfo->OutputScreen->Width ();
-	if(h > newinfo->OutputScreen->Height () || h < font->Height ())
-		h = newinfo->OutputScreen->Height ();
-	if(x < 0 || x > newinfo->OutputScreen->Width () - w)
+	if(w > newinfo->OutputScreen->scWidth || w < Font->ftWidth * 32)
+		w = newinfo->OutputScreen->scWidth;
+	if(h > newinfo->OutputScreen->scHeight || h < Font->ftHeight)
+		h = newinfo->OutputScreen->scHeight;
+	if(x < 0 || x > newinfo->OutputScreen->scWidth - w)
 		newinfo->DispX = 0;
 	else
 		newinfo->DispX = x;
-	if(y < 0 || y > newinfo->OutputScreen->Height () - h)
+	if(y < 0 || y > newinfo->OutputScreen->scHeight - h)
 		newinfo->DispY = 0;
 	else
 		newinfo->DispY = y;
 
 	/* load the console surface */
-	newinfo->ConsoleSurface = CCanvas::Create (w, h);
+	newinfo->ConsoleSurface = GrCreateCanvas(w, h);
 
 	/* Load the consoles font */
 	{
-		CCanvas::Push ();
-		CCanvas::SetCurrent(newinfo->ConsoleSurface);
-		fontManager.SetCurrent(font);
-		fontManager.SetColorRGBi (WHITE_RGBA, 1, 0, 0);
-		CCanvas::Pop ();
+		gsrCanvas *canv_save;
+
+		canv_save = grdCurCanv;
+		GrSetCurrentCanvas(newinfo->ConsoleSurface);
+		GrSetCurFont(Font);
+		GrSetFontColorRGBi (WHITE_RGBA, 1, 0, 0);
+		GrSetCurrentCanvas(canv_save);
 	}
 
 
 	/* Load the dirty rectangle for user input */
-	newinfo->InputBackground = CBitmap::Create (0, w, newinfo->ConsoleSurface->Font ()->Height (), 1);
+	newinfo->InputBackground = GrCreateBitmap(w, newinfo->ConsoleSurface->cvFont->ftHeight, 1);
 #if 0
 	SDL_FillRect(newinfo->InputBackground, NULL, SDL_MapRGBA(newinfo->ConsoleSurface->format, 0, 0, 0, SDL_ALPHA_OPAQUE);
 #endif
 
 	/* calculate the number of visible characters in the command line */
-	newinfo->VChars = (w - CON_CHAR_BORDER) / newinfo->ConsoleSurface->Font ()->Width ();
+	newinfo->VChars = (w - CON_CHAR_BORDER) / newinfo->ConsoleSurface->cvFont->ftWidth;
 	if(newinfo->VChars > CON_CHARS_PER_LINE)
 		newinfo->VChars = CON_CHARS_PER_LINE;
 
 	/* We would like to have a minumum # of lines to guarentee we don't create a memory error */
-	if(h / (CON_LINE_SPACE + newinfo->ConsoleSurface->Font ()->Height ()) > lines)
-		newinfo->LineBuffer = h / (CON_LINE_SPACE + newinfo->ConsoleSurface->Font ()->Height ());
+	if(h / (CON_LINE_SPACE + newinfo->ConsoleSurface->cvFont->ftHeight) > lines)
+		newinfo->LineBuffer = h / (CON_LINE_SPACE + newinfo->ConsoleSurface->cvFont->ftHeight);
 	else
 		newinfo->LineBuffer = lines;
 
 
-	newinfo->ConsoleLines = new char* [newinfo->LineBuffer];
-	newinfo->CommandLines = new char* [newinfo->LineBuffer];
+	newinfo->ConsoleLines = (char **)D2_ALLOC(sizeof(char *) * newinfo->LineBuffer);
+	newinfo->CommandLines = (char **)D2_ALLOC(sizeof(char *) * newinfo->LineBuffer);
 	for(loop = 0; loop < newinfo->LineBuffer; loop++) {
-		newinfo->ConsoleLines [loop] = new char [CON_CHARS_PER_LINE];
-		newinfo->CommandLines [loop] = new char [CON_CHARS_PER_LINE];
+		newinfo->ConsoleLines[loop] = (char *)D2_CALLOC(CON_CHARS_PER_LINE, sizeof(char));
+		newinfo->CommandLines[loop] = (char *)D2_CALLOC(CON_CHARS_PER_LINE, sizeof(char));
 	}
 	memset(newinfo->Command, 0, CON_CHARS_PER_LINE);
 	memset(newinfo->LCommand, 0, CON_CHARS_PER_LINE);
@@ -545,27 +548,26 @@ void CON_Free(ConsoleInformation *console) {
 
 	//CON_DestroyCommands();
 	for(i = 0; i <= console->LineBuffer - 1; i++) {
-		delete[] console->ConsoleLines[i];
-		delete[] console->CommandLines[i];
+		D2_FREE(console->ConsoleLines[i]);
+		D2_FREE(console->CommandLines[i]);
 	}
-	delete[] console->ConsoleLines;
-	delete[] console->CommandLines;
+	D2_FREE(console->ConsoleLines);
+	D2_FREE(console->CommandLines);
 
 	console->ConsoleLines = NULL;
 	console->CommandLines = NULL;
 
-	console->ConsoleSurface->Destroy ();
+	GrFreeCanvas(console->ConsoleSurface);
 	console->ConsoleSurface = NULL;
 
 	if (console->BackgroundImage)
-		delete console->BackgroundImage;
+		GrFreeBitmap(console->BackgroundImage);
 	console->BackgroundImage = NULL;
 
-	if (console->InputBackground)
-		delete console->InputBackground;
+	GrFreeBitmap(console->InputBackground);
 	console->InputBackground = NULL;
 
-	delete console;
+	D2_FREE(console);
 }
 
 //------------------------------------------------------------------------------
@@ -629,14 +631,14 @@ void DrawCommandLine() {
 	int x;
 	int commandbuffer;
 #if 0
-	CFont* CurrentFont;
+	grsFont* CurrentFont;
 #endif
 	static int	LastBlinkTime = 0;	/* Last time the consoles cursor blinked */
 	static int	LastCursorPos = 0;		// Last Cursor Position
 	static int	bBlink = 0;			/* Is the cursor currently blinking */
-	CCanvas	*canv_save = NULL;
-	tCanvasColor	orig_color;
-	CFont		*orig_font;
+	gsrCanvas	*canv_save = NULL;
+	grsColor	orig_color;
+	grsFont		*orig_font;
 
 	if(!Topmost)
 		return;
@@ -644,7 +646,7 @@ void DrawCommandLine() {
 	commandbuffer = Topmost->VChars - (int) strlen(Topmost->Prompt) - 1; // -1 to make cursor visible
 
 #if 0
-	CurrentFont = Topmost->ConsoleSurface->Font ();
+	CurrentFont = Topmost->ConsoleSurface->cvFont;
 #endif
 
 	//Concatenate the left and right tSide to command
@@ -669,7 +671,7 @@ void DrawCommandLine() {
 	//once again we're drawing text, so in OpenGL context we need to temporarily set up
 	//software-mode transparency.
 	if(Topmost->OutputScreen->flags & SDL_OPENGLBLIT) {
-		uint *pix = reinterpret_cast<uint*> (CurrentFont->FontSurface->pixels);
+		Uint32 *pix = (Uint32 *) (CurrentFont->FontSurface->pixels);
 		SDL_SetColorKey(CurrentFont->FontSurface, SDL_SRCCOLORKEY, *pix);
 	}
 #endif
@@ -677,16 +679,16 @@ void DrawCommandLine() {
 
 	//first of all restore InputBackground
 	if (!gameOpts->menus.nStyle) {
-		canv_save = CCanvas::Current ();
-		CCanvas::SetCurrent(Topmost->ConsoleSurface);
-		GrBitmap(0, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), Topmost->InputBackground);
+		canv_save = grdCurCanv;
+		GrSetCurrentCanvas(Topmost->ConsoleSurface);
+		GrBitmap(0, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, Topmost->InputBackground);
 		}
 	//now add the text
 	orig_color = FG_COLOR;
-	orig_font = CCanvas::Current ()->Font ();
-	fontManager.SetCurrent (SMALL_FONT);
-	fontManager.SetColorRGBi (WHITE_RGBA, 1, 0, 0);
-	GrString(CON_CHAR_BORDER, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), Topmost->VCommand, NULL);
+	orig_font = grdCurCanv->cvFont;
+	grdCurCanv->cvFont = SMALL_FONT;
+	GrSetFontColorRGBi (WHITE_RGBA, 1, 0, 0);
+	GrString(CON_CHAR_BORDER, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, Topmost->VCommand, NULL);
 
 	//at last add the cursor
 	//check if the blink period is over
@@ -708,21 +710,21 @@ void DrawCommandLine() {
 	if(bBlink) {
 #if 1
 		int w, h, aw;
-		FONT->StringSize (Topmost->VCommand, w, h, aw);
+		GrGetStringSize (Topmost->VCommand, &w, &h, &aw);
 		x = CON_CHAR_BORDER + w;
 #else
-		x = CON_CHAR_BORDER + Topmost->ConsoleSurface->Font ()->Width () * (Topmost->CursorPos - Topmost->Offset + (int) strlen(Topmost->Prompt));
+		x = CON_CHAR_BORDER + Topmost->ConsoleSurface->cvFont->ftWidth * (Topmost->CursorPos - Topmost->Offset + (int) strlen(Topmost->Prompt));
 #endif
 		if(Topmost->InsMode)
-			GrString(x, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), CON_INS_CURSOR, NULL);
+			GrString(x, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, CON_INS_CURSOR, NULL);
 		else
-			GrString(x, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), CON_OVR_CURSOR, NULL);
+			GrString(x, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, CON_OVR_CURSOR, NULL);
 	}
-	fontManager.SetCurrent (orig_font);
+	grdCurCanv->cvFont = orig_font;
 	FG_COLOR = orig_color;
 
 	if (!gameOpts->menus.nStyle)
-		CCanvas::SetCurrent(canv_save);
+		GrSetCurrentCanvas(canv_save);
 
 
 #if 0
@@ -740,7 +742,7 @@ void DrawCommandLine() {
 /* Outputs text to the console (in game), up to CON_CHARS_PER_LINE chars can be entered */
 void _CDECL_ CON_Out(ConsoleInformation *console, const char *str, ...) {
 	va_list marker;
-	//keep some space free for stuff like CON_Out(console, "blablabla %s", console->Command);
+	//keep some space D2_FREE for stuff like CON_Out(console, "blablabla %s", console->Command);
 	char temp[CON_CHARS_PER_LINE + 128];
 	char* ptemp;
 
@@ -778,7 +780,7 @@ void _CDECL_ CON_Out(ConsoleInformation *console, const char *str, ...) {
 //------------------------------------------------------------------------------
 #if 0
 /* Sets the alpha level of the console, 0 turns off alpha blending */
-void CON_Alpha(ConsoleInformation *console, ubyte alpha) {
+void CON_Alpha(ConsoleInformation *console, unsigned char alpha) {
 	if(!console)
 		return;
 
@@ -799,17 +801,16 @@ void CON_Alpha(ConsoleInformation *console, ubyte alpha) {
 
 //------------------------------------------------------------------------------
 /* Adds  background image to the console, scaled to size of console*/
-int CON_Background(ConsoleInformation *console, CBitmap *image)
+int CON_Background(ConsoleInformation *console, grsBitmap *image)
 {
 	if(!console)
 		return 1;
 
 	/* Free the background from the console */
 	if (image == NULL) {
-		if (console->BackgroundImage) {
-			delete console->BackgroundImage;
-			console->BackgroundImage = NULL;
-			}
+		if (console->BackgroundImage)
+			GrFreeBitmap(console->BackgroundImage);
+		console->BackgroundImage = NULL;
 #if 0
 		SDL_FillRect(console->InputBackground, NULL, SDL_MapRGBA(console->ConsoleSurface->format, 0, 0, 0, SDL_ALPHA_OPAQUE);
 #endif
@@ -818,30 +819,29 @@ int CON_Background(ConsoleInformation *console, CBitmap *image)
 
 	/* Load a new background */
 	if (console->BackgroundImage)
-		delete console->BackgroundImage;
-	console->BackgroundImage = CBitmap::Create (0, console->ConsoleSurface->Width (), console->ConsoleSurface->Height (), 1);
+		GrFreeBitmap(console->BackgroundImage);
+	console->BackgroundImage = GrCreateBitmap(console->ConsoleSurface->cv_w, console->ConsoleSurface->cv_h, 1);
 	GrBitmapScaleTo(image, console->BackgroundImage);
 
 #if 0
 	SDL_FillRect(console->InputBackground, NULL, SDL_MapRGBA(console->ConsoleSurface->format, 0, 0, 0, SDL_ALPHA_OPAQUE);
 #endif
-	GrBmBitBlt (console->BackgroundImage->Width (), console->InputBackground->Height (), 0, 0, 0, 
-					console->ConsoleSurface->Height () - console->ConsoleSurface->Font ()->Height (), console->BackgroundImage, console->InputBackground);
+	GrBmBitBlt(console->BackgroundImage->bmProps.w, console->InputBackground->bmProps.h, 0, 0, 0, console->ConsoleSurface->cv_h - console->ConsoleSurface->cvFont->ftHeight, console->BackgroundImage, console->InputBackground);
 
 	return 0;
 }
 
 //------------------------------------------------------------------------------
 /* Sets font info for the console */
-void CON_Font(ConsoleInformation *console, CFont *font, uint fg, uint bg)
+void CON_Font(ConsoleInformation *console, grsFont *font, unsigned int fg, unsigned int bg)
 {
-	CCanvas *canv_save;
+	gsrCanvas *canv_save;
 
-	canv_save = CCanvas::Current ();
-	CCanvas::SetCurrent(console->ConsoleSurface);
-	fontManager.SetCurrent(font);
-	fontManager.SetColorRGBi (fg, 1, bg, bg != 0);
-	CCanvas::SetCurrent(canv_save);
+	canv_save = grdCurCanv;
+	GrSetCurrentCanvas(console->ConsoleSurface);
+	GrSetCurFont(font);
+	GrSetFontColorRGBi (fg, 1, bg, bg != 0);
+	GrSetCurrentCanvas(canv_save);
 }
 
 //------------------------------------------------------------------------------
@@ -850,12 +850,12 @@ void CON_Position(ConsoleInformation *console, int x, int y) {
 	if(!console)
 		return;
 
-	if(x < 0 || x > console->OutputScreen->Width () - console->ConsoleSurface->Width ())
+	if(x < 0 || x > console->OutputScreen->scWidth - console->ConsoleSurface->cv_w)
 		console->DispX = 0;
 	else
 		console->DispX = x;
 
-	if(y < 0 || y > console->OutputScreen->Height () - console->ConsoleSurface->Height ())
+	if(y < 0 || y > console->OutputScreen->scHeight - console->ConsoleSurface->cv_h)
 		console->DispY = 0;
 	else
 		console->DispY = y;
@@ -871,26 +871,26 @@ int CON_Resize(ConsoleInformation *console, int x, int y, int w, int h)
 		return 1;
 
 	/* make sure that the size of the console is valid */
-	if(w > console->OutputScreen->Width () || w < console->ConsoleSurface->Font ()->Width () * 32)
-		w = console->OutputScreen->Width ();
-	if(h > console->OutputScreen->Height () || h < console->ConsoleSurface->Font ()->Height ())
-		h = console->OutputScreen->Height ();
-	if(x < 0 || x > console->OutputScreen->Width () - w)
+	if(w > console->OutputScreen->scWidth || w < console->ConsoleSurface->cvFont->ftWidth * 32)
+		w = console->OutputScreen->scWidth;
+	if(h > console->OutputScreen->scHeight || h < console->ConsoleSurface->cvFont->ftHeight)
+		h = console->OutputScreen->scHeight;
+	if(x < 0 || x > console->OutputScreen->scWidth - w)
 		console->DispX = 0;
 	else
 		console->DispX = x;
-	if(y < 0 || y > console->OutputScreen->Height () - h)
+	if(y < 0 || y > console->OutputScreen->scHeight - h)
 		console->DispY = 0;
 	else
 		console->DispY = y;
 
 	/* resize console surface */
-	console->ConsoleSurface->Destroy ();
-	console->ConsoleSurface->CBitmap::Create (BM_LINEAR, w, h, 1);
+	GrFreeBitmapData(&console->ConsoleSurface->cvBitmap);
+	GrInitBitmapAlloc(&console->ConsoleSurface->cvBitmap, BM_LINEAR, 0, 0, w, h, w, 1);
 
 	/* Load the dirty rectangle for user input */
-	delete console->InputBackground;
-	console->InputBackground = CBitmap::Create (0, w, console->ConsoleSurface->Font ()->Height (), 1);
+	GrFreeBitmap(console->InputBackground);
+	console->InputBackground = GrCreateBitmap(w, console->ConsoleSurface->cvFont->ftHeight, 1);
 
 	/* Now reset some stuff dependent on the previous size */
 	console->ConsoleScrollBack = 0;
@@ -900,7 +900,7 @@ int CON_Resize(ConsoleInformation *console, int x, int y, int w, int h)
 #if 0
 		SDL_FillRect(console->InputBackground, NULL, SDL_MapRGBA(console->ConsoleSurface->format, 0, 0, 0, SDL_ALPHA_OPAQUE);
 #endif
-		GrBmBitBlt(console->BackgroundImage->Width (), console->InputBackground->Height (), 0, 0, 0, console->ConsoleSurface->Height () - console->ConsoleSurface->Font ()->Height (), console->BackgroundImage, console->InputBackground);
+		GrBmBitBlt(console->BackgroundImage->bmProps.w, console->InputBackground->bmProps.h, 0, 0, 0, console->ConsoleSurface->cv_h - console->ConsoleSurface->cvFont->ftHeight, console->BackgroundImage, console->InputBackground);
 	}
 
 #if 0
@@ -912,7 +912,7 @@ int CON_Resize(ConsoleInformation *console, int x, int y, int w, int h)
 
 //------------------------------------------------------------------------------
 /* Transfers the console to another screen surface, and adjusts size */
-int CON_Transfer(ConsoleInformation *console, CScreen *new_outputscreen, int x, int y, int w, int h)
+int CON_Transfer(ConsoleInformation *console, grsScreen *new_outputscreen, int x, int y, int w, int h)
 {
 	if(!console)
 		return 1;
@@ -924,7 +924,7 @@ int CON_Transfer(ConsoleInformation *console, CScreen *new_outputscreen, int x, 
 
 /* Sets the topmost console for input */
 void CON_Topmost(ConsoleInformation *console) {
-	CCanvas *canv_save;
+	gsrCanvas *canv_save;
 	short orig_color;
 
 	if(!console)
@@ -932,15 +932,15 @@ void CON_Topmost(ConsoleInformation *console) {
 
 	// Make sure the blinking cursor is gone
 	if(Topmost) {
-		canv_save = CCanvas::Current ();
-		CCanvas::SetCurrent(Topmost->ConsoleSurface);
+		canv_save = grdCurCanv;
+		GrSetCurrentCanvas(Topmost->ConsoleSurface);
 
-		GrBitmap(0, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), Topmost->InputBackground);
+		GrBitmap(0, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, Topmost->InputBackground);
 		orig_color = FG_COLOR.index;
-		GrString(CON_CHAR_BORDER, Topmost->ConsoleSurface->Height () - Topmost->ConsoleSurface->Font ()->Height (), Topmost->VCommand, NULL);
+		GrString(CON_CHAR_BORDER, Topmost->ConsoleSurface->cv_h - Topmost->ConsoleSurface->cvFont->ftHeight, Topmost->VCommand, NULL);
 		FG_COLOR.index = orig_color;
 
-		CCanvas::SetCurrent(canv_save);
+		GrSetCurrentCanvas(canv_save);
 	}
 	Topmost = console;
 }
@@ -953,7 +953,7 @@ void CON_SetPrompt(ConsoleInformation *console, char* newprompt) {
 
 	//check length so we can still see at least 1 char :-)
 	if(strlen(newprompt) < (size_t) console->VChars)
-		console->Prompt = StrDup(newprompt);
+		console->Prompt = D2_STRDUP(newprompt);
 	else
 		CON_Out(console, "prompt too long. (max. %i chars)", console->VChars - 1);
 }
@@ -1004,7 +1004,7 @@ void CON_TabCompletion(ConsoleInformation *console) {
 	if(!console)
 		return;
 
-	command = StrDup(console->LCommand);
+	command = D2_STRDUP(console->LCommand);
 	command = console->TabFunction(command);
 
 	if(!command)

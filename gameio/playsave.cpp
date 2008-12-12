@@ -133,7 +133,7 @@ void FreeParams (void)
 while (paramList) {
 	pp = paramList;
 	paramList = paramList->next;
-	delete pp;
+	D2_FREE (pp);
 	}
 }
 
@@ -167,11 +167,11 @@ int RegisterParam (void *valP, const char *pszIdent, int i, int j, ubyte nSize)
 	tParam	*pp;
 
 l = (int) strlen (MakeTag (szTag, pszIdent, i, j));
-pp = reinterpret_cast<tParam*> (new ubyte [sizeof (tParam) + l]);
+pp = (tParam *) D2_ALLOC (sizeof (tParam) + l);
 if (!pp)
 	return 0;
 memcpy (pp->szTag, szTag, l + 1);
-pp->valP = reinterpret_cast<char*> (valP);
+pp->valP = (char *) valP;
 pp->nSize = nSize;
 pp->nValues = 1;
 pp->next = NULL;
@@ -183,7 +183,7 @@ lastParam = pp;
 return 1;
 }
 
-#define RP(_v,_i,_j)	RegisterParam (reinterpret_cast<void*> (&(_v)), #_v, _i, _j, sizeof (_v))
+#define RP(_v,_i,_j)	RegisterParam ((void *) &(_v), #_v, _i, _j, sizeof (_v))
 
 //------------------------------------------------------------------------------
 // returns number of config items with identical ids before the current one
@@ -234,7 +234,7 @@ for (i = 0; i < nItems; i++) {
 
 void RegisterParams (void)
 {
-	uint	i, j;
+	unsigned int	i, j;
 
 	static int bRegistered = 0;
 
@@ -619,13 +619,13 @@ if (strstr (pp->szTag, "Slowmo/Speed"))
 #if 1
 switch (pp->nSize) {
 	case 1:
-		sprintf (szVal, "=%d\n", *reinterpret_cast<sbyte*> (pp->valP));
+		sprintf (szVal, "=%d\n", *((sbyte *) (pp->valP)));
 		break;
 	case 2:
-		sprintf (szVal, "=%d\n", *reinterpret_cast<short*> (pp->valP));
+		sprintf (szVal, "=%d\n", *((short *) (pp->valP)));
 		break;
 	case 4:
-		sprintf (szVal, "=%d\n", *reinterpret_cast<int*> (pp->valP));
+		sprintf (szVal, "=%d\n", *((int *) (pp->valP)));
 		break;
 	default:
 		sprintf (szVal, "=%s\n", pp->valP);
@@ -640,16 +640,16 @@ for (nValues = pp->nValues; nValues; nValues--, valP += nSize) {
 	p = szVal + strlen (szVal);
 	switch (nSize) {
 		case 1:
-			sprintf (p, "%d ", *reinterpret_cast<sbyte*> (pp->valP));
+			sprintf (p, "%d ", *((sbyte *) (pp->valP)));
 			break;
 		case 2:
-			sprintf (p, "%d ", *reinterpret_cast<short*> (pp->valP));
+			sprintf (p, "%d ", *((short *) (pp->valP)));
 			break;
 		case 4:
-			sprintf (p, "%d ", *reinterpret_cast<int*> (pp->valP));
+			sprintf (p, "%d ", *((int *) (pp->valP)));
 			break;
 		default:
-			sprintf (p, "%s", reinterpret_cast<char*> (pp->valP));
+			sprintf (p, "%s", (char *) (pp->valP));
 			goto done;
 		}
 	}
@@ -715,20 +715,20 @@ switch (pp->nSize) {
 	case 1:
 		if (!(::isdigit (*pszValue) || issign (*pszValue)) || (nVal < SCHAR_MIN) || (nVal > SCHAR_MAX))
 			return 0;
-		*reinterpret_cast<sbyte*> (pp->valP) = (sbyte) nVal;
+		*((sbyte *) pp->valP) = (sbyte) nVal;
 		break;
 	case 2:
 		if (!(::isdigit (*pszValue) || issign (*pszValue))  || (nVal < SHRT_MIN) || (nVal > SHRT_MAX))
 			return 0;
-		*reinterpret_cast<short*> (pp->valP) = (short) nVal;
+		*((short *) pp->valP) = (short) nVal;
 		break;
 	case 4:
 		if (!(::isdigit (*pszValue) || issign (*pszValue)))
 			return 0;
-		*reinterpret_cast<int*> (pp->valP) = (int) nVal;
+		*((int *) pp->valP) = (int) nVal;
 		break;
 	default:
-		strncpy (reinterpret_cast<char*> (pp->valP), pszValue, pp->nSize);
+		strncpy ((char *) pp->valP, pszValue, pp->nSize);
 		break;
 	}
 return 1;
@@ -1483,11 +1483,11 @@ RetrySelection:
 memset (m, 0, sizeof (m));
 for (i = 0; i < mct; i++ )	{
 	m [i].nType = NM_TYPE_MENU;
-	m [i].text = const_cast<char*> (CONTROL_TEXT(i));
+	m [i].text = (char *) CONTROL_TEXT(i);
 	m [i].key = -1;
 	}
 nitems = i;
-m [0].text = const_cast<char*> (TXT_CONTROL_KEYBOARD);
+m [0].text = (char *) TXT_CONTROL_KEYBOARD;
 choice = gameConfig.nControlType;				// Assume keyboard
 #ifndef APPLE_DEMO
 i = ExecMenu1( NULL, TXT_CHOOSE_INPUT, i, m, NULL, &choice );
@@ -1549,7 +1549,7 @@ return 1;
 
 void ReadBinD2XParams (CFile& cf)
 {
-	uint	i, j, gameOptsSize = 0;
+	unsigned int	i, j, gameOptsSize = 0;
 
 if (gameStates.input.nPlrFileVersion >= 97)
 	gameOptsSize = cf.ReadInt ();
@@ -2020,7 +2020,7 @@ for (i = 0; i < 2; i++) {
 
 ubyte dosControlType,winControlType;
 
-//read in the CPlayerData's saved games.  returns errno (0 == no error)
+//read in the tPlayer's saved games.  returns errno (0 == no error)
 int ReadPlayerFile (int bOnlyWindowSizes)
 {
 	CFile		cf;
@@ -2029,7 +2029,7 @@ int ReadPlayerFile (int bOnlyWindowSizes)
 	short		nControlTypes, gameWindowW, gameWindowH;
 	int		funcRes = EZERO;
 	int		id, bRewriteIt = 0, nMaxControls;
-	uint i;
+	unsigned int i;
 
 Assert(gameData.multiplayer.nLocalPlayer>=0 && gameData.multiplayer.nLocalPlayer<MAX_PLAYERS);
 
@@ -2101,9 +2101,9 @@ for (i = 0; i < 4; i++)
 nControlTypes = (gameStates.input.nPlrFileVersion < 20) ? 7 : CONTROL_MAX_TYPES;
 if (cf.Read (controlSettings.custom, nMaxControls * nControlTypes, 1) != 1)
 	funcRes = errno;
-else if (cf.Read (reinterpret_cast<ubyte*> (&dosControlType), sizeof (ubyte), 1) != 1)
+else if (cf.Read ((ubyte *) &dosControlType, sizeof (ubyte), 1) != 1)
 	funcRes = errno;
-else if ((gameStates.input.nPlrFileVersion >= 21) && cf.Read (reinterpret_cast<ubyte*> (&winControlType), sizeof (ubyte), 1) != 1)
+else if ((gameStates.input.nPlrFileVersion >= 21) && cf.Read ((ubyte *) &winControlType, sizeof (ubyte), 1) != 1)
 	funcRes = errno;
 else if (cf.Read (gameOptions [0].input.joystick.sensitivity, sizeof (ubyte), 1) != 1)
 	funcRes = errno;
@@ -2235,7 +2235,7 @@ return i;
 }
 
 //------------------------------------------------------------------------------
-//set a new highest level for CPlayerData for this mission
+//set a new highest level for tPlayer for this mission
 void SetHighestLevel (ubyte nLevel)
 {
 	int ret, i;
@@ -2250,7 +2250,7 @@ WritePlayerFile ();
 }
 
 //------------------------------------------------------------------------------
-//gets the CPlayerData's highest level from the file for this mission
+//gets the tPlayer's highest level from the file for this mission
 int GetHighestLevel(void)
 {
 	int i;
@@ -2560,7 +2560,7 @@ for (i = 0; i < 2; i++) {
 #endif
 //------------------------------------------------------------------------------
 
-//write out CPlayerData's saved games.  returns errno (0 == no error)
+//write out tPlayer's saved games.  returns errno (0 == no error)
 int WritePlayerFile (void)
 {
 	CFile	cf;
@@ -2583,7 +2583,7 @@ if (cf.file && isatty(fileno ()) {
 if (!cf.File ())
 	return errno;
 funcRes = EZERO;
-//Write out CPlayerData's info
+//Write out tPlayer's info
 cf.WriteInt (SAVE_FILE_ID);
 cf.WriteShort (PLAYER_FILE_VERSION);
 cf.WriteShort ((short) gameData.render.window.w);
@@ -2659,7 +2659,7 @@ return funcRes;
 }
 
 //------------------------------------------------------------------------------
-//update the CPlayerData's highest level.  returns errno (0 == no error)
+//update the tPlayer's highest level.  returns errno (0 == no error)
 int UpdatePlayerFile()
 {
 	int ret = ReadPlayerFile(0);
@@ -2723,7 +2723,7 @@ if (cf.Exist (filename,gameFolders.szProfDir, 0)) {
 	goto try_again;
 	}
 if (!NewPlayerConfig ())
-	goto try_again;			// They hit Esc during New CPlayerData config
+	goto try_again;			// They hit Esc during New tPlayer config
 strncpy (LOCALPLAYER.callsign, text, CALLSIGN_LEN);
 WritePlayerFile ();
 return 1;
@@ -2731,7 +2731,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-//Inputs the CPlayerData's name, without putting up the background screen
+//Inputs the tPlayer's name, without putting up the background screen
 int SelectPlayer (void)
 {
 	static int bStartup = 1;
@@ -2758,7 +2758,7 @@ if (LOCALPLAYER.callsign [0] == 0)	{
 	KCSetControls (0);
 	//----------------------------------------------------------------
 
-	// Read the last CPlayerData's name from config file, not lastplr.txt
+	// Read the last tPlayer's name from config file, not lastplr.txt
 	strncpy (LOCALPLAYER.callsign, gameConfig.szLastPlayer, CALLSIGN_LEN);
 	if (gameConfig.szLastPlayer [0] == 0)
 		bAllowAbort = 0;

@@ -397,7 +397,7 @@ static int xOffs = 0, yOffs = 0;
 
 static int startAxis [JOY_MAX_AXES];
 
-CFixVector ExtForceVec;
+vmsVector ExtForceVec;
 vmsMatrix ExtApplyForceMatrix;
 
 int ExtJoltInfo [3]={0,0,0};
@@ -647,7 +647,7 @@ else {
 			break;
 		}
 	}
-FONT->StringSize (szText, w, h, aw);
+GrGetStringSize (szText, &w, &h, &aw);
 return h;
 }
 
@@ -671,7 +671,7 @@ if (p) {
 	szTitle [l] = '\0';
 	p = szTitle;
 	}
-fontManager.SetCurrent (MEDIUM3_FONT);
+grdCurCanv->cvFont = MEDIUM3_FONT;
 GrString (0x8000, KC_LHY (8), p, NULL);
 }
 
@@ -679,14 +679,14 @@ GrString (0x8000, KC_LHY (8), p, NULL);
 
 void KCDrawHeader (kcItem *items)
 {
-fontManager.SetCurrent (GAME_FONT);
-fontManager.SetColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
+grdCurCanv->cvFont = GAME_FONT;
+GrSetFontColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
 
 GrString (0x8000, KC_LHY (20), TXT_KCONFIG_STRING_1, NULL);
-fontManager.SetColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
+GrSetFontColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
 if (items == kcKeyboard)	{
-	fontManager.SetColorRGBi (RGBA_PAL2 (31, 27, 6), 1, 0, 0);
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (31, 27, 6));
+	GrSetFontColorRGBi (RGBA_PAL2 (31, 27, 6), 1, 0, 0);
+	GrSetColorRGBi (RGBA_PAL2 (31, 27, 6));
 	kc_gr_scanline (KC_LHX (98), KC_LHX (106), KC_LHY (42));
 	kc_gr_scanline (KC_LHX (120), KC_LHX (128), KC_LHY (42));
 	kc_gr_pixel (KC_LHX (98), KC_LHY (43));					
@@ -707,37 +707,37 @@ if (items == kcKeyboard)	{
 
 }
 if (items == kcJoystick)	{
-	fontManager.SetColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (31, 27, 6));
+	GrSetFontColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
+	GrSetColorRGBi (RGBA_PAL2 (31, 27, 6));
 	kc_gr_scanline (KC_LHX (18), KC_LHX (135), KC_LHY (37));
 	kc_gr_scanline (KC_LHX (181), KC_LHX (294), KC_LHY (37));
 	kc_gr_scanline (KC_LHX (18), KC_LHX (144), KC_LHY (119+18));
 	kc_gr_scanline (KC_LHX (174), KC_LHX (294), KC_LHY (119+18));
 	GrString (0x8000, KC_LHY (35), TXT_BUTTONS_HATS, NULL);
 	GrString (0x8000,KC_LHY (125+18), TXT_AXES, NULL);
-	fontManager.SetColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
 	GrString (KC_LHX (85), KC_LHY (145+8), TXT_AXIS, NULL);
 	GrString (KC_LHX (120), KC_LHY (145+8), TXT_INVERT, NULL);
 	GrString (KC_LHX (235), KC_LHY (145+8), TXT_AXIS, NULL);
 	GrString (KC_LHX (270), KC_LHY (145+8), TXT_INVERT, NULL);
 } else if (items == kcMouse)	{
-	fontManager.SetColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (31,27,6));
+	GrSetFontColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
+	GrSetColorRGBi (RGBA_PAL2 (31,27,6));
 	kc_gr_scanline (KC_LHX (18), KC_LHX (135), KC_LHY (37));
 	kc_gr_scanline (KC_LHX (181), KC_LHX (294), KC_LHY (37));
 	kc_gr_scanline (KC_LHX (18), KC_LHX (144), KC_LHY (119+5));
 	kc_gr_scanline (KC_LHX (174), KC_LHX (294), KC_LHY (119+5));
 	GrString (0x8000, KC_LHY (35), TXT_BUTTONS, NULL);
 	GrString (0x8000,KC_LHY (125+5), TXT_AXES, NULL);
-	fontManager.SetColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
 	GrString (KC_LHX (169), KC_LHY (137), TXT_AXIS, NULL);
 	GrString (KC_LHX (199), KC_LHY (137), TXT_INVERT, NULL);
 }
 #ifdef D2X_KEYS
 else if (items == kcHotkeys)
 {
-	fontManager.SetColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (31, 27, 6));
+	GrSetFontColorRGBi (RGBA_PAL2 (31,27,6), 1, 0, 0);
+	GrSetColorRGBi (RGBA_PAL2 (31, 27, 6));
 
 	GrString (KC_LHX (94), KC_LHY (40), "KB", NULL);
 	GrString (KC_LHX (121), KC_LHY (40), "JOY", NULL);
@@ -758,17 +758,18 @@ KCDrawItemExt (items + nCurItem, 1, 0);
 
 //------------------------------------------------------------------------------
 
-void KCQuitMenu (bkg *bg, int time_stopped)
+void KCQuitMenu (gsrCanvas *save_canvas, grsFont *save_font, bkg *bg, int time_stopped)
 {
-CCanvas::Pop ();
+grdCurCanv->cvFont	= save_font;
 //bg->menu_canvas = NULL;
+GrSetCurrentCanvas (save_canvas);		
 GameFlushInputs ();
 NMRemoveBackground (bg);
 SDL_ShowCursor (0);
 if (time_stopped)
 	StartTime (0);
 gameStates.menus.nInMenu--;
-paletteManager.SetEffect (0, 0, 0);
+GrPaletteStepUp (0, 0, 0);
 }
 
 //------------------------------------------------------------------------------
@@ -790,10 +791,10 @@ for (i = 0, n = (int) (item - All_items); i < Num_items; i++)	{
 item->value = code;					 
 if (gameStates.ogl.nDrawBuffer == GL_FRONT) {
 	KCDrawItem (item, 1);
-	NMRestoreBackground (0, KC_LHY (INFO_Y), xOffs, yOffs, KC_LHX (310), CCanvas::Current ()->Font ()->Height ());
+	NMRestoreBackground (0, KC_LHY (INFO_Y), xOffs, yOffs, KC_LHX (310), grdCurCanv->cvFont->ftHeight);
 	}
 GameFlushInputs ();
-fontManager.SetColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 1);
+GrSetFontColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 1);
 return BT_NONE;
 }
 
@@ -806,13 +807,13 @@ void KCDrawQuestion (kcItem *item)
 	int x, w, h, aw;
 
 
-	FONT->StringSize ("?", w, h, aw);
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (21*fades [looper]/31, 0, 24*fades [looper]/31));
+	GrGetStringSize ("?", &w, &h, &aw);
+	GrSetColorRGBi (RGBA_PAL2 (21*fades [looper]/31, 0, 24*fades [looper]/31));
 	if (++looper>63) 
 		looper=0;
 	GrURect (KC_LHX (item->w1 + item->x), KC_LHY (item->y - 1), 
 				KC_LHX (item->w1 + item->x + item->w2), KC_LHY (item->y) + h);
-	fontManager.SetColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
 	x = LHX (item->w1+item->x)+ ((LHX (item->w2)-w)/2)+xOffs;
 	GrString (x, KC_LHY (item->y), "?", NULL);
 if (gameStates.ogl.nDrawBuffer != GL_BACK)
@@ -952,7 +953,7 @@ int KCChangeControl (kcItem *item, int nType, kc_ctrlfunc_ptr ctrlfunc, const ch
 {
 	int k = 255;
 
-	fontManager.SetColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (28,28,28), 1, 0, 0);
 	GrString (0x8000, KC_LHY (INFO_Y), pszMsg, NULL);
 {			
 	if ((gameData.app.nGameMode & GM_MULTI) && (gameStates.app.nFunctionMode == FMODE_GAME) && (!gameStates.app.bEndLevelSequence))
@@ -1055,7 +1056,7 @@ tKCItemPos *GetItemPos (kcItem *items, int nItems)
 	tKCItemPos	*pos;
 	int			i;
 
-if (!(pos = new tKCItemPos [nItems]))
+if (!(pos = (tKCItemPos *) D2_ALLOC (nItems * sizeof (tKCItemPos))))
 	return NULL;
 for (i = 0; i < nItems; i++) {
 	pos [i].l = items [i].x + items [i].w1;
@@ -1074,7 +1075,7 @@ int *GetItemRef (kcItem *items, int nItems, tKCItemPos *pos)
 	int	*ref;
 	int	i;
 
-if (!(ref = new int [nItems]))
+if (!(ref = (int *) D2_ALLOC (nItems * sizeof (int))))
 	return NULL;
 for (i = 0; i < nItems; i++)
 	ref [pos [i].i] = i;
@@ -1096,9 +1097,9 @@ if (pos) {
 			kcKeyboard [i].l = FindNextItemLeft (kcKeyboard, j, i, pos, ref);
 			kcKeyboard [i].r = FindNextItemRight (kcKeyboard, j, i, pos, ref);
 			}
-		delete[] ref;
+		D2_FREE (ref);
 		}
-	delete[] pos;
+	D2_FREE (pos);
 	}
 }
 
@@ -1117,9 +1118,9 @@ if (pos) {
 			kcJoystick [i].l = FindNextItemLeft (kcJoystick, j, i, pos, ref);
 			kcJoystick [i].r = FindNextItemRight (kcJoystick, j, i, pos, ref);
 			}
-		delete[] ref;
+		D2_FREE (ref);
 		}
-	delete[] pos;
+	D2_FREE (pos);
 	}
 }
 
@@ -1138,9 +1139,9 @@ if (pos) {
 			kcMouse [i].l = FindNextItemLeft (kcMouse, j, i, pos, ref);
 			kcMouse [i].r = FindNextItemRight (kcMouse, j, i, pos, ref);
 			}
-		delete[] ref;
+		D2_FREE (ref);
 		}
-	delete[] pos;
+	D2_FREE (pos);
 	}
 }
 
@@ -1159,9 +1160,9 @@ if (pos) {
 			kcHotkeys [i].l = FindNextItemLeft (kcHotkeys, j, i, pos, ref);
 			kcHotkeys [i].r = FindNextItemRight (kcHotkeys, j, i, pos, ref);
 			}
-		delete[] ref;
+		D2_FREE (ref);
 		}
-	delete[] pos;
+	D2_FREE (pos);
 	}
 }
 
@@ -1186,21 +1187,22 @@ nLinked |= tableFlags;
 
 void KConfigSub (kcItem * items, int nItems, const char * pszTitle)
 {
-	CFont*	font;
-	int		mouseState, omouseState, mx, my, x1, x2, y1, y2;
-	int		close_x = 0, close_y = 0, close_size = 0;
+	gsrCanvas * save_canvas;
+	grsFont * save_font;
+	int	mouseState, omouseState, mx, my, x1, x2, y1, y2;
+	int	close_x = 0, close_y = 0, close_size = 0;
 
-	int		i, k, ocitem, nCurItem;
-	int		time_stopped = 0;
-	int		bRedraw = 0;
-	int		nChangeMode = BT_NONE, nPrevMode = BT_NONE;
-	bkg		bg;
+	int	i,k,ocitem,nCurItem;
+	int	time_stopped = 0;
+	int	bRedraw = 0;
+	int	nChangeMode = BT_NONE, nPrevMode = BT_NONE;
+	bkg	bg;
 
 All_items = items;
 Num_items = nItems;
 memset (&bg, 0, sizeof (bg));
 bg.bIgnoreBg = 1;
-paletteManager.SetEffect (0, 0, 0);
+GrPaletteStepUp (0, 0, 0);
 gameStates.menus.nInMenu++;
 memset (startAxis, 0, sizeof (startAxis));
 
@@ -1209,15 +1211,15 @@ if (!IsMultiGame || (gameStates.app.nFunctionMode != FMODE_GAME) || gameStates.a
 	StopTime ();
 	}
 
-CCanvas::Push ();
-CCanvas::SetCurrent (NULL);	
-font = CCanvas::Current ()->Font ();
+save_canvas = grdCurCanv;
+GrSetCurrentCanvas (NULL);	
+save_font = grdCurCanv->cvFont;
 
 FlushInput ();
 NMDrawBackground (&bg, xOffs, yOffs, 
-	xOffs + 639 /*CCanvas::Current ()->Width () - 1*/, 
-	yOffs + 479 /*CCanvas::Current ()->Height () - 1*/, 0);
-paletteManager.LoadEffect  ();
+	xOffs + 639 /*grdCurCanv->cvBitmap.bmProps.w - 1*/, 
+	yOffs + 479 /*grdCurCanv->cvBitmap.bmProps.h - 1*/, 0);
+GrPaletteStepLoad (NULL);
 
 nCurItem = 0;
 SDL_ShowCursor (1);
@@ -1247,9 +1249,9 @@ for (;;) {
 			close_x += xOffs;
 			close_y += yOffs;
 			close_size = gameStates.menus.bHires?10:5;
-			CCanvas::Current ()->SetColorRGB (0, 0, 0, 255);
+			GrSetColorRGB (0, 0, 0, 255);
 			GrRect (close_x, close_y, close_x + close_size, close_y + close_size);
-			CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (21, 21, 21));
+			GrSetColorRGBi (RGBA_PAL2 (21, 21, 21));
 			GrRect (close_x + LHX (1), close_y + LHX (1), close_x + close_size - LHX (1), close_y + close_size - LHX (1));
 			KCDrawHeader (items);
 			KCDrawTable (items, nItems, nCurItem);
@@ -1381,7 +1383,7 @@ for (;;) {
 			break;
 		case -2:
 		case KEY_ESC:
-			KCQuitMenu (&bg, time_stopped);
+			KCQuitMenu (save_canvas, save_font, &bg, time_stopped);
 			return;
 #if TABLE_CREATION
 		case KEYDBGGED+KEY_F12:	{
@@ -1450,9 +1452,9 @@ for (;;) {
 //			my = (my * 12) / 10;	//y mouse pos is off here, no clue why
 			for (i = 0; i < nItems; i++)	{
 				item_height = KCGetItemHeight (items + i);
-				x1 = CCanvas::Current ()->Left () + LHX (items [i].x) + LHX (items [i].w1);
+				x1 = grdCurCanv->cvBitmap.bmProps.x + LHX (items [i].x) + LHX (items [i].w1);
 				x2 = x1 + LHX (items [i].w2);
-				y1 = CCanvas::Current ()->Top () + LHY (items [i].y);
+				y1 = grdCurCanv->cvBitmap.bmProps.y + LHY (items [i].y);
 				y2 = y1 + /*LHY*/ (item_height);
 				if (((mx > x1) && (mx < x2)) && ((my > y1) && (my < y2))) {
 					nCurItem = i;
@@ -1468,20 +1470,20 @@ for (;;) {
 			my -= yOffs;
 			my = (my * 12) / 10;	//y mouse pos is off here, no clue why
 			item_height = KCGetItemHeight (items + nCurItem);
-			x1 = CCanvas::Current ()->Left () + LHX (items [nCurItem].x) + LHX (items [nCurItem].w1);
+			x1 = grdCurCanv->cvBitmap.bmProps.x + LHX (items [nCurItem].x) + LHX (items [nCurItem].w1);
 			x2 = x1 + LHX (items [nCurItem].w2);
-			y1 = CCanvas::Current ()->Top () + LHY (items [nCurItem].y);
+			y1 = grdCurCanv->cvBitmap.bmProps.y + LHY (items [nCurItem].y);
 			y2 = y1 + /*LHY*/ (item_height);
 			if (((mx > x1) && (mx < x2)) && ((my > y1) && (my < y2))) {
 				nChangeMode = items [nCurItem].nType;
 				GameFlushInputs ();
 			} else {
-				x1 = CCanvas::Current ()->Left () + close_x + LHX (1);
+				x1 = grdCurCanv->cvBitmap.bmProps.x + close_x + LHX (1);
 				x2 = x1 + close_size - LHX (1);
-				y1 = CCanvas::Current ()->Top () + close_y + LHX (1);
+				y1 = grdCurCanv->cvBitmap.bmProps.y + close_y + LHX (1);
 				y2 = y1 + close_size - LHY (1);
 				if (((mx > x1) && (mx < x2)) && ((my > y1) && (my < y2))) {
-					KCQuitMenu (&bg, time_stopped);
+					KCQuitMenu (save_canvas, save_font, &bg, time_stopped);
 					return;
 				}
 			}
@@ -1493,7 +1495,7 @@ for (;;) {
 			SDL_ShowCursor (1);
 		}
 	}
-KCQuitMenu (&bg, time_stopped);
+KCQuitMenu (save_canvas, save_font, &bg, time_stopped);
 }
 
 //------------------------------------------------------------------------------
@@ -1507,9 +1509,9 @@ if (bRedraw && gameOpts->menus.nStyle)
 	return;
 
 	if (is_current)
-		fontManager.SetColorRGBi (RGBA_PAL2 (20,20,29), 1, 0, 0);
+		GrSetFontColorRGBi (RGBA_PAL2 (20,20,29), 1, 0, 0);
 	else
-		fontManager.SetColorRGBi (RGBA_PAL2 (15,15,24), 1, 0, 0);
+		GrSetFontColorRGBi (RGBA_PAL2 (15,15,24), 1, 0, 0);
    GrString (KC_LHX (item->x), KC_LHY (item->y), item->textId ? GT (item->textId) : item->text, NULL);
 
 	*szText = '\0';
@@ -1574,15 +1576,15 @@ if (bRedraw && gameOpts->menus.nStyle)
 		}
 	}
 	if (item->w1) {
-		FONT->StringSize (szText, w, h, aw);
+		GrGetStringSize (szText, &w, &h, &aw);
 
 		if (is_current)
-			CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (21, 0, 24));
+			GrSetColorRGBi (RGBA_PAL2 (21, 0, 24));
 		else
-			CCanvas::Current ()->SetColorRGBi (RGBA_PAL2 (16, 0, 19));
+			GrSetColorRGBi (RGBA_PAL2 (16, 0, 19));
 		GrURect (KC_LHX (item->x + item->w1), KC_LHY (item->y - 1), 
 					KC_LHX (item->x + item->w1 + item->w2), KC_LHY (item->y) + h);
-		fontManager.SetColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
+		GrSetFontColorRGBi (RGBA_PAL2 (28, 28, 28), 1, 0, 0);
 		x = LHX (item->w1 + item->x) + ((LHX (item->w2) - w) / 2) + xOffs;
 		GrString (x, KC_LHY (item->y), szText, NULL);
 	}
@@ -1594,11 +1596,11 @@ if (bRedraw && gameOpts->menus.nStyle)
 
 void KConfig (int n, const char *pszTitle)
 {
-	CBitmap*	bmSave;
-	int		i, j, b = gameOpts->legacy.bInput;
+	grsBitmap	*bmSave;
+	int			i, j, b = gameOpts->legacy.bInput;
 
-	xOffs = (CCanvas::Current ()->Width () - 640) / 2;
-	yOffs = (CCanvas::Current ()->Height () - 480) / 2;
+	xOffs = (grdCurCanv->cvBitmap.bmProps.w - 640) / 2;
+	yOffs = (grdCurCanv->cvBitmap.bmProps.h - 480) / 2;
 	if (xOffs < 0)
 		xOffs = 0;
 	if (yOffs < 0)
@@ -1611,11 +1613,11 @@ void KConfig (int n, const char *pszTitle)
 	if (gameOpts->menus.bFastMenus)
 		bmSave = NULL;
 	else {
-		bmSave = CBitmap::Create (0, CCanvas::Current ()->Width (), CCanvas::Current ()->Height (), 1);
+		bmSave = GrCreateBitmap (grdCurCanv->cvBitmap.bmProps.w, grdCurCanv->cvBitmap.bmProps.h, 1);
 		Assert (bmSave != NULL);
-		bmSave->SetPalette (paletteManager.Texture ());
-		GrBmBitBlt (CCanvas::Current ()->Width (), CCanvas::Current ()->Width (), 
-						 0, 0, 0, 0, CCanvas::Current (), bmSave);
+		bmSave->bmPalette = gameData.render.ogl.palette;
+		GrBmBitBlt (grdCurCanv->cvBitmap.bmProps.w, grdCurCanv->cvBitmap.bmProps.w, 
+						 0, 0, 0, 0, &grdCurCanv->cvBitmap, bmSave);
 		}
 	if (n == 0)
 		KConfigSub (kcKeyboard, NUM_KEY_CONTROLS, pszTitle);
@@ -1641,7 +1643,7 @@ void KConfig (int n, const char *pszTitle)
 	//restore screen
 	if (bmSave) {
 		GrBitmap (xOffs, yOffs, bmSave);
-		delete bmSave;
+		GrFreeBitmap (bmSave);
 		}
 	ResetCockpit ();		//force cockpit redraw next time
 	// Update save values...
@@ -1731,17 +1733,17 @@ void KCInitExternalControls (int intno, int address)
 {
 	int i;
 	kc_external_intno = intno;
-	kc_external_control = reinterpret_cast<ext_control_info*> ((size_t) address);
+	kc_external_control	= (ext_control_info *) (size_t) address;
 	kc_use_external_control = 1;
 	kc_enable_external_control  = 1;
 
 	i = FindArg ("-xname");
 	if (i)
-		kc_external_name = reinterpret_cast<ubyte*> (pszArgList [i+1]);
+		kc_external_name = (ubyte *) pszArgList [i+1];
 	else
-		kc_external_name = reinterpret_cast<ubyte*> ("External Controller");
- 
-   for (i = 0; i < (int) strlen (reinterpret_cast<char*> (kc_external_name)); i++)
+		kc_external_name = (ubyte *) "External Controller";
+
+   for (i = 0; i < (int) strlen ((char *) kc_external_name);i++)
     if (kc_external_name [i]=='_')
 	  kc_external_name [i]=' '; 
 
@@ -1763,14 +1765,14 @@ void KCInitExternalControls (int intno, int address)
 		memset (kc_external_control, 0, sizeof (tControlInfo)+sizeof (vmsAngVec) + 64);
 		if (kc_externalVersion > 1) {
 			// Write ship pos and angles to external controls...
-			ubyte *temp_ptr = reinterpret_cast<ubyte*> (kc_external_control);
-			CFixVector *ship_pos;
+			ubyte *temp_ptr = (ubyte *)kc_external_control;
+			vmsVector *ship_pos;
 			vmsMatrix *ship_orient;
-			memset (kc_external_control, 0, sizeof (tControlInfo)+sizeof (vmsAngVec) + 64 + sizeof (CFixVector)+sizeof (vmsMatrix);
+			memset (kc_external_control, 0, sizeof (tControlInfo)+sizeof (vmsAngVec) + 64 + sizeof (vmsVector)+sizeof (vmsMatrix);
 			temp_ptr += sizeof (tControlInfo)+sizeof (vmsAngVec) + 64;
-			ship_pos = reinterpret_cast<CFixVector*> (temp_ptr);
-			temp_ptr += sizeof (CFixVector);
-			ship_orient = reinterpret_cast<vmsMatrix*> (temp_ptr);
+			ship_pos = (vmsVector *)temp_ptr;
+			temp_ptr += sizeof (vmsVector);
+			ship_orient = (vmsMatrix *)temp_ptr;
 			// Fill in ship postion...
 			*ship_pos = OBJECTS [LOCALPLAYER.nObject].info.position.vPos;
 			// Fill in ship orientation...
@@ -1797,14 +1799,14 @@ void KCInitExternalControls (int intno, int address)
 			vmsAngVec * Kconfig_abs_movement;
 			char * oem_message;
 
-			Kconfig_abs_movement = reinterpret_cast<vmsAngVec*> ((uint)kc_external_control) + sizeof (tControlInfo);
+			Kconfig_abs_movement = (vmsAngVec *) ((uint)kc_external_control + sizeof (tControlInfo);
 
 			if (Kconfig_abs_movement->p || Kconfig_abs_movement->b || Kconfig_abs_movement->h)	{
 				VmAngles2Matrix (&tempm,Kconfig_abs_movement);
 				VmMatMul (&ViewMatrix,&OBJECTS [LOCALPLAYER.nObject].info.position.mOrient,&tempm);
 				OBJECTS [LOCALPLAYER.nObject].info.position.mOrient = ViewMatrix;	
 			}
-			oem_message = reinterpret_cast<char*> ((uint)Kconfig_abs_movement) + sizeof (vmsAngVec);
+			oem_message = (char *) ((uint)Kconfig_abs_movement + sizeof (vmsAngVec);
 			if (oem_message [0] != '\0')
 				HUDInitMessage (oem_message);
 		}
@@ -1846,18 +1848,18 @@ void KCReadExternalControls ()
       else if (kc_externalVersion>0)     
 			memset (kc_external_control, 0, sizeof (ext_control_info)+sizeof (vmsAngVec) + 64);
 		else if (kc_externalVersion>2)
-			memset (kc_external_control, 0, sizeof (ext_control_info)+sizeof (vmsAngVec) + 64 + sizeof (CFixVector) + sizeof (vmsMatrix) +4);
+			memset (kc_external_control, 0, sizeof (ext_control_info)+sizeof (vmsAngVec) + 64 + sizeof (vmsVector) + sizeof (vmsMatrix) +4);
 
 		if (kc_externalVersion > 1) {
 			// Write ship pos and angles to external controls...
-			ubyte *temp_ptr = reinterpret_cast<ubyte*> (kc_external_control);
-			CFixVector *ship_pos;
+			ubyte *temp_ptr = (ubyte *)kc_external_control;
+			vmsVector *ship_pos;
 			vmsMatrix *ship_orient;
-			memset (kc_external_control, 0, sizeof (ext_control_info)+sizeof (vmsAngVec) + 64 + sizeof (CFixVector)+sizeof (vmsMatrix));
+			memset (kc_external_control, 0, sizeof (ext_control_info)+sizeof (vmsAngVec) + 64 + sizeof (vmsVector)+sizeof (vmsMatrix));
 			temp_ptr += sizeof (ext_control_info) + sizeof (vmsAngVec) + 64;
-			ship_pos = reinterpret_cast<CFixVector*> (temp_ptr);
-			temp_ptr += sizeof (CFixVector);
-			ship_orient = reinterpret_cast<vmsMatrix*> (temp_ptr);
+			ship_pos = (vmsVector *)temp_ptr;
+			temp_ptr += sizeof (vmsVector);
+			ship_orient = (vmsMatrix *)temp_ptr;
 			// Fill in ship postion...
 			*ship_pos = OBJECTS [LOCALPLAYER.nObject].info.position.vPos;
 			// Fill in ship orientation...
@@ -1865,7 +1867,7 @@ void KCReadExternalControls ()
 		}
     if (kc_externalVersion>=4)
 	  {
-	   advanced_ext_control_info *temp_ptr = reinterpret_cast<advanced_ext_control_info*> (kc_external_control);
+	   advanced_ext_control_info *temp_ptr= (advanced_ext_control_info *)kc_external_control;
  
       temp_ptr->headlightState = PlayerHasHeadlight (-1);
 		temp_ptr->primaryWeaponFlags = LOCALPLAYER.primaryWeaponFlags;
@@ -1882,8 +1884,8 @@ void KCReadExternalControls ()
 		temp_ptr->x_vibrate_clear=ExtXVibrateClear;
  	   temp_ptr->gameStatus=gameStates.app.nExtGameStatus;
    
-      memset (&ExtForceVec, 0, sizeof (CFixVector));
-      memset (&ExtApplyForceMatrix, 0, sizeof (vmsMatrix));
+      memset ((void *)&ExtForceVec,0,sizeof (vmsVector));
+      memset ((void *)&ExtApplyForceMatrix,0,sizeof (vmsMatrix));
       
       for (i=0;i<3;i++)
 		 ExtJoltInfo [i]=0;
@@ -1913,14 +1915,14 @@ void KCReadExternalControls ()
 			vmsAngVec * Kconfig_abs_movement;
 			char * oem_message;
 
-			Kconfig_abs_movement = reinterpret_cast<vmsAngVec*> ((size_t) kc_external_control + sizeof (ext_control_info));
+			Kconfig_abs_movement = (vmsAngVec *) (size_t) ((size_t) kc_external_control + sizeof (ext_control_info));
 
 			if (!Kconfig_abs_movement->IsZero())	{
 				tempm = vmsMatrix::Create(*Kconfig_abs_movement);
 				ViewMatrix = OBJECTS [LOCALPLAYER.nObject].info.position.mOrient * tempm;
 				OBJECTS [LOCALPLAYER.nObject].info.position.mOrient = ViewMatrix;	
 			}
-			oem_message = reinterpret_cast<char*> ((size_t) Kconfig_abs_movement + sizeof (vmsAngVec));
+			oem_message = (char *) (size_t) ((size_t)Kconfig_abs_movement + sizeof (vmsAngVec));
 			if (oem_message [0] != '\0')
 				HUDInitMessage (oem_message);
 		}
@@ -1945,8 +1947,8 @@ void KCReadExternalControls ()
 
    if (kc_externalVersion>=3)
 	 {
-		ubyte *temp_ptr = reinterpret_cast<ubyte*> (kc_external_control);
-		temp_ptr += (sizeof (ext_control_info) + sizeof (vmsAngVec) + 64 + sizeof (CFixVector) + sizeof (vmsMatrix));
+		ubyte *temp_ptr = (ubyte *)kc_external_control;
+		temp_ptr += (sizeof (ext_control_info) + sizeof (vmsAngVec) + 64 + sizeof (vmsVector) + sizeof (vmsMatrix));
   
 	   if (* (temp_ptr))
 		 Controls [0].cyclePrimaryCount= (* (temp_ptr));
@@ -1960,7 +1962,7 @@ void KCReadExternalControls ()
   	 }
    if (kc_externalVersion>=4)
 	 {
-	  advanced_ext_control_info *temp_ptr = reinterpret_cast<advanced_ext_control_info*> (kc_external_control);
+	  advanced_ext_control_info *temp_ptr= (advanced_ext_control_info *)kc_external_control;
      
      if (temp_ptr->Reactor_blown)
       {

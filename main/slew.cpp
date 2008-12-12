@@ -27,7 +27,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 //variables for slew system
 
-CObject *slewObjP=NULL;	//what CObject is slewing, or NULL if none
+tObject *slewObjP=NULL;	//what tObject is slewing, or NULL if none
 
 #define JOY_NULL 15
 #define ROT_SPEED 8		//rate of rotation while key held down
@@ -40,8 +40,8 @@ int slew_stop(void);
 
 
 // -------------------------------------------------------------------
-//say start slewing with this CObject
-void slew_init(CObject *objP)
+//say start slewing with this tObject
+void slew_init(tObject *objP)
 {
 	slewObjP = objP;
 
@@ -75,10 +75,10 @@ slewObjP->info.position.mOrient[FVEC][X] =
 slewObjP->info.position.mOrient[FVEC][Y] = 0;
 }
 
-int do_slew_movement(CObject *objP, int check_keys, int check_joy )
+int do_slew_movement(tObject *objP, int check_keys, int check_joy )
 {
 	int moved = 0;
-	CFixVector svel, movement;				//scaled velocity (per this frame)
+	vmsVector svel, movement;				//scaled velocity (per this frame)
 	vmsMatrix rotmat,new_pm;
 	int joy_x,joy_y,btns;
 	int joyx_moved,joyy_moved;
@@ -162,7 +162,7 @@ int do_slew_movement(CObject *objP, int check_keys, int check_joy )
 	moved |= (movement[X] || movement[Y] || movement[Z]);
 
 	if (moved)
-		UpdateObjectSeg(objP);	//update CSegment id
+		UpdateObjectSeg(objP);	//update tSegment id
 
 	return moved;
 }

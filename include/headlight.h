@@ -22,7 +22,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define	HEADLIGHT_SCALE			(F1_0*10)
 #define HEADLIGHT_TRANSFORMATION	2
 
-extern CObject	*Headlights [MAX_HEADLIGHTS];
+extern tObject	*Headlights [MAX_HEADLIGHTS];
 extern int		nHeadlights;
 extern fix		xBeamBrightness;
 
@@ -35,14 +35,14 @@ int LightingMethod (void);
 //  point - the 3d coords of the point
 //  face_light - a scale factor derived from the surface normal of the face
 // If no surface normal effect is wanted, pass F1_0 for face_light
-fix ComputeHeadlight (CFixVector *point, fix xFaceLight);
-fix ComputeHeadlightLightOnObject (CObject *objP);
+fix ComputeHeadlight (vmsVector *point, fix xFaceLight);
+fix ComputeHeadlightLightOnObject (tObject *objP);
 void ToggleHeadlight (void);
 void InitHeadlightShaders (int nLights);
-void SetupHeadlight (CDynLight *pl, CShaderLight *psl);
+void SetupHeadlight (tDynLight *pl, tShaderLight *psl);
 void TransformHeadlights (void);
-int AddOglHeadlight (CObject *objP);
-void RemoveOglHeadlight (CObject *objP);
+int AddOglHeadlight (tObject *objP);
+void RemoveOglHeadlight (tObject *objP);
 void UpdateOglHeadlight (void);
 
 #endif //_HEADLIGHT_H 

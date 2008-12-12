@@ -7,13 +7,13 @@
 #define MAX_CAMERAS	100
 
 typedef struct tCamera {
-	CObject			obj;
-	CObject			*objP;
+	tObject			obj;
+	tObject			*objP;
 	short				nId;
 	short				nSegment;
 	short				nSide;
-	CBitmap			buffer;
-	ubyte				*screenBuf;
+	grsBitmap		texture;
+	char				*screenBuf;
 	GLuint			glTexId;
 	time_t			nTimeout;
 	char				nType;
@@ -29,10 +29,10 @@ typedef struct tCamera {
 	tTexCoord2f		texCoord [6];
 #if RENDER2TEXTURE == 1
 	tPixelBuffer	pb;
-	CTexture		glTex;
+	tOglTexture	glTex;
 #elif RENDER2TEXTURE == 2
-	CFBO				fbo;
-	CTexture			glTex;
+	tFrameBuffer	fb;
+	tOglTexture		glTex;
 #endif
 	vmsMatrix		orient;
 	fixang			curAngle;
@@ -51,9 +51,9 @@ class CCamera {
 		int Ready (time_t t);
 		void Reset (void);
 		void Rotate (void);
-		void GetUVL (tFace *faceP, tUVL *uvlP, tTexCoord2f *texCoordP, fVector3 *vertexP);
+		void GetUVL (grsFace *faceP, tUVL *uvlP, tTexCoord2f *texCoordP, fVector3 *vertexP);
 		int Create (short nId, short srcSeg, short srcSide, short tgtSeg, short tgtSide, 
-						CObject *objP, int bShadowMap, int bTeleport);
+						tObject *objP, int bShadowMap, int bTeleport);
 		void Destroy (void);
 		int HaveBuffer (int bCheckTexture);
 		int HaveTexture (void);
@@ -62,10 +62,10 @@ class CCamera {
 		inline char GetTeleport (void) { return m_info.bTeleport; }
 		inline char Valid (void) { return m_info.bValid; }
 		inline vmsMatrix& Orient (void) { return m_info.orient; }
-		inline CBitmap& Texture (void) { return m_info.buffer; }
+		inline grsBitmap& Texture (void) { return m_info.texture; }
 		inline tTexCoord2f* TexCoord (void) { return m_info.texCoord; }
-		inline CObject* GetObject (void) { return m_info.objP; }
-		inline CFBO& FrameBuffer (void) { return m_info.fbo; } 
+		inline tObject* GetObject (void) { return m_info.objP; }
+		inline tFrameBuffer& FrameBuffer (void) { return m_info.fb; } 
 
 	private:
 		int CreateBuffer (void);
@@ -80,21 +80,21 @@ class CCamera {
 
 class CCameraManager {
 	private:
-		CCamera			m_cameras [MAX_CAMERAS];
-		short				m_nCameras;
-		CArray<char>	m_faceCameras;
-		CArray<ushort>	m_objectCameras;
+		CCamera	m_cameras [MAX_CAMERAS];
+		short		m_nCameras;
+		char		*m_faceCameras;
+		ushort	*m_objectCameras;
 
 	public:
-		CCameraManager () { m_objectCameras = 0, m_nCameras = 0; };
+		CCameraManager () { m_faceCameras = NULL, m_objectCameras = 0, m_nCameras = 0; };
 		~CCameraManager ();
 		int Create ();
 		void Destroy ();
 		int Render ();
-		void Rotate (CObject *objP);
+		void Rotate (tObject *objP);
 		inline CCamera* Cameras (void) { return m_cameras; }
 		inline CCamera* Camera ( short i = 0 ) { return Cameras () + i; }
-		CCamera* Camera (CObject *objP);
+		CCamera* Camera (tObject *objP);
 		inline int GetObjectCamera (int nObject);
 		inline void SetObjectCamera (int nObject, int i);
 		int GetFaceCamera (int nFace);

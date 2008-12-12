@@ -27,7 +27,6 @@
 #include "console.h"
 #include "error.h"
 #include "findfile.h"
-#include "strutil.h"
 
 int nArgCount = 0;
 
@@ -56,7 +55,7 @@ void _CDECL_ args_exit (void)
 PrintLog ("unloading program arguments\n");
 for (i = 0; i < nArgCount; i++)
 	if (pszArgList [i])
-		delete[] pszArgList [i];
+		D2_FREE (pszArgList [i]);
 memset (pszArgList, 0, sizeof (pszArgList));
 nArgCount = 0;
 }
@@ -116,7 +115,7 @@ else
 PrintLog ("Loading program arguments\n");
 args_exit ();
 for (i = 0; i < argc; i++)
-	pszArgList [nArgCount++] = StrDup (argv [i]);
+	pszArgList [nArgCount++] = D2_STRDUP (argv [i]);
 
 for (i = 0; i < nArgCount; i++)
 	if (pszArgList [i] [0] == '-')
@@ -149,10 +148,10 @@ if (cf.File()) {
 					PrintLog ("too many program arguments\n");
 					break;
 					}
-				pszArgList [nArgCount++] = *pszLine ? StrDup (pszLine) : NULL;
+				pszArgList [nArgCount++] = *pszLine ? D2_STRDUP (pszLine) : NULL;
 				}
 			}
-		delete[] pszLine; 
+		D2_FREE (pszLine); 
 		}
 	cf.Close ();
 	}

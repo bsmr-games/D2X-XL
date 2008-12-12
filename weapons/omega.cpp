@@ -43,7 +43,7 @@ return xEnergyUsed;
 }
 
 // ---------------------------------------------------------------------------------
-//	*objP is the CObject firing the omega cannon
+//	*objP is the tObject firing the omega cannon
 //	*pos is the location from which the omega bolt starts
 
 int nOmegaDuration [7] = {1, 2, 3, 5, 7, 10, 15};
@@ -59,11 +59,11 @@ if (gameData.omega.xCharge [IsMultiGame] > gameData.omega.xMaxCharge) {
 
 //	-------------------------------------------------------------------------------------------------------------------------------
 
-void DeleteOldOmegaBlobs (CObject *parentObjP)
+void DeleteOldOmegaBlobs (tObject *parentObjP)
 {
 	int		count = 0;
 	int		nParentObj = parentObjP->cType.laserInfo.parent.nObject;
-	CObject	*objP;
+	tObject	*objP;
 	short		i;
 
 FORALL_WEAPON_OBJS (objP, i)
@@ -77,15 +77,15 @@ FORALL_WEAPON_OBJS (objP, i)
 
 // ---------------------------------------------------------------------------------
 
-void CreateOmegaBlobs (short nFiringSeg, CFixVector *vMuzzle, CFixVector *vTargetPos, CObject *parentObjP, CObject *targetObjP)
+void CreateOmegaBlobs (short nFiringSeg, vmsVector *vMuzzle, vmsVector *vTargetPos, tObject *parentObjP, tObject *targetObjP)
 {
 	short			nLastSeg, nLastCreatedObj = -1;
-	CFixVector	vGoal;
+	vmsVector	vGoal;
 	fix			xGoalDist;
 	int			nOmegaBlobs;
 	fix			xOmegaBlobDist;
-	CFixVector	vOmegaDelta;
-	CFixVector	vBlobPos, vPerturb;
+	vmsVector	vOmegaDelta;
+	vmsVector	vBlobPos, vPerturb;
 	fix			xPerturbArray [MAX_OMEGA_BLOBS];
 	int			i;
 
@@ -94,7 +94,7 @@ if (IsMultiGame)
 //if (parentObjP->info.nId == gameData.multiplayer.nLocalPlayer)
 	omegaLightnings.Create (vTargetPos, parentObjP, targetObjP);
 vGoal = *vTargetPos - *vMuzzle;
-xGoalDist = CFixVector::Normalize(vGoal);
+xGoalDist = vmsVector::Normalize(vGoal);
 if (xGoalDist < MIN_OMEGA_BLOBS * MIN_OMEGA_DIST) {
 	xOmegaBlobDist = MIN_OMEGA_DIST;
 	nOmegaBlobs = xGoalDist / xOmegaBlobDist;
@@ -132,27 +132,27 @@ else {
 		}
 	}
 
-//	Create Random perturbation vector, but favor _not_ going up in CPlayerData's reference.
-vPerturb = CFixVector::Random();
+//	Create Random perturbation vector, but favor _not_ going up in tPlayer's reference.
+vPerturb = vmsVector::Random();
 vPerturb += parentObjP->info.position.mOrient[UVEC] * (-F1_0/2);
 for (i = 0; i < nOmegaBlobs; i++) {
-	CFixVector	vTempPos;
+	vmsVector	vTempPos;
 	short			nBlobObj, nSegment;
 
-	//	This will put the last blob right at the destination CObject, causing damage.
+	//	This will put the last blob right at the destination tObject, causing damage.
 	if (i == nOmegaBlobs-1)
 		vBlobPos += vOmegaDelta * (15*F1_0/32);	//	Move last blob another (almost) half section
 	//	Every so often, re-perturb blobs
 	if ((i % 4) == 3) {
-		CFixVector	vTemp;
+		vmsVector	vTemp;
 
-		vTemp = CFixVector::Random();
+		vTemp = vmsVector::Random();
 		vPerturb += vTemp * (F1_0/4);
 		}
 	vTempPos = vBlobPos + vPerturb * xPerturbArray[i];
 	nSegment = FindSegByPos (vTempPos, nLastSeg, 1, 0);
 	if (nSegment != -1) {
-		CObject		*objP;
+		tObject		*objP;
 
 		nLastSeg = nSegment;
 		nBlobObj = CreateWeapon (OMEGA_ID, -1, nSegment, vTempPos, 0, RT_WEAPON_VCLIP);
@@ -226,10 +226,10 @@ if (LOCALPLAYER.energy) {
 
 // ---------------------------------------------------------------------------------
 
-void DoOmegaStuff (CObject *parentObjP, CFixVector *vMuzzle, CObject *weaponObjP)
+void DoOmegaStuff (tObject *parentObjP, vmsVector *vMuzzle, tObject *weaponObjP)
 {
 	short			nTargetObj, nFiringSeg, nParentSeg;
-	CFixVector	vTargetPos;
+	vmsVector	vTargetPos;
 	int			nPlayer = (parentObjP->info.nType == OBJ_PLAYER) ? parentObjP->info.nId : -1;
 	int			bSpectate = SPECTATOR (parentObjP);
 	static		int nDelay = 0;
@@ -286,7 +286,7 @@ if (parentObjP == gameData.objs.viewerP)
 else
 	DigiLinkSoundToPos (gameData.weapons.info [weaponObjP->info.nId].flashSound,
 							  weaponObjP->info.nSegment, 0, &weaponObjP->info.position.vPos, 0, F1_0);
-//	Delete the original CObject.  Its only purpose in life was to determine which CObject to home in on.
+//	Delete the original tObject.  Its only purpose in life was to determine which tObject to home in on.
 ReleaseObject (OBJ_IDX (weaponObjP));
 if (nTargetObj != -1)
 	vTargetPos = OBJECTS [nTargetObj].info.position.vPos;
@@ -294,9 +294,9 @@ else {	//	If couldn't lock on anything, fire straight ahead.
 	tFVIQuery	fq;
 	tFVIData		hit_data;
 	int			fate;
-	CFixVector	vPerturb, perturbed_fvec;
+	vmsVector	vPerturb, perturbed_fvec;
 
-	vPerturb = CFixVector::Random();
+	vPerturb = vmsVector::Random();
 	perturbed_fvec = bSpectate ? gameStates.app.playerPos.mOrient[FVEC] : parentObjP->info.position.mOrient[FVEC]
 	               + vPerturb * (F1_0/16);
 	vTargetPos = *vMuzzle + perturbed_fvec * MAX_OMEGA_DIST;

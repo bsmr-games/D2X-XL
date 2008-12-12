@@ -153,10 +153,7 @@ typedef struct tWall {
 	sbyte   controllingTrigger;	// which tTrigger causes something to happen here.  Not like "tTrigger" above, which is the tTrigger on this tWall.
 											//  Note: This gets stuffed at load time in gamemine.c.  Don't try to use it in the editor.  You will be sorry!
 	sbyte   cloakValue;				// if this tWall is cloaked, the fade value
-} tWall;
-
-inline int operator- (tWall* o, CArray<tWall>& a) { return a.Index (o); }
-
+} __pack__ tWall;
 
 typedef struct tActiveDoor {
 	int     nPartCount;           // for linked walls
@@ -214,23 +211,23 @@ extern char pszWallNames[7][10];
 
 //#define WALL_IS_DOORWAY(seg,tSide) WallIsDoorWay(seg, tSide)
 
-extern int WALL_IS_DOORWAY (CSegment *segP, short nSide, CObject *objP);
+extern int WALL_IS_DOORWAY (tSegment *segP, short nSide, tObject *objP);
 
 // Initializes all walls (i.e. no special walls.)
 void WallInit();
 
 // Automatically checks if a there is a doorway (i.e. can fly through)
-int WallIsDoorWay (CSegment *segP, short nSide, CObject *objP );
+int WallIsDoorWay (tSegment *segP, short nSide, tObject *objP );
 
 // Deteriorate appearance of tWall. (Changes bitmap (paste-ons))
-void WallDamage(CSegment *segP, short nSide, fix damage);
+void WallDamage(tSegment *segP, short nSide, fix damage);
 
 // Destroys a blastable tWall. (So it is an opening afterwards)
-void WallDestroy(CSegment *segP, short nSide);
+void WallDestroy(tSegment *segP, short nSide);
 
-void WallIllusionOn(CSegment *segP, short nSide);
+void WallIllusionOn(tSegment *segP, short nSide);
 
-void WallIllusionOff(CSegment *segP, short nSide);
+void WallIllusionOff(tSegment *segP, short nSide);
 
 // Opens a door, including animation and other processing.
 void DoDoorOpen(int nDoor);
@@ -239,10 +236,10 @@ void DoDoorOpen(int nDoor);
 void DoDoorClose(int nDoor);
 
 // Opens a door
-void WallOpenDoor(CSegment *segP, short nSide);
+void WallOpenDoor(tSegment *segP, short nSide);
 
 // Closes a door
-void WallCloseDoor(CSegment *segP, short nSide);
+void WallCloseDoor(tSegment *segP, short nSide);
 
 //return codes for WallHitProcess()
 #define WHP_NOT_SPECIAL     0       //wasn't a quote-tWall-unquote
@@ -253,11 +250,11 @@ void WallCloseDoor(CSegment *segP, short nSide);
 int AnimFrameCount (tWallClip *anim);
 
 // Determines what happens when a tWall is shot
-//obj is the CObject that hit...either a weapon or the CPlayerData himself
-extern int WallHitProcess(CSegment *segP, short nSide, fix damage, int playernum, CObject *obj );
+//obj is the tObject that hit...either a weapon or the tPlayer himself
+extern int WallHitProcess(tSegment *segP, short nSide, fix damage, int playernum, tObject *obj );
 
 // Opens/destroys specified door.
-void WallToggle(CSegment *segP, short nSide);
+void WallToggle(tSegment *segP, short nSide);
 
 // Tidy up Walls array for load/save purposes.
 void ResetWalls();
@@ -269,34 +266,42 @@ void WallFrameProcess();
 
 extern tStuckObject StuckObjects [MAX_STUCK_OBJECTS];
 
-//  An CObject got stuck in a door (like a flare).
+//  An tObject got stuck in a door (like a flare).
 //  Add global entry.
-void AddStuckObject (CObject *objP, short nSegment, short nSide);
+void AddStuckObject (tObject *objP, short nSegment, short nSide);
 void RemoveObsoleteStuckObjects(void);
 
 //set the tmap_num or tmap_num2 field for a tWall/door
-void WallSetTMapNum(CSegment *segP,short nSide,CSegment *csegp, short cside,int anim_num,int nFrame);
+void WallSetTMapNum(tSegment *segP,short nSide,tSegment *csegp, short cside,int anim_num,int nFrame);
 
 void InitDoorAnims (void);
-int AnimateOpeningDoor (CSegment *segP, short nSide, fix xElapsedTime);
-void BlastBlastableWall (CSegment *segP, short nSide);
+int AnimateOpeningDoor (tSegment *segP, short nSide, fix xElapsedTime);
+void BlastBlastableWall (tSegment *segP, short nSide);
 
 // Remove any flares from a tWall
 void KillStuckObjects(int nWall);
 
 //start tWall open <-> closed transitions
-void StartWallCloak(CSegment *segP, short nSide);
-void StartWallDecloak(CSegment *segP, short nSide);
+void StartWallCloak(tSegment *segP, short nSide);
+void StartWallDecloak(tSegment *segP, short nSide);
 
 bool WallIsTriggerTarget (short nWall);
 bool WallIsVolatile (short nWall);
 bool WallIsInvisible (short nWall);
 
-int ReadD1WallClips(tWallClip *wc, int n, CFile& cf);
+extern int wclip_read_n_d1(tWallClip *wc, int n, CFile& cf);
+#if 0
+#define WClipReadN(wc, n, fp) CFRead(wc, sizeof(tWallClip), n, fp)
+#define ReadWallV16(w, fp) CFRead(w, sizeof(tWallV16), 1, fp)
+#define ReadWallV19(w, fp) CFRead(w, sizeof(tWallV19), 1, fp)
+#define ReadWall(w, fp) CFRead(w, sizeof(tWall), 1, fp)
+#define ReadActiveDoorV19(d, fp) CFRead(d, sizeof(v19_door), 1, fp)
+#define ReadActiveDoor(d, fp) CFRead(d, sizeof(tActiveDoor), 1, fp)
+#else
 /*
  * reads n tWallClip structs from a CFILE
  */
-int ReadWallClips(CArray<tWallClip>& wc, int n, CFile& cf);
+extern int WClipReadN(tWallClip *wc, int n, CFile& cf);
 
 /*
  * reads a tWallV16 structure from a CFILE
@@ -322,6 +327,6 @@ void ReadActiveDoorV19(v19_door *d, CFile& cf);
  * reads an tActiveDoor structure from a CFILE
  */
 void ReadActiveDoor(tActiveDoor *ad, CFile& cf);
-
+#endif
 
 #endif

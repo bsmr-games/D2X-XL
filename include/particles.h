@@ -29,10 +29,10 @@ typedef struct tParticle {
 	tPartPos		m_glPos;
 #endif
 	vmsMatrix	m_mOrient;
-	CFixVector	m_vPos;				//position
-	CFixVector	m_vTransPos;		//transformed position
-	CFixVector	m_vDir;				//movement direction
-	CFixVector	m_vDrift;
+	vmsVector	m_vPos;				//position
+	vmsVector	m_vTransPos;		//transformed position
+	vmsVector	m_vDir;				//movement direction
+	vmsVector	m_vDrift;
 	int			m_nTTL;				//time to live
 	int			m_nLife;			//remaining life time
 	int			m_nDelay;			//time between creation and appearance
@@ -58,10 +58,10 @@ typedef struct tParticle {
 
 class CParticle : public tParticle {
 	public:
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+		int Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 					   short nSegment, int nLife, int nSpeed, char nParticleSystemType, char nClass,
 				      float fScale, tRgbaColorf *colorP, int nCurTime, int bBlowUp,
-					   float fBrightness, CFixVector *vEmittingFace);
+					   float fBrightness, vmsVector *vEmittingFace);
 		int Render (float brightness);
 		int Update (int nCurTime);
 		inline bool IsVisible (void);
@@ -101,10 +101,10 @@ typedef struct tParticleEmitter {
 	short				m_nObjType;
 	short				m_nObjId;
 	vmsMatrix		m_mOrient;
-	CFixVector		m_vDir;
-	CFixVector		m_vPos;				//initial particle position
-	CFixVector		m_vPrevPos;			//initial particle position
-	CFixVector		m_vEmittingFace [4];
+	vmsVector		m_vDir;
+	vmsVector		m_vPos;				//initial particle position
+	vmsVector		m_vPrevPos;			//initial particle position
+	vmsVector		m_vEmittingFace [4];
 	ubyte				m_bHaveDir;			//movement direction given?
 	ubyte				m_bHavePrevPos;	//valid previous position set?
 	CParticle*		m_particles;		//list of active particles
@@ -118,15 +118,15 @@ class CParticleEmitter : public tParticleEmitter {
 	public:
 		CParticleEmitter () { m_particles = NULL; };
 		~CParticleEmitter () { Destroy (); };
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+		int Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 						short nSegment, int nObject, int nMaxParts, float fScale,
 						int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
-						tRgbaColorf *colorP, int nCurTime, int bBlowUpParts, CFixVector *vEmittingFace);
+						tRgbaColorf *colorP, int nCurTime, int bBlowUpParts, vmsVector *vEmittingFace);
 		int Destroy (void);
 		int Update (int nCurTime, int nThread);
 		int Render (int nThread);
-		void SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment);
-		inline void SetDir (CFixVector *vDir);
+		void SetPos (vmsVector *vPos, vmsMatrix *mOrient, short nSegment);
+		inline void SetDir (vmsVector *vDir);
 		inline void SetLife (int nLife);
 		inline void SetBrightness (int nBrightness);
 		inline void SetSpeed (int nSpeed);
@@ -167,7 +167,7 @@ class CParticleSystem : public tParticleSystem {
 		CParticleSystem () { m_emitters = NULL; };
 		~CParticleSystem () { Destroy (); };
 		void Init (int nId, int nNext);
-		int Create (CFixVector *pPos, CFixVector *pDir, vmsMatrix *pOrient,
+		int Create (vmsVector *pPos, vmsVector *pDir, vmsMatrix *pOrient,
 					   short nSegment, int nMaxEmitters, int nMaxParts, 
 						float fScale, int nDensity, int nPartsPerPos, 
 						int nLife, int nSpeed, char nType, int nObject,
@@ -178,8 +178,8 @@ class CParticleSystem : public tParticleSystem {
 		int RemoveEmitter (int i);
 		void SetDensity (int nMaxParts, int nDensity);
 		void SetPartScale (float fScale);
-		void SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment);
-		void SetDir (CFixVector *vDir);
+		void SetPos (vmsVector *vPos, vmsMatrix *mOrient, short nSegment);
+		void SetDir (vmsVector *vDir);
 		void SetLife (int nLife);
 		void SetScale (float fScale);
 		void SetType (int nType);
@@ -199,25 +199,19 @@ class CParticleSystem : public tParticleSystem {
 class CParticleManager {
 	private:
 		CParticleSystem	m_systems [MAX_PARTICLE_SYSTEMS];
-		CArray<short>		m_objectSystems;
-		CArray<time_t>		m_objExplTime;
-		int					m_nLastType;
-		int					m_bAnimate;
-		int					m_bStencil;
+		short*				m_objectSystems;
 		int					m_nFree;
 		int					m_nUsed;
 
 	public:
-		CParticleManager () {}
+		CParticleManager () { m_objectSystems = NULL; };
 		~CParticleManager ();
 		void Init (void);
-		inline void InitObjects (void) { 
-			m_objectSystems.Clear (0xff); 
-			m_objExplTime.Clear (0xff);
-			}
+		inline void InitObjects (void)
+			{ memset (m_objectSystems, 0xff, sizeof (*m_objectSystems) * MAX_OBJECTS); }
 		int Update (void);
 		void Render (void);
-		int Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+		int Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 						short nSegment, int nMaxEmitters, int nMaxParts,
 						float fScale, int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
 						int nObject, tRgbaColorf *colorP, int bBlowUpParts, char nSide);
@@ -232,15 +226,8 @@ class CParticleManager {
 		void FlushBuffer (float brightness);
 		int CloseBuffer (void);
 
-		void AdjustBrightness (CBitmap *bmP);
+		void AdjustBrightness (grsBitmap *bmP);
 
-		inline time_t* ObjExplTime (int i = 0) { return m_objExplTime + i; }
-		inline int LastType (void) { return m_nLastType; }
-		inline void SetLastType (int nLastType) { m_nLastType = nLastType; }
-		inline int Animate (void) { return m_bAnimate; }
-		inline void SetAnimate (int bAnimate) { m_bAnimate = bAnimate; }
-		inline int Stencil (void) { return m_bStencil; }
-		inline void SetStencil (int bStencil) { m_bStencil = bStencil; }
 		inline int GetFree (void) { return m_nFree; }
 		inline void SetFree (int i) { m_nFree = i; }
 		inline int GetUsed (void) { return m_nUsed; }
@@ -251,7 +238,7 @@ class CParticleManager {
 		inline CParticleEmitter* GetEmitter (int i, int j)
 			{ return (0 <= IsUsed (i)) ? GetSystem (i).GetEmitter (j) : NULL; }
 
-		inline void SetPos (int i, CFixVector *vPos, vmsMatrix *mOrient, short nSegment) { 
+		inline void SetPos (int i, vmsVector *vPos, vmsMatrix *mOrient, short nSegment) { 
 			if (0 <= IsUsed (i)) 
 				GetSystem (i).SetPos (vPos, mOrient, nSegment); 
 			}
@@ -288,7 +275,7 @@ class CParticleManager {
 				GetSystem (i).SetSpeed (nSpeed);
 			}
 
-		inline void SetDir (int i, CFixVector *vDir) {
+		inline void SetDir (int i, vmsVector *vDir) {
 			if (0 <= IsUsed (i))
 				GetSystem (i).SetDir (vDir);
 			}
@@ -335,7 +322,7 @@ class CParticleImageManager {
 		int LoadAll (void);
 		void FreeAll (void);
 		void Animate (int nType);
-		void AdjustBrightness (CBitmap *bmP);
+		void AdjustBrightness (grsBitmap *bmP);
 		int GetType (int nType);
 };
 

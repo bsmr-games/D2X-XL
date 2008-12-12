@@ -93,7 +93,7 @@ return 1;
 
 int _CDECL_ RenderThread (void *pThreadId)
 {
-	int		nId = *reinterpret_cast<int*> (pThreadId);
+	int		nId = *((int *) pThreadId);
 #ifdef _WIN32
 	HGLRC		myContext = 0;
 #endif
@@ -154,7 +154,7 @@ do {
 		G3DynLightModel (tiRender.objP, tiRender.pm, iVerts, nVerts, iFaceVerts, nFaceVerts);
 		}
 	else if (tiRender.nTask == rtLightmap)
-		lightmapManager.Build (nId);
+		ComputeOneLightmap (nId);
 	tiRender.ti [nId].bExec = 0;
 	} while (!tiRender.ti [nId].bDone);
 #ifdef _WIN32

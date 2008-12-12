@@ -16,7 +16,7 @@ int FileFindNext(FILEFINDSTRUCT *ffstruct, int bFindDirs);
 int FileFindClose(void);
 
 typedef struct FILETIMESTRUCT {
-	ushort date,time;
+	unsigned short date,time;
 } FILETIMESTRUCT;
 
 #else //!defined (_WIN32)

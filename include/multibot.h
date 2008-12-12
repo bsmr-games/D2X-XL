@@ -24,7 +24,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 int MultiCanRemoveRobot(int nObject, int agitation);
 void MultiSendRobotPosition(int nObject, int fired);
-void MultiSendRobotFire(int nObject, int gun_num, CFixVector *fire);
+void MultiSendRobotFire(int nObject, int gun_num, vmsVector *fire);
 void MultiSendClaimRobot(int nObject);
 void MultiSendRobotExplode(int,int,char);
 void MultiSendCreateRobot(int robotcen, int nObject, int nType);
@@ -48,6 +48,6 @@ void MultiDumpRobots(void);
 void MultiStripRobots(int playernum);
 void MultiCheckRobotTimeout(void);
 
-void MultiRobotRequestChange(CObject *robot, int playernum);
+void MultiRobotRequestChange(tObject *robot, int playernum);
 
 #endif /* _MULTIBOT_H */

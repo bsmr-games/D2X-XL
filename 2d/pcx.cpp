@@ -108,13 +108,13 @@ if (!cf.Open (filename, gameFolders.szDataDir, "rb", 0))
 
 //------------------------------------------------------------------------------
 
-int PCXReadBitmap (const char * filename, CBitmap * bmP, int bitmapType, int bD1Mission)
+int PCXReadBitmap (const char * filename, grsBitmap * bmP, int bitmapType, int bD1Mission)
 {
-	PCXHeader 	header;
-	CFile 		cf;
-	int 			i, row, col, count, xsize, ysize;
-	ubyte			data, *pixdata;
-	CPalette		palette;
+	PCXHeader header;
+	CFile cf;
+	int i, row, col, count, xsize, ysize;
+	ubyte data, *pixdata;
+    ubyte palette [768];
 
 if (!cf.Open (filename, gameFolders.szDataDir, "rb", bD1Mission))
 	return PCX_ERROR_OPENING;
@@ -126,7 +126,7 @@ if (PCXHeaderReadN (&header, 1,  cf)!=1) {
 	}
 
 // Is it a 256 color PCX file?
-if ((header.Manufacturer != 10)|| (header.Encoding != 1)|| (header.Nplanes != 1)|| (header.BitsPerPixel != 8)|| (header.Version != 5))	{
+if ( (header.Manufacturer != 10)|| (header.Encoding != 1)|| (header.Nplanes != 1)|| (header.BitsPerPixel != 8)|| (header.Version != 5))	{
 	cf.Close ();
 	return PCX_ERROR_WRONG_VERSION;
 	}
@@ -135,67 +135,65 @@ if ((header.Manufacturer != 10)|| (header.Encoding != 1)|| (header.Nplanes != 1)
 xsize = header.Xmax - header.Xmin + 1;
 ysize = header.Ymax - header.Ymin + 1;
 
-if (!bmP) {
-	cf.Seek (-PALETTE_SIZE * 3, SEEK_END);
-	palette.Read (cf);
-	cf.Seek (PCXHEADER_SIZE, SEEK_SET);
-	for (i = 0; i < PALETTE_SIZE * 3; i++)
-		palette.Raw () [i] >>= 2;
-	cf.Close ();
-	return PCX_ERROR_NONE;
-	}
+	if (!bmP)
+    {
+        cf.Seek (-768, SEEK_END);
+        cf.Read (palette, 3, 256);
+        cf.Seek (PCXHEADER_SIZE, SEEK_SET);
+        for (i=0; i<768; i++)
+            palette [i] >>= 2;
+		cf.Close ();
+		return PCX_ERROR_NONE;
+    }
 
-if (bitmapType == BM_LINEAR) {
-	if (bmP->Buffer () == NULL) 
-		bmP->Setup (bitmapType, xsize, ysize, 1, "PCX");
-
-	}
-
-if (bmP->Mode () == BM_LINEAR) {
-	for (row = 0; row < ysize ; row++) {
-		pixdata = bmP->Buffer (bmP->RowSize () * row);
-		for (col = 0; col < xsize ;) {
-			if (cf.Read (&data, 1, 1) != 1) {
-				cf.Close ();
-				return PCX_ERROR_READING;
-				}
-			if ((data & 0xC0) == 0xC0) {
-				count =  data & 0x3F;
-				if (cf.Read (&data, 1, 1) != 1) {
-					cf.Close ();
-					return PCX_ERROR_READING;
-					}
-				memset (pixdata, data, count);
-				pixdata += count;
-				col += count;
-				}
-			else {
-				*pixdata++ = data;
-				col++;
-				}
-			}
+	if (bitmapType == BM_LINEAR)	{
+		if (bmP->bmTexBuf == NULL)	{
+			GrInitBitmapAlloc (bmP, bitmapType, 0, 0, xsize, ysize, xsize, 1);
 		}
-	} 
-else {
-	for (row=0; row< ysize ; row++)      {
-		for (col=0; col< xsize ;)      {
-			if (cf.Read (&data, 1, 1)!=1)	{
-				cf.Close ();
-				return PCX_ERROR_READING;
-				}
-			if ( (data & 0xC0) == 0xC0)     {
-				count =  data & 0x3F;
+	}
+
+	if (bmP->bmProps.nType == BM_LINEAR)	{
+		for (row=0; row< ysize ; row++)      {
+			pixdata = &bmP->bmTexBuf [bmP->bmProps.rowSize*row];
+			for (col=0; col< xsize ;)      {
 				if (cf.Read (&data, 1, 1)!=1)	{
 					cf.Close ();
 					return PCX_ERROR_READING;
+				}
+				if ( (data & 0xC0) == 0xC0)     {
+					count =  data & 0x3F;
+					if (cf.Read (&data, 1, 1)!=1)	{
+						cf.Close ();
+						return PCX_ERROR_READING;
 					}
-				for (i=0;i<count;i++)
-					gr_bm_pixel (bmP, col+i, row, data);
-				col += count;
-				} 
-			else {
-				gr_bm_pixel (bmP, col, row, data);
-				col++;
+					memset (pixdata, data, count);
+					pixdata += count;
+					col += count;
+				} else {
+					*pixdata++ = data;
+					col++;
+				}
+			}
+		}
+	} else {
+		for (row=0; row< ysize ; row++)      {
+			for (col=0; col< xsize ;)      {
+				if (cf.Read (&data, 1, 1)!=1)	{
+					cf.Close ();
+					return PCX_ERROR_READING;
+				}
+				if ( (data & 0xC0) == 0xC0)     {
+					count =  data & 0x3F;
+					if (cf.Read (&data, 1, 1)!=1)	{
+						cf.Close ();
+						return PCX_ERROR_READING;
+					}
+					for (i=0;i<count;i++)
+						gr_bm_pixel (bmP, col+i, row, data);
+					col += count;
+				} else {
+					gr_bm_pixel (bmP, col, row, data);
+					col++;
 				}
 			}
 		}
@@ -205,33 +203,33 @@ else {
 // Read in a character which should be 12 to be extended palette file
 if (cf.Read (&data, 1, 1)==1)	{
 	if (data == 12)	{
-		if (!palette.Read (cf)) {
+		if (cf.Read (palette,768, 1)!=1)	{
 			cf.Close ();
 			return PCX_ERROR_READING;
 			}
-		for (i = 0; i < PALETTE_SIZE * 3; i++)
-			palette.Data ().raw [i] >>= 2;
+		for (i=0; i<768; i++)
+			palette[i] >>= 2;
 		}
 	}
 else {
 	cf.Close ();
 	return PCX_ERROR_NO_PALETTE;
 	}
-bmP->SetPalette (&palette);
+bmP->bmPalette = AddPalette (palette);
 cf.Close ();
 return PCX_ERROR_NONE;
 }
 
 //------------------------------------------------------------------------------
 
-int pcx_write_bitmap (const char * filename, CBitmap * bmP)
+int pcx_write_bitmap (const char * filename, grsBitmap * bmP)
 {
 	int retval;
 	int i;
 	ubyte data;
 	PCXHeader header;
 	CFile cf;
-	CPalette	palette;
+	tPalette	palette;
 
 	memset (&header, 0, PCXHEADER_SIZE);
 
@@ -240,9 +238,9 @@ int pcx_write_bitmap (const char * filename, CBitmap * bmP)
 	header.Nplanes = 1;
 	header.BitsPerPixel = 8;
 	header.Version = 5;
-	header.Xmax = bmP->Width () - 1;
-	header.Ymax = bmP->Height () - 1;
-	header.BytesPerLine = bmP->Width ();
+	header.Xmax = bmP->bmProps.w-1;
+	header.Ymax = bmP->bmProps.h-1;
+	header.BytesPerLine = bmP->bmProps.w;
 
 	if (!cf.Open (filename, gameFolders.szDataDir, "wb", 0))
 		return PCX_ERROR_OPENING;
@@ -253,8 +251,8 @@ int pcx_write_bitmap (const char * filename, CBitmap * bmP)
 		return PCX_ERROR_WRITING;
 	}
 
-	for (i=0; i < bmP->Height (); i++)	{
-		if (!PCXEncodeLine (&bmP->Buffer ()[bmP->RowSize ()*i], bmP->Width (), cf))	{
+	for (i=0; i<bmP->bmProps.h; i++)	{
+		if (!PCXEncodeLine (&bmP->bmTexBuf[bmP->bmProps.rowSize*i], bmP->bmProps.w, cf))	{
 			cf.Close ();
 			return PCX_ERROR_WRITING;
 		}
@@ -270,12 +268,12 @@ int pcx_write_bitmap (const char * filename, CBitmap * bmP)
 
 	// Write the extended palette
 	for (i=0; i<768; i++)
-		palette.Raw () [i] = bmP->Palette ()->Raw ()  [i] << 2;
+		palette[i] = bmP->bmPalette [i] << 2;
 
-	retval = palette.Write (cf);
+	retval = cf.Write (palette, 768, 1);
 
 	for (i=0; i<768; i++)
-		palette.Raw () [i] >>= 2;
+		palette[i] >>= 2;
 
 	if (retval !=1)	{
 		cf.Close ();
@@ -381,18 +379,20 @@ return p;
 
 int PcxReadFullScrImage (const char * filename, int bD1Mission)
 {
-		int		pcxError;
-		CBitmap	bm;
+		int			pcxError;
+		grsBitmap	bm;
 
 if (strstr (filename, ".tga"))
 	pcxError = ReadTGA (filename, gameFolders.szDataDir, &bm, -1, 1.0, 0, 0) ? PCX_ERROR_NONE : PCX_ERROR_OPENING;
 else {
-	bm.SetMask (NULL);
+	GrInitBitmapData (&bm);
+	BM_MASK (&bm) = NULL;
 	pcxError = PCXReadBitmap (filename, &bm, BM_LINEAR, bD1Mission);
 	}
 if (pcxError == PCX_ERROR_NONE) {
-	paletteManager.LoadEffect  ();
+	GrPaletteStepLoad (NULL);
 	ShowFullscreenImage (&bm);
+	GrFreeBitmapData (&bm);
 	}
 return pcxError;
 }

@@ -155,8 +155,8 @@ if (!gameData.app.bGamePaused) {
 	DigiPauseAll();
 	RBAPause();
 	StopTime();
-	paletteManager.SaveEffect();
-	paletteManager.ResetEffect();
+	PaletteSave();
+	ResetPaletteAdd();
 	GameFlushInputs();
 #if defined (TACTILE)
 	if (TactileStick)
@@ -171,7 +171,7 @@ void ResumeGame (void)
 {
 GameFlushInputs ();
 ResetCockpit ();
-paletteManager.LoadEffect ();
+PaletteRestore ();
 StartTime (0);
 if (gameStates.sound.bRedbookPlaying)
 	RBAResume ();
@@ -213,7 +213,7 @@ else if (gameData.app.nGameMode & GM_MULTI) {
 	}
 PauseGame ();
 SetPopupScreenMode();
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 formatTime(totalTime, X2I(LOCALPLAYER.timeTotal) + LOCALPLAYER.hoursTotal*3600);
 formatTime(xLevelTime, X2I(LOCALPLAYER.timeLevel) + LOCALPLAYER.hoursLevel*3600);
   if (gameData.demo.nState!=ND_STATE_PLAYBACK)
@@ -237,7 +237,7 @@ while (gameData.app.bGamePaused) {
 		gameStates.menus.nInMenu++;
 		while (!(key = KeyInKey ())) {
 			GameRenderFrame ();
-			paletteManager.LoadEffect (NULL);
+			GrPaletteStepLoad(NULL);
 			RemapFontsAndMenus (1);
 			ShowBoxedMessage(msg);
 			G3_SLEEP (0);
@@ -296,7 +296,7 @@ int SelectNextWindowFunction(int nWindow)
 			}
 			//if no ecort, fall through
 		case CV_ESCORT:
-			gameStates.render.cockpit.nCoopPlayerView [nWindow] = -1;		//force first CPlayerData
+			gameStates.render.cockpit.nCoopPlayerView [nWindow] = -1;		//force first tPlayer
 			//fall through
 		case CV_COOP:
 			gameData.marker.viewers [nWindow] = -1;
@@ -358,7 +358,7 @@ void SpeedtestInit(void)
 
 void SpeedtestFrame(void)
 {
-	CFixVector	view_dir, center_point;
+	vmsVector	view_dir, center_point;
 
 	gameData.speedtest.nSide=gameData.speedtest.nSegment % MAX_SIDES_PER_SEGMENT;
 
@@ -367,9 +367,9 @@ void SpeedtestFrame(void)
 	gameData.objs.viewerP->info.position.vPos[Y] -= 0x10;	
 	gameData.objs.viewerP->info.position.vPos[Z] += 0x17;
 
-	gameData.objs.viewerP->RelinkToSeg (gameData.speedtest.nSegment);
+	RelinkObjToSeg(OBJ_IDX (gameData.objs.viewerP), gameData.speedtest.nSegment);
 	COMPUTE_SIDE_CENTER(&center_point, &gameData.segs.segments[gameData.speedtest.nSegment], gameData.speedtest.nSide);
-	CFixVector::NormalizedDir(view_dir, center_point, gameData.objs.viewerP->info.position.vPos);
+	vmsVector::NormalizedDir(view_dir, center_point, gameData.objs.viewerP->info.position.vPos);
 	/*
 	gameData.objs.viewerP->info.position.mOrient = vmsMatrix::Create(view_dir, NULL, NULL);
 	*/

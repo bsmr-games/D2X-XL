@@ -77,12 +77,12 @@ if (gameStates.ogl.hDepthBuffer || (gameStates.ogl.hDepthBuffer = OglCreateDepth
 	glBindTexture (GL_TEXTURE_2D, gameStates.ogl.hDepthBuffer);
 	if (!gameStates.ogl.bHaveDepthBuffer) {
 #if 0
-		glCopyTexImage2D (GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 0, 0, screen.Width (), screen.Height (), 0);
+		glCopyTexImage2D (GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, 0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight, 0);
 #else
-		glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, 0, screen.Width (), screen.Height ());
+		glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight);
 #endif
 		if (nError = glGetError ()) {
-			glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, 0, screen.Width (), screen.Height ());
+			glCopyTexSubImage2D (GL_TEXTURE_2D, 0, 0, 0, 0, 0, grdCurScreen->scWidth, grdCurScreen->scHeight);
 			if (nError = glGetError ()) {
 				DestroyGlareDepthTexture ();
 				return gameStates.ogl.hDepthBuffer = 0;
@@ -97,28 +97,28 @@ return gameStates.ogl.hDepthBuffer;
 
 // -----------------------------------------------------------------------------------
 
-void CalcSpriteCoords (CFloatVector *vSprite, CFloatVector *vCenter, CFloatVector *vEye, float dx, float dy, fMatrix *r)
+void CalcSpriteCoords (fVector *vSprite, fVector *vCenter, fVector *vEye, float dx, float dy, fMatrix *r)
 {
-	CFloatVector	v, h, vdx, vdy;
+	fVector	v, h, vdx, vdy;
 	float		d = vCenter->SqrMag ();
 	int		i;
 
 if (!vEye) {
 	vEye = &h;
-	//CFloatVector::Normalize (vEye, vCenter);
-	*vEye = *vCenter; CFloatVector::Normalize (*vEye);
+	//fVector::Normalize (vEye, vCenter);
+	*vEye = *vCenter; fVector::Normalize (*vEye);
 	}
 v [X] = v [Z] = 0;
 v [Y] = (*vCenter) [Y] ? d / (*vCenter) [Y] : 1;
 v -= *vCenter;
-CFloatVector::Normalize (v);
-vdx = CFloatVector::Cross (v, *vEye);	//orthogonal vector in plane through face center and perpendicular to viewer
+fVector::Normalize (v);
+vdx = fVector::Cross (v, *vEye);	//orthogonal vector in plane through face center and perpendicular to viewer
 vdx = vdx * dx;
 v [Y] = v [Z] = 0;
 v [X] = (*vCenter) [X] ? d / (*vCenter) [X] : 1;
 v -= *vCenter;
-CFloatVector::Normalize (v);
-vdy = CFloatVector::Cross (v, *vEye);
+fVector::Normalize (v);
+vdy = fVector::Cross (v, *vEye);
 if (r) {
 	if ((*vCenter) [X] >= 0) {
 		vdy = vdy * dy;
@@ -202,7 +202,7 @@ if (!pSideVerts) {
 	pSideVerts = sideVerts;
 	}
 for (i = j = 0; j < 4; j++) {
-	d = CFixVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
+	d = vmsVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
 	if (dMax < d) {
 		dMax = d;
 		i = j;
@@ -216,13 +216,13 @@ j = i + 1;
 d1 = VmLinePointDist (gameData.segs.vertices [pSideVerts [i]],
                      gameData.segs.vertices [pSideVerts [j]],
                      gameData.segs.vertices [pSideVerts [ (j+1)%4]]);
-d = CFixVector::Dist (gameData.segs.vertices [pSideVerts [i]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
-d = CFixVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
+d = vmsVector::Dist (gameData.segs.vertices [pSideVerts [i]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
+d = vmsVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 1) % 4]]);
 d2 = VmLinePointDist (gameData.segs.vertices [pSideVerts [i]],
                      gameData.segs.vertices [pSideVerts [j]],
                      gameData.segs.vertices [pSideVerts [ (j+2)%4]]);
-d = CFixVector::Dist (gameData.segs.vertices [pSideVerts [i]], gameData.segs.vertices [pSideVerts [ (j + 2) % 4]]);
-d = CFixVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 2) % 4]]);
+d = vmsVector::Dist (gameData.segs.vertices [pSideVerts [i]], gameData.segs.vertices [pSideVerts [ (j + 2) % 4]]);
+d = vmsVector::Dist (gameData.segs.vertices [pSideVerts [j]], gameData.segs.vertices [pSideVerts [ (j + 2) % 4]]);
 if (h)
 	*h = d1 > d2 ? d1 : d2;
 return i;
@@ -323,7 +323,7 @@ else {
 			break;
 		}
 	}
-pszName = gameData.pig.tex.bitmapFiles [gameStates.app.bD1Mission][gameData.pig.tex.bmIndexP [nTexture].index].name;
+pszName = gameData.pig.tex.bitmapFiles [gameStates.app.bD1Mission][gameData.pig.tex.pBmIndex [nTexture].index].name;
 if (strstr (pszName, "metl") || strstr (pszName, "rock") || strstr (pszName, "water"))
 	return 0;
 if (bAdditiveP)
@@ -333,13 +333,13 @@ return nTexture;
 
 // -----------------------------------------------------------------------------------
 
-float ComputeCoronaSprite (CFloatVector *sprite, CFloatVector *vCenter, short nSegment, short nSide)
+float ComputeCoronaSprite (fVector *sprite, fVector *vCenter, short nSegment, short nSide)
 {
 	tSide		*sideP = gameData.segs.segments [nSegment].sides + nSide;
 	short		sideVerts [4];
 	int		i;
 	float		fLight = 0;
-	CFloatVector	v;
+	fVector	v;
 
 GetSideVertIndex (sideVerts, nSegment, nSide);
 for (i = 0; i < 4; i++) {
@@ -364,7 +364,7 @@ return fLight;
 
 // -----------------------------------------------------------------------------------
 
-void ComputeSpriteZRange (CFloatVector *sprite, tIntervalf *zRangeP)
+void ComputeSpriteZRange (fVector *sprite, tIntervalf *zRangeP)
 {
 	float			z;
 	tIntervalf	zRange = {1000000000.0f, -1000000000.0f};
@@ -384,7 +384,7 @@ zRange.fRad = zRange.fSize / 2;
 
 // -----------------------------------------------------------------------------------
 
-float MoveSpriteIn (CFloatVector *sprite, CFloatVector *vCenter, tIntervalf *zRangeP, float fIntensity)
+float MoveSpriteIn (fVector *sprite, fVector *vCenter, tIntervalf *zRangeP, float fIntensity)
 {
 	tIntervalf	zRange;
 
@@ -405,9 +405,9 @@ return fIntensity;
 
 // -----------------------------------------------------------------------------------
 
-void ComputeHardGlare (CFloatVector *sprite, CFloatVector *vCenter, CFloatVector *vNormal)
+void ComputeHardGlare (fVector *sprite, fVector *vCenter, fVector *vNormal)
 {
-	CFloatVector	u, v, p, q, e, s, t;
+	fVector	u, v, p, q, e, s, t;
 	float		h, g;
 
 u = sprite [2] + sprite [1];
@@ -418,23 +418,23 @@ v = sprite [0] + sprite [1];
 v -= sprite [2];
 v -= sprite [3];
 v = v * 0.25f;
-*vNormal = CFloatVector::Cross (v, u);
-CFloatVector::Normalize (*vNormal);
-e = *vCenter; CFloatVector::Normalize (e);
-if (CFloatVector::Dot (e, *vNormal) > 0.999f)
+*vNormal = fVector::Cross (v, u);
+fVector::Normalize (*vNormal);
+e = *vCenter; fVector::Normalize (e);
+if (fVector::Dot (e, *vNormal) > 0.999f)
 	p = v;
 else {
-	p = CFloatVector::Cross (e, *vNormal);
-	CFloatVector::Normalize (p);
+	p = fVector::Cross (e, *vNormal);
+	fVector::Normalize (p);
 }
 
-q = CFloatVector::Cross (p, e);
+q = fVector::Cross (p, e);
 h = u.Mag ();
 g = v.Mag ();
 if (h > g)
 	h = g;
-g = 2 * (float) (fabs (CFloatVector::Dot (p, v)) + fabs (CFloatVector::Dot (p, u))) + h * CFloatVector::Dot (p, *vNormal);
-h = 2 * (float) (fabs (CFloatVector::Dot (q, v)) + fabs (CFloatVector::Dot (q, u))) + h * CFloatVector::Dot (q, *vNormal);
+g = 2 * (float) (fabs (fVector::Dot (p, v)) + fabs (fVector::Dot (p, u))) + h * fVector::Dot (p, *vNormal);
+h = 2 * (float) (fabs (fVector::Dot (q, v)) + fabs (fVector::Dot (q, u))) + h * fVector::Dot (q, *vNormal);
 #if 1
 if (g / h > 8)
 	h = g / 8;
@@ -458,7 +458,7 @@ sprite [2] -= t;
 
 #if defined (_DEBUG) && CORONA_OUTLINE
 
-void RenderCoronaOutline(CFloatVector *sprite, CFloatVector *vCenter)
+void RenderCoronaOutline(fVector *sprite, fVector *vCenter)
 {
 	int	i;
 
@@ -467,18 +467,18 @@ glColor4d (1,1,1,1);
 glLineWidth (2);
 glBegin (GL_LINE_LOOP);
 for (i = 0; i < 4; i++)
-	glVertex3fv (reinterpret_cast<GLfloat*> (sprite + i));
+	glVertex3fv ((GLfloat *) (sprite + i));
 glEnd ();
 glBegin (GL_LINES);
 vCenter->x () += 5;
-glVertex3fv (reinterpret_cast<GLfloat*> (&vCenter));
+glVertex3fv ((GLfloat *) &vCenter);
 vCenter->x () -= 10;
-glVertex3fv (reinterpret_cast<GLfloat*> (&vCenter));
+glVertex3fv ((GLfloat *) &vCenter);
 vCenter->x () += 5;
 vCenter->y () += 5;
-glVertex3fv (reinterpret_cast<GLfloat*> (&vCenter));
+glVertex3fv ((GLfloat *) &vCenter);
 vCenter->y () -= 10;
-glVertex3fv (reinterpret_cast<GLfloat*> (&vCenter));
+glVertex3fv ((GLfloat *) &vCenter);
 glEnd ();
 glLineWidth (1);
 }
@@ -491,12 +491,12 @@ glLineWidth (1);
 
 // -----------------------------------------------------------------------------------
 
-void RenderHardGlare (CFloatVector *sprite, CFloatVector *vCenter, int nTexture, float fLight,
+void RenderHardGlare (fVector *sprite, fVector *vCenter, int nTexture, float fLight,
 							 float fIntensity, tIntervalf *zRangeP, int bAdditive, int bColored)
 {
 	tTexCoord2f	tcGlare [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
 	tRgbaColorf	color;
-	CBitmap	*bmP;
+	grsBitmap	*bmP;
 	int			i;
 
 fLight /= 4;
@@ -522,19 +522,19 @@ if (color.alpha < 0.01f)
 	return;
 glEnable (GL_TEXTURE_2D);
 bmP = bAdditive ? bmpGlare : bmpCorona;
-if (bmP->Bind (1, -1))
+if (OglBindBmTex (bmP, 1, -1))
 	return;
-bmP->Texture ()->Wrap (GL_CLAMP);
+OglTexWrap (bmP->glTexture, GL_CLAMP);
 glDisable (GL_CULL_FACE);
 if (bAdditive) {
 	fLight *= color.alpha;
 	glBlendFunc (GL_ONE, GL_ONE);
 	}
-glColor4fv (reinterpret_cast<GLfloat*> (&color));
+glColor4fv ((GLfloat *) &color);
 glBegin (GL_QUADS);
 for (i = 0; i < 4; i++) {
-	glTexCoord2fv (reinterpret_cast<GLfloat*> (tcGlare + i));
-	glVertex3fv (reinterpret_cast<GLfloat*> (sprite + i));
+	glTexCoord2fv ((GLfloat *) (tcGlare + i));
+	glVertex3fv ((GLfloat *) (sprite + i));
 	}
 glEnd ();
 if (bAdditive)
@@ -545,9 +545,9 @@ RenderCoronaOutline (sprite, vCenter);
 
 // -----------------------------------------------------------------------------------
 
-float ComputeSoftGlare (CFloatVector *sprite, CFloatVector *vLight, CFloatVector *vEye)
+float ComputeSoftGlare (fVector *sprite, fVector *vLight, fVector *vEye)
 {
-	CFloatVector 		n, e, s, t, u, v;
+	fVector 		n, e, s, t, u, v;
 	float 		ul, vl, h, cosine;
 	int 			i;
 
@@ -560,16 +560,16 @@ v -= sprite [2];
 v -= sprite [3];
 v = v * 0.25f;
 e = *vEye - *vLight;
-CFloatVector::Normalize (e);
-n = CFloatVector::Cross (v, u);
-CFloatVector::Normalize (n);
+fVector::Normalize (e);
+n = fVector::Cross (v, u);
+fVector::Normalize (n);
 ul = u.Mag ();
 vl = v.Mag ();
 h = (ul > vl) ? vl : ul;
-s = u + n * (-h * CFloatVector::Dot (e, u) / ul);
-t = v + n * (-h * CFloatVector::Dot (e, v) / vl);
-s = s + e * CFloatVector::Dot (e, s);
-t = t + e * CFloatVector::Dot (e, t);
+s = u + n * (-h * fVector::Dot (e, u) / ul);
+t = v + n * (-h * fVector::Dot (e, v) / vl);
+s = s + e * fVector::Dot (e, s);
+t = t + e * fVector::Dot (e, t);
 s = s * 1.8f;
 t = t * 1.8f;
 v = *vLight;
@@ -579,18 +579,18 @@ for (i = 0; i < 3; i++) {
 	sprite [2][i] = v [i] - s [i] - t [i];
 	sprite [3][i] = v [i] - s [i] + t [i];
 	}
-cosine = CFloatVector::Dot (e, n);
+cosine = fVector::Dot (e, n);
 return (float) sqrt (cosine) * coronaIntensities [gameOpts->render.coronas.nIntensity];
 }
 
 // -----------------------------------------------------------------------------------
 
-void RenderSoftGlare (CFloatVector *sprite, CFloatVector *vCenter, int nTexture, float fIntensity, int bAdditive, int bColored)
+void RenderSoftGlare (fVector *sprite, fVector *vCenter, int nTexture, float fIntensity, int bAdditive, int bColored)
 {
 	tRgbaColorf color;
 	tTexCoord2f	tcGlare [4] = {{{0,0}},{{1,0}},{{1,1}},{{0,1}}};
 	int 			i;
-	CBitmap	*bmP = NULL;
+	grsBitmap	*bmP = NULL;
 
 if (gameStates.render.bQueryCoronas) {
 	glDisable (GL_TEXTURE_2D);
@@ -615,20 +615,20 @@ else
 	glColor4f (color.red, color.green, color.blue, fIntensity);
 if (G3EnableClientStates (gameStates.render.bQueryCoronas == 0, 0, 0, GL_TEXTURE0)) {
 	if (gameStates.render.bQueryCoronas == 0) {
-		bmP->Bind (1, -1);
+		OglBindBmTex (bmP, 1, -1);
 		glTexCoordPointer (2, GL_FLOAT, 0, tcGlare);
 		}
-	glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), sprite);
+	glVertexPointer (3, GL_FLOAT, sizeof (fVector), sprite);
 	glDrawArrays (GL_QUADS, 0, 4);
 	G3DisableClientStates (gameStates.render.bQueryCoronas == 0, 0, 0, GL_TEXTURE0);
 	}
 else {
 	if (gameStates.render.bQueryCoronas == 0)
-		bmP->Bind (1, -1);
+		OglBindBmTex (bmP, 1, -1);
 	glBegin (GL_QUADS);
 	for  (i = 0; i < 4; i++) {
-		glTexCoord2fv (reinterpret_cast<GLfloat*> (tcGlare + i));
-		glVertex3fv (reinterpret_cast<GLfloat*> (sprite + i));
+		glTexCoord2fv ((GLfloat *) (tcGlare + i));
+		glVertex3fv ((GLfloat *) (sprite + i));
 		}
 	glEnd ();
 	}
@@ -646,7 +646,7 @@ if (gameStates.render.bQueryCoronas != 2) {
 
 void RenderCorona (short nSegment, short nSide, float fIntensity, float fSize)
 {
-	CFloatVector		sprite [4], vNormal, vCenter = CFloatVector::ZERO, vEye = CFloatVector::ZERO;
+	fVector		sprite [4], vNormal, vCenter = fVector::ZERO, vEye = fVector::ZERO;
 	int			nTexture, bAdditive;
 	tIntervalf	zRange;
 	float			fAngle, fLight;
@@ -685,10 +685,10 @@ if (RENDERPATH && gameStates.ogl.bOcclusionQuery && CoronaStyle ()) {
 #endif
 	}
 else {
-	vNormal = CFloatVector::Normal (sprite [0], sprite [1], sprite [2]);
-	vEye = vCenter; CFloatVector::Normalize (vEye);
+	vNormal = fVector::Normal (sprite [0], sprite [1], sprite [2]);
+	vEye = vCenter; fVector::Normalize (vEye);
 	//dim corona depending on viewer angle
-	if ((fAngle = CFloatVector::Dot (vNormal, vEye)) > 0) {
+	if ((fAngle = fVector::Dot (vNormal, vEye)) > 0) {
 		if (fAngle > 0.25f)
 			return;
 		fIntensity *= 1 - fAngle / 0.25f;
@@ -774,10 +774,10 @@ if (gameStates.ogl.bDepthBlending) {
 			gameStates.render.history.nShader = 999;
 			glUniform1i (glGetUniformLocation (hGlareShader, "glareTex"), 0);
 			glUniform1i (glGetUniformLocation (hGlareShader, "depthTex"), 1);
-			glUniform2fv (glGetUniformLocation (hGlareShader, "screenScale"), 1, reinterpret_cast<GLfloat*> (&gameData.render.ogl.screenScale));
+			glUniform2fv (glGetUniformLocation (hGlareShader, "screenScale"), 1, (GLfloat *) &gameData.render.ogl.screenScale);
 #if 0
 			if (gameStates.render.automap.bDisplay)
-				glUniform3fv (glGetUniformLocation (h, "depthScale"), 1, reinterpret_cast<GLfloat*> (&gameData.render.ogl.depthScale));
+				glUniform3fv (glGetUniformLocation (h, "depthScale"), 1, (GLfloat *) &gameData.render.ogl.depthScale);
 			else 
 #endif
 				{

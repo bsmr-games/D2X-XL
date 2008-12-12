@@ -22,7 +22,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #	include <sys/stat.h>
 #else
 #	include <sys/stat.h>
-#	include <errno.h>
 #endif
 
 #include "inferno.h"
@@ -235,7 +234,7 @@ int CFile::Exist (const char *filename, const char *folder, int bUseD1Hog)
 {
 	int	length, bNoHOG = 0;
 	FILE	*fp;
-	char	*pfn = const_cast<char*> (filename);
+	char	*pfn = (char *) filename;
 
 if (*pfn == '\x01') 
 	pfn++;
@@ -332,7 +331,7 @@ m_cf.file = fp;
 m_cf.rawPosition = 0;
 m_cf.size = (length < 0) ? ffilelength (fp) : length;
 m_cf.libOffset = (length < 0) ? 0 : ftell (fp);
-m_cf.filename = const_cast<char*> (filename);
+m_cf.filename = (char *) filename;
 return 1;
 }
 
@@ -453,7 +452,7 @@ return  t;
 
 size_t CFile::Read (void *buf, size_t elsize, size_t nelem) 
 {
-uint i, size = (int) (elsize * nelem);
+unsigned int i, size = (int) (elsize * nelem);
 
 if (!m_cf.file || (m_cf.size < 1)) 
 	return 0;
@@ -595,7 +594,7 @@ return (fixang) INTEL_SHORT ((int) f);
 
 // ----------------------------------------------------------------------------
 
-void CFile::ReadVector (CFixVector& v) 
+void CFile::ReadVector (vmsVector& v) 
 {
 v [X] = ReadFix ();
 v [Y] = ReadFix ();
@@ -695,7 +694,7 @@ return Write (&a, sizeof (a), 1);
 
 // ----------------------------------------------------------------------------
 
-void CFile::WriteVector (const CFixVector& v)
+void CFile::WriteVector (const vmsVector& v)
 {
 WriteFix (v [X]);
 WriteFix (v [Y]);
@@ -811,10 +810,10 @@ char *CFile::ReadData (const char *filename, const char *folder, int bUseD1Hog)
 if (!Open (filename, folder, "rb", bUseD1Hog))
 	return NULL;
 nSize = Length ();
-if (!(pData = new char [nSize]))
+if (! (pData = (char *) D2_ALLOC ((unsigned int) nSize)))
 	return NULL;
 if (!Read (pData, nSize, 1)) {
-	delete[] pData;
+	D2_FREE (pData);
 	pData = NULL;
 	}
 Close ();

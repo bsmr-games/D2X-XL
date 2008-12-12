@@ -36,9 +36,9 @@ typedef struct tASESubModel {
 	char						nBullets;
 	char						bBarrel;
 	fVector3					vOffset;
-	CArray<tASEFace>		faces;
-	CArray<tASEVertex>	verts;
-	CArray<tTexCoord2f>	texCoord;
+	tASEFace					*pFaces;
+	tASEVertex				*pVerts;
+	tTexCoord2f				*pTexCoord;
 } tASESubModel;
 
 typedef struct tASESubModelList {
@@ -47,8 +47,8 @@ typedef struct tASESubModelList {
 } tASESubModelList;
 
 typedef struct tASEModel {
-	CModelTextures			textures;
-	tASESubModelList*		subModels;
+	tModelTextures			textures;
+	tASESubModelList		*pSubModels;
 	int						nModel;
 	int						nType;
 	int						nSubModels;

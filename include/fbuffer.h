@@ -40,32 +40,12 @@ extern PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVEXTPROC glGetFramebufferAttachmen
 extern PFNGLGENERATEMIPMAPEXTPROC glGenerateMipmapEXT;
 #endif
 
-class CFBO {
-	private:
-		tFrameBuffer	m_info;
-	public:
-		CFBO () { Init (); }
-		~CFBO () { Destroy (); }
-		static void Setup (void);
-		void Init (void);
-		int Create (int nWidth, int nHeight, int nType);
-		void Destroy (void);
-		int Available (void);
-		int Enable (void);
-		int Disable (void);
-		inline int GetType (void) { return m_info.nType; }
-		inline void SetType (int nType) { m_info.nType = nType; }
-		inline int GetWidth (void) { return m_info.nWidth; }
-		inline void SetWidth (int nWidth) { m_info.nWidth = nWidth; }
-		inline int GetHeight (void) { return m_info.nHeight; }
-		inline void SetHeight (int nHeight) { m_info.nHeight = nHeight; }
-		inline GLenum GetStatus (void) { return m_info.nStatus; }
-		inline void SetStatus (GLenum nStatus) { m_info.nStatus = nStatus; }
-		GLuint Handle (void) { return m_info.hFBO; }
-		GLuint& RenderBuffer (void) { return m_info.hRenderBuffer; }
-		GLuint& DepthBuffer (void) { return m_info.hDepthBuffer; }
-		GLuint& StencilBuffer (void) { return m_info.hStencilBuffer; }
-};
+void OglInitFBuffer (void);
+int OglCreateFBuffer (tFrameBuffer *pb, int nWidth, int nHeight, int nType);
+void OglDestroyFBuffer (tFrameBuffer *pb);
+int OglFBufferAvail (tFrameBuffer *pb);
+int OglEnableFBuffer (tFrameBuffer *pb);
+int OglDisableFBuffer (tFrameBuffer *pb);
 
 #endif //RENDER2TEXTURE
 

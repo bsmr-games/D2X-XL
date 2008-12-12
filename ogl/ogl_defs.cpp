@@ -89,7 +89,7 @@ PFNGLDRAWRANGEELEMENTSPROC			glDrawRangeElements = NULL;
 PFNGLACTIVESTENCILFACEEXTPROC		glActiveStencilFaceEXT = NULL;
 #endif
 
-const char *pszOglExtensions = NULL;
+char *pszOglExtensions = NULL;
 
 //------------------------------------------------------------------------------
 
@@ -224,7 +224,7 @@ gameStates.ogl.bAntiAliasingOk = (pszOglExtensions && strstr (pszOglExtensions, 
 
 void OglInitExtensions (void)
 {
-pszOglExtensions = reinterpret_cast<const char*> (glGetString (GL_EXTENSIONS));
+pszOglExtensions = (char*) glGetString (GL_EXTENSIONS);
 OglInitMultiTexturing ();
 OglInitOcclusionQuery ();
 OglInitPointSprites ();
@@ -236,7 +236,7 @@ OglInitShaders ();
 #if RENDER2TEXTURE == 1
 OglInitPBuffer ();
 #elif RENDER2TEXTURE == 2
-CFBO::Setup ();
+OglInitFBuffer ();
 #endif
 //InitShaders ();
 }

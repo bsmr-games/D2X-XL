@@ -82,10 +82,10 @@ typedef struct tPortal {
 
 // ------------------------------------------------------------------------------
 
-void StartLightingFrame (CObject *viewer);
+void StartLightingFrame (tObject *viewer);
 void ShowReticle(int force_big);
 
-uint	nClearWindowColor = 0;
+unsigned int	nClearWindowColor = 0;
 int				nClearWindow = 2;	// 1 = Clear whole background tPortal, 2 = clear view portals into rest of world, 0 = no clear
 
 void RenderSkyBox (int nWindow);
@@ -94,14 +94,15 @@ void RenderSkyBox (int nWindow);
 
 extern int bLog;
 
-CCanvas *reticleCanvas = NULL;
+gsrCanvas * reticleCanvas = NULL;
 
 void _CDECL_ FreeReticleCanvas (void)
 {
 if (reticleCanvas) {
 	PrintLog ("unloading reticle data\n");
-	reticleCanvas->Destroy ();
-	reticleCanvas = NULL;
+	D2_FREE( reticleCanvas->cvBitmap.bmTexBuf);
+	D2_FREE( reticleCanvas);
+	reticleCanvas	= NULL;
 	}
 }
 
@@ -114,7 +115,8 @@ void Draw3DReticle (fix nEyeOffset)
 	tUVL			tUVL [4];
 	g3sPoint		*pointList [4];
 	int 			i;
-	CFixVector	v1, v2;
+	vmsVector	v1, v2;
+	gsrCanvas	*saved_canvas;
 	int			saved_interp_method;
 
 //	if (!viewInfo.bUsePlayerHeadAngles) return;
@@ -149,22 +151,23 @@ v2 += gameData.objs.viewerP->info.position.mOrient [UVEC] * (-F1_0*1);
 G3TransformAndEncodePoint(&reticlePoints [3], v2);
 
 if ( reticleCanvas == NULL)	{
-	reticleCanvas = CCanvas::Create (64, 64);
+	reticleCanvas = GrCreateCanvas(64, 64);
 	if ( !reticleCanvas)
-		Error ("Couldn't allocate reticleCanvas");
-	//reticleCanvas->Bitmap ().nId = 0;
-	reticleCanvas->SetFlags (BM_FLAG_TRANSPARENT);
+		Error( "Couldn't D2_ALLOC reticleCanvas");
+	atexit( FreeReticleCanvas);
+	//reticleCanvas->cvBitmap.bmHandle = 0;
+	reticleCanvas->cvBitmap.bmProps.flags = BM_FLAG_TRANSPARENT;
 	}
 
-CCanvas::Push ();
-CCanvas::SetCurrent (reticleCanvas);
-reticleCanvas->Clear (0);		// Clear to Xparent
-ShowReticle (1);
-CCanvas::Pop ();
+saved_canvas = grdCurCanv;
+GrSetCurrentCanvas(reticleCanvas);
+GrClearCanvas(0);		// Clear to Xparent
+ShowReticle(1);
+GrSetCurrentCanvas(saved_canvas);
 
-saved_interp_method = gameStates.render.nInterpolationMethod;
+saved_interp_method=gameStates.render.nInterpolationMethod;
 gameStates.render.nInterpolationMethod	= 3;		// The best, albiet slowest.
-G3DrawTexPoly (4, pointList, tUVL, reticleCanvas, NULL, 1, -1);
+G3DrawTexPoly (4, pointList, tUVL, &reticleCanvas->cvBitmap, NULL, 1, -1);
 gameStates.render.nInterpolationMethod	= saved_interp_method;
 }
 
@@ -182,7 +185,7 @@ if (!(gameData.reactor.bDestroyed || gameStates.gameplay.seismic.nMagnitude)) {
 	}
 if (gameStates.app.bEndLevelSequence)
 	return;
-if (paletteManager.BlueEffect () > 10)		//whiting out
+if (gameStates.ogl.palAdd.blue > 10)		//whiting out
 	return;
 //	flash_ang += FixMul(FLASH_CYCLE_RATE, gameData.time.xFrame);
 if (gameStates.gameplay.seismic.nMagnitude) {
@@ -250,7 +253,7 @@ if (IS_WALL (nWallNum)) {
 			if (!RenderColoredSegFace (propsP->segNum, propsP->sideNum, propsP->nVertices, pointList)) {
 				c = gameData.walls.walls [nWallNum].cloakValue;
 				if (propsP->widFlags & WID_CLOAKED_FLAG) {
-					if (c < FADE_LEVELS) {
+					if (c < GR_ACTUAL_FADE_LEVELS) {
 						gameStates.render.grAlpha = (float) c;
 						G3DrawPolyAlpha (propsP->nVertices, pointList, &cloakColor, 1, propsP->segNum);		//draw as flat poly
 						}
@@ -259,32 +262,30 @@ if (IS_WALL (nWallNum)) {
 					if (!gameOpts->render.color.bWalls)
 						c = 0;
 					if (gameData.walls.walls [nWallNum].hps)
-						gameStates.render.grAlpha = (float) fabs ((1.0f - (float) gameData.walls.walls [nWallNum].hps / ((float) F1_0 * 100.0f)) * FADE_LEVELS);
+						gameStates.render.grAlpha = (float) fabs ((1.0f - (float) gameData.walls.walls [nWallNum].hps / ((float) F1_0 * 100.0f)) * GR_ACTUAL_FADE_LEVELS);
 					else if (IsMultiGame && gameStates.app.bHaveExtraGameInfo [1])
-						gameStates.render.grAlpha = COMPETITION ? FADE_LEVELS * 3.0f / 2.0f : (float) (FADE_LEVELS - extraGameInfo [1].grWallTransparency);
+						gameStates.render.grAlpha = COMPETITION ? GR_ACTUAL_FADE_LEVELS * 3.0f / 2.0f : (float) (GR_ACTUAL_FADE_LEVELS - extraGameInfo [1].grWallTransparency);
 					else
-						gameStates.render.grAlpha = (float) (FADE_LEVELS - extraGameInfo [0].grWallTransparency);
-					if (gameStates.render.grAlpha < FADE_LEVELS) {
-						tRgbaColorf wallColor;
-						
-						paletteManager.Game ()->ToRgbaf ((ubyte) c, wallColor); 
+						gameStates.render.grAlpha = (float) (GR_ACTUAL_FADE_LEVELS - extraGameInfo [0].grWallTransparency);
+					if (gameStates.render.grAlpha < GR_ACTUAL_FADE_LEVELS) {
+						tRgbaColorf wallColor = {CPAL2Tr (gamePalette, c), CPAL2Tg (gamePalette, c), CPAL2Tb (gamePalette, c), -1};
 						G3DrawPolyAlpha (propsP->nVertices, pointList, &wallColor, 1, propsP->segNum);	//draw as flat poly
 						}
 					}
 				}
-			gameStates.render.grAlpha = FADE_LEVELS;
+			gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 			return 1;
 			}
 		}
 	else if (gameStates.app.bD2XLevel) {
 		c = gameData.walls.walls [nWallNum].cloakValue;
-		if (c && (c < FADE_LEVELS))
-			gameStates.render.grAlpha = (float) (FADE_LEVELS - c);
+		if (c && (c < GR_ACTUAL_FADE_LEVELS))
+			gameStates.render.grAlpha = (float) (GR_ACTUAL_FADE_LEVELS - c);
 		}
 	else if (gameOpts->render.effects.bAutoTransparency && IsTransparentFace (propsP))
-		gameStates.render.grAlpha = (float) FADE_LEVELS * 0.8f;
+		gameStates.render.grAlpha = (float) GR_ACTUAL_FADE_LEVELS * 0.8f;
 	else
-		gameStates.render.grAlpha = FADE_LEVELS;
+		gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 	}
 return 0;
 }
@@ -294,12 +295,12 @@ return 0;
 void RenderFace (tFaceProps *propsP)
 {
 	tFaceProps	props = *propsP;
-	CBitmap  *bmBot = NULL;
-	CBitmap  *bmTop = NULL;
+	grsBitmap  *bmBot = NULL;
+	grsBitmap  *bmTop = NULL;
 
 	int			i, bIsMonitor, bIsTeleCam, bHaveMonitorBg, nCamNum, bCamBufAvail;
 	g3sPoint		*pointList [8], **pp;
-	CSegment		*segP = gameData.segs.segments + props.segNum;
+	tSegment		*segP = gameData.segs.segments + props.segNum;
 	tSide			*sideP = segP->sides + props.sideNum;
 	CCamera		*cameraP = NULL;
 
@@ -329,7 +330,7 @@ else
 #	endif
 #endif
 
-gameData.render.vertexList = gameData.segs.fVertices.Buffer ();
+gameData.render.vertexList = gameData.segs.fVertices;
 Assert(props.nVertices <= 4);
 for (i = 0, pp = pointList; i < props.nVertices; i++, pp++)
 	*pp = gameData.segs.points + props.vp [i];
@@ -405,21 +406,22 @@ if (!(bHaveMonitorBg && gameOpts->render.cameras.bFitToWall)) {
 #endif
 			}
 		else {
-			bmBot = gameData.pig.tex.bitmapP + gameData.pig.tex.bmIndexP [props.nBaseTex].index;
-			PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [props.nBaseTex].index, gameStates.app.bD1Mission);
+			bmBot = gameData.pig.tex.pBitmaps + gameData.pig.tex.pBmIndex [props.nBaseTex].index;
+			PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [props.nBaseTex].index, gameStates.app.bD1Mission);
 			}
 		}
 	}
 
 if (bHaveMonitorBg) {
 	cameraP->GetUVL (NULL, props.uvls, NULL, NULL);
+	cameraP->Texture ().glTexture->wrapstate = -1;
 	if (bIsTeleCam) {
 #if DBG
 		bmBot = &cameraP->Texture ();
-		gameStates.render.grAlpha = FADE_LEVELS;
+		gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 #else
 		bmTop = &cameraP->Texture ();
-		gameStates.render.grAlpha = (FADE_LEVELS * 7) / 10;
+		gameStates.render.grAlpha = (GR_ACTUAL_FADE_LEVELS * 7) / 10;
 #endif
 		}
 	else if (gameOpts->render.cameras.bFitToWall || (props.nOvlTex > 0))
@@ -437,8 +439,8 @@ else
 if (props.segNum == nDbgSeg && props.sideNum == nDbgSide)
 	props.segNum = props.segNum;
 #endif
-if ((gameOpts->render.bDepthSort > 0) && (gameStates.render.grAlpha < FADE_LEVELS))
-	gameStates.render.grAlpha = FADE_LEVELS - gameStates.render.grAlpha;
+if ((gameOpts->render.bDepthSort > 0) && (gameStates.render.grAlpha < GR_ACTUAL_FADE_LEVELS))
+	gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS - gameStates.render.grAlpha;
 #if DBG
 if (bmTop)
 	fpDrawTexPolyMulti (
@@ -474,9 +476,9 @@ fpDrawTexPolyMulti (
 	props.segNum);
 #endif
 	}
-gameStates.render.grAlpha = FADE_LEVELS;
+gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 gameStates.ogl.fAlpha = 1;
-	// render the CSegment the CPlayerData is in with a transparent color if it is a water or lava CSegment
+	// render the tSegment the tPlayer is in with a transparent color if it is a water or lava tSegment
 	//if (nSegment == OBJECTS->nSegment)
 #if DBG
 if (bOutLineMode)
@@ -500,7 +502,7 @@ fix	Min_n0_n1_dot	= (F1_0*15/16);
 #undef LMAP_LIGHTADJUST
 #define LMAP_LIGHTADJUST 0
 
-void RenderSide (CSegment *segP, short nSide)
+void RenderSide (tSegment *segP, short nSide)
 {
 	tSide			*sideP = segP->sides + nSide;
 	tFaceProps	props;
@@ -623,7 +625,7 @@ else {
 		RenderFace (&props);
 		}
 	else {
-		Error("Illegal tSide nType in RenderSide, nType = %i, CSegment # = %i, tSide # = %i\n", sideP->nType, SEG_IDX (segP), props.sideNum);
+		Error("Illegal tSide nType in RenderSide, nType = %i, tSegment # = %i, tSide # = %i\n", sideP->nType, SEG_IDX (segP), props.sideNum);
 		return;
 		}
 	}
@@ -633,13 +635,13 @@ else {
 
 static int RenderSegmentFaces (short nSegment, int nWindow)
 {
-	CSegment		*segP = gameData.segs.segments + nSegment;
+	tSegment		*segP = gameData.segs.segments + nSegment;
 	g3sCodes 	cc;
 	short			nSide;
 
 OglSetupTransform (0);
 cc = RotateVertexList (8, segP->verts);
-gameData.render.vertP = gameData.segs.fVertices.Buffer ();
+gameData.render.pVerts = gameData.segs.fVertices;
 //	return;
 if (cc.ccAnd /*&& !gameStates.render.automap.bDisplay*/)	//all off screen and not rendering the automap
 	return 0;
@@ -665,7 +667,7 @@ void DoRenderObject (int nObject, int nWindow)
 #ifdef EDITOR
 	int save_3d_outline=0;
 #endif
-	CObject *objP = OBJECTS + nObject, *hObj;
+	tObject *objP = OBJECTS + nObject, *hObj;
 	tWindowRenderedData *wrd = windowRenderedData + nWindow;
 	int nType, count = 0;
 	int n;
@@ -680,7 +682,7 @@ if (!(nWindow || gameStates.render.cameras.bActive) && (gameStates.render.nShado
 #endif
 if (gameData.demo.nState == ND_STATE_PLAYBACK) {
 	if ((nDemoDoingLeft == 6 || nDemoDoingRight == 6) && objP->info.nType == OBJ_PLAYER) {
-		// A nice fat hack: keeps the CPlayerData ship from showing up in the
+		// A nice fat hack: keeps the tPlayer ship from showing up in the
 		// small extra view when guiding a missile in the big tPortal
   		return;
 		}
@@ -706,7 +708,7 @@ if ((count++ > MAX_OBJECTS) || (objP->info.nNextInSeg == nObject)) {
 	return;					// get out of this infinite loop!
 	}
 	//g3_drawObject(objP->class_id, &objP->info.position.vPos, &objP->info.position.mOrient, objP->info.xSize);
-	//check for editor CObject
+	//check for editor tObject
 #ifdef EDITOR
 if (gameStates.app.nFunctionMode == FMODE_EDITOR && nObject == CurObject_index) {
 	save_3d_outline = g3d_interp_outline;
@@ -813,25 +815,25 @@ return code;
 //------------------------------------------------------------------------------
 
 #if DBG
-void DrawWindowBox (uint color, short left, short top, short right, short bot)
+void DrawWindowBox (unsigned int color, short left, short top, short right, short bot)
 {
 	short l, t, r, b;
 
-CCanvas::Current ()->SetColorRGBi (color);
+GrSetColorRGBi (color);
 l=left;
 t=top;
 r=right;
 b=bot;
 
-if ( r<0 || b<0 || l>=CCanvas::Current ()->Width () || (t >= CCanvas::Current ()->Height () && b >= CCanvas::Current ()->Height ()))
+if ( r<0 || b<0 || l>=grdCurCanv->cvBitmap.bmProps.w || (t>=grdCurCanv->cvBitmap.bmProps.h && b>=grdCurCanv->cvBitmap.bmProps.h))
 	return;
 
 if (l<0)
 	l=0;
 if (t<0)
 	t=0;
-if (r>=CCanvas::Current ()->Width ()) r=CCanvas::Current ()->Width ()-1;
-if (b>=CCanvas::Current ()->Height ()) b=CCanvas::Current ()->Height ()-1;
+if (r>=grdCurCanv->cvBitmap.bmProps.w) r=grdCurCanv->cvBitmap.bmProps.w-1;
+if (b>=grdCurCanv->cvBitmap.bmProps.h) b=grdCurCanv->cvBitmap.bmProps.h-1;
 
 GrLine(I2X(l), I2X(t), I2X(r), I2X(t));
 GrLine(I2X(r), I2X(t), I2X(r), I2X(b));
@@ -848,7 +850,7 @@ tPortal sidePortals [MAX_SEGMENTS_D2X * 6];
 #endif
 ubyte bVisible [MAX_SEGMENTS_D2X];
 
-//Given two sides of CSegment, tell the two verts which form the
+//Given two sides of tSegment, tell the two verts which form the
 //edge between them
 short edgeBetweenTwoSides [6] [6] [2] = {
 	{ {-1, -1}, {3, 7}, {-1, -1}, {2, 6}, {6, 7}, {2, 3} },
@@ -893,7 +895,7 @@ int edgeToSides [8] [8] [2] = {
 //------------------------------------------------------------------------------
 //given an edge and one tSide adjacent to that edge, return the other adjacent tSide
 
-int FindOtherSideOnEdge (CSegment *seg, short *verts, int oppSide)
+int FindOtherSideOnEdge (tSegment *seg, short *verts, int oppSide)
 {
 	int	i;
 	int	i0 = -1, i1 = -1;
@@ -931,14 +933,14 @@ return (side0 == oppSide) ? side1 : side0;
 //the sides of those segments the abut.
 
 typedef struct tSideNormData {
-	CFixVector	n [2];
-	CFixVector	*p;
+	vmsVector	n [2];
+	vmsVector	*p;
 	short			t;
 } tSideNormData;
 
-int FindAdjacentSideNorms (CSegment *segP, short s0, short s1, tSideNormData *s)
+int FindAdjacentSideNorms (tSegment *segP, short s0, short s1, tSideNormData *s)
 {
-	CSegment	*seg0, *seg1;
+	tSegment	*seg0, *seg1;
 	tSide		*side0, *side1;
 	short		edgeVerts [2];
 	int		oppSide0, oppSide1;
@@ -958,8 +960,8 @@ otherSide0 = FindOtherSideOnEdge (seg0, edgeVerts, oppSide0);
 otherSide1 = FindOtherSideOnEdge (seg1, edgeVerts, oppSide1);
 side0 = seg0->sides + otherSide0;
 side1 = seg1->sides + otherSide1;
-memcpy (s [0].n, side0->normals, 2 * sizeof (CFixVector));
-memcpy (s [1].n, side1->normals, 2 * sizeof (CFixVector));
+memcpy (s [0].n, side0->normals, 2 * sizeof (vmsVector));
+memcpy (s [1].n, side1->normals, 2 * sizeof (vmsVector));
 s [0].p = gameData.segs.vertices + seg0->verts [sideToVerts [otherSide0] [(s [0].t = side0->nType) == 3]];
 s [1].p = gameData.segs.vertices + seg1->verts [sideToVerts [otherSide1] [(s [1].t = side1->nType) == 3]];
 return 1;
@@ -970,10 +972,10 @@ return 1;
 //returns 0 if order doesn't matter, 1 if c0 before c1, -1 if c1 before c0
 #if SORT_RENDER_SEGS
 
-static int CompareChildren (CSegment *segP, short c0, short c1)
+static int CompareChildren (tSegment *segP, short c0, short c1)
 {
 	tSideNormData	s [2];
-	CFixVector		temp;
+	vmsVector		temp;
 	fix				d0, d1;
 
 if (sideOpposite [c0] == c1)
@@ -981,13 +983,13 @@ if (sideOpposite [c0] == c1)
 //find normals of adjoining sides
 FindAdjacentSideNorms (segP, c0, c1, s);
 temp = gameData.render.mine.viewerEye - *s [0].p;
-d0 = CFixVector::Dot(s [0].n [0], temp);
+d0 = vmsVector::Dot(s [0].n [0], temp);
 if (s [0].t != 1)	// triangularized face -> 2 different normals
-	d0 |= CFixVector::Dot(s [0].n [1], temp);	// we only need the sign, so a bitwise or does the trick
+	d0 |= vmsVector::Dot(s [0].n [1], temp);	// we only need the sign, so a bitwise or does the trick
 temp = gameData.render.mine.viewerEye - *s [1].p;
-d1 = CFixVector::Dot(s [1].n [0], temp);
+d1 = vmsVector::Dot(s [1].n [0], temp);
 if (s [1].t != 1)
-	d1 |= CFixVector::Dot(s [1].n [1], temp);
+	d1 |= vmsVector::Dot(s [1].n [1], temp);
 if ((d0 & d1) < 0)	// only < 0 if both negative due to bitwise and
 	return 0;
 if (d0 < 0)
@@ -999,7 +1001,7 @@ return 0;
 
 //------------------------------------------------------------------------------
 
-int QuickSortSegChildren (CSegment *segP, short left, short right, short *childList)
+int QuickSortSegChildren (tSegment *segP, short left, short right, short *childList)
 {
 	short	h,
 			l = left,
@@ -1033,9 +1035,9 @@ return bSwap;
 
 //------------------------------------------------------------------------------
 
-//short the children of CSegment to render in the correct order
+//short the children of tSegment to render in the correct order
 //returns non-zero if swaps were made
-static inline int SortSegChildren (CSegment *segP, int nChildren, short *childList)
+static inline int SortSegChildren (tSegment *segP, int nChildren, short *childList)
 {
 #if 1
 
@@ -1118,7 +1120,7 @@ if (gameStates.app.nFunctionMode == FMODE_EDITOR)
 	gameData.render.mine.viewerEye = gameData.objs.viewerP->info.position.vPos;
 #endif
 
-externalView.SetPos (NULL);
+externalView.pPos = NULL;
 if (gameStates.render.cameras.bActive) {
 	nStartSeg = gameData.objs.viewerP->info.nSegment;
 	G3SetViewMatrix (gameData.render.mine.viewerEye, gameData.objs.viewerP->info.position.mOrient, gameStates.render.xZoom, bOglScale);
@@ -1129,7 +1131,7 @@ else {
 	else {
 		nStartSeg = FindSegByPos (gameData.render.mine.viewerEye, gameData.objs.viewerP->info.nSegment, 1, 0);
 		if (!gameStates.render.nWindow && (gameData.objs.viewerP == gameData.objs.consoleP)) {
-			externalView.SetPoint (gameData.objs.viewerP);
+			SetPathPoint (&externalView, gameData.objs.viewerP);
 			if (nStartSeg == -1)
 				nStartSeg = gameData.objs.viewerP->info.nSegment;
 			}
@@ -1139,7 +1141,7 @@ else {
 		mHead = vmsMatrix::Create(viewInfo.playerHeadAngles);
 		// TODO MM
 		mView = gameData.objs.viewerP->info.position.mOrient * mHead;
-		G3SetViewMatrix (gameData.render.mine.viewerEye, mView, gameStates.render.xZoom, bOglScale);
+		G3SetViewMatrix(gameData.render.mine.viewerEye, mView, gameStates.render.xZoom, bOglScale);
 		}
 	else if (gameStates.render.bRearView && (gameData.objs.viewerP == gameData.objs.consoleP)) {
 #if 1
@@ -1202,17 +1204,17 @@ else {
 #else
 			 gameStates.render.bExternalView && (!IsMultiGame || IsCoopGame || EGI_FLAG (bEnableCheats, 0, 0, 0))) {
 #endif
-			externalView.GetViewPoint ();
-			G3SetViewMatrix (gameData.render.mine.viewerEye,
-								  externalView.GetPos () ? externalView.GetPos ()->mOrient : gameData.objs.viewerP->info.position.mOrient,
+			GetViewPoint ();
+			G3SetViewMatrix(gameData.render.mine.viewerEye,
+								  externalView.pPos ? externalView.pPos->mOrient : gameData.objs.viewerP->info.position.mOrient,
 								  gameStates.render.xZoom, bOglScale);
 			}
 		else
-			G3SetViewMatrix (gameData.render.mine.viewerEye, gameData.objs.viewerP->info.position.mOrient,
+			G3SetViewMatrix(gameData.render.mine.viewerEye, gameData.objs.viewerP->info.position.mOrient,
 								  FixDiv (gameStates.render.xZoom, gameStates.render.nZoomFactor), bOglScale);
 		}
 	else
-		G3SetViewMatrix (gameData.render.mine.viewerEye, gameData.objs.viewerP->info.position.mOrient,
+		G3SetViewMatrix(gameData.render.mine.viewerEye, gameData.objs.viewerP->info.position.mOrient,
 							  gameStates.render.xZoom, bOglScale);
 	}
 if (pnStartSeg)
@@ -1299,7 +1301,7 @@ if ((gameData.demo.nState == ND_STATE_RECORDING) && (nEyeOffset >= 0)) {
 StartLightingFrame (gameData.objs.viewerP);		//this is for ugly light-smoothing hack
 gameStates.ogl.bEnableScissor = !gameStates.render.cameras.bActive && nWindow;
 if (!nWindow)
-	gameData.render.dAspect = (double) CCanvas::Current ()->Width () / (double) CCanvas::Current ()->Height ();
+	gameData.render.dAspect = (double) grdCurCanv->cvBitmap.bmProps.w / (double) grdCurCanv->cvBitmap.bmProps.h;
 //PrintLog ("G3StartFrame\n");
 G3StartFrame (0, !(nWindow || gameStates.render.cameras.bActive));
 //PrintLog ("SetRenderView\n");
@@ -1308,11 +1310,11 @@ gameStates.render.nStartSeg = nStartSeg;
 if (nClearWindow == 1) {
 	if (!nClearWindowColor)
 		nClearWindowColor = BLACK_RGBA;	//BM_XRGB(31, 15, 7);
-	CCanvas::Current ()->Clear (nClearWindowColor);
+	GrClearCanvas (nClearWindowColor);
 	}
 #if DBG
 if (bShowOnlyCurSide)
-	CCanvas::Current ()->Clear (nClearWindowColor);
+	GrClearCanvas (nClearWindowColor);
 #endif
 #if SHADOWS
 if (!gameStates.render.bHaveStencilBuffer)
@@ -1328,7 +1330,7 @@ if (SHOW_SHADOWS &&
 #endif
 		OglStartFrame (0, 0);
 #if SOFT_SHADOWS
-		OglViewport (CCanvas::Current ()->props.x, CCanvas::Current ()->props.y, 128, 128);
+		OglViewport (grdCurCanv->cvBitmap.bmProps.x, grdCurCanv->cvBitmap.bmProps.y, 128, 128);
 #endif
 		RenderMine (nStartSeg, nEyeOffset, nWindow);
 #if 1//!DBG
@@ -1391,7 +1393,7 @@ if (!ShowGameMessage (gameData.messages, -1, -1))
 
 int nFirstTerminalSeg;
 
-void UpdateRenderedData (int nWindow, CObject *viewer, int rearViewFlag, int user)
+void UpdateRenderedData (int nWindow, tObject *viewer, int rearViewFlag, int user)
 {
 	Assert(nWindow < MAX_RENDERED_WINDOWS);
 	windowRenderedData [nWindow].nFrame = gameData.app.nFrameCount;
@@ -1413,7 +1415,7 @@ if (nObject == nDbgObj)
 pi->nNextItem = gameData.render.mine.renderObjs.ref [nSegment];
 gameData.render.mine.renderObjs.ref [nSegment] = gameData.render.mine.renderObjs.nUsed++;
 pi->nObject = nObject;
-pi->xDist = CFixVector::Dist (OBJECTS [nObject].info.position.vPos, gameData.render.mine.viewerEye);
+pi->xDist = vmsVector::Dist (OBJECTS [nObject].info.position.vPos, gameData.render.mine.viewerEye);
 }
 
 //------------------------------------------------------------------------------
@@ -1421,8 +1423,8 @@ pi->xDist = CFixVector::Dist (OBJECTS [nObject].info.position.vPos, gameData.ren
 void BuildRenderObjLists (int nSegCount)
 {
 PROF_START
-	CObject		*objP;
-	CSegment		*segP;
+	tObject		*objP;
+	tSegment		*segP;
 	tSegMasks	mask;
 	short			nSegment, nNewSeg, nChild, nSide, sideFlag;
 	int			nListPos;
@@ -1447,7 +1449,7 @@ for (nListPos = 0; nListPos < nSegCount; nListPos++) {
 		objP = OBJECTS + nObject;
 		Assert (objP->info.nSegment == nSegment);
 		if (objP->info.nFlags & OF_ATTACHED)
-			continue;		//ignore this CObject
+			continue;		//ignore this tObject
 		nNewSeg = nSegment;
 		if ((objP->info.nType != OBJ_REACTOR) && ((objP->info.nType != OBJ_ROBOT) || (objP->info.nId == 65))) { //don't migrate controlcen
 			mask = GetSegMasks (OBJPOS (objP)->vPos, nNewSeg, objP->info.xSize);
@@ -1516,7 +1518,7 @@ if (left < r)
 void InitSegZRef (int i, int j, int nThread)
 {
 	tSegZRef		*ps = segZRef [0] + i;
-	CFixVector	v;
+	vmsVector	v;
 	int			zMax = -0x7fffffff;
 	short			nSegment;
 
@@ -1574,13 +1576,13 @@ if (!RENDERPATH) {
 
 void CalcRenderDepth (void)
 {
-CFixVector vCenter;
+vmsVector vCenter;
 G3TransformPoint(vCenter, *SEGMENT_CENTER_I(gameData.objs.viewerP->info.nSegment), 0);
-CFixVector v;
+vmsVector v;
 G3TransformPoint(v, gameData.segs.vMin, 0);
-fix d1 = CFixVector::Dist(v, vCenter);
+fix d1 = vmsVector::Dist(v, vCenter);
 G3TransformPoint(v, gameData.segs.vMax, 0);
-fix d2 = CFixVector::Dist(v, vCenter);
+fix d2 = vmsVector::Dist(v, vCenter);
 
 if (d1 < d2)
 	d1 = d2;
@@ -1604,7 +1606,7 @@ void BuildRenderSegList (short nStartSeg, int nWindow)
 	tPortal	*curPortal;
 	short		childList [MAX_SIDES_PER_SEGMENT];		//list of ordered sides to process
 	int		nChildren, bCullIfBehind;					//how many sides in childList
-	CSegment	*segP;
+	tSegment	*segP;
 
 gameData.render.zMin = 0x7fffffff;
 gameData.render.zMax = -0x7fffffff;
@@ -1650,8 +1652,8 @@ if (bPreDrawSegs)
 
 renderPortals [0].left =
 renderPortals [0].top = 0;
-renderPortals [0].right = CCanvas::Current ()->Width () - 1;
-renderPortals [0].bot = CCanvas::Current ()->Height () - 1;
+renderPortals [0].right = grdCurCanv->cvBitmap.bmProps.w - 1;
+renderPortals [0].bot = grdCurCanv->cvBitmap.bmProps.h - 1;
 
 //breadth-first renderer
 
@@ -1675,7 +1677,7 @@ for (l = 0; l < gameStates.render.detail.nRenderDepth; l++) {
 		segP = gameData.segs.segments + nSegment;
 		sv = segP->verts;
 		bRotated = 0;
-		//look at all sides of this CSegment.
+		//look at all sides of this tSegment.
 		//tricky code to look at sides in correct order follows
 		for (nChild = nChildren = 0; nChild < MAX_SIDES_PER_SEGMENT; nChild++) {		//build list of sides
 			nChildSeg = segP->children [nChild];
@@ -1977,7 +1979,7 @@ windowRenderedData [nWindow].nObjects = 0;
 nHackLasers = 0;
 #endif
 //set up for rendering
-gameStates.ogl.fAlpha = FADE_LEVELS;
+gameStates.ogl.fAlpha = GR_ACTUAL_FADE_LEVELS;
 if (((gameStates.render.nRenderPass <= 0) &&
 	  (gameStates.render.nShadowPass < 2) && (gameStates.render.nShadowBlurPass < 2)) ||
 	 gameStates.render.bShadowMaps) {
@@ -2025,9 +2027,9 @@ if (nClearWindow == 2) {
 	if (nFirstTerminalSeg < gameData.render.mine.nRenderSegs) {
 		int i;
 
-		if (nClearWindowColor == (uint) -1)
+		if (nClearWindowColor == (unsigned int) -1)
 			nClearWindowColor = BLACK_RGBA;
-		CCanvas::Current ()->SetColor (nClearWindowColor);
+		GrSetColor (nClearWindowColor);
 		for (i = nFirstTerminalSeg, rwP = renderPortals; i < gameData.render.mine.nRenderSegs; i++, rwP++) {
 			if (gameData.render.mine.nSegRenderList [i] != -0x7fff) {
 #if DBG
@@ -2062,7 +2064,7 @@ void RenderSkyBoxObjects (void)
 	short		*segP;
 
 gameStates.render.nType = 1;
-for (i = gameData.segs.skybox.ToS (), segP = gameData.segs.skybox.Buffer (); i; i--, segP++)
+for (i = gameData.segs.skybox.nSegments, segP = gameData.segs.skybox.segments; i; i--, segP++)
 	for (nObject = SEGMENTS [*segP].objects; nObject != -1; nObject = OBJECTS [nObject].info.nNextInSeg)
 		DoRenderObject (nObject, gameStates.render.nWindow);
 }
@@ -2082,7 +2084,7 @@ if (gameStates.render.bHaveSkyBox && (!gameStates.render.automap.bDisplay || gam
 
 		gameStates.render.nType = 4;
 		gameStates.render.bFullBright = 1;
-		for (i = gameData.segs.skybox.ToS (), segP = gameData.segs.skybox.Buffer (); i; i--, segP++)
+		for (i = gameData.segs.skybox.nSegments, segP = gameData.segs.skybox.segments; i; i--, segP++)
 			RenderSegmentFaces (*segP, nWindow);
 		gameStates.render.bFullBright = bFullBright;
 		}
@@ -2135,18 +2137,8 @@ if (nWindow)
 	nWindow = nWindow;
 else
 	nWindow = nWindow;
-if (gameStates.app.bNostalgia) {
-	gameOptions [1].render.debug.bWireFrame = 0;
-	gameOptions [1].render.debug.bTextures = 1;
-	gameOptions [1].render.debug.bObjects = 1;
-	gameOptions [1].render.debug.bWalls = 1;
-	gameOptions [1].render.debug.bDynamicLight = 1;
-	}
 #endif
-if (gameStates.app.bNostalgia > 1)
-	gameStates.render.nLightingMethod =
-	gameStates.render.bPerPixelLighting = 0;
-else if (!(RENDERPATH && lightmapManager.HaveLightmaps ()))
+if (!(RENDERPATH && HaveLightmaps ()))
 	gameStates.render.bPerPixelLighting = 0;
 else {
 	if (gameStates.render.nLightingMethod == 2)
@@ -2164,8 +2156,7 @@ gameData.render.nTotalLights =
 gameData.render.nMaxLights =
 gameData.render.nStateChanges =
 gameData.render.nShaderChanges = 0;
-if (!gameStates.app.bNostalgia)
-	OglSetLibFlags (1);
+OglSetLibFlags (1);
 SetFaceDrawer (-1);
 gameData.render.vertColor.bNoShadow = !FAST_SHADOWS && (gameStates.render.nShadowPass == 4);
 gameData.render.vertColor.bDarkness = IsMultiGame && gameStates.app.bHaveExtraGameInfo [1] && extraGameInfo [IsMultiGame].bDarkness;
@@ -2260,7 +2251,7 @@ void CheckFace(int nSegment, int nSide, int facenum, int nVertices, short *vp, i
 
 	if (bSearchMode) {
 		int save_lighting;
-		CBitmap *bm;
+		grsBitmap *bm;
 		tUVL uvlCopy [8];
 		g3sPoint *pointList [4];
 
@@ -2274,16 +2265,16 @@ void CheckFace(int nSegment, int nSide, int facenum, int nVertices, short *vp, i
 			pointList [i] = gameData.segs.points + vp [i];
 		}
 
-		CCanvas::Current ()->SetColor(0);
+		GrSetColor(0);
 		gr_pixel(_search_x, _search_y);	//set our search pixel to color zero
-		CCanvas::Current ()->SetColor(1);					//and render in color one
+		GrSetColor(1);					//and render in color one
  save_lighting = gameStates.render.nLighting;
  gameStates.render.nLighting = 2;
 		//G3DrawPoly(nVertices, vp);
-		G3DrawTexPoly (nVertices, pointList, reinterpret_cast<tUVL*> (uvlCopy), bm, 1, -1);
+		G3DrawTexPoly (nVertices, pointList, (tUVL *)uvlCopy, bm, 1, -1);
  gameStates.render.nLighting = save_lighting;
 
-		if (gr_ugpixel(CCanvas::Current (), _search_x, _search_y) == 1) {
+		if (gr_ugpixel(&grdCurCanv->cvBitmap, _search_x, _search_y) == 1) {
 			found_seg = nSegment;
 			found_side = nSide;
 			found_face = facenum;
@@ -2293,24 +2284,24 @@ void CheckFace(int nSegment, int nSide, int facenum, int nVertices, short *vp, i
 
 //------------------------------------------------------------------------------
 
-void RenderObjectSearch(CObject *objP)
+void RenderObjectSearch(tObject *objP)
 {
 	int changed=0;
 
-	//note that we draw each pixel CObject twice, since we cannot control
-	//what color the CObject draws in, so we try color 0, then color 1,
-	//in case the CObject itself is rendering color 0
+	//note that we draw each pixel tObject twice, since we cannot control
+	//what color the tObject draws in, so we try color 0, then color 1,
+	//in case the tObject itself is rendering color 0
 
-	CCanvas::Current ()->SetColor(0);
+	GrSetColor(0);
 	gr_pixel(_search_x, _search_y);	//set our search pixel to color zero
 	RenderObject (objP, 0, 0);
-	if (gr_ugpixel(CCanvas::Current (), _search_x, _search_y) != 0)
+	if (gr_ugpixel(&grdCurCanv->cvBitmap, _search_x, _search_y) != 0)
 		changed=1;
 
-	CCanvas::Current ()->SetColor(1);
+	GrSetColor(1);
 	gr_pixel(_search_x, _search_y);	//set our search pixel to color zero
 	RenderObject (objP, 0, 0);
-	if (gr_ugpixel(CCanvas::Current (), _search_x, _search_y) != 1)
+	if (gr_ugpixel(&grdCurCanv->cvBitmap, _search_x, _search_y) != 1)
 		changed=1;
 
 	if (changed) {
@@ -2327,24 +2318,24 @@ void RenderObjectSearch(CObject *objP)
 
 extern int render_3d_in_big_tPortal;
 
-//finds what CSegment is at a given x&y -  seg, tSide, face are filled in
+//finds what tSegment is at a given x&y -  seg, tSide, face are filled in
 //works on last frame rendered. returns true if found
-//if seg<0, then an CObject was found, and the CObject number is -seg-1
+//if seg<0, then an tObject was found, and the tObject number is -seg-1
 int FindSegSideFace(short x, short y, int *seg, int *tSide, int *face, int *poly)
 {
 	bSearchMode = -1;
 	_search_x = x; _search_y = y;
 	found_seg = -1;
 	if (render_3d_in_big_tPortal) {
-		CCanvas temp_canvas;
+		gsrCanvas temp_canvas;
 
 		GrInitSubCanvas(&temp_canvas, canv_offscreen, 0, 0,
-			LargeView.ev_canv->Width (), LargeView.ev_canv->Bitmap ().Height ());
-		CCanvas::SetCurrent(&temp_canvas);
+			LargeView.ev_canv->cvBitmap.bmProps.w, LargeView.ev_canv->cvBitmap.bmProps.h);
+		GrSetCurrentCanvas(&temp_canvas);
 		RenderFrame(0, 0);
 	}
 	else {
-		CCanvas::SetCurrent(&gameStates.render.vr.buffers.subRender [0]);	//render off-screen
+		GrSetCurrentCanvas(&gameStates.render.vr.buffers.subRender [0]);	//render off-screen
 		RenderFrame(0, 0);
 	}
 	bSearchMode = 0;

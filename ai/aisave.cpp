@@ -46,13 +46,13 @@ int CSaveGameHandler::LoadAIBinFormat (void)
 {
 	int	i;
 
-gameData.ai.localInfo.Clear ();
-gameData.ai.pointSegs.Clear ();
+memset (gameData.ai.localInfo, 0, sizeof (tAILocalInfo) * MAX_OBJECTS);
+memset (gameData.ai.pointSegs, 0, sizeof (gameData.ai.pointSegs));
 m_cf.Read (&gameData.ai.bInitialized, sizeof (int), 1);
 m_cf.Read (&gameData.ai.nOverallAgitation, sizeof (int), 1);
-m_cf.Read (gameData.ai.localInfo.Buffer (), sizeof (tAILocalInfo), (m_nVersion > 22) ? MAX_OBJECTS : MAX_OBJECTS_D2);
-m_cf.Read (gameData.ai.pointSegs.Buffer (), sizeof (tPointSeg), (m_nVersion > 22) ? MAX_POINT_SEGS : MAX_POINT_SEGS_D2);
-m_cf.Read (gameData.ai.cloakInfo.Buffer (), sizeof (tAICloakInfo), MAX_AI_CLOAK_INFO);
+m_cf.Read (gameData.ai.localInfo, sizeof (tAILocalInfo), (m_nVersion > 22) ? MAX_OBJECTS : MAX_OBJECTS_D2);
+m_cf.Read (gameData.ai.pointSegs, sizeof (tPointSeg), (m_nVersion > 22) ? MAX_POINT_SEGS : MAX_POINT_SEGS_D2);
+m_cf.Read (gameData.ai.cloakInfo, sizeof (tAICloakInfo), MAX_AI_CLOAK_INFO);
 if (m_nVersion < 29) {
 	m_cf.Read (&gameData.boss [0].nCloakStartTime, sizeof (fix), 1);
 	m_cf.Read (&gameData.boss [0].nCloakEndTime , sizeof (fix), 1);
@@ -159,7 +159,7 @@ else if (m_nVersion >= 21) {
 	// -- gameData.boss.gateSegs [0] = 0;
 	// Note: Maybe better to leave alone...will probably be ok.
 #if TRACE
-	con_printf (1, "Warning: If you fight the boss, he might teleport to CSegment #0!\n");
+	con_printf (1, "Warning: If you fight the boss, he might teleport to tSegment #0!\n");
 #endif
 	}
 return 1;
@@ -316,7 +316,7 @@ int CSaveGameHandler::LoadAIUniFormat (void)
 {
 	int	h, i, j, nMaxBossCount, nMaxPointSegs;
 
-gameData.ai.localInfo.Clear ();
+memset (gameData.ai.localInfo, 0, sizeof (*gameData.ai.localInfo) * MAX_OBJECTS);
 gameData.ai.bInitialized = m_cf.ReadInt ();
 gameData.ai.nOverallAgitation = m_cf.ReadInt ();
 h = (m_nVersion > 22) ? MAX_OBJECTS : MAX_OBJECTS_D2;
@@ -324,7 +324,7 @@ DBG (i = CFTell (fp));
 for (i = 0; i < h; i++)
 	LoadAILocalInfo (gameData.ai.localInfo + i);
 nMaxPointSegs = (m_nVersion > 22) ? MAX_POINT_SEGS : MAX_POINT_SEGS_D2;
-gameData.ai.pointSegs.Clear ();
+memset (gameData.ai.pointSegs, 0, sizeof (*gameData.ai.pointSegs) * nMaxPointSegs);
 DBG (i = CFTell (fp));
 for (i = 0; i < nMaxPointSegs; i++)
 	LoadAIPointSeg (gameData.ai.pointSegs + i);
@@ -408,7 +408,7 @@ else
 
 if (m_nVersion < 21) {
 	#if TRACE
-	con_printf (1, "Warning: If you fight the boss, he might teleport to CSegment #0!\n");
+	con_printf (1, "Warning: If you fight the boss, he might teleport to tSegment #0!\n");
 	#endif
 	}
 else {

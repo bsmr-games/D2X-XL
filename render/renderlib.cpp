@@ -58,13 +58,13 @@ int	bOutLineMode = 0,
 int FaceIsVisible (short nSegment, short nSide)
 {
 #if SW_CULLING
-CSegment *segP = SEGMENTS + nSegment;
+tSegment *segP = SEGMENTS + nSegment;
 tSide *sideP = segP->sides + nSide;
-CFixVector v;
+vmsVector v;
 v = gameData.render.mine.viewerEye - *SIDE_CENTER_I(nSegment, nSide); //gameData.segs.vertices + segP->verts [sideToVerts [nSide][0]]);
 return (sideP->nType == SIDE_IS_QUAD) ?
-		 CFixVector::Dot(sideP->normals[0], v) >= 0 :
-		 (CFixVector::Dot(sideP->normals[0], v) >= 0) || (CFixVector::Dot(sideP->normals[1], v) >= 0);
+		 vmsVector::Dot(sideP->normals[0], v) >= 0 :
+		 (vmsVector::Dot(sideP->normals[0], v) >= 0) || (vmsVector::Dot(sideP->normals[1], v) >= 0);
 #else
 return 1;
 #endif
@@ -108,16 +108,16 @@ return bShowOnlyCurSide = !bShowOnlyCurSide;
 
 //------------------------------------------------------------------------------
 
-inline int LoadExtraBitmap (CBitmap **bmPP, const char *pszName, int *bHaveP)
+inline int LoadExtraBitmap (grsBitmap **bmPP, const char *pszName, int *bHaveP)
 {
 if (!*bHaveP) {
-	CBitmap *bmP = CreateAndReadTGA (pszName);
+	grsBitmap *bmP = CreateAndReadTGA (pszName);
 	if (!bmP)
 		*bHaveP = -1;
 	else {
 		*bHaveP = 1;
-		bmP->SetFrameCount ();
-		bmP->Bind (1, 1);
+		BM_FRAMECOUNT (bmP) = bmP->bmProps.h / bmP->bmProps.w;
+		OglBindBmTex (bmP, 1, 1);
 		}
 	*bmPP = bmP;
 	}
@@ -126,7 +126,7 @@ return *bHaveP > 0;
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpExplBlast = NULL;
+grsBitmap *bmpExplBlast = NULL;
 int bHaveExplBlast = 0;
 
 int LoadExplBlast (void)
@@ -139,14 +139,15 @@ return LoadExtraBitmap (&bmpExplBlast, "blast.tga", &bHaveExplBlast);
 void FreeExplBlast (void)
 {
 if (bmpExplBlast) {
-	delete bmpExplBlast;
+	GrFreeBitmap (bmpExplBlast);
+	bmpExplBlast = NULL;
 	bHaveExplBlast = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpSparks = NULL;
+grsBitmap *bmpSparks = NULL;
 int bHaveSparks = 0;
 
 int LoadSparks (void)
@@ -159,14 +160,15 @@ return LoadExtraBitmap (&bmpSparks, "sparks.tga", &bHaveSparks);
 void FreeSparks (void)
 {
 if (bmpSparks) {
-	delete bmpSparks;
+	GrFreeBitmap (bmpSparks);
+	bmpSparks = NULL;
 	bHaveSparks = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpCorona = NULL;
+grsBitmap *bmpCorona = NULL;
 int bHaveCorona = 0;
 
 int LoadCorona (void)
@@ -179,14 +181,15 @@ return LoadExtraBitmap (&bmpCorona, "corona.tga", &bHaveCorona);
 void FreeCorona (void)
 {
 if (bmpCorona) {
-	delete bmpCorona;
+	GrFreeBitmap (bmpCorona);
+	bmpCorona = NULL;
 	bHaveCorona = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpGlare = NULL;
+grsBitmap *bmpGlare = NULL;
 int bHaveGlare = 0;
 
 int LoadGlare (void)
@@ -199,14 +202,15 @@ return LoadExtraBitmap (&bmpGlare, "glare.tga", &bHaveGlare);
 void FreeGlare (void)
 {
 if (bmpGlare) {
-	delete bmpGlare;
+	GrFreeBitmap (bmpGlare);
+	bmpGlare = NULL;
 	bHaveGlare = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpHalo = NULL;
+grsBitmap *bmpHalo = NULL;
 int bHaveHalo = 0;
 
 int LoadHalo (void)
@@ -219,21 +223,22 @@ return LoadExtraBitmap (&bmpHalo, "halo.tga", &bHaveHalo);
 void FreeHalo (void)
 {
 if (bmpHalo) {
-	delete bmpHalo;
+	GrFreeBitmap (bmpHalo);
+	bmpHalo = NULL;
 	bHaveHalo = 0;
 	}
 }
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpThruster [2] = {NULL, NULL};
+grsBitmap *bmpThruster [2] = {NULL, NULL};
 int bHaveThruster [2] = {0, 0};
 
 int LoadThruster (void)
 {
 	int nStyle = EGI_FLAG (bThrusterFlames, 1, 1, 0);
 	int b3D = (nStyle == 2);
-	char *pszTex = (nStyle == 1) ? reinterpret_cast<char*> ("thrust2d.tga") : reinterpret_cast<char*> ("thrust3d.tga");
+	char *pszTex = (nStyle == 1) ? (char *) "thrust2d.tga" : (char *) "thrust3d.tga";
 
 return LoadExtraBitmap (&bmpThruster [b3D], pszTex, bHaveThruster + b3D);
 }
@@ -246,7 +251,7 @@ void FreeThruster (void)
 
 for (i = 0; i < 2; i++)
 	if (bmpThruster [i]) {
-		delete bmpThruster [i];
+		GrFreeBitmap (bmpThruster [i]);
 		bmpThruster [i] = NULL;
 		bHaveThruster [i] = 0;
 		}
@@ -254,7 +259,7 @@ for (i = 0; i < 2; i++)
 
 //------------------------------------------------------------------------------
 
-CBitmap *bmpShield = NULL;
+grsBitmap *bmpShield = NULL;
 int bHaveShield = 0;
 
 int LoadShield (void)
@@ -267,7 +272,7 @@ return LoadExtraBitmap (&bmpShield, "shield.tga", &bHaveShield);
 void FreeShield (void)
 {
 if (bmpShield) {
-	delete bmpShield;
+	GrFreeBitmap (bmpShield);
 	bmpShield = NULL;
 	bHaveShield = 0;
 	}
@@ -319,8 +324,8 @@ void DrawOutline (int nVertices, g3sPoint **pointList)
 	int i;
 	GLint depthFunc;
 	g3sPoint center, Normal;
-	CFixVector n;
-	CFloatVector *nf;
+	vmsVector n;
+	fVector *nf;
 
 #if 1 //!DBG
 if (gameStates.render.bQueryOcclusion) {
@@ -332,7 +337,7 @@ if (gameStates.render.bQueryOcclusion) {
 
 glGetIntegerv (GL_DEPTH_FUNC, &depthFunc);
 glDepthFunc (GL_ALWAYS);
-CCanvas::Current ()->SetColorRGB (255, 255, 255, 255);
+GrSetColorRGB (255, 255, 255, 255);
 center.p3_vec.SetZero();
 for (i = 0; i < nVertices; i++) {
 	G3DrawLine (pointList [i], pointList [(i + 1) % nVertices]);
@@ -667,22 +672,21 @@ if (bCloaked || (widFlags & WID_TRANSPARENT_FLAG)) {
 		*colorP = cloakColor;
 		*nColor = 1;
 		*bTextured = 0;
-		return colorP->alpha = (c >= FADE_LEVELS) ? 0 : 1.0f - (float) c / (float) FADE_LEVELS;
+		return colorP->alpha = (c >= GR_ACTUAL_FADE_LEVELS) ? 0 : 1.0f - (float) c / (float) GR_ACTUAL_FADE_LEVELS;
 		}
 	if (!gameOpts->render.color.bWalls)
 		c = 0;
 	if (gameData.walls.walls [nWall].hps)
 		fAlpha = (float) fabs ((1.0f - (float) gameData.walls.walls [nWall].hps / ((float) F1_0 * 100.0f)));
 	else if (IsMultiGame && gameStates.app.bHaveExtraGameInfo [1])
-		fAlpha = COMPETITION ? 0.5f : (float) (FADE_LEVELS - extraGameInfo [1].grWallTransparency) / (float) FADE_LEVELS;
+		fAlpha = COMPETITION ? 0.5f : (float) (GR_ACTUAL_FADE_LEVELS - extraGameInfo [1].grWallTransparency) / (float) GR_ACTUAL_FADE_LEVELS;
 	else
-		fAlpha = 1.0f - extraGameInfo [0].grWallTransparency / (float) FADE_LEVELS;
+		fAlpha = 1.0f - extraGameInfo [0].grWallTransparency / (float) GR_ACTUAL_FADE_LEVELS;
 	if (fAlpha < 1) {
 		//fAlpha = (float) sqrt (fAlpha);
-		paletteManager.Game ()->ToRgbaf ((ubyte) c, *colorP);
-		colorP->red /= fAlpha;
-		colorP->green /= fAlpha;
-		colorP->blue /= fAlpha;
+		colorP->red = (float) CPAL2Tr (gamePalette, c) / fAlpha;
+		colorP->green = (float) CPAL2Tg (gamePalette, c) / fAlpha;
+		colorP->blue = (float) CPAL2Tb (gamePalette, c) / fAlpha;
 		*bTextured = 0;
 		*nColor = 1;
 		}
@@ -690,7 +694,7 @@ if (bCloaked || (widFlags & WID_TRANSPARENT_FLAG)) {
 	}
 if (gameStates.app.bD2XLevel) {
 	c = wallP->cloakValue;
-	return colorP->alpha = (c && (c < FADE_LEVELS)) ? (float) (FADE_LEVELS - c) / (float) FADE_LEVELS : 1;
+	return colorP->alpha = (c && (c < GR_ACTUAL_FADE_LEVELS)) ? (float) (GR_ACTUAL_FADE_LEVELS - c) / (float) GR_ACTUAL_FADE_LEVELS : 1;
 	}
 if (gameOpts->render.effects.bAutoTransparency && IsTransparentTexture (gameData.segs.segments [nSegment].sides [nSide].nBaseTex))
 	return colorP->alpha = 0.8f;
@@ -706,7 +710,7 @@ return (bForce || gameStates.render.bDoCameras) ? cameraManager.GetFaceCamera (n
 
 //------------------------------------------------------------------------------
 
-int SetupMonitorFace (short nSegment, short nSide, short nCamera, tFace *faceP)
+int SetupMonitorFace (short nSegment, short nSide, short nCamera, grsFace *faceP)
 {
 	CCamera		*cameraP = cameraManager.Camera (nCamera);
 	int			bHaveMonitorBg, bIsTeleCam = cameraP->GetTeleport ();
@@ -722,14 +726,15 @@ int SetupMonitorFace (short nSegment, short nSide, short nCamera, tFace *faceP)
 if (!gameStates.render.bDoCameras)
 	return 0;
 bHaveMonitorBg = cameraP->Valid () && /*!cameraP->bShadowMap &&*/
-					  (cameraP->Texture ().Texture () || bCamBufAvail) &&
+					  (cameraP->Texture ().glTexture || bCamBufAvail) &&
 					  (!bIsTeleCam || EGI_FLAG (bTeleporterCams, 0, 1, 0));
 if (bHaveMonitorBg) {
 	cameraP->GetUVL (faceP, NULL, gameData.segs.faces.texCoord + faceP->nIndex, gameData.segs.faces.vertices + faceP->nIndex);
+	cameraP->Texture ().glTexture->wrapstate = -1;
 	if (bIsTeleCam) {
 #if DBG
 		faceP->bmBot = &cameraP->Texture ();
-		gameStates.render.grAlpha = FADE_LEVELS;
+		gameStates.render.grAlpha = GR_ACTUAL_FADE_LEVELS;
 #else
 		faceP->bmTop = &cameraP->Texture ();
 		for (i = 0; i < 4; i++)
@@ -754,7 +759,7 @@ return bHaveMonitorBg || gameOpts->render.cameras.bFitToWall;
 #define CROSS_WIDTH  I2X(8)
 #define CROSS_HEIGHT I2X(8)
 
-void OutlineSegSide (CSegment *seg, int _side, int edge, int vert)
+void OutlineSegSide (tSegment *seg, int _side, int edge, int vert)
 {
 	g3sCodes cc;
 
@@ -762,7 +767,7 @@ cc = RotateVertexList (8, seg->verts);
 if (! cc.ccAnd) {		//all off screen?
 	g3sPoint *pnt;
 	//render curedge of curside of curseg in green
-	CCanvas::Current ()->SetColorRGB (0, 255, 0, 255);
+	GrSetColorRGB (0, 255, 0, 255);
 	G3DrawLine(gameData.segs.points + seg->verts [sideToVerts [_side][edge]],
 						gameData.segs.points + seg->verts [sideToVerts [_side][(edge+1)%4]]);
 	//draw a little cross at the current vert
@@ -781,9 +786,9 @@ if (! cc.ccAnd) {		//all off screen?
 
 //------------------------------------------------------------------------------
 
-void AdjustVertexColor (CBitmap *bmP, tFaceColor *colorP, fix xLight)
+void AdjustVertexColor (grsBitmap *bmP, tFaceColor *colorP, fix xLight)
 {
-	float l = (bmP && (bmP->Flags () & BM_FLAG_NO_LIGHTING)) ? 1.0f : X2F (xLight);
+	float l = (bmP && (bmP->bmProps.flags & BM_FLAG_NO_LIGHTING)) ? 1.0f : X2F (xLight);
 	float s = 1.0f;
 
 #if SHADOWS
@@ -863,8 +868,8 @@ for (i = 0; i < nVertices; i++) {
 void RotateSideNorms (void)
 {
 	int			i, j;
-	CSegment		*segP = gameData.segs.segments.Buffer ();
-	tSegment2	*seg2P = gameData.segs.segment2s.Buffer ();
+	tSegment		*segP = gameData.segs.segments;
+	tSegment2	*seg2P = gameData.segs.segment2s;
 	tSide			*sideP;
 	tSide2		*side2P;
 
@@ -923,7 +928,7 @@ if (!++gameData.render.mine.nVisible) {
 
 int SegmentMayBeVisible (short nStartSeg, short nRadius, int nMaxDist)
 {
-	CSegment	*segP;
+	tSegment	*segP;
 	int		nSegment, nChildSeg, nChild, h, i, j;
 
 if (gameData.render.mine.bVisible [nStartSeg] == gameData.render.mine.nVisible)
@@ -937,7 +942,7 @@ for (i = 0, j = 1; nRadius; nRadius--) {
 	for (h = i, i = j; h < i; h++) {
 		nSegment = gameData.render.mine.nSegRenderList [h];
 		if ((gameData.render.mine.bVisible [nSegment] == gameData.render.mine.nVisible) &&
-			 (!nMaxDist || (CFixVector::Dist(*SEGMENT_CENTER_I (nStartSeg), *SEGMENT_CENTER_I (nSegment)) <= nMaxDist)))
+			 (!nMaxDist || (vmsVector::Dist(*SEGMENT_CENTER_I (nStartSeg), *SEGMENT_CENTER_I (nSegment)) <= nMaxDist)))
 			return 1;
 		segP = SEGMENTS + nSegment;
 		for (nChild = 0; nChild < 6; nChild++) {

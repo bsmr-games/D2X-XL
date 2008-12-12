@@ -88,19 +88,19 @@ char	bRobotPlaying = 0;
 int	briefFgColorIndex [MAX_BRIEFING_COLORS], 
 		briefBgColorIndex [MAX_BRIEFING_COLORS];
 int	nCurrentColor = 0;
-uint nEraseColor = BLACK_RGBA;
+unsigned int nEraseColor = BLACK_RGBA;
 
-tRgbaColorb briefFgColors [2][MAX_BRIEFING_COLORS] = {
+grsRgba briefFgColors [2][MAX_BRIEFING_COLORS] = {
 	{{0, 160, 0, 255}, {160, 132, 140, 255}, {32, 124, 216, 255}, {0, 0, 216, 255}, {56, 56, 56, 255}, {216, 216, 0, 255}, {0, 216, 216, 255}, {255, 255, 255, 255}}, 
 	{{0, 216, 0, 255}, {168, 152, 128, 255}, {252, 0, 0, 255}, {0, 0, 216, 255}, {56, 56, 56, 255}, {216, 216, 0, 255}, {0, 216, 216, 255}, {255, 255, 255, 255}}
 	};
 
-tRgbaColorb briefBgColors [2][MAX_BRIEFING_COLORS] = {
+grsRgba briefBgColors [2][MAX_BRIEFING_COLORS] = {
 	{{0, 24, 255}, {20, 20, 20, 255}, {4, 16, 28, 255}, {0, 0, 76, 255}, {0, 0, 0, 255}, {76, 76, 0, 255}, {0, 76, 76, 255}, {255, 255, 255, 255}}, 
 	{{0, 76, 0, 255}, {56, 56, 56, 255}, {124, 0, 0, 255}, {0, 0, 76, 255}, {0, 0, 0, 255}, {76, 76, 0, 255}, {0, 76, 76, 255}, {255, 255, 255, 255}}
 	};
 
-tRgbaColorb eraseColorRgb = {0, 0, 0, 255};
+grsRgba eraseColorRgb = {0, 0, 0, 255};
 
 typedef struct tD1ExtraBotSound {
 	const char	*pszName;
@@ -198,7 +198,7 @@ tBriefingScreen briefingScreens [] = {
 
 int	briefingTextX, briefingTextY;
 
-CCanvas*		robotCanvP = NULL;
+gsrCanvas	*robotCanvP = NULL;
 vmsAngVec	vRobotAngles;
 
 char    szBitmapName [32] = "";
@@ -349,7 +349,7 @@ return funcRes;
 
 //-----------------------------------------------------------------------------
 
-int LoadBriefImg (char *pszImg, CBitmap *bmP, int bFullScr)
+int LoadBriefImg (char *pszImg, grsBitmap *bmP, int bFullScr)
 {
 	char	*ps, c = '0';
 	char	szImg [FILENAME_LEN+1];
@@ -366,12 +366,12 @@ else if ((ps = strstr (szImg, ".pcx"))) {
 	}
 
 if (strstr (szImg, ".tga")) {
-	CBitmap bm;
+	grsBitmap bm;
 	if (!ReadTGA (szImg, gameFolders.szDataDir, &bm, -1, 1.0, 0, 0))
 		return PCX_ERROR_OPENING;
 	if (bFullScr) {
 		ShowFullscreenImage (&bm);
-		bm.Destroy ();
+		GrFreeBitmapData (&bm);
 		}
 	return PCX_ERROR_NONE;
 	}
@@ -398,7 +398,7 @@ int ShowBriefingImage (char * filename, int bAllowKeys, int from_hog_only)
 {
 	fix timer;
 	int pcxResult;
-	CBitmap title_bm;
+	grsBitmap title_bm;
 	char new_filename [FILENAME_LEN+1] = "";
 
 #if !DBG
@@ -409,7 +409,7 @@ if (from_hog_only)
 strcat (new_filename, filename);
 filename = new_filename;
 
-title_bm.SetBuffer (NULL);
+title_bm.bmTexBuf=NULL;
 if ((pcxResult = LoadBriefImg (filename, &title_bm, 0)) != PCX_ERROR_NONE) {
 #if TRACE
 	con_printf (CONDBG, "File '%s', PCX load error: %s (%i)\n  (No big deal, just no title screen.)\n", filename, pcx_errormsg (pcxResult), pcxResult);
@@ -417,21 +417,21 @@ if ((pcxResult = LoadBriefImg (filename, &title_bm, 0)) != PCX_ERROR_NONE) {
 	Error ("Error loading briefing screen <%s>, PCX load error: %s (%i)\n", filename, pcx_errormsg (pcxResult), pcxResult);
 }
 //vfx_set_palette_sub (brief_palette);
-paletteManager.LoadEffect  ();
-CCanvas::SetCurrent (NULL);
+GrPaletteStepLoad (NULL);
+GrSetCurrentCanvas (NULL);
 ShowFullscreenImage (&title_bm);
-if (paletteManager.FadeIn ())
+if (GrPaletteFadeIn (NULL, 32, bAllowKeys))
 	return 1;
 
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 timer	= TimerGetFixedSeconds () + I2X (3);
 while (1) {
 	if (BriefingInKey () && bAllowKeys) break;
 	if (TimerGetFixedSeconds () > timer) break;
 }
-if (paletteManager.FadeOut ())
+if (GrPaletteFadeOut (NULL, 32, bAllowKeys))
 	return 1;
-title_bm.DestroyBuffer ();
+D2_FREE (title_bm.bmTexBuf);
 return 0;
 }
 
@@ -453,10 +453,10 @@ briefingTextY = gameStates.app.bD1Mission ? bsP->text_uly : bsP->text_uly - (8 *
 
 void ShowBitmapFrame (int bRedraw)
 {
-	CCanvas *curCanvSave, *bitmapCanv=0;
-	CFixVector p = CFixVector::ZERO;
+	gsrCanvas *curCanvSave, *bitmapCanv=0;
+	vmsVector p = vmsVector::ZERO;
 
-	CBitmap *bmP;
+	grsBitmap *bmP;
 	int x = RescaleX (138);
 	int y = RescaleY (55);
 	int w = RescaleX (166);
@@ -475,18 +475,18 @@ if (*szBitmapName) {
 	//	Set supertransparency color to black
 	switch (nAnimatingBitmapType) {
 		case 0: 
-			bitmapCanv = CCanvas::Current ()->CreatePane (x, y, w, h);
+			bitmapCanv = GrCreateSubCanvas (grdCurCanv, x, y, w, h);
 			break;
 		case 1:
-			bitmapCanv = CCanvas::Current ()->CreatePane (x, y, w, h);
+			bitmapCanv = GrCreateSubCanvas (grdCurCanv, x, y, w, h);
 			break;
 		// Adam: Change here for your new animating bitmap thing. 94, 94 are bitmap size.
 		default:
 			Int3 (); // Impossible, illegal value for nAnimatingBitmapType
 		}
-	curCanvSave = CCanvas::Current (); 
-	CCanvas::SetCurrent (bitmapCanv);
-	CCanvas::Current ()->Clear (0);
+	curCanvSave = grdCurCanv; 
+	grdCurCanv = bitmapCanv;
+	GrClearCanvas (0);
 	if (!bRedraw) {	//extract current bitmap nFrameber from bitmap name (<name>#<nFrameber>)
 		poundSignP = strchr (szBitmapName, '#');
 		Assert (poundSignP != NULL);
@@ -532,7 +532,7 @@ if (*szBitmapName) {
 			}
 		}
 
-	paletteManager.Load ("", "", 0, 0, 1);
+	LoadPalette ("", "", 0, 0, 1);
 	tBitmapIndex bmi = PiggyFindBitmap (szBitmapName, gameStates.app.bD1Mission);
 	if (bmi.index < 0)
 		return;
@@ -550,10 +550,9 @@ if (*szBitmapName) {
 	G3EndFrame ();
 	if (!gameOpts->menus.nStyle)
 		GrUpdate (0);
-	paletteManager.LoadEffect  ();
-	CCanvas::SetCurrent (curCanvSave);
-	delete bitmapCanv;
-	bitmapCanv = NULL;
+	GrPaletteStepLoad (NULL);
+	grdCurCanv = curCanvSave;
+	D2_FREE (bitmapCanv);
 	if (!(bRedraw || nDoorDivCount)) {
 #if 1
 	nDoorDivCount = DOOR_DIV_INIT;
@@ -579,41 +578,41 @@ if (*szBitmapName) {
 
 //-----------------------------------------------------------------------------
 
-void ShowBriefingBitmap (CBitmap *bmp)
+void ShowBriefingBitmap (grsBitmap *bmp)
 {
-	CCanvas	*bitmapCanv;
+	gsrCanvas	*curCanvSave, *bitmapCanv;
 
-bitmapCanv = CCanvas::Current ()->CreatePane (220, 45, bmp->Width (), bmp->Height ());
-CCanvas::Push ();
-CCanvas::SetCurrent (bitmapCanv);
+bitmapCanv = GrCreateSubCanvas (grdCurCanv, 220, 45, bmp->bmProps.w, bmp->bmProps.h);
+curCanvSave = grdCurCanv;
+GrSetCurrentCanvas (bitmapCanv);
 GrBitmapM (0, 0, bmp, 0);
-CCanvas::Pop ();
-bitmapCanv->Destroy ();
+GrSetCurrentCanvas (curCanvSave);
+D2_FREE (bitmapCanv);
 }
 
 //-----------------------------------------------------------------------------
 
 void ShowSpinningRobotFrame (int nRobot)
 {
-	CCanvas	*curCanvSave;
+	gsrCanvas	*curCanvSave;
 
 if (nRobot != -1) {
 	vRobotAngles [HA] += 150;
 
-	curCanvSave = CCanvas::Current ();
-	CCanvas::SetCurrent (robotCanvP);
+	curCanvSave = grdCurCanv;
+	GrSetCurrentCanvas (robotCanvP);
 	Assert (ROBOTINFO (nRobot).nModel != -1);
 	if (bInitRobot) {
-		paletteManager.Load ("", "", 0, 0, 1);
+		LoadPalette ("", "", 0, 0, 1);
 		OglCachePolyModelTextures (ROBOTINFO (nRobot).nModel);
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		bInitRobot = 0;
 		}
 	gameStates.render.bFullBright	= 1;
-	CCanvas::Current ()->Clear (0);
+	GrClearCanvas (0);
 	DrawModelPicture (ROBOTINFO (nRobot).nModel, &vRobotAngles);
 	gameStates.render.bFullBright = 0;
-	CCanvas::SetCurrent (curCanvSave);
+	GrSetCurrentCanvas (curCanvSave);
 	}
 }
 
@@ -621,10 +620,10 @@ if (nRobot != -1) {
 
 void RotateBriefingRobot (void)
 {
-CCanvas::Push ();
-CCanvas::SetCurrent (robotCanvP);
+gsrCanvas	*curCanvSave = grdCurCanv;
+grdCurCanv = robotCanvP;
 RotateRobot ();
-CCanvas::Pop ();
+grdCurCanv = curCanvSave;
 }
 
 //-----------------------------------------------------------------------------
@@ -639,7 +638,7 @@ int x = RescaleX (138);
 int y = RescaleY (55);
 int w = RescaleX (163);
 int h = RescaleY (136);
-robotCanvP = CCanvas::Current ()->CreatePane (x, y, w, h);
+robotCanvP = GrCreateSubCanvas (grdCurCanv, x, y, w, h);
 bInitRobot = 1;
 	// 138, 55, 166, 138
 }
@@ -663,12 +662,12 @@ if ((nRobot < 0) && !*szBitmapName)
 else if (!tImage)
 	tImage = SDL_GetTicks ();
 
-FONT->StringSize (message, w, h, aw);
+GrGetStringSize (message, &w, &h, &aw);
 Assert ((nCurrentColor >= 0) && (nCurrentColor < MAX_BRIEFING_COLORS));
 
 //	Draw cursor if there is some delay and caller says to draw cursor
 if (cursorFlag && !bRedraw) {
-	fontManager.SetColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
+	GrSetFontColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
 	GrPrintF (NULL, briefingTextX+1, briefingTextY, "_");
 	if (!gameOpts->menus.nStyle)
 		GrUpdate (0);
@@ -699,14 +698,14 @@ tText = SDL_GetTicks ();
 
 //	Erase cursor
 if (cursorFlag && (delay > 0) && !bRedraw) {
-	fontManager.SetColorRGBi (nEraseColor, 1, 0, 0);
+	GrSetFontColorRGBi (nEraseColor, 1, 0, 0);
 	GrPrintF (NULL, briefingTextX+1, briefingTextY, "_");
 	//	erase the character
-	fontManager.SetColorRGB (briefBgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
+	GrSetFontColorRGB (briefBgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
 	GrPrintF (NULL, briefingTextX, briefingTextY, message);
 }
 //draw the character
-fontManager.SetColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
+GrSetFontColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
 GrPrintF (NULL, briefingTextX+1, briefingTextY, message);
 
 if (!(bRedraw || gameOpts->menus.nStyle)) 
@@ -746,7 +745,7 @@ int LoadNewBriefingScreen (char *szBriefScreen, int bRedraw)
 con_printf (CONDBG, "Loading new briefing <%s>\n", szBriefScreen);
 #endif
 strcpy (curBriefScreenName, szBriefScreen);
-if (paletteManager.FadeOut ())
+if (GrPaletteFadeOut (NULL, 32, 0))
 	return 0;
 if ((pcxResult = LoadBriefImg (szBriefScreen, NULL, 1)) != PCX_ERROR_NONE) {
 #if DBG
@@ -759,7 +758,7 @@ if ((pcxResult = LoadBriefImg (szBriefScreen, NULL, 1)) != PCX_ERROR_NONE) {
 		}
 #endif
 	}
-if (paletteManager.FadeIn ())
+if (GrPaletteFadeIn (NULL, 32, 0))
 	return 0;
 DoBriefingColorStuff ();
 return 1;
@@ -812,9 +811,9 @@ void FlashCursor (int cursorFlag)
 if (cursorFlag == 0)
 	return;
 if ((TimerGetFixedSeconds () % (F1_0/2)) > (F1_0/4))
-	fontManager.SetColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
+	GrSetFontColorRGB (briefFgColors [gameStates.app.bD1Mission] + nCurrentColor, NULL);
 else
-	fontManager.SetColorRGB (&eraseColorRgb, NULL);
+	GrSetFontColorRGB (&eraseColorRgb, NULL);
 GrPrintF (NULL, briefingTextX+1, briefingTextY, "_");
 if (gameStates.ogl.nDrawBuffer == GL_FRONT)
 	GrUpdate (0);
@@ -888,15 +887,13 @@ return 1;
 int _B (tBriefingInfo& bi)
 {
 	char        szBitmap [32];
-	CBitmap   guy_bitmap;
+	grsBitmap   guy_bitmap;
 	CIFF			iff;
 	int         iff_error;
 
 if (bi.message > bi.pj) {
-	if (robotCanvP != NULL) {
-		delete robotCanvP;
-		robotCanvP = NULL;
-		}
+	if (robotCanvP != NULL)
+		D2_FREE (robotCanvP);
 	}
 GetMessageName (&bi.message, szBitmap);
 strcat (szBitmap, ".bbm");
@@ -905,7 +902,7 @@ iff_error = iff.ReadBitmap (szBitmap, &guy_bitmap, BM_LINEAR);
 if (iff_error != IFF_NO_ERROR)
 	return 0;
 ShowBriefingBitmap (&guy_bitmap);
-guy_bitmap.DestroyBuffer ();
+D2_FREE (guy_bitmap.bmTexBuf);
 bi.prevCh = 10;
 return 1;
 }
@@ -949,10 +946,8 @@ return 1;
 int _N (tBriefingInfo& bi)
 {
 if (bi.message > bi.pj) {
-	if (robotCanvP != NULL) {
-		delete robotCanvP;
-		robotCanvP = NULL;
-		}
+	if (robotCanvP != NULL)
+		D2_FREE (robotCanvP);
 	StopBriefingSound (&bi.nBotChannel);
 	GetMessageName (&bi.message, szBitmapName);
 	strcat (szBitmapName, "#0");
@@ -967,10 +962,8 @@ return 1;
 int _O (tBriefingInfo& bi)
 {
 if (bi.message > bi.pj) {
-	if (robotCanvP != NULL) {
-		delete robotCanvP;
-		robotCanvP = NULL;
-		}
+	if (robotCanvP != NULL)
+		D2_FREE (robotCanvP);
 	GetMessageName (&bi.message, szBitmapName);
 	strcat (szBitmapName, "#0");
 	nAnimatingBitmapType = 1;
@@ -985,7 +978,7 @@ int _P (tBriefingInfo& bi)
 {
 if (!bi.bGotZ) {
 	Int3 (); // Hey ryan!!!!You gotta load a screen before you start printing to it!You know, $Z !!!
-	LoadNewBriefingScreen (gameStates.menus.bHires ? reinterpret_cast<char*> ("end01b.pcx") : reinterpret_cast<char*> ("end01.pcx"), bi.message <= bi.pj);
+	LoadNewBriefingScreen (gameStates.menus.bHires ? (char *) "end01b.pcx" : (char *) "end01.pcx", bi.message <= bi.pj);
 	bi.bHaveScreen = 1;
 	}
 bi.bNewPage = 1;
@@ -1001,10 +994,7 @@ return 1;
 int _R (tBriefingInfo& bi)
 {
 if (bi.message > bi.pj) {
-	if (robotCanvP != NULL) {
-		delete robotCanvP;
-		robotCanvP = NULL;
-		}
+	D2_FREE (robotCanvP);
 	if (bRobotPlaying) {
 		DeInitRobotMovie ();
 		bRobotPlaying = 0;
@@ -1021,10 +1011,10 @@ if (gameStates.app.bD1Mission)
 else {
 	bi.szSpinningRobot [2] = *bi.message++; // ugly but proud
 	if (bi.message > bi.pj) {
-		CCanvas::Push ();
-		CCanvas::SetCurrent (robotCanvP);
+		gsrCanvas *curCanvSave = grdCurCanv;
+		grdCurCanv = robotCanvP;
 		bRobotPlaying = InitRobotMovie (bi.szSpinningRobot);
-		CCanvas::Pop ();
+		grdCurCanv = curCanvSave;
 		if (bRobotPlaying) {
 			RotateBriefingRobot ();
 			DoBriefingColorStuff ();
@@ -1156,7 +1146,7 @@ return 1;
 int _ANY (tBriefingInfo& bi)
 {
 if (!bi.bGotZ) 
-	LoadNewBriefingScreen (gameStates.menus.bHires ? reinterpret_cast<char*> ("end01b.pcx") : reinterpret_cast<char*> ("end01.pcx"), bi.message <= bi.pj);
+	LoadNewBriefingScreen (gameStates.menus.bHires ? (char *) "end01b.pcx" : (char *) "end01.pcx", bi.message <= bi.pj);
 bi.prevCh = bi.ch;
 bi.bRedraw = !bi.nDelayCount || (bi.message <= bi.pj);
 if (!bi.bRedraw) {
@@ -1315,8 +1305,7 @@ int ShowBriefingMessage (int nScreen, char *message, int nLevel)
 nCurrentColor = 0;
 bRobotPlaying = 0;
 
-if (gameStates.app.bNostalgia)
-	OglSetDrawBuffer (gameStates.ogl.nDrawBuffer = GL_FRONT, 0);
+//OglSetDrawBuffer (gameStates.ogl.nDrawBuffer = GL_FRONT, 0);
 InitMovieBriefing ();
 
 bi.bExtraSounds = gameStates.app.bHaveExtraData && gameStates.app.bD1Mission && 
@@ -1325,7 +1314,7 @@ bi.bOnlyRobots = gameStates.app.bHaveExtraMovies && bi.bExtraSounds && (bi.nLeve
 if (!gameData.songs.bPlaying)
 	bi.nHumChannel = StartBriefingHum (bi.nHumChannel, bi.nLevel, bi.nScreen, bi.bExtraSounds);
 
-fontManager.SetCurrent (GAME_FONT);
+GrSetCurFont (GAME_FONT);
 
 bi.briefBuf = briefingScreens [bi.nScreen % MAX_BRIEFING_SCREENS];
 bi.bsP = &bi.briefBuf;
@@ -1410,10 +1399,8 @@ if (bRobotPlaying) {
 	DeInitRobotMovie ();
 	bRobotPlaying = 0;
 	}
-if (robotCanvP != NULL) {
-	delete robotCanvP;
-	robotCanvP = NULL;
-	}
+if (robotCanvP)
+	D2_FREE (robotCanvP);
 if (!gameData.songs.bPlaying)
 	StopBriefingSound (&bi.nHumChannel);
 StopBriefingSound (&bi.nPrintingChannel);
@@ -1457,17 +1444,17 @@ int LoadScreenText (char *filename, char **buf)
 if (!strstr (filename, ".t"))
 	strcat (filename, ".tex");
 bHaveBinary = (strstr (filename, ".txb") != NULL);
-if (!cf.Open (filename, gameFolders.szDataDir, bHaveBinary ? reinterpret_cast<char*> ("rb") : reinterpret_cast<char*> ("rt"), gameStates.app.bD1Mission)) {
+if (!cf.Open (filename, gameFolders.szDataDir, bHaveBinary ? (char *) "rb" : (char *) "rt", gameStates.app.bD1Mission)) {
 	bHaveBinary = !bHaveBinary;
 	strcpy (strstr (filename, ".t"), bHaveBinary ? ".txb" : ".tex");
-	if (!cf.Open (filename, gameFolders.szDataDir, bHaveBinary ? reinterpret_cast<char*> ("rb") : reinterpret_cast<char*> ("rt"), gameStates.app.bD1Mission)) {
+	if (!cf.Open (filename, gameFolders.szDataDir, bHaveBinary ? (char *) "rb" : (char *) "rt", gameStates.app.bD1Mission)) {
 		PrintLog ("can't open briefing '%s'!\n", filename);
 		return (0);
 		}
 	}
 if (bHaveBinary) {
 	len = cf.Length ();
-	bufP = new char [len];
+	MALLOC (bufP, char, len);
 	*buf = bufP;
 	for (i = 0; i < len; i++, bufP++) {
 		cf.Read (bufP, 1, 1);
@@ -1481,7 +1468,7 @@ if (bHaveBinary) {
 	}
 else {
 	len = cf.Length ();
-	bufP = new char [len + 500];
+	MALLOC (bufP, char, len+500);
 	*buf = bufP;
 	for (i = 0; i < len; i++, bufP++) {
 		cf.Read (bufP, 1, 1);
@@ -1516,40 +1503,40 @@ return i;
 
 void DoBriefingColorStuff ()
 {
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 
 if (gameStates.app.bD1Mission) {
   //green
-	briefFgColorIndex [0] = paletteManager.ClosestColor (0, 54, 0);
-	briefBgColorIndex [0] = paletteManager.ClosestColor (0, 19, 0);
+	briefFgColorIndex [0] = GrFindClosestColorCurrent (0, 54, 0);
+	briefBgColorIndex [0] = GrFindClosestColorCurrent (0, 19, 0);
   //white
-	briefFgColorIndex [1] = paletteManager.ClosestColor (42, 38, 32);
-	briefBgColorIndex [1] = paletteManager.ClosestColor (14, 14, 14);
+	briefFgColorIndex [1] = GrFindClosestColorCurrent (42, 38, 32);
+	briefBgColorIndex [1] = GrFindClosestColorCurrent (14, 14, 14);
 	//Begin D1X addition
 	//red
-	briefFgColorIndex [2] = paletteManager.ClosestColor (63, 0, 0);
-	briefBgColorIndex [2] = paletteManager.ClosestColor (31, 0, 0);
+	briefFgColorIndex [2] = GrFindClosestColorCurrent (63, 0, 0);
+	briefBgColorIndex [2] = GrFindClosestColorCurrent (31, 0, 0);
 	}
 else {
-	briefFgColorIndex [0] = paletteManager.ClosestColor (0, 40, 0);
-	briefBgColorIndex [0] = paletteManager.ClosestColor (0, 6, 0);
-	briefFgColorIndex [1] = paletteManager.ClosestColor (40, 33, 35);
-	briefBgColorIndex [1] = paletteManager.ClosestColor (5, 5, 5);
-	briefFgColorIndex [2] = paletteManager.ClosestColor (8, 31, 54);
-	briefBgColorIndex [2] = paletteManager.ClosestColor (1, 4, 7);
+	briefFgColorIndex [0] = GrFindClosestColorCurrent (0, 40, 0);
+	briefBgColorIndex [0] = GrFindClosestColorCurrent (0, 6, 0);
+	briefFgColorIndex [1] = GrFindClosestColorCurrent (40, 33, 35);
+	briefBgColorIndex [1] = GrFindClosestColorCurrent (5, 5, 5);
+	briefFgColorIndex [2] = GrFindClosestColorCurrent (8, 31, 54);
+	briefBgColorIndex [2] = GrFindClosestColorCurrent (1, 4, 7);
 	}
 //blue
-briefFgColorIndex [3] = paletteManager.ClosestColor (0, 0, 54);
-briefBgColorIndex [3] = paletteManager.ClosestColor (0, 0, 19);
+briefFgColorIndex [3] = GrFindClosestColorCurrent (0, 0, 54);
+briefBgColorIndex [3] = GrFindClosestColorCurrent (0, 0, 19);
 //gray
-briefFgColorIndex [4] = paletteManager.ClosestColor (14, 14, 14);
-briefBgColorIndex [4] = paletteManager.ClosestColor (0, 0, 0);
+briefFgColorIndex [4] = GrFindClosestColorCurrent (14, 14, 14);
+briefBgColorIndex [4] = GrFindClosestColorCurrent (0, 0, 0);
 //yellow
-briefFgColorIndex [5] = paletteManager.ClosestColor (54, 54, 0);
-briefBgColorIndex [5] = paletteManager.ClosestColor (19, 19, 0);
+briefFgColorIndex [5] = GrFindClosestColorCurrent (54, 54, 0);
+briefBgColorIndex [5] = GrFindClosestColorCurrent (19, 19, 0);
 //purple
-briefFgColorIndex [6] = paletteManager.ClosestColor (0, 54, 54);
-briefBgColorIndex [6] = paletteManager.ClosestColor (0, 19, 19);
+briefFgColorIndex [6] = GrFindClosestColorCurrent (0, 54, 54);
+briefBgColorIndex [6] = GrFindClosestColorCurrent (0, 19, 19);
 //End D1X addition
 }
 
@@ -1565,9 +1552,9 @@ if (gameOpts->gameplay.bSkipBriefingScreens) {
 if (gameStates.app.bD1Mission) {
 	int pcxResult;
 #if 1
-	CBitmap bmBriefing;
+	grsBitmap bmBriefing;
 
-	bmBriefing.Init ();
+	GrInitBitmapData (&bmBriefing);
 	if ((pcxResult = LoadBriefImg (briefingScreens [nScreen % MAX_BRIEFING_SCREENS].bs_name, &bmBriefing, 0)) != PCX_ERROR_NONE) {
 #else
 	if ((pcxResult = PcxReadFullScrImage (briefingScreens [nScreen % MAX_BRIEFING_SCREENS].bs_name, 1)) != PCX_ERROR_NONE) {
@@ -1577,17 +1564,17 @@ if (gameStates.app.bD1Mission) {
 		Int3 ();
 		return 0;
 		}
-	paletteManager.LoadEffect (bmBriefing.Palette ());
-	CCanvas::SetCurrent (NULL);
+	GrPaletteStepLoad (bmBriefing.bmPalette);
+	GrSetCurrentCanvas (NULL);
 	ShowFullscreenImage (&bmBriefing);
 	GrUpdate (0);
-	bmBriefing.Destroy ();
-	if (paletteManager.FadeIn ())
+	GrFreeBitmapData (&bmBriefing);
+	if (GrPaletteFadeIn (NULL, 32, bAllowKeys))
 		return 1;
 	}
 if (!ShowBriefingText (nScreen, nLevel))
 	return 0;
-if (paletteManager.FadeOut ())
+if (GrPaletteFadeOut (NULL, 32, bAllowKeys))
 	return 1;
 return 1;
 }
@@ -1604,8 +1591,6 @@ void DoBriefingScreens (const char *filename, int nLevel)
 PrintLog ("Starting the briefing\n");
 gameStates.render.bBriefing = 1;
 RebuildRenderContext (1);
-if (gameStates.app.bNostalgia)
-	OglSetDrawBuffer (gameStates.ogl.nDrawBuffer = GL_FRONT, 0);
 if (gameOpts->gameplay.bSkipBriefingScreens) {
 	con_printf (CONDBG, "Skipping all briefing screens.\n");
 	gameStates.render.bBriefing = 0;
@@ -1644,12 +1629,12 @@ if (!LoadScreenText (fnBriefing, &szBriefingText)) {
 DigiStopAllChannels ();
 SongsPlaySong (SONG_BRIEFING, 1);
 SetScreenMode (SCREEN_MENU);
-CCanvas::SetCurrent (NULL);
+GrSetCurrentCanvas (NULL);
 gameStates.render.nShadowPass = 0;
 con_printf (CONDBG, "Playing briefing screen <%s>, level %d\n", fnBriefing, nLevel);
 KeyFlush ();
 if (gameStates.app.bD1Mission) {
-	paletteManager.SetGame (paletteManager.Load (NULL, NULL, 1, 1, 1));
+	gamePalette = LoadPalette (NULL, NULL, 1, 1, 1);
 	LoadD1BitmapReplacements ();
 	if (nLevel == 1) {
 		while (!bAbortBriefing && 
@@ -1671,7 +1656,7 @@ if (gameStates.app.bD1Mission) {
 else
 	ShowBriefingScreen (nLevel, 0, (short) nLevel);
 gameStates.render.bBriefing = 0;
-delete[] szBriefingText;
+D2_FREE (szBriefingText);
 szBriefingText = NULL;
 KeyFlush ();
 return;

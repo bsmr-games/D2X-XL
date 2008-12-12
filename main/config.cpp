@@ -55,26 +55,14 @@ void InitCustomDetails(void);
 
 tGameConfig gameConfig;
 
-class CHashList {
-	public:
-		int				nHashs;
-		CArray<uint>	hashs;
-	public:
-		CHashList () { nHashs = 0; }
-};
+typedef struct tHashList {
+	int	nHashs;
+	uint	*hashs;
+} tHashList;
 
-CHashList hashList;
+tHashList hashList = {0, NULL};
 
 static uint nDefaultHash = 0xba61cc0b;
-
-//------------------------------------------------------------------------------
-
-void SetNostalgia (int nLevel)
-{
-gameStates.app.bNostalgia = (nLevel < 0) ? 0 : (nLevel > 3) ? 3 : nLevel;
-gameStates.app.iNostalgia = (gameStates.app.bNostalgia > 0);
-gameOpts = gameOptions + gameStates.app.iNostalgia;
-}
 
 //------------------------------------------------------------------------------
 
@@ -125,12 +113,12 @@ static uint cfgHashs [] = {
 
 int CfgLoadHashs (char *pszFilter, char *pszFolder)
 {
-nDefaultHash = Crc32 (0, reinterpret_cast<ubyte*> ("m4d1"), 4);
+nDefaultHash = Crc32 (0, (unsigned char *) "m4d1", 4);
 if (hashList.nHashs)
 	return hashList.nHashs;
 if (!CfgCountHashs (pszFilter, pszFolder))
 	return 0;
-hashList.hashs.Create (hashList.nHashs);
+hashList.hashs = (uint *) D2_ALLOC (hashList.nHashs * sizeof (int));
 
 	FFS	ffs;
 	char	szTag [FILENAME_LEN];
@@ -141,7 +129,7 @@ for (i = 0; i ? !FFN (&ffs, 0) : !FFF (szTag, &ffs, 0); i++) {
 	ffs.name [4] = '\0';
 	strlwr (ffs.name);
 	strcompress (ffs.name);
-	hashList.hashs [i] = Crc16 (0, reinterpret_cast<const ubyte*> (&ffs.name [0]), 4);
+	hashList.hashs [i] = Crc16 (0, (const unsigned char *) &ffs.name [0], 4);
 	}
 return i;
 }
@@ -200,7 +188,7 @@ return true;
 
 bool CheckGameConfig (void)
 {
-return !gameStates.app.bNostalgia && (nDefaultHash != gameConfig.cfgDataHash);
+return (nDefaultHash != gameConfig.cfgDataHash);
 }
 
 // ----------------------------------------------------------------------------
@@ -323,7 +311,7 @@ while (!cf.EoF ()) {
 			gameConfig.bReverseChannels = (ubyte) strtol (value, NULL, 10);
 		else if (!strcmp (token, pszGammaLevel)) {
 			gamma = (ubyte) strtol (value, NULL, 10);
-			paletteManager.SetGamma (gamma);
+			GrSetPaletteGamma (gamma);
 			}
 		else if (!strcmp (token, pszDetailLevel)) {
 			gameStates.app.nDetailLevel = strtol (value, NULL, 10);
@@ -424,8 +412,6 @@ if (cf.Open ("descentw.cfg", gameFolders.szConfigDir, "rt", 0)) {
 	}
 JoySetCalVals (cal, sizeofa (cal));
 CfgInitHashs ();
-if (CheckGameConfig ())
-	SetNostalgia (3);
 return 0;
 }
 
@@ -437,7 +423,7 @@ int WriteConfigFile (void)
 	char str [256];
 	int i, j;
 	tJoyAxisCal cal [JOY_MAX_AXES];
-	ubyte gamma = paletteManager.GetGamma ();
+	ubyte gamma = GrGetPaletteGamma();
 
 con_printf (CON_VERBOSE, "writing config file ...\n");
 con_printf (CON_VERBOSE, "   getting joystick calibration values ...\n");
