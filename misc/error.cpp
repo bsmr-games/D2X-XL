@@ -41,7 +41,7 @@ FILE *fErr = NULL;
 int err_initialized=0;
 //end edit -MM
 
-static void (*ErrorPrintFunc) (const char *);
+static void (*ErrorPrintFunc)(const char *);
 
 char szExitMsg[MAX_MSG_LEN]="";
 char szWarnMsg[MAX_MSG_LEN];
@@ -134,10 +134,10 @@ if (*szExitMsg) {
 #	define MB_ICONERROR 0
 #endif
 
-void D2MsgBox (const char *pszMsg, uint nType)
+void D2MsgBox (const char *pszMsg, unsigned int nType)
 {
 gameData.app.bGamePaused = 1;
-if (screen.Width () && screen.Height () && pWarnFunc)
+if (grdCurScreen && pWarnFunc)
 	(*pWarnFunc)(pszMsg);
 #if defined (WIN32)
 else 
@@ -210,7 +210,7 @@ gameStates.app.bShowError = 0;
 
 //------------------------------------------------------------------------------
 //initialize error handling system, and set default message. returns 0=ok
-int _CDECL_ error_init (void (*func)(const char *), const char *fmt, ...)
+int _CDECL_ error_init(void (*func)(const char *), const char *fmt, ...)
 {
 	va_list arglist;
 	int len;
@@ -270,9 +270,9 @@ return 0;
 }
 
 
-int TrapBmp (CBitmap *bmP, char *pszName)
+int TrapBmp (grsBitmap *bmP, char *pszName)
 {
-if (strstr (bmP->Name (), pszName))
+if (strstr (bmP->szName, pszName))
 	return 1;
 return 0;
 }

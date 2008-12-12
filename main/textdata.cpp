@@ -17,14 +17,14 @@
 
 //------------------------------------------------------------------------------
 
-void FreeTextData (CTextData *msgP)
+void FreeTextData (tTextData *msgP)
 {
-delete[] msgP->textBuffer;
-msgP->textBuffer = NULL;
-delete[] msgP->index;
-msgP->index = NULL;
-if (msgP->bmP)
-	delete msgP->bmP;
+D2_FREE (msgP->textBuffer);
+D2_FREE (msgP->index);
+if (msgP->bmP) {
+	GrFreeBitmap (msgP->bmP);
+	msgP->bmP = NULL;
+	}
 msgP->nMessages = 0;
 }
 
@@ -59,36 +59,36 @@ if (left < r)
 
 //------------------------------------------------------------------------------
 
-void LoadTextData (const char *pszLevelName, const char *pszExt, CTextData *msgP)
+void LoadTextData (const char *pszLevelName, const char *pszExt, tTextData *msgP)
 {
 	char			szFilename [SHORT_FILENAME_LEN];
-	CFile			cf;
+	CFILE			cf;
 	int			bufSize, nLines;
 	char			*p, *q;
 	tTextIndex	*pi;
 
-//first, free up data allocated for old bitmaps
+	//first, D2_FREE up data allocated for old bitmaps
 PrintLog ("   loading mission messages\n");
 FreeTextData (msgP);
-CFile::ChangeFilenameExtension (szFilename, pszLevelName, pszExt);
-bufSize = cf.Size (szFilename, gameFolders.szDataDir, 0);
+ChangeFilenameExtension (szFilename, pszLevelName, pszExt);
+bufSize = CFSize (szFilename, gameFolders.szDataDir, 0);
 if (bufSize <= 0)
 	return;
-if (!(msgP->textBuffer = new char [bufSize + 2]))
+if (!(msgP->textBuffer = (char *) D2_ALLOC (bufSize + 2)))
 	return;
-if (!cf.Open (szFilename, gameFolders.szDataDir, "rb", 0)) {
+if (!CFOpen (&cf, szFilename, gameFolders.szDataDir, "rb", 0)) {
 	FreeTextData (msgP);
 	return;
 	}
-cf.Read (msgP->textBuffer + 1, 1, bufSize);
-cf.Close ();
+CFRead (msgP->textBuffer + 1, 1, bufSize, &cf);
+CFClose (&cf);
 msgP->textBuffer [0] = '\n';
 msgP->textBuffer [bufSize + 1] = '\0';
 for (p = msgP->textBuffer + 1, nLines = 1; *p; p++) {
 	if (*p == '\n')
 		nLines++;
 	}
-if (!(msgP->index = new tTextIndex [nLines])) {
+if (!(msgP->index = (tTextIndex *) D2_ALLOC (nLines * sizeof (tTextIndex)))) {
 	FreeTextData (msgP);
 	return;
 	}
@@ -135,7 +135,7 @@ QSortTextData (msgP->index, 0, msgP->nMessages - 1);
 
 //------------------------------------------------------------------------------
 
-tTextIndex *FindTextData (CTextData *msgP, int nId)
+tTextIndex *FindTextData (tTextData *msgP, int nId)
 {
 	int	h, m, l = 0, r = msgP->nMessages - 1;
 
@@ -154,7 +154,7 @@ return NULL;
 
 //------------------------------------------------------------------------------
 
-int ShowGameMessage (CTextData *msgP, int nId, int nDuration)
+int ShowGameMessage (tTextData *msgP, int nId, int nDuration)
 {
 	tTextIndex	*indexP;
 	short			w, h, x, y;
@@ -175,7 +175,7 @@ else {
 	msgP->nStartTime = gameStates.app.nSDLTicks;
 	msgP->nEndTime = (nDuration < 0) ? -1 : gameStates.app.nSDLTicks + 1000 * nDuration;
 	if (msgP->bmP) {
-		delete msgP->bmP;
+		GrFreeBitmap (msgP->bmP);
 		msgP->bmP = NULL;
 		}
 	}
@@ -189,14 +189,14 @@ if (msgP->nEndTime < 0) {
 	}
 else if (!gameStates.render.nWindow) {
 	if (!msgP->bmP) {
-		fontManager.SetCurrent (NORMAL_FONT);
-		fontManager.SetColorRGBi (GOLD_RGBA, 1, 0, 0);
+		grdCurCanv->cvFont = NORMAL_FONT;
+		GrSetFontColorRGBi (GOLD_RGBA, 1, 0, 0);
 		}
 	if (msgP->bmP || (msgP->bmP = CreateStringBitmap (indexP->pszText, 0, 0, NULL, 0, 0, -1))) {
-		w = msgP->bmP->Width ();
-		h = msgP->bmP->Height ();
-		x = (CCanvas::Current ()->Width () - w) / 2;
-		y = (CCanvas::Current ()->Height () - h) * 2 / 5;
+		w = msgP->bmP->bmProps.w;
+		h = msgP->bmP->bmProps.h;
+		x = (grdCurCanv->cv_w - w) / 2;
+		y = (grdCurCanv->cv_h - h) * 2 / 5;
 		if (msgP->nEndTime < 0)
 			fAlpha = 1.0f;
 		else if (gameStates.app.nSDLTicks - msgP->nStartTime < 250)
@@ -206,7 +206,7 @@ else if (!gameStates.render.nWindow) {
 		else
 			fAlpha = 1.0f;
 		NMBlueBox (x - 8, y - 8, x + w + 4, y + h + 4, 3, fAlpha, 1);
-		OglUBitBltI (w, h, x, y, w, h, 0, 0, msgP->bmP, CCanvas::Current (), 0, 1, fAlpha);
+		OglUBitBltI (w, h, x, y, w, h, 0, 0, msgP->bmP, &grdCurCanv->cvBitmap, 0, 1, fAlpha);
 		}
 	}
 return 1;

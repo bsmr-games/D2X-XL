@@ -38,9 +38,9 @@ const size_t FVEC = 2;
 const size_t HVEC = 3;
 
 // forward-declarations for ToFloat () and ToFix ();
-class CFixVector;
+class vmsVector;
 class fVector3;
-class CFloatVector;
+class fVector;
 
 class vmsMatrix;
 class fMatrix;
@@ -90,7 +90,7 @@ class fVector3 {
 		const fVector3 operator+ (const fVector3& vec) const;
 		const fVector3 operator- (const fVector3& vec) const;
 
-		const CFixVector ToFix () const;
+		const vmsVector ToFix () const;
 
 	private:
 		float v [3];
@@ -241,28 +241,28 @@ inline const fVector3 operator/ (const fVector3& v, float s) {
 
 
 /**
- * \class CFloatVector
+ * \class fVector
  * A 4 element floating point vector class
  */
-class CFloatVector {
+class fVector {
 	public:
-		static const CFloatVector ZERO;
-		static const CFloatVector ZERO4;
-		static const CFloatVector XVEC;
-		static const CFloatVector YVEC;
-		static const CFloatVector ZVEC;
+		static const fVector ZERO;
+		static const fVector ZERO4;
+		static const fVector XVEC;
+		static const fVector YVEC;
+		static const fVector ZVEC;
 
-		static const CFloatVector Create (float f0, float f1, float f2, float f3=1.0f);
+		static const fVector Create (float f0, float f1, float f2, float f3=1.0f);
 
-		static const CFloatVector Avg (const CFloatVector& src0, const CFloatVector& src1);
-		static const CFloatVector Cross (const CFloatVector& v0, const CFloatVector& v1);
+		static const fVector Avg (const fVector& src0, const fVector& src1);
+		static const fVector Cross (const fVector& v0, const fVector& v1);
 
-		static const float Dist (const CFloatVector& v0, const CFloatVector& v1);
-		static const float Dot (const CFloatVector& v0, const CFloatVector& v1);
-		static const float Normalize (CFloatVector& vec);
-		static const CFloatVector Perp (const CFloatVector& p0, const CFloatVector& p1, const CFloatVector& p2);
-		static const CFloatVector Normal (const CFloatVector& p0, const CFloatVector& p1, const CFloatVector& p2);
-		static const CFloatVector Reflect (const CFloatVector& d, const CFloatVector& n);
+		static const float Dist (const fVector& v0, const fVector& v1);
+		static const float Dot (const fVector& v0, const fVector& v1);
+		static const float Normalize (fVector& vec);
+		static const fVector Perp (const fVector& p0, const fVector& p1, const fVector& p2);
+		static const fVector Normal (const fVector& p0, const fVector& p1, const fVector& p2);
+		static const fVector Reflect (const fVector& d, const fVector& n);
 
 		// access op for assignment
 		float& operator[] (size_t idx);
@@ -276,168 +276,168 @@ class CFloatVector {
 		void Set (const float *vec);
 		const float SqrMag () const;
 		const float Mag () const;
-		CFloatVector& Neg ();
+		fVector& Neg ();
 		fVector3* V3 ();
 
-		const CFloatVector operator- () const;
-		const bool operator== (const CFloatVector& vec);
-		const bool operator!= (const CFloatVector& vec);
-		const CFloatVector& operator+= (const CFloatVector& vec);
-		const CFloatVector& operator-= (const CFloatVector& vec);
-		const CFloatVector& operator*= (const float s);
-		const CFloatVector& operator/= (const float s);
-		const CFloatVector  operator+ (const CFloatVector& vec) const;
-		const CFloatVector  operator- (const CFloatVector& vec) const;
+		const fVector operator- () const;
+		const bool operator== (const fVector& vec);
+		const bool operator!= (const fVector& vec);
+		const fVector& operator+= (const fVector& vec);
+		const fVector& operator-= (const fVector& vec);
+		const fVector& operator*= (const float s);
+		const fVector& operator/= (const float s);
+		const fVector  operator+ (const fVector& vec) const;
+		const fVector  operator- (const fVector& vec) const;
 
-		const CFixVector ToFix () const;
+		const vmsVector ToFix () const;
 
 	private:
 		float v [4];
 };
 
-const CFloatVector operator* (const CFloatVector& v, const float s);
-const CFloatVector operator* (const float s, const CFloatVector& v);
-const CFloatVector operator/ (const CFloatVector& v, const float s);
+const fVector operator* (const fVector& v, const float s);
+const fVector operator* (const float s, const fVector& v);
+const fVector operator/ (const fVector& v, const float s);
 
 
 // -----------------------------------------------------------------------------
-// CFloatVector static inlines
+// fVector static inlines
 
-inline const CFloatVector CFloatVector::Create (float f0, float f1, float f2, float f3) {
-	CFloatVector vec;
+inline const fVector fVector::Create (float f0, float f1, float f2, float f3) {
+	fVector vec;
 	vec.Set (f0, f1, f2, f3);
 	return vec;
 }
 
-inline const CFloatVector CFloatVector::Avg (const CFloatVector& src0, const CFloatVector& src1) {
+inline const fVector fVector::Avg (const fVector& src0, const fVector& src1) {
 	return Create ( (src0 [X] + src1 [X]) / 2,
 	              (src0 [Y] + src1 [Y]) / 2,
 	              (src0 [Z] + src1 [Z]) / 2,
 	              1);
 }
 
-inline const CFloatVector CFloatVector::Cross (const CFloatVector& v0, const CFloatVector& v1) {
+inline const fVector fVector::Cross (const fVector& v0, const fVector& v1) {
 	return Create (v0 [Y]*v1 [Z] - v0 [Z]*v1 [Y],
 	              v0 [Z]*v1 [X] - v0 [X]*v1 [Z],
 	              v0 [X]*v1 [Y] - v0 [Y]*v1 [X]);
 }
 
-inline const float CFloatVector::Dist (const CFloatVector& v0, const CFloatVector& v1) {
+inline const float fVector::Dist (const fVector& v0, const fVector& v1) {
 	return (v0-v1).Mag ();
 }
 
-inline const float CFloatVector::Dot (const CFloatVector& v0, const CFloatVector& v1) {
+inline const float fVector::Dot (const fVector& v0, const fVector& v1) {
 	return v0 [X]*v1 [X] + v0 [Y]*v1 [Y] + v0 [Z]*v1 [Z];
 }
 
-inline const float CFloatVector::Normalize (CFloatVector& vec) {
+inline const float fVector::Normalize (fVector& vec) {
 	float m = vec.Mag ();
 	if (m)
 		vec /= m;
 	return m;
 }
 
-inline const CFloatVector CFloatVector::Perp (const CFloatVector& p0, const CFloatVector& p1, const CFloatVector& p2) {
+inline const fVector fVector::Perp (const fVector& p0, const fVector& p1, const fVector& p2) {
 	return Cross (p1 - p0, p2 - p1);
 }
 
-inline const CFloatVector CFloatVector::Normal (const CFloatVector& p0, const CFloatVector& p1, const CFloatVector& p2) {
-	CFloatVector v = 2.0f*Perp (p0, p1, p2);
+inline const fVector fVector::Normal (const fVector& p0, const fVector& p1, const fVector& p2) {
+	fVector v = 2.0f*Perp (p0, p1, p2);
 	Normalize (v);
 	return v;
 }
 
-inline const CFloatVector CFloatVector::Reflect (const CFloatVector& d, const CFloatVector& n) {
+inline const fVector fVector::Reflect (const fVector& d, const fVector& n) {
 	return -2.0f * Dot (d, n) * n + d;
 
 }
 
 
 // -----------------------------------------------------------------------------
-// CFloatVector member inlines
+// fVector member inlines
 
-inline float& CFloatVector::operator[] (size_t idx) { return v [idx]; }
+inline float& fVector::operator[] (size_t idx) { return v [idx]; }
 
-inline const float CFloatVector::operator[] (size_t idx) const { return v [idx]; }
+inline const float fVector::operator[] (size_t idx) const { return v [idx]; }
 
-inline bool CFloatVector::IsZero () const { return ! (v [X] || v [Y] || v [Z] || v [W]); }
+inline bool fVector::IsZero () const { return ! (v [X] || v [Y] || v [Z] || v [W]); }
 
-inline void CFloatVector::SetZero () { memset (v, 0, 4*sizeof (float)); }
+inline void fVector::SetZero () { memset (v, 0, 4*sizeof (float)); }
 
-inline void CFloatVector::Set (const float f0, const float f1, const float f2, const float f3) {
+inline void fVector::Set (const float f0, const float f1, const float f2, const float f3) {
 	v [X] = f0; v [Y] = f1; v [Z] = f2; v [W] = f3;
 }
 
-inline void CFloatVector::Set (const float *vec) {
+inline void fVector::Set (const float *vec) {
 	v [X] = vec [0]; v [Y] = vec [1]; v [Z] = vec [2]; v [W] = 1.0f;
 }
 
-inline const float CFloatVector::SqrMag () const {
+inline const float fVector::SqrMag () const {
 	return v [X]*v [X] + v [Y]*v [Y] + v [Z]*v [Z];
 }
 
-inline const float CFloatVector::Mag () const {
+inline const float fVector::Mag () const {
 	return (const float) sqrt (SqrMag ());
 }
 
-inline CFloatVector& CFloatVector::Neg () { v [0] = -v [0], v [1] = -v [1], v [2] = -v [2]; return *this; }
+inline fVector& fVector::Neg () { v [0] = -v [0], v [1] = -v [1], v [2] = -v [2]; return *this; }
 
-inline fVector3* CFloatVector::V3 () { return reinterpret_cast<fVector3*> (v); }
+inline fVector3* fVector::V3 () { return reinterpret_cast<fVector3*> (v); }
 
-inline const CFloatVector CFloatVector::operator- () const {
+inline const fVector fVector::operator- () const {
 	return Create (-v [X], -v [Y], -v [Z]);
 }
 
-inline const bool CFloatVector::operator== (const CFloatVector& vec) {
+inline const bool fVector::operator== (const fVector& vec) {
 	return v [0] == vec [0] && v [1] == vec [1] && v [2] == vec [2];
 }
 
-inline const bool CFloatVector::operator!= (const CFloatVector& vec) {
+inline const bool fVector::operator!= (const fVector& vec) {
 	return v [0] != vec [0] || v [1] != vec [1] || v [2] != vec [2];
 }
 
-inline const CFloatVector& CFloatVector::operator+= (const CFloatVector& vec) {
+inline const fVector& fVector::operator+= (const fVector& vec) {
 	v [X] += vec [X]; v [Y] += vec [Y]; v [Z] += vec [Z];
 	return *this;
 }
 
-inline const CFloatVector& CFloatVector::operator-= (const CFloatVector& vec) {
+inline const fVector& fVector::operator-= (const fVector& vec) {
 	v [X] -= vec [X]; v [Y] -= vec [Y]; v [Z] -= vec [Z];
 	return *this;
 }
 
-inline const CFloatVector& CFloatVector::operator*= (const float s) {
+inline const fVector& fVector::operator*= (const float s) {
 	v [0] *= s; v [1] *= s; v [2] *= s;
 	return *this;
 }
 
-inline const CFloatVector& CFloatVector::operator/= (const float s) {
+inline const fVector& fVector::operator/= (const float s) {
 	v [0] /= s; v [1] /= s; v [2] /= s;
 	return *this;
 }
 
-inline const CFloatVector CFloatVector::operator+ (const CFloatVector& vec) const {
+inline const fVector fVector::operator+ (const fVector& vec) const {
 	return Create (v [0]+vec [0], v [1]+vec [1], v [2]+vec [2], 1);
 }
 
-inline const CFloatVector CFloatVector::operator- (const CFloatVector& vec) const {
+inline const fVector fVector::operator- (const fVector& vec) const {
 	return Create (v [0]-vec [0], v [1]-vec [1], v [2]-vec [2], 1);
 }
 
 
 // -----------------------------------------------------------------------------
-// CFloatVector-related non-member ops
+// fVector-related non-member ops
 
-inline const CFloatVector operator* (const CFloatVector& v, const float s) {
-	return CFloatVector::Create (v [X]*s, v [Y]*s, v [Z]*s, 1);
+inline const fVector operator* (const fVector& v, const float s) {
+	return fVector::Create (v [X]*s, v [Y]*s, v [Z]*s, 1);
 }
 
-inline const CFloatVector operator* (const float s, const CFloatVector& v) {
-	return CFloatVector::Create (v [X]*s, v [Y]*s, v [Z]*s, 1);
+inline const fVector operator* (const float s, const fVector& v) {
+	return fVector::Create (v [X]*s, v [Y]*s, v [Z]*s, 1);
 }
 
-inline const CFloatVector operator/ (const CFloatVector& v, const float s) {
-	return CFloatVector::Create (v [X]/s, v [Y]/s, v [Z]/s, 1);
+inline const fVector operator/ (const fVector& v, const float s) {
+	return fVector::Create (v [X]/s, v [Y]/s, v [Z]/s, 1);
 }
 
 
@@ -465,54 +465,54 @@ private:
 
 
 /**
- * \class CFixVector
+ * \class vmsVector
  * A 3 element fixed-point vector.
  */
-class CFixVector {
+class vmsVector {
 	public:
-		static const CFixVector ZERO;
-		static const CFixVector XVEC;
-		static const CFixVector YVEC;
-		static const CFixVector ZVEC;
+		static const vmsVector ZERO;
+		static const vmsVector XVEC;
+		static const vmsVector YVEC;
+		static const vmsVector ZVEC;
 
-		static const CFixVector Create (fix f0, fix f1, fix f2);
-		static const CFixVector Avg (const CFixVector& src0, const CFixVector& src1);
-		static const CFixVector Avg (CFixVector& src0, CFixVector& src1,
-								   CFixVector& src2, CFixVector& src3);
-		static const CFixVector Cross (const CFixVector& v0, const CFixVector& v1);
+		static const vmsVector Create (fix f0, fix f1, fix f2);
+		static const vmsVector Avg (const vmsVector& src0, const vmsVector& src1);
+		static const vmsVector Avg (vmsVector& src0, vmsVector& src1,
+								   vmsVector& src2, vmsVector& src3);
+		static const vmsVector Cross (const vmsVector& v0, const vmsVector& v1);
 		//computes the delta angle between two vectors.
-		//vectors need not be normalized. if they are, call CFixVector::DeltaAngleNorm ()
+		//vectors need not be normalized. if they are, call vmsVector::DeltaAngleNorm ()
 		//the forward vector (third parameter) can be NULL, in which case the absolute
 		//value of the angle in returned.  Otherwise the angle around that vector is
 		//returned.
-		static const fixang DeltaAngle (const CFixVector& v0, const CFixVector& v1, CFixVector *fVec);		//computes the delta angle between two normalized vectors.
-		static const fixang DeltaAngleNorm (const CFixVector& v0, const CFixVector& v1, CFixVector *fVec);
-		static const fix Dist (const CFixVector& vec0, const CFixVector& vec1);
-		static const fix SSEDot (CFixVector *v0, CFixVector *v1);
-		static const fix Dot (const CFixVector& v0, const CFixVector& v1);
-		static const fix Dot (const fix x, const fix y, const fix z, const CFixVector& v);
-		static const fix Normalize (CFixVector& v);
-		static const CFixVector Perp (const CFixVector& p0, const CFixVector& p1, const CFixVector& p2);
-		static const CFixVector Normal (const CFixVector& p0, const CFixVector& p1, const CFixVector& p2);
-		static const CFixVector Random ();
-		static const CFixVector Reflect (const CFixVector& d, const CFixVector& n);
+		static const fixang DeltaAngle (const vmsVector& v0, const vmsVector& v1, vmsVector *fVec);		//computes the delta angle between two normalized vectors.
+		static const fixang DeltaAngleNorm (const vmsVector& v0, const vmsVector& v1, vmsVector *fVec);
+		static const fix Dist (const vmsVector& vec0, const vmsVector& vec1);
+		static const fix SSEDot (vmsVector *v0, vmsVector *v1);
+		static const fix Dot (const vmsVector& v0, const vmsVector& v1);
+		static const fix Dot (const fix x, const fix y, const fix z, const vmsVector& v);
+		static const fix Normalize (vmsVector& v);
+		static const vmsVector Perp (const vmsVector& p0, const vmsVector& p1, const vmsVector& p2);
+		static const vmsVector Normal (const vmsVector& p0, const vmsVector& p1, const vmsVector& p2);
+		static const vmsVector Random ();
+		static const vmsVector Reflect (const vmsVector& d, const vmsVector& n);
 		//return the normalized direction vector between two points
 		//dest = normalized (end - start).  Returns Mag of direction vector
 		//NOTE: the order of the parameters matches the vector subtraction
-		static const fix NormalizedDir (CFixVector& dest, const CFixVector& end, const CFixVector& start);
+		static const fix NormalizedDir (vmsVector& dest, const vmsVector& end, const vmsVector& start);
 
 		// access op for assignment
 		fix& operator[] (size_t idx);
 		// read-only access op
 		const fix operator[] (size_t idx) const;
-//		CFixVector& operator= (CFixVector& vec) {
+//		vmsVector& operator= (vmsVector& vec) {
 //			memcpy (v, &vec [X], 3*sizeof (fix));
 //			return *this;
 //		}
 
-		bool operator== (const CFixVector& rhs) const;
+		bool operator== (const vmsVector& rhs) const;
 
-		const CFixVector& Set (fix x, fix y, fix z);
+		const vmsVector& Set (fix x, fix y, fix z);
 		void Set (const fix *vec);
 
 		bool IsZero () const;
@@ -521,103 +521,103 @@ class CFixVector {
 
 		fix SqrMag () const;
 		fix Mag () const;
-		CFixVector& Neg ();
-		const CFixVector operator- () const;
-		const bool operator== (const CFixVector& vec);
-		const bool operator!= (const CFixVector& vec);
-		const CFixVector& operator+= (const CFixVector& vec);
-		const CFixVector& operator-= (const CFixVector& vec);
-		const CFixVector& operator*= (const CFixVector& s);
-		const CFixVector& operator*= (const fix s);
-		const CFixVector& operator/= (const fix s);
-		const CFixVector operator+ (const CFixVector& vec) const;
-		const CFixVector operator- (const CFixVector& vec) const;
+		vmsVector& Neg ();
+		const vmsVector operator- () const;
+		const bool operator== (const vmsVector& vec);
+		const bool operator!= (const vmsVector& vec);
+		const vmsVector& operator+= (const vmsVector& vec);
+		const vmsVector& operator-= (const vmsVector& vec);
+		const vmsVector& operator*= (const vmsVector& s);
+		const vmsVector& operator*= (const fix s);
+		const vmsVector& operator/= (const fix s);
+		const vmsVector operator+ (const vmsVector& vec) const;
+		const vmsVector operator- (const vmsVector& vec) const;
 
 		// compute intersection of a line through a point a, with the line being orthogonal relative
 		// to the plane given by the Normal n and a point p lieing in the plane, and store it in i.
-		const CFixVector PlaneProjection (const CFixVector& n, const CFixVector& p) const;
+		const vmsVector PlaneProjection (const vmsVector& n, const vmsVector& p) const;
 		//compute the distance from a point to a plane.  takes the normalized Normal
 		//of the plane (ebx), a point on the plane (edi), and the point to check (esi).
 		//returns distance in eax
 		//distance is signed, so Negative Dist is on the back of the plane
-		const fix DistToPlane (const CFixVector& n, const CFixVector& p) const;
+		const fix DistToPlane (const vmsVector& n, const vmsVector& p) const;
 		//extract heading and pitch from a vector, assuming bank==0
 		const vmsAngVec ToAnglesVecNorm () const;
 		//extract heading and pitch from a vector, assuming bank==0
 		const vmsAngVec ToAnglesVec () const;
-		const CFloatVector ToFloat () const;
+		const fVector ToFloat () const;
 		const fVector3 ToFloat3 () const;
 
 	private:
 		fix v [3];
 };
 
-inline const CFixVector operator* (const CFixVector& v, const fix s);
-inline const CFixVector operator* (const fix s, const CFixVector& v);
-inline const CFixVector operator/ (const CFixVector& v, const fix d);
+inline const vmsVector operator* (const vmsVector& v, const fix s);
+inline const vmsVector operator* (const fix s, const vmsVector& v);
+inline const vmsVector operator/ (const vmsVector& v, const fix d);
 
 
 // -----------------------------------------------------------------------------
-// CFixVector static inlines
+// vmsVector static inlines
 
-inline const CFixVector CFixVector::Create (fix f0, fix f1, fix f2) {
-	CFixVector vec;
+inline const vmsVector vmsVector::Create (fix f0, fix f1, fix f2) {
+	vmsVector vec;
 	vec.Set (f0, f1, f2);
 	return vec;
 }
 
-inline const CFixVector CFixVector::Avg (const CFixVector& src0, const CFixVector& src1) {
+inline const vmsVector vmsVector::Avg (const vmsVector& src0, const vmsVector& src1) {
 	return Create ( (src0 [X] + src1 [X]) / 2,
 	              (src0 [Y] + src1 [Y]) / 2,
 	              (src0 [Z] + src1 [Z]) / 2);
 }
 
-inline const CFixVector CFixVector::Avg (CFixVector& src0, CFixVector& src1,
-						   CFixVector& src2, CFixVector& src3) {
+inline const vmsVector vmsVector::Avg (vmsVector& src0, vmsVector& src1,
+						   vmsVector& src2, vmsVector& src3) {
 	return Create ( (src0 [X] + src1 [X] + src2 [X] + src3 [X]) / 4,
 	 (src0 [Y] + src1 [Y] + src2 [Y] + src3 [Y]) / 4,
 	 (src0 [Z] + src1 [Z] + src2 [Z] + src3 [Z]) / 4);
 
 }
 
-inline const CFixVector CFixVector::Cross (const CFixVector& v0, const CFixVector& v1) {
+inline const vmsVector vmsVector::Cross (const vmsVector& v0, const vmsVector& v1) {
 	return Create ( (fix) ( ( (double) v0 [Y] * (double) v1 [Z] - (double) v0 [Z] * (double) v1 [Y]) / 65536.0),
 	              (fix) ( ( (double) v0 [Z] * (double) v1 [X] - (double) v0 [X] * (double) v1 [Z]) / 65536.0),
 	              (fix) ( ( (double) v0 [X] * (double) v1 [Y] - (double) v0 [Y] * (double) v1 [X]) / 65536.0));
 }
 
 //computes the delta angle between two vectors.
-//vectors need not be normalized. if they are, call CFixVector::DeltaAngleNorm ()
+//vectors need not be normalized. if they are, call vmsVector::DeltaAngleNorm ()
 //the forward vector (third parameter) can be NULL, in which case the absolute
 //value of the angle in returned.  Otherwise the angle around that vector is
 //returned.
-inline const fixang CFixVector::DeltaAngle (const CFixVector& v0, const CFixVector& v1, CFixVector *fVec) {
-	CFixVector t0=v0, t1=v1;
+inline const fixang vmsVector::DeltaAngle (const vmsVector& v0, const vmsVector& v1, vmsVector *fVec) {
+	vmsVector t0=v0, t1=v1;
 
-	CFixVector::Normalize (t0);
-	CFixVector::Normalize (t1);
+	vmsVector::Normalize (t0);
+	vmsVector::Normalize (t1);
 	return DeltaAngleNorm (t0, t1, fVec);
 }
 
 //computes the delta angle between two normalized vectors.
-inline const fixang CFixVector::DeltaAngleNorm (const CFixVector& v0, const CFixVector& v1, CFixVector *fVec) {
-	fixang a = FixACos (CFixVector::Dot (v0, v1));
+inline const fixang vmsVector::DeltaAngleNorm (const vmsVector& v0, const vmsVector& v1, vmsVector *fVec) {
+	fixang a = FixACos (vmsVector::Dot (v0, v1));
 	if (fVec) {
-		CFixVector t = CFixVector::Cross (v0, v1);
-		if (CFixVector::Dot (t, *fVec) < 0)
+		vmsVector t = vmsVector::Cross (v0, v1);
+		if (vmsVector::Dot (t, *fVec) < 0)
 			a = -a;
 	}
 	return a;
 }
 
-inline const fix CFixVector::Dist (const CFixVector& vec0, const CFixVector& vec1) {
+inline const fix vmsVector::Dist (const vmsVector& vec0, const vmsVector& vec1) {
 	return (vec0-vec1).Mag ();
 }
 
-inline const fix CFixVector::SSEDot (CFixVector *v0, CFixVector *v1) {
+inline const fix vmsVector::SSEDot (vmsVector *v0, vmsVector *v1) {
 	#if ENABLE_SSE
 	if (gameStates.render.bEnableSSE) {
-			CFloatVector	v0h, v1h;
+			fVector	v0h, v1h;
 
 		VmVecFixToFloat (&v0h, v0);
 		VmVecFixToFloat (&v1h, v1);
@@ -645,18 +645,18 @@ inline const fix CFixVector::SSEDot (CFixVector *v0, CFixVector *v1) {
 	#endif
 }
 
-inline const fix CFixVector::Dot (const CFixVector& v0, const CFixVector& v1) {
+inline const fix vmsVector::Dot (const vmsVector& v0, const vmsVector& v1) {
 		return (fix) ( ( (double) v0 [X] * (double) v1 [X] +
 							 (double) v0 [Y] * (double) v1 [Y] +
 							 (double) v0 [Z] * (double) v1 [Z])
 						  / 65536.0);
 }
 
-inline const fix CFixVector::Dot (const fix x, const fix y, const fix z, const CFixVector& v) {
+inline const fix vmsVector::Dot (const fix x, const fix y, const fix z, const vmsVector& v) {
 	return (fix) ( ( (double) x * (double) v [X] + (double) y * (double) v [Y] + (double) z * (double) v [Z]) / 65536.0);
 }
 
-inline const fix CFixVector::Normalize (CFixVector& v) {
+inline const fix vmsVector::Normalize (vmsVector& v) {
 	fix m = v.Mag ();
 	v [X] = FixDiv (v [X], m);
 	v [Y] = FixDiv (v [Y], m);
@@ -664,21 +664,21 @@ inline const fix CFixVector::Normalize (CFixVector& v) {
 	return m;
 }
 
-inline const CFixVector CFixVector::Perp (const CFixVector& p0, const CFixVector& p1, const CFixVector& p2) {
-	CFixVector t0 = p1 - p0, t1 = p2 - p1;
-	CFixVector::Normalize (t0);
-	CFixVector::Normalize (t1);
-	return CFixVector::Cross (t0, t1);
+inline const vmsVector vmsVector::Perp (const vmsVector& p0, const vmsVector& p1, const vmsVector& p2) {
+	vmsVector t0 = p1 - p0, t1 = p2 - p1;
+	vmsVector::Normalize (t0);
+	vmsVector::Normalize (t1);
+	return vmsVector::Cross (t0, t1);
 }
 
-inline const CFixVector CFixVector::Normal (const CFixVector& p0, const CFixVector& p1, const CFixVector& p2) {
-	CFixVector v = Perp (p0, p1, p2);
+inline const vmsVector vmsVector::Normal (const vmsVector& p0, const vmsVector& p1, const vmsVector& p2) {
+	vmsVector v = Perp (p0, p1, p2);
 	Normalize (v);
 	return v;
 }
 
-inline const CFixVector CFixVector::Random () {
-	CFixVector v;
+inline const vmsVector vmsVector::Random () {
+	vmsVector v;
 	int i = d_rand () % 3;
 
 	if (i == 2) {
@@ -700,9 +700,9 @@ inline const CFixVector CFixVector::Random () {
 	return v;
 }
 
-inline const CFixVector CFixVector::Reflect (const CFixVector& d, const CFixVector& n) {
+inline const vmsVector vmsVector::Reflect (const vmsVector& d, const vmsVector& n) {
 	fix k = Dot (d, n) * 2;
-	CFixVector r = n;
+	vmsVector r = n;
 	r *= k;
 	r -= d;
 	r.Neg ();
@@ -712,100 +712,100 @@ inline const CFixVector CFixVector::Reflect (const CFixVector& d, const CFixVect
 //return the normalized direction vector between two points
 //dest = normalized (end - start).  Returns Mag of direction vector
 //NOTE: the order of the parameters matches the vector subtraction
-inline const fix CFixVector::NormalizedDir (CFixVector& dest, const CFixVector& end, const CFixVector& start) {
+inline const fix vmsVector::NormalizedDir (vmsVector& dest, const vmsVector& end, const vmsVector& start) {
 	dest = end - start;
-	return CFixVector::Normalize (dest);
+	return vmsVector::Normalize (dest);
 }
 
 
 // -----------------------------------------------------------------------------
-// CFixVector member inlines
+// vmsVector member inlines
 
-inline fix& CFixVector::operator[] (size_t idx) { return v [idx]; }
+inline fix& vmsVector::operator[] (size_t idx) { return v [idx]; }
 
-inline const fix CFixVector::operator[] (size_t idx) const { return v [idx]; }
-//		CFixVector& operator= (CFixVector& vec) {
+inline const fix vmsVector::operator[] (size_t idx) const { return v [idx]; }
+//		vmsVector& operator= (vmsVector& vec) {
 //			memcpy (v, &vec [X], 3*sizeof (fix));
 //			return *this;
 //		}
 
-inline bool CFixVector::operator== (const CFixVector& rhs) const {
+inline bool vmsVector::operator== (const vmsVector& rhs) const {
 	return v [X] == rhs [X] && v [Y] == rhs [Y] && v [Z] == rhs [Z];
 }
 
-inline const CFixVector& CFixVector::Set (fix x, fix y, fix z) { v [0] = x; v [1] = y; v [2] = z; return *this; }
+inline const vmsVector& vmsVector::Set (fix x, fix y, fix z) { v [0] = x; v [1] = y; v [2] = z; return *this; }
 
-inline void CFixVector::Set (const fix *vec) {
+inline void vmsVector::Set (const fix *vec) {
 	v [X] = vec [0]; v [Y] = vec [1]; v [Z] = vec [2];
 }
 
-inline bool CFixVector::IsZero () const { return ! (v [X] || v [Y] || v [Z]); }
+inline bool vmsVector::IsZero () const { return ! (v [X] || v [Y] || v [Z]); }
 
-inline void CFixVector::SetZero () { memset (v, 0, 3*sizeof (fix)); }
+inline void vmsVector::SetZero () { memset (v, 0, 3*sizeof (fix)); }
 
-inline const int CFixVector::Sign () const { return (v [X] * v [Y] * v [Z] < 0) ? -1 : 1; }
+inline const int vmsVector::Sign () const { return (v [X] * v [Y] * v [Z] < 0) ? -1 : 1; }
 
-inline fix CFixVector::SqrMag () const {
+inline fix vmsVector::SqrMag () const {
 	return FixMul (v [X], v [X]) + FixMul (v [Y], v [Y]) + FixMul (v [Z], v [Z]);
 }
 
-inline fix CFixVector::Mag () const {
+inline fix vmsVector::Mag () const {
 	return F2X (sqrt (X2F (v [X])*X2F (v [X]) + X2F (v [Y])*X2F (v [Y]) + X2F (v [Z])*X2F (v [Z])));
 }
 
-inline CFixVector& CFixVector::Neg () { v [0] = -v [0], v [1] = -v [1], v [2] = -v [2]; return *this; }
+inline vmsVector& vmsVector::Neg () { v [0] = -v [0], v [1] = -v [1], v [2] = -v [2]; return *this; }
 
-inline const CFixVector CFixVector::operator- () const {
+inline const vmsVector vmsVector::operator- () const {
 	return Create (-v [X], -v [Y], -v [Z]);
 }
 
-inline const bool CFixVector::operator== (const CFixVector& vec) {
+inline const bool vmsVector::operator== (const vmsVector& vec) {
 	return v [0] == vec [0] && v [1] == vec [1] && v [2] == vec [2];
 }
 
-inline const bool CFixVector::operator!= (const CFixVector& vec) {
+inline const bool vmsVector::operator!= (const vmsVector& vec) {
 	return v [0] != vec [0] || v [1] != vec [1] || v [2] != vec [2];
 }
 
-inline const CFixVector& CFixVector::operator+= (const CFixVector& vec) {
+inline const vmsVector& vmsVector::operator+= (const vmsVector& vec) {
 	v [0] += vec [0]; v [1] += vec [1]; v [2] += vec [2];
 	return *this;
 }
 
-inline const CFixVector& CFixVector::operator-= (const CFixVector& vec) {
+inline const vmsVector& vmsVector::operator-= (const vmsVector& vec) {
 	v [0] -= vec [0]; v [1] -= vec [1]; v [2] -= vec [2];
 	return *this;
 }
 
-inline const CFixVector& CFixVector::operator*= (const fix s) {
+inline const vmsVector& vmsVector::operator*= (const fix s) {
 	v [0] = FixMul (v [0], s); v [1] = FixMul (v [1], s); v [2] = FixMul (v [2], s);
 	return *this;
 }
 
-inline const CFixVector& CFixVector::operator*= (const CFixVector& s) {
+inline const vmsVector& vmsVector::operator*= (const vmsVector& s) {
 	v [0] = FixMul (v [0], s [0]); v [1] = FixMul (v [1], s [1]); v [2] = FixMul (v [2], s [2]);
 	return *this;
 }
 
-inline const CFixVector& CFixVector::operator/= (const fix s) {
+inline const vmsVector& vmsVector::operator/= (const fix s) {
 	v [0] = FixDiv (v [0], s); v [1] = FixDiv (v [1], s); v [2] = FixDiv (v [2], s);
 	return *this;
 }
 
-inline const CFixVector CFixVector::operator+ (const CFixVector& vec) const {
+inline const vmsVector vmsVector::operator+ (const vmsVector& vec) const {
 	return Create (v [0]+vec [0], v [1]+vec [1], v [2]+vec [2]);
 }
 
-inline const CFixVector CFixVector::operator- (const CFixVector& vec) const {
+inline const vmsVector vmsVector::operator- (const vmsVector& vec) const {
 	return Create (v [0]-vec [0], v [1]-vec [1], v [2]-vec [2]);
 }
 
 
 // compute intersection of a line through a point a, with the line being orthogonal relative
 // to the plane given by the Normal n and a point p lieing in the plane, and store it in i.
-inline const CFixVector CFixVector::PlaneProjection (const CFixVector& n, const CFixVector& p) const {
-	CFixVector i;
-	double l = (double) -CFixVector::Dot (n, p) / (double) CFixVector::Dot (n, *this);
+inline const vmsVector vmsVector::PlaneProjection (const vmsVector& n, const vmsVector& p) const {
+	vmsVector i;
+	double l = (double) -vmsVector::Dot (n, p) / (double) vmsVector::Dot (n, *this);
 	i [X] = (fix) (l * (double) v [X]);
 	i [Y] = (fix) (l * (double) v [Y]);
 	i [Z] = (fix) (l * (double) v [Z]);
@@ -816,13 +816,13 @@ inline const CFixVector CFixVector::PlaneProjection (const CFixVector& n, const 
 //of the plane (ebx), a point on the plane (edi), and the point to check (esi).
 //returns distance in eax
 //distance is signed, so Negative Dist is on the back of the plane
-inline const fix CFixVector::DistToPlane (const CFixVector& n, const CFixVector& p) const {
-	CFixVector t = *this - p;
-	return CFixVector::Dot (t, n);
+inline const fix vmsVector::DistToPlane (const vmsVector& n, const vmsVector& p) const {
+	vmsVector t = *this - p;
+	return vmsVector::Dot (t, n);
 }
 
 //extract heading and pitch from a vector, assuming bank==0
-inline const vmsAngVec CFixVector::ToAnglesVecNorm () const {
+inline const vmsAngVec vmsVector::ToAnglesVecNorm () const {
 	vmsAngVec a;
 	a [BA] = 0;		//always zero bank
 	a [PA] = FixASin (-v [Y]);
@@ -831,28 +831,28 @@ inline const vmsAngVec CFixVector::ToAnglesVecNorm () const {
 }
 
 //extract heading and pitch from a vector, assuming bank==0
-inline const vmsAngVec CFixVector::ToAnglesVec () const	{
-	CFixVector t = *this;
+inline const vmsAngVec vmsVector::ToAnglesVec () const	{
+	vmsVector t = *this;
 
-//			if (CFixVector::Normalize (t))
-	CFixVector::Normalize (t);
+//			if (vmsVector::Normalize (t))
+	vmsVector::Normalize (t);
 	return t.ToAnglesVecNorm ();
 }
 
 
 // -----------------------------------------------------------------------------
-// CFixVector-related non-member ops
+// vmsVector-related non-member ops
 
-inline const CFixVector operator* (const CFixVector& v, const fix s) {
-	return CFixVector::Create (FixMul (v [0], s), FixMul (v [1], s), FixMul (v [2], s));
+inline const vmsVector operator* (const vmsVector& v, const fix s) {
+	return vmsVector::Create (FixMul (v [0], s), FixMul (v [1], s), FixMul (v [2], s));
 }
 
-inline const CFixVector operator* (const fix s, const CFixVector& v) {
-	return CFixVector::Create (FixMul (v [0], s), FixMul (v [1], s), FixMul (v [2], s));
+inline const vmsVector operator* (const fix s, const vmsVector& v) {
+	return vmsVector::Create (FixMul (v [0], s), FixMul (v [1], s), FixMul (v [2], s));
 }
 
-inline const CFixVector operator/ (const CFixVector& v, const fix d) {
-	return CFixVector::Create (FixDiv (v [0], d), FixMul (v [1], d), FixMul (v [2], d));
+inline const vmsVector operator/ (const vmsVector& v, const fix d) {
+	return vmsVector::Create (FixDiv (v [0], d), FixMul (v [1], d), FixMul (v [2], d));
 }
 
 
@@ -869,25 +869,25 @@ inline const CFixVector operator/ (const CFixVector& v, const fix d) {
 class vmsMatrix {
 	public:
 		static const vmsMatrix IDENTITY;
-		static const vmsMatrix Create (const CFixVector& r, const CFixVector& u, const CFixVector& f);
+		static const vmsMatrix Create (const vmsVector& r, const vmsVector& u, const vmsVector& f);
 		static const vmsMatrix Create (fix sinp, fix cosp, fix sinb, fix cosb, fix sinh, fix cosh);
 		//computes a matrix from a Set of three angles.  returns ptr to matrix
 		static const vmsMatrix Create (const vmsAngVec& a);
 		//computes a matrix from a forward vector and an angle
-		static const vmsMatrix Create (CFixVector *v, fixang a);
-		static const vmsMatrix CreateF (const CFixVector& fVec);
-		static const vmsMatrix CreateFU (const CFixVector& fVec, const CFixVector& uVec);
-		static const vmsMatrix CreateFR (const CFixVector& fVec, const CFixVector& rVec);
+		static const vmsMatrix Create (vmsVector *v, fixang a);
+		static const vmsMatrix CreateF (const vmsVector& fVec);
+		static const vmsMatrix CreateFU (const vmsVector& fVec, const vmsVector& uVec);
+		static const vmsMatrix CreateFR (const vmsVector& fVec, const vmsVector& rVec);
 
 		static vmsMatrix& Invert (vmsMatrix& m);
 		static vmsMatrix& Transpose (vmsMatrix& m);
 
 		// row access op for assignment
-		const CFixVector& operator[] (size_t idx) const;
+		const vmsVector& operator[] (size_t idx) const;
 		// read-only row access op
-		CFixVector& operator[] (size_t idx);
+		vmsVector& operator[] (size_t idx);
 
-		const CFixVector operator* (const CFixVector& v) const;
+		const vmsVector operator* (const vmsVector& v) const;
 		const vmsMatrix operator* (const vmsMatrix& m) const;
 
 		const fix Det () const;
@@ -903,14 +903,14 @@ class vmsMatrix {
 		const fMatrix ToFloat () const;
 
 	private:
-		CFixVector vec [3];
+		vmsVector vec [3];
 };
 
 
 // -----------------------------------------------------------------------------
 // vmsMatrix static inlines
 
-inline const vmsMatrix vmsMatrix::Create (const CFixVector& r, const CFixVector& u, const CFixVector& f) {
+inline const vmsMatrix vmsMatrix::Create (const vmsVector& r, const vmsVector& u, const vmsVector& f) {
 	vmsMatrix m;
 	m [RVEC] = r;
 	m [UVEC] = u;
@@ -948,7 +948,7 @@ inline const vmsMatrix vmsMatrix::Create (const vmsAngVec& a) {
 }
 
 //computes a matrix from a forward vector and an angle
-inline const vmsMatrix vmsMatrix::Create (CFixVector *v, fixang a) {
+inline const vmsMatrix vmsMatrix::Create (vmsVector *v, fixang a) {
 	fix sinb, cosb, sinp, cosp;
 
 	FixSinCos (a, &sinb, &cosb);
@@ -975,41 +975,41 @@ inline vmsMatrix& vmsMatrix::Transpose (vmsMatrix& m) {
 // -----------------------------------------------------------------------------
 // vmsMatrix member ops
 
-inline const CFixVector& vmsMatrix::operator[] (size_t idx) const {
+inline const vmsVector& vmsMatrix::operator[] (size_t idx) const {
 	return vec [idx];
 }
 
-inline CFixVector& vmsMatrix::operator[] (size_t idx) {
+inline vmsVector& vmsMatrix::operator[] (size_t idx) {
 	return vec [idx];
 }
 
-inline const CFixVector vmsMatrix::operator* (const CFixVector& v) const {
-	return CFixVector::Create (CFixVector::Dot (v, vec [RVEC]),
-	                         CFixVector::Dot (v, vec [UVEC]),
-	                         CFixVector::Dot (v, vec [FVEC]));
+inline const vmsVector vmsMatrix::operator* (const vmsVector& v) const {
+	return vmsVector::Create (vmsVector::Dot (v, vec [RVEC]),
+	                         vmsVector::Dot (v, vec [UVEC]),
+	                         vmsVector::Dot (v, vec [FVEC]));
 }
 
 inline const vmsMatrix vmsMatrix::operator* (const vmsMatrix& m) const {
-	CFixVector v;
+	vmsVector v;
 	vmsMatrix r;
 	v [X] = vec [RVEC] [X];
 	v [Y] = vec [UVEC] [X];
 	v [Z] = vec [FVEC] [X];
-	r [RVEC] [X] = CFixVector::Dot (v, m [RVEC]);
-	r [UVEC] [X] = CFixVector::Dot (v, m [UVEC]);
-	r [FVEC] [X] = CFixVector::Dot (v, m [FVEC]);
+	r [RVEC] [X] = vmsVector::Dot (v, m [RVEC]);
+	r [UVEC] [X] = vmsVector::Dot (v, m [UVEC]);
+	r [FVEC] [X] = vmsVector::Dot (v, m [FVEC]);
 	v [X] = vec [RVEC] [Y];
 	v [Y] = vec [UVEC] [Y];
 	v [Z] = vec [FVEC] [Y];
-	r [RVEC] [Y] = CFixVector::Dot (v, m [RVEC]);
-	r [UVEC] [Y] = CFixVector::Dot (v, m [UVEC]);
-	r [FVEC] [Y] = CFixVector::Dot (v, m [FVEC]);
+	r [RVEC] [Y] = vmsVector::Dot (v, m [RVEC]);
+	r [UVEC] [Y] = vmsVector::Dot (v, m [UVEC]);
+	r [FVEC] [Y] = vmsVector::Dot (v, m [FVEC]);
 	v [X] = vec [RVEC] [Z];
 	v [Y] = vec [UVEC] [Z];
 	v [Z] = vec [FVEC] [Z];
-	r [RVEC] [Z] = CFixVector::Dot (v, m [RVEC]);
-	r [UVEC] [Z] = CFixVector::Dot (v, m [UVEC]);
-	r [FVEC] [Z] = CFixVector::Dot (v, m [FVEC]);
+	r [RVEC] [Z] = vmsVector::Dot (v, m [RVEC]);
+	r [UVEC] [Z] = vmsVector::Dot (v, m [UVEC]);
+	r [FVEC] [Z] = vmsVector::Dot (v, m [FVEC]);
 	return r;
 }
 
@@ -1110,18 +1110,18 @@ inline const vmsAngVec vmsMatrix::ExtractAnglesVec () const {
 class fMatrix {
 	public:
 		static const fMatrix IDENTITY;
-		static const fMatrix Create (const CFloatVector& r, const CFloatVector& u, const CFloatVector& f, const CFloatVector& w);
+		static const fMatrix Create (const fVector& r, const fVector& u, const fVector& f, const fVector& w);
 		static const fMatrix Create (float sinp, float cosp, float sinb, float cosb, float sinh, float cosh);
 
 		static fMatrix& invert (fMatrix& m);
 		static fMatrix& transpose (fMatrix& m);
 
 		// row access op for assignment
-		const CFloatVector& operator[] (size_t idx) const;
+		const fVector& operator[] (size_t idx) const;
 		// read-only row access op
-		CFloatVector& operator[] (size_t idx);
+		fVector& operator[] (size_t idx);
 
-		const CFloatVector operator* (const CFloatVector& v) const;
+		const fVector operator* (const fVector& v) const;
 		const fVector3 operator* (const fVector3& v);
 
 		const float det () const;
@@ -1129,14 +1129,14 @@ class fMatrix {
 		const fMatrix transpose () const;
 
 	private:
-		CFloatVector	vec [4];
+		fVector	vec [4];
 };
 
 
 // -----------------------------------------------------------------------------
 // fMatrix static inlines
 
-inline const fMatrix fMatrix::Create (const CFloatVector& r, const CFloatVector& u, const CFloatVector& f, const CFloatVector& w) {
+inline const fMatrix fMatrix::Create (const fVector& r, const fVector& u, const fVector& f, const fVector& w) {
 	fMatrix m;
 	m [RVEC] = r;
 	m [UVEC] = u;
@@ -1182,19 +1182,19 @@ inline fMatrix& fMatrix::transpose (fMatrix& m) {
 // -----------------------------------------------------------------------------
 // fMatrix member ops
 
-inline const CFloatVector& fMatrix::operator[] (size_t idx) const {
+inline const fVector& fMatrix::operator[] (size_t idx) const {
 	return vec [idx];
 }
 
-inline CFloatVector& fMatrix::operator[] (size_t idx) {
+inline fVector& fMatrix::operator[] (size_t idx) {
 	return vec [idx];
 }
 
 
-inline const CFloatVector fMatrix::operator* (const CFloatVector& v) const {
-	return CFloatVector::Create (CFloatVector::Dot (v, vec [RVEC]),
-			CFloatVector::Dot (v, vec [UVEC]),
-			CFloatVector::Dot (v, vec [FVEC]));
+inline const fVector fMatrix::operator* (const fVector& v) const {
+	return fVector::Create (fVector::Dot (v, vec [RVEC]),
+			fVector::Dot (v, vec [UVEC]),
+			fVector::Dot (v, vec [FVEC]));
 }
 
 inline const fVector3 fMatrix::operator* (const fVector3& v) {
@@ -1246,23 +1246,23 @@ inline const fMatrix fMatrix::transpose () const {
 // -----------------------------------------------------------------------------
 // misc conversion member ops
 
-inline const CFloatVector CFixVector::ToFloat () const {
-	CFloatVector d;
+inline const fVector vmsVector::ToFloat () const {
+	fVector d;
 	d [X] = X2F (v [X]); d [Y] = X2F (v [Y]); d [Z] = X2F (v [Z]); d [W] = 1; return d;
 }
 
-inline const fVector3 CFixVector::ToFloat3 () const {
+inline const fVector3 vmsVector::ToFloat3 () const {
 	fVector3 d;
 	d [X] = X2F (v [X]); d [Y] = X2F (v [Y]); d [Z] = X2F (v [Z]); return d;
 }
 
-inline const CFixVector CFloatVector::ToFix () const {
-	CFixVector d;
+inline const vmsVector fVector::ToFix () const {
+	vmsVector d;
 	d [X] = F2X (v [X]); d [Y] = F2X (v [Y]); d [Z] = F2X (v [Z]); return d;
 }
 
-inline const CFixVector fVector3::ToFix () const {
-	CFixVector d;
+inline const vmsVector fVector3::ToFix () const {
+	vmsVector d;
 	d [X] = F2X (v [X]); d [Y] = F2X (v [Y]); d [Z] = F2X (v [Z]); return d;
 }
 
@@ -1271,7 +1271,7 @@ inline const fMatrix vmsMatrix::ToFloat () const {
 	m [RVEC] = vec [RVEC].ToFloat ();
 	m [UVEC] = vec [UVEC].ToFloat ();
 	m [FVEC] = vec [FVEC].ToFloat ();
-	m [HVEC] = CFloatVector::ZERO;
+	m [HVEC] = fVector::ZERO;
 	return m;
 }
 
@@ -1279,18 +1279,18 @@ inline const fMatrix vmsMatrix::ToFloat () const {
 // -----------------------------------------------------------------------------
 // misc remaining C-style funcs
 
-const int VmPointLineIntersection (CFixVector& hitP, const CFixVector& p1, const CFixVector& p2, const CFixVector& p3, int bClampToFarthest);
-//const int VmPointLineIntersection (CFixVector& hitP, const CFixVector& p1, const CFixVector& p2, const CFixVector& p3, const CFixVector& vPos, int bClampToFarthest);
-const fix VmLinePointDist (const CFixVector& a, const CFixVector& b, const CFixVector& p);
-const int VmPointLineIntersection (CFloatVector& hitP, const CFloatVector& p1, const CFloatVector& p2, const CFloatVector& p3, const CFloatVector& vPos, int bClamp);
-const int VmPointLineIntersection (CFloatVector& hitP, const CFloatVector& p1, const CFloatVector& p2, const CFloatVector& p3, int bClamp);
+const int VmPointLineIntersection (vmsVector& hitP, const vmsVector& p1, const vmsVector& p2, const vmsVector& p3, int bClampToFarthest);
+//const int VmPointLineIntersection (vmsVector& hitP, const vmsVector& p1, const vmsVector& p2, const vmsVector& p3, const vmsVector& vPos, int bClampToFarthest);
+const fix VmLinePointDist (const vmsVector& a, const vmsVector& b, const vmsVector& p);
+const int VmPointLineIntersection (fVector& hitP, const fVector& p1, const fVector& p2, const fVector& p3, const fVector& vPos, int bClamp);
+const int VmPointLineIntersection (fVector& hitP, const fVector& p1, const fVector& p2, const fVector& p3, int bClamp);
 const int VmPointLineIntersection (fVector3& hitP, const fVector3& p1, const fVector3& p2, const fVector3& p3, fVector3 *vPos, int bClamp);
-const float VmLinePointDist (const CFloatVector& a, const CFloatVector& b, const CFloatVector& p, int bClamp);
+const float VmLinePointDist (const fVector& a, const fVector& b, const fVector& p, int bClamp);
 const float VmLinePointDist (const fVector3& a, const fVector3& b, const fVector3& p, int bClamp);
 const float VmLineLineIntersection (const fVector3& v1, const fVector3& v2, const fVector3& V3, const fVector3& v4, fVector3& va, fVector3& vb);
-const float VmLineLineIntersection (const CFloatVector& v1, const CFloatVector& v2, const CFloatVector& V3, const CFloatVector& v4, CFloatVector& va, CFloatVector& vb);
+const float VmLineLineIntersection (const fVector& v1, const fVector& v2, const fVector& V3, const fVector& v4, fVector& va, fVector& vb);
 
-float TriangleSize (const CFixVector& p0, const CFixVector& p1, const CFixVector& p2);
+float TriangleSize (const vmsVector& p0, const vmsVector& p1, const vmsVector& p2);
 
 // ------------------------------------------------------------------------
 

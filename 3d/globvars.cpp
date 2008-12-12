@@ -18,7 +18,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "3d.h"
 #include "globvars.h"
 
-CViewInfo	viewInfo;
+tViewInfo	viewInfo;
 
 int			nCanvasWidth;		//the actual width
 int			nCanvasHeight;		//the actual height

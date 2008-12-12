@@ -34,11 +34,11 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 static fix wiggleTime;
 
-void WiggleObject (CObject *objP)
+void WiggleObject (tObject *objP)
 {
 	fix		xWiggle;
 	int		nParent;
-	CObject	*pParent;
+	tObject	*pParent;
 
 if (gameStates.render.nShadowPass == 2)
 	return;
@@ -66,10 +66,10 @@ else {
 #define AFTERBURNER_USE_SECS	3				//use up in 3 seconds
 #define DROP_DELTA_TIME			(f1_0/15)	//drop 3 per second
 
-void ReadFlyingControls (CObject *objP)
+void ReadFlyingControls (tObject *objP)
 {
 	fix	forwardThrustTime;
-	CObject *gmObjP;
+	tObject *gmObjP;
 	int	bMulti;
 #if 0
 	Assert(gameData.time.xFrame > 0); 		//Get MATT if hit this!
@@ -91,7 +91,7 @@ void ReadFlyingControls (CObject *objP)
 	}
 
 	if ((objP->info.nType != OBJ_PLAYER) || (objP->info.nId != gameData.multiplayer.nLocalPlayer))
-		return;	//references to CPlayerShip require that this obj be the CPlayerData
+		return;	//references to tPlayerShip require that this obj be the tPlayer
 
    tGuidedMissileInfo *gmiP = gameData.objs.guidedMissile + gameData.multiplayer.nLocalPlayer;
 	gmObjP = gmiP->objP;
@@ -101,7 +101,7 @@ void ReadFlyingControls (CObject *objP)
 		fix speed;
 
 		//this is a horrible hack.  guided missile stuff should not be
-		//handled in the middle of a routine that is dealing with the CPlayerData
+		//handled in the middle of a routine that is dealing with the tPlayer
 		objP->mType.physInfo.rotThrust.SetZero();
 		rotangs[PA] = Controls [0].pitchTime / 2 + gameStates.gameplay.seismic.nMagnitude/64;
 		rotangs[BA] = Controls [0].bankTime / 2 + gameStates.gameplay.seismic.nMagnitude/16;
@@ -119,13 +119,13 @@ void ReadFlyingControls (CObject *objP)
 		if (Controls [0].headingTime)
 			Controls [0].headingTime = Controls [0].headingTime;
 #endif
-		objP->mType.physInfo.rotThrust = CFixVector::Create(Controls[0].pitchTime,
+		objP->mType.physInfo.rotThrust = vmsVector::Create(Controls[0].pitchTime,
 		                                                   Controls[0].headingTime, //Controls [0].headingTime ? f1_0 / 4 : 0; //Controls [0].headingTime;
 		                                                   Controls[0].bankTime);
 		}
 	forwardThrustTime = Controls [0].forwardThrustTime;
 	if (LOCALPLAYER.flags & PLAYER_FLAGS_AFTERBURNER)	{
-		if (Controls [0].afterburnerState) {			//CPlayerData has key down
+		if (Controls [0].afterburnerState) {			//tPlayer has key down
 			//if (forwardThrustTime >= 0) { 		//..ccAnd isn't moving backward
 			{
 				fix afterburner_scale;
@@ -157,7 +157,7 @@ void ReadFlyingControls (CObject *objP)
 			LOCALPLAYER.energy -= charge_up * 100 / 10;	//full charge uses 10% of energy
 		}
 	}
-	// Set CObject's thrust vector for forward/backward
+	// Set tObject's thrust vector for forward/backward
 	objP->mType.physInfo.thrust = objP->info.position.mOrient[FVEC] * forwardThrustTime;
 	// slide left/right
 	objP->mType.physInfo.thrust += objP->info.position.mOrient[RVEC] * Controls [0].sidewaysThrustTime;

@@ -41,7 +41,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 typedef struct normCacheElement {
 	short			nSegment;
 	ubyte			nSide;
-	CFixVector	normals [2];
+	vmsVector	normals [2];
 } normCacheElement;
 
 typedef struct tNormCache {
@@ -129,14 +129,14 @@ if (!normCache.bInitialized)
 
 // -------------------------------------------------------------------------------
 
-void GetSideNormal (CSegment *segP, int nSide, int face_num, CFixVector * vm)
+void GetSideNormal (tSegment *segP, int nSide, int face_num, vmsVector * vm)
 {
 	int i;
 	i = FindNormCacheElement (SEG_IDX (segP), nSide, 1 << face_num);
 
 *vm = normCache.cache [i].normals [face_num];
 if (0) {
-	CFixVector tmp;
+	vmsVector tmp;
 	UncachedGetSideNormal (segP, nSide, face_num, &tmp);
 	Assert (tmx() == vm->x);
 	Assert (tmy() == vm->y);
@@ -146,7 +146,7 @@ if (0) {
 
 // -------------------------------------------------------------------------------
 
-void GetSideNormals (CSegment *segP, int nSide, CFixVector * vm1, CFixVector * vm2)
+void GetSideNormals (tSegment *segP, int nSide, vmsVector * vm1, vmsVector * vm2)
 {
 	int i = FindNormCacheElement (SEG_IDX (segP), nSide, 3);
 
@@ -154,7 +154,7 @@ void GetSideNormals (CSegment *segP, int nSide, CFixVector * vm1, CFixVector * v
 *vm2 = normCache.cache [i].normals [1];
 
 if (0) {
-	CFixVector tmp;
+	vmsVector tmp;
 	UncachedGetSideNormal (segP, nSide, 0, &tmp);
 	Assert (tmx() == vm1->x);
 	Assert (tmy() == vm1->y);
@@ -168,7 +168,7 @@ if (0) {
 
 // -------------------------------------------------------------------------------
 
-void UncachedGetSideNormal (CSegment *segP, int nSide, int face_num, CFixVector * vm)
+void UncachedGetSideNormal (tSegment *segP, int nSide, int face_num, vmsVector * vm)
 {
 	int	vm0, vm1, vm2, vm3, bFlip;
 	sbyte	*vs = sideToVerts [nSide];
@@ -213,9 +213,9 @@ switch (segP->sides [nSide].nType) {
 
 // -------------------------------------------------------------------------------
 
-void UncachedGetSideNormals (CSegment *segP, int nSide, CFixVector * vm1, CFixVector * vm2)
+void UncachedGetSideNormals (tSegment *segP, int nSide, vmsVector * vm1, vmsVector * vm2)
 #else
-void GetSideNormals (CSegment *segP, int nSide, CFixVector * vm1, CFixVector * vm2)
+void GetSideNormals (tSegment *segP, int nSide, vmsVector * vm1, vmsVector * vm2)
 #endif
 {
 	int	vvm0, vvm1, vvm2, vvm3, bFlip;
@@ -229,7 +229,7 @@ switch (segP->sides [nSide].nType)	{
 	case SIDE_IS_QUAD:
 		bFlip = GetVertsForNormal (segP->verts [vs [0]], segP->verts [vs [1]], segP->verts [vs [2]], segP->verts [vs [3]],
 											&vvm0, &vvm1, &vvm2, &vvm3);
-		*vm1 = CFixVector::Normal(gameData.segs.vertices [vvm0],
+		*vm1 = vmsVector::Normal(gameData.segs.vertices [vvm0],
 								 gameData.segs.vertices [vvm1],
 								 gameData.segs.vertices [vvm2]);
 		if (bFlip)
@@ -237,21 +237,21 @@ switch (segP->sides [nSide].nType)	{
 		*vm2 = *vm1;
 		break;
 	case SIDE_IS_TRI_02:
-		*vm1 = CFixVector::Normal(
+		*vm1 = vmsVector::Normal(
 								  gameData.segs.vertices [segP->verts[vs[0]]],
 								  gameData.segs.vertices [segP->verts[vs[1]]],
 								  gameData.segs.vertices [segP->verts[vs[2]]]);
-		*vm2 = CFixVector::Normal(
+		*vm2 = vmsVector::Normal(
 								  gameData.segs.vertices [segP->verts[vs[0]]],
 								  gameData.segs.vertices [segP->verts[vs[2]]],
 								  gameData.segs.vertices [segP->verts[vs[3]]]);
 		break;
 	case SIDE_IS_TRI_13:
-		*vm1 = CFixVector::Normal(
+		*vm1 = vmsVector::Normal(
 								  gameData.segs.vertices [segP->verts[vs[0]]],
 								  gameData.segs.vertices [segP->verts[vs[1]]],
 								  gameData.segs.vertices [segP->verts[vs[3]]]);
-		*vm2 = CFixVector::Normal(
+		*vm2 = vmsVector::Normal(
 								  gameData.segs.vertices [segP->verts[vs[1]]],
 							 	  gameData.segs.vertices [segP->verts[vs[2]]],
 								  gameData.segs.vertices [segP->verts[vs[3]]]);
@@ -260,9 +260,9 @@ switch (segP->sides [nSide].nType)	{
 }
 
 // ------------------------------------------------------------------------------------------
-// Compute the center point of a tSide of a CSegment.
+// Compute the center point of a tSide of a tSegment.
 //	The center point is defined to be the average of the 4 points defining the tSide.
-void ComputeSideCenter (CFixVector *vp, CSegment *segP, int tSide)
+void ComputeSideCenter (vmsVector *vp, tSegment *segP, int tSide)
 {
 	sbyte	*s2v = sideToVerts [tSide];
 	short	*sv = segP->verts;
@@ -277,14 +277,14 @@ void ComputeSideCenter (CFixVector *vp, CSegment *segP, int tSide)
 }
 
 // ------------------------------------------------------------------------------------------
-// Compute the center point of a tSide of a CSegment.
+// Compute the center point of a tSide of a tSegment.
 //	The center point is defined to be the average of the 4 points defining the tSide.
 void ComputeSideRads (short nSegment, short tSide, fix *prMin, fix *prMax)
 {
-	CSegment		*segP = gameData.segs.segments + nSegment;
+	tSegment		*segP = gameData.segs.segments + nSegment;
 	sbyte			*s2v = sideToVerts [tSide];
 	short			*sv = segP->verts;
-	CFixVector	v, vCenter, *v0, *v1;
+	vmsVector	v, vCenter, *v0, *v1;
 	fix 			d, rMin = 0x7fffffff, rMax = 0;
 	int			i;
 
@@ -293,8 +293,8 @@ if (prMin) {
 	for (i = 0; i < 4; i++) {
 		v0 = gameData.segs.vertices + sv [s2v [i]];
 		v1 = gameData.segs.vertices + sv [s2v [(i + 1) % 4]];
-		v = CFixVector::Avg(*v0, *v1);
-		d = CFixVector::Dist(v, vCenter);
+		v = vmsVector::Avg(*v0, *v1);
+		d = vmsVector::Dist(v, vCenter);
 		if (rMin > d)
 			rMin = d;
 		}
@@ -302,7 +302,7 @@ if (prMin) {
 	}
 if (prMax) {
 	for (i = 0; i < 4; i++) {
-		d = CFixVector::Dist(vCenter, gameData.segs.vertices [sv[*s2v++]]);
+		d = vmsVector::Dist(vCenter, gameData.segs.vertices [sv[*s2v++]]);
 		if (rMax < d)
 			rMax = d;
 		}
@@ -311,9 +311,9 @@ if (prMax) {
 }
 
 // ------------------------------------------------------------------------------------------
-// Compute CSegment center.
-//	The center point is defined to be the average of the 8 points defining the CSegment.
-void ComputeSegmentCenter (CFixVector *vp, CSegment *segP)
+// Compute tSegment center.
+//	The center point is defined to be the average of the 8 points defining the tSegment.
+void ComputeSegmentCenter (vmsVector *vp, tSegment *segP)
 {
 	int i;
 	short	*sv = segP->verts;
@@ -329,7 +329,7 @@ for (i = 7; i; i--)
 // -----------------------------------------------------------------------------
 //	Given two segments, return the side index in the connecting segment which connects to the base segment
 
-int FindConnectedSide (CSegment *baseSegP, CSegment *connSegP)
+int FindConnectedSide (tSegment *baseSegP, tSegment *connSegP)
 {
 	short	nBaseSeg = SEG_IDX (baseSegP);
 	short *childP = connSegP->children;
@@ -378,7 +378,7 @@ vertIndex [3] = vp [sv [3]];
 
 // -----------------------------------------------------------------------------------
 // Fill in array with four absolute point numbers for a given tSide
-void GetSideVerts (CFixVector *vertices, int nSegment, int nSide)
+void GetSideVerts (vmsVector *vertices, int nSegment, int nSide)
 {
 	short i, vertIndex [4];
 
@@ -396,7 +396,7 @@ for (i = 0; i < 4; i++)
 //	If there is one face, it has 4 vertices.
 //	If there are two faces, they both have three vertices, so face #0 is stored in vertices 0, 1, 2,
 //	face #1 is stored in vertices 3, 4, 5.
-// Note: these are not absolute vertex numbers, but are relative to the CSegment
+// Note: these are not absolute vertex numbers, but are relative to the tSegment
 // Note:  for triagulated sides, the middle vertex of each trianle is the one NOT
 //   adjacent on the diagonal edge
 void CreateAllVertexLists (int *nFaces, int *vertices, int nSegment, int nSide)
@@ -441,7 +441,7 @@ switch (sideP->nType) {
 		//CREATE_ABS_VERTEX_LISTS (), CREATE_ALL_VERTEX_LISTS (), CREATE_ALL_VERTNUM_LISTS ()
 		break;
 	default:
-		Error ("Illegal tSide nType (1), nType = %i, CSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
+		Error ("Illegal tSide nType (1), nType = %i, tSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
 		break;
 	}
 }
@@ -492,7 +492,7 @@ switch (sideP->nType) {
 		break;
 
 	default:
-		Error ("Illegal tSide nType (2), nType = %i, CSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
+		Error ("Illegal tSide nType (2), nType = %i, tSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
 		break;
 	}
 }
@@ -552,7 +552,7 @@ switch (sideP->nType) {
 		break;
 
 	default:
-		Error ("Illegal tSide nType (3), nType = %i, CSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
+		Error ("Illegal tSide nType (3), nType = %i, tSegment # = %i, tSide # = %i\n", sideP->nType, nSegment, nSide);
 		break;
 	}
 #if 0
@@ -569,8 +569,8 @@ return nFaces;
 
 // -------------------------------------------------------------------------------
 //returns 3 different bitmasks with info telling if this sphere is in
-//this CSegment.  See tSegMasks structure for info on fields
-tSegMasks GetSideMasks (CFixVector *checkP, int nSegment, int nSide, fix xRad)
+//this tSegment.  See tSegMasks structure for info on fields
+tSegMasks GetSideMasks (vmsVector *checkP, int nSegment, int nSide, fix xRad)
 {
 	int			faceBit, sideBit;
 	int			nFaces;
@@ -579,7 +579,7 @@ tSegMasks GetSideMasks (CFixVector *checkP, int nSegment, int nSide, fix xRad)
 	int			nSideCount, nCenterCount;
 	int			vertexList [6];
 	fix			xDist;
-	CSegment		*segP;
+	tSegment		*segP;
 	tSide			*sideP;
 	tSegment2	*seg2P;
 	tSide2		*side2P;
@@ -664,14 +664,14 @@ return masks;
 
 // -------------------------------------------------------------------------------
 //returns 3 different bitmasks with info telling if this sphere is in
-//this CSegment.  See tSegMasks structure for info on fields
-tSegMasks GetSegMasks (const CFixVector& checkP, int nSegment, fix xRad)
+//this tSegment.  See tSegMasks structure for info on fields
+tSegMasks GetSegMasks (const vmsVector& checkP, int nSegment, fix xRad)
 {
 	short			nSide, nFace, nFaces, faceBit, sideBit;
 	int			nVertex, nSideCount, nCenterCount, bSidePokesOut;
 	int			vertexList [6];
 	fix			xDist;
-	CSegment		*segP;
+	tSegment		*segP;
 	tSide			*sideP;
 	tSegment2	*seg2P;
 	tSide2		*side2P;
@@ -690,7 +690,7 @@ segP = gameData.segs.segments + nSegment;
 sideP = segP->sides;
 seg2P = gameData.segs.segment2s + nSegment;
 side2P = seg2P->sides;
-//check point against each tSide of CSegment. return bitmask
+//check point against each tSide of tSegment. return bitmask
 for (nSide = 0, faceBit = sideBit = 1; nSide < 6; nSide++, sideBit <<= 1, sideP++, side2P++) {
 	// Get number of faces on this tSide, and at vertexList, store vertices.
 	//	If one face, then vertexList indicates a quadrilateral.
@@ -774,12 +774,12 @@ return masks;
 //this was converted from GetSegMasks ()...it fills in an array of 6
 //elements for the distace behind each tSide, or zero if not behind
 //only gets centerMask, and assumes zero rad
-ubyte GetSideDists (const CFixVector& checkP, int nSegment, fix *xSideDists, int bBehind)
+ubyte GetSideDists (const vmsVector& checkP, int nSegment, fix *xSideDists, int bBehind)
 {
 	short			nSide, nFaces, faceBit, sideBit;
 	ubyte			mask;
 	int			vertexList [6];
-	CSegment		*segP;
+	tSegment		*segP;
 	tSide			*sideP;
 	tSegment2	*seg2P;
 	tSide2		*side2P;
@@ -792,7 +792,7 @@ segP = gameData.segs.segments + nSegment;
 sideP = segP->sides;
 seg2P = gameData.segs.segment2s + nSegment;
 side2P = seg2P->sides;
-//check point against each tSide of CSegment. return bitmask
+//check point against each tSide of tSegment. return bitmask
 mask = 0;
 for (nSide = 0, faceBit = sideBit = 1; nSide < 6; nSide++, sideBit <<= 1, sideP++, side2P++) {
 		int	bSidePokesOut;
@@ -886,13 +886,13 @@ return mask;
 //this was converted from GetSegMasks ()...it fills in an array of 6
 //elements for the distace behind each tSide, or zero if not behind
 //only gets centerMask, and assumes zero rad
-ubyte GetSideDistsAll (const CFixVector& checkP, int nSegment, fix *xSideDists)
+ubyte GetSideDistsAll (const vmsVector& checkP, int nSegment, fix *xSideDists)
 {
 	int			sn, faceBit, sideBit;
 	ubyte			mask;
 	int			nFaces;
 	int			vertexList [6];
-	CSegment		*segP;
+	tSegment		*segP;
 	tSide			*sideP;
 	tSegment2	*seg2P;
 	tSide2		*side2P;
@@ -905,7 +905,7 @@ segP = gameData.segs.segments + nSegment;
 sideP = segP->sides;
 seg2P = gameData.segs.segment2s + nSegment;
 side2P = seg2P->sides;
-//check point against each tSide of CSegment. return bitmask
+//check point against each tSide of tSegment. return bitmask
 mask = 0;
 for (sn = 0, faceBit = sideBit = 1; sn < 6; sn++, sideBit <<= 1, sideP++) {
 		int	bSidePokesOut;
@@ -994,8 +994,8 @@ return mask;
 #ifndef COMPACT_SEGS
 //returns true if errors detected
 int CheckNorms (int nSegment, int nSide, int facenum, int csegnum, int csidenum, int cfacenum) {
-	const CFixVector& n0 = gameData.segs.segments [nSegment].sides [nSide].normals [facenum];
-	const CFixVector& n1 = gameData.segs.segments [csegnum].sides [csidenum].normals [cfacenum];
+	const vmsVector& n0 = gameData.segs.segments [nSegment].sides [nSide].normals [facenum];
+	const vmsVector& n1 = gameData.segs.segments [csegnum].sides [csidenum].normals [cfacenum];
 
 	if (n0[X] != -n1[X]  ||  n0[Y] != -n1[Y]  ||  n0[Z] != -n1[Z]) {
 #if TRACE
@@ -1019,13 +1019,13 @@ int CheckSegmentConnections (void)
 	int errors=0;
 
 	for (nSegment=0;nSegment<=gameData.segs.nLastSegment;nSegment++) {
-		CSegment *seg;
+		tSegment *seg;
 
 		seg = &gameData.segs.segments [nSegment];
 
 		for (nSide=0;nSide<6;nSide++) {
 			tSide *s;
-			CSegment *cseg;
+			tSegment *cseg;
 			tSide *cs;
 			int nFaces, csegnum, csidenum, con_num_faces;
 			int vertexList [6], con_vertex_list [6];
@@ -1151,10 +1151,10 @@ int CheckSegmentConnections (void)
 int	bDoingLightingHack=0;
 
 //figure out what seg the given point is in, tracing through segments
-//returns CSegment number, or -1 if can't find CSegment
-int TraceSegs (const CFixVector& p0, int nOldSeg, int nTraceDepth, char* bVisited)
+//returns tSegment number, or -1 if can't find tSegment
+int TraceSegs (const vmsVector& p0, int nOldSeg, int nTraceDepth, char* bVisited)
 {
-	CSegment			*segP;
+	tSegment			*segP;
 	fix				xSideDists [6], xMaxDist;
 	int				centerMask, nMaxSide, nSide, bit, nMatchSeg = -1;
 
@@ -1163,7 +1163,7 @@ if (nTraceDepth >= gameData.segs.nSegments)
 if (bVisited [nOldSeg])
 	return -1;
 bVisited [nOldSeg] = 1;
-if (!(centerMask = GetSideDists (p0, nOldSeg, xSideDists, 1)))		//we're in the old CSegment
+if (!(centerMask = GetSideDists (p0, nOldSeg, xSideDists, 1)))		//we're in the old tSegment
 	return nOldSeg;		
 segP = gameData.segs.segments + nOldSeg;
 for (;;) {
@@ -1177,10 +1177,10 @@ for (;;) {
 	if (nMaxSide == -1)
 		break;
 	xSideDists [nMaxSide] = 0;
-	if (0 <= (nMatchSeg = TraceSegs (p0, segP->children [nMaxSide], nTraceDepth + 1, bVisited)))	//trace into adjacent CSegment
+	if (0 <= (nMatchSeg = TraceSegs (p0, segP->children [nMaxSide], nTraceDepth + 1, bVisited)))	//trace into adjacent tSegment
 		break;
 	}
-return nMatchSeg;		//we haven't found a CSegment
+return nMatchSeg;		//we haven't found a tSegment
 }
 
 
@@ -1188,12 +1188,12 @@ return nMatchSeg;		//we haven't found a CSegment
 int	nExhaustiveCount=0, nExhaustiveFailedCount=0;
 
 // -------------------------------------------------------------------------------
-//Tries to find a CSegment for a point, in the following way:
-// 1. Check the given CSegment
+//Tries to find a tSegment for a point, in the following way:
+// 1. Check the given tSegment
 // 2. Recursivel [Y] trace through attached segments
 // 3. Check all the segmentns
 //Returns nSegment if found, or -1
-int FindSegByPos (const CFixVector& p, int nSegment, int bExhaustive, int bSkyBox, int nThread)
+int FindSegByPos (const vmsVector& p, int nSegment, int bExhaustive, int bSkyBox, int nThread)
 {
 	static char		bVisited [2][MAX_SEGMENTS_D2X]; 
 
@@ -1208,12 +1208,12 @@ if (nSemaphore < 0)
 	nSemaphore = 0;
 nSemaphore++;
 #endif
-//allow nSegment == -1, meaning we have no idea what CSegment point is in
+//allow nSegment == -1, meaning we have no idea what tSegment point is in
 Assert ((nSegment <= gameData.segs.nLastSegment) && (nSegment >= -1));
 if (nSegment != -1) {
 	memset (bVisited [nThread], 0, gameData.segs.nSegments);
 	nNewSeg = TraceSegs (p, nSegment, 0, bVisited [nThread]);
-	if (nNewSeg != -1)//we found a CSegment!
+	if (nNewSeg != -1)//we found a tSegment!
 		goto funcExit;
 	}
 //couldn't find via attached segs, so search all segs
@@ -1223,10 +1223,10 @@ if (bDoingLightingHack || !bExhaustive) {
 	}
 ++nExhaustiveCount;
 #if 0 //TRACE
-con_printf (1, "Warning: doing exhaustive search to find point CSegment (%i times)\n", nExhaustiveCount);
+con_printf (1, "Warning: doing exhaustive search to find point tSegment (%i times)\n", nExhaustiveCount);
 #endif
 if (bSkyBox) {
-	for (i = gameData.segs.skybox.ToS (), segP = gameData.segs.skybox.Buffer (); i; i--, segP++)
+	for (i = gameData.segs.skybox.nSegments, segP = gameData.segs.skybox.segments; i; i--, segP++)
 		if (!GetSegMasks (p, *segP, 0).centerMask)
 			goto funcExit;
 	}
@@ -1238,7 +1238,7 @@ else {
 nNewSeg = -1;
 ++nExhaustiveFailedCount;
 #if TRACE
-con_printf (1, "Warning: could not find point CSegment (%i times)\n", nExhaustiveFailedCount);
+con_printf (1, "Warning: could not find point tSegment (%i times)\n", nExhaustiveFailedCount);
 #endif
 
 funcExit:
@@ -1248,18 +1248,18 @@ if (nSemaphore > 0)
 else
 	nSemaphore = 0;
 #endif
-return nNewSeg;		//no CSegment found
+return nNewSeg;		//no tSegment found
 }
 
 // -------------------------------------------------------------------------------
 
-short FindClosestSeg (CFixVector& vPos)
+short FindClosestSeg (vmsVector& vPos)
 {
 	short		nSegment, nClosestSeg = -1;
 	fix		nDist, nMinDist = 0x7fffffff;
 
 for (nSegment = 0; nSegment < gameData.segs.nSegments; nSegment++) {
-	nDist = CFixVector::Dist (vPos, *SEGMENT_CENTER_I (nSegment)) - MinSegRad (nSegment);
+	nDist = vmsVector::Dist (vPos, *SEGMENT_CENTER_I (nSegment)) - MinSegRad (nSegment);
 	if (nDist < nMinDist) {
 		nMinDist = nDist;
 		nClosestSeg = nSegment;
@@ -1384,7 +1384,7 @@ void AddToFCDCache (int seg0, int seg1, int nDepth, fix dist)
 //	Determine whether seg0 and seg1 are reachable in a way that allows sound to pass.
 //	Search up to a maximum nDepth of nMaxDepth.
 //	Return the distance.
-fix FindConnectedDistance (CFixVector *p0, short seg0, CFixVector *p1, short seg1, int nMaxDepth, int widFlag, int bUseCache)
+fix FindConnectedDistance (vmsVector *p0, short seg0, vmsVector *p1, short seg1, int nMaxDepth, int widFlag, int bUseCache)
 {
 	short				nConnSide;
 	short				nCurSeg, nParentSeg, nThisSeg;
@@ -1396,7 +1396,7 @@ fix FindConnectedDistance (CFixVector *p0, short seg0, CFixVector *p1, short seg
 	short				nDepth [MAX_SEGMENTS_D2X];
 	tPointSeg		pointSegs [MAX_LOC_POINT_SEGS];
 	fix				dist;
-	CSegment			*segP;
+	tSegment			*segP;
 	tFCDCacheData	*pc;
 
 	//	If > this, will overrun pointSegs buffer
@@ -1408,13 +1408,13 @@ if (nMaxDepth > MAX_LOC_POINT_SEGS-2) {
 	}
 if (seg0 == seg1) {
 	gameData.fcd.nConnSegDist = 0;
-	return CFixVector::Dist(*p0, *p1);
+	return vmsVector::Dist(*p0, *p1);
 	}
 nConnSide = FindConnectedSide (gameData.segs.segments + seg0, gameData.segs.segments + seg1);
 if ((nConnSide != -1) &&
 	 (WALL_IS_DOORWAY (gameData.segs.segments + seg1, nConnSide, NULL) & widFlag)) {
 	gameData.fcd.nConnSegDist = 1;
-	return CFixVector::Dist(*p0, *p1);
+	return vmsVector::Dist(*p0, *p1);
 	}
 //	Periodically flush cache.
 if ((gameData.time.xGame - gameData.fcd.xLastFlushTime > F1_0*2) ||
@@ -1479,7 +1479,7 @@ while (nCurSeg != seg1) {
 fcd_done1: ;
 	}	//	while (nCurSeg ...
 
-//	Set qTail to the CSegment which ends at the goal.
+//	Set qTail to the tSegment which ends at the goal.
 while (segmentQ [--qTail].end != seg1)
 	if (qTail < 0) {
 		gameData.fcd.nConnSegDist = 1000;
@@ -1503,14 +1503,14 @@ COMPUTE_SEGMENT_CENTER_I (&pointSegs [nPoints].point, seg0);
 nPoints++;
 if (nPoints == 1) {
 	gameData.fcd.nConnSegDist = nPoints;
-	return CFixVector::Dist(*p0, *p1);
+	return vmsVector::Dist(*p0, *p1);
 	}
 else {
 	fix	ndist;
-	dist = CFixVector::Dist(*p1, pointSegs [1].point);
-	dist += CFixVector::Dist(*p0, pointSegs [nPoints-2].point);
+	dist = vmsVector::Dist(*p1, pointSegs [1].point);
+	dist += vmsVector::Dist(*p0, pointSegs [nPoints-2].point);
 	for (i = 1; i < nPoints - 2; i++) {
-		ndist = CFixVector::Dist(pointSegs [i].point, pointSegs [i+1].point);
+		ndist = vmsVector::Dist(pointSegs [i].point, pointSegs [i+1].point);
 		dist += ndist;
 		}
 	}
@@ -1534,16 +1534,16 @@ sbyte convert_to_byte (fix f)
 #define VEL_PRECISION 12
 
 // -------------------------------------------------------------------------------
-//	Create a tShortPos struct from an CObject.
+//	Create a tShortPos struct from an tObject.
 //	Extract the matrix into byte values.
 //	Create a position relative to vertex 0 with 1/256 Normal "fix" precision.
-//	Stuff CSegment in a short.
-void CreateShortPos (tShortPos *spp, CObject *objP, int swap_bytes)
+//	Stuff tSegment in a short.
+void CreateShortPos (tShortPos *spp, tObject *objP, int swap_bytes)
 {
 	// int	nSegment;
 	vmsMatrix orient = objP->info.position.mOrient;
 	sbyte   *segP = spp->orient;
-	CFixVector *pv;
+	vmsVector *pv;
 
 	*segP++ = convert_to_byte(orient[RVEC][X]);
 	*segP++ = convert_to_byte(orient[UVEC][X]);
@@ -1581,11 +1581,11 @@ void CreateShortPos (tShortPos *spp, CObject *objP, int swap_bytes)
 
 // -------------------------------------------------------------------------------
 
-void ExtractShortPos (CObject *objP, tShortPos *spp, int swap_bytes)
+void ExtractShortPos (tObject *objP, tShortPos *spp, int swap_bytes)
 {
 	int	nSegment;
 	sbyte   *segP;
-	CFixVector *pv;
+	vmsVector *pv;
 
 	segP = spp->orient;
 
@@ -1622,7 +1622,7 @@ void ExtractShortPos (CObject *objP, tShortPos *spp, int swap_bytes)
 	objP->mType.physInfo.velocity[Y] = (spp->vel [Y] << VEL_PRECISION);
 	objP->mType.physInfo.velocity[Z] = (spp->vel [Z] << VEL_PRECISION);
 
-	objP->RelinkToSeg (nSegment);
+	RelinkObjToSeg (OBJ_IDX (objP), nSegment);
 
 }
 
@@ -1641,12 +1641,12 @@ void ExtractShortPos (CObject *objP, tShortPos *spp, int swap_bytes)
 // -------------------------------------------------------------------------------
 
 // ------------------------------------------------------------------------------------------
-//	Extract a vector from a CSegment.  The vector goes from the start face to the end face.
+//	Extract a vector from a tSegment.  The vector goes from the start face to the end face.
 //	The point on each face is the average of the four points forming the face.
-void extract_vector_from_segment (CSegment *segP, CFixVector *vp, int start, int end)
+void extract_vector_from_segment (tSegment *segP, vmsVector *vp, int start, int end)
 {
 	int			i;
-	CFixVector	vs, ve;
+	vmsVector	vs, ve;
 
 	vs.SetZero();
 	ve.SetZero();
@@ -1662,10 +1662,10 @@ void extract_vector_from_segment (CSegment *segP, CFixVector *vp, int start, int
 }
 
 // -------------------------------------------------------------------------------
-//create a matrix that describes the orientation of the given CSegment
-void ExtractOrientFromSegment (vmsMatrix *m, CSegment *seg)
+//create a matrix that describes the orientation of the given tSegment
+void ExtractOrientFromSegment (vmsMatrix *m, tSegment *seg)
 {
-	CFixVector fVec, uVec;
+	vmsVector fVec, uVec;
 
 	extract_vector_from_segment (seg, &fVec, WFRONT, WBACK);
 	extract_vector_from_segment (seg, &uVec, WBOTTOM, WTOP);
@@ -1677,28 +1677,28 @@ void ExtractOrientFromSegment (vmsMatrix *m, CSegment *seg)
 
 #ifdef EDITOR
 // ------------------------------------------------------------------------------------------
-//	Extract the forward vector from CSegment *segP, return in *vp.
-//	The forward vector is defined to be the vector from the the center of the front face of the CSegment
-// to the center of the back face of the CSegment.
-void extract_forward_vector_from_segment (CSegment *segP, CFixVector *vp)
+//	Extract the forward vector from tSegment *segP, return in *vp.
+//	The forward vector is defined to be the vector from the the center of the front face of the tSegment
+// to the center of the back face of the tSegment.
+void extract_forward_vector_from_segment (tSegment *segP, vmsVector *vp)
 {
 	extract_vector_from_segment (segP, vp, WFRONT, WBACK);
 }
 
 // ------------------------------------------------------------------------------------------
-//	Extract the right vector from CSegment *segP, return in *vp.
-//	The forward vector is defined to be the vector from the the center of the left face of the CSegment
-// to the center of the right face of the CSegment.
-void extract_right_vector_from_segment (CSegment *segP, CFixVector *vp)
+//	Extract the right vector from tSegment *segP, return in *vp.
+//	The forward vector is defined to be the vector from the the center of the left face of the tSegment
+// to the center of the right face of the tSegment.
+void extract_right_vector_from_segment (tSegment *segP, vmsVector *vp)
 {
 	extract_vector_from_segment (segP, vp, WLEFT, WRIGHT);
 }
 
 // ------------------------------------------------------------------------------------------
-//	Extract the up vector from CSegment *segP, return in *vp.
-//	The forward vector is defined to be the vector from the the center of the bottom face of the CSegment
-// to the center of the top face of the CSegment.
-void extract_up_vector_from_segment (CSegment *segP, CFixVector *vp)
+//	Extract the up vector from tSegment *segP, return in *vp.
+//	The forward vector is defined to be the vector from the the center of the bottom face of the tSegment
+// to the center of the top face of the tSegment.
+void extract_up_vector_from_segment (tSegment *segP, vmsVector *vp)
 {
 	extract_vector_from_segment (segP, vp, WBOTTOM, WTOP);
 }
@@ -1706,7 +1706,7 @@ void extract_up_vector_from_segment (CSegment *segP, CFixVector *vp)
 
 // -------------------------------------------------------------------------------
 
-void AddSideAsQuad (CSegment *segP, int nSide, CFixVector *Normal)
+void AddSideAsQuad (tSegment *segP, int nSide, vmsVector *Normal)
 {
 	tSide	*sideP = segP->sides + nSide;
 
@@ -1718,7 +1718,7 @@ void AddSideAsQuad (CSegment *segP, int nSide, CFixVector *Normal)
 	sideP->normals [1] = *Normal;
 	#endif
 
-	//	If there is a connection here, we only formed the faces for the purpose of determining CSegment boundaries,
+	//	If there is a connection here, we only formed the faces for the purpose of determining tSegment boundaries,
 	//	so don't generate polys, else they will get rendered.
 //	if (segP->children [nSide] != -1)
 //		sideP->renderFlag = 0;
@@ -1762,22 +1762,22 @@ return ((((w [0] + 3) % 4) == w [1]) || (((w [1] + 3) % 4) == w [2]));
 
 // -------------------------------------------------------------------------------
 
-void AddSideAsTwoTriangles (CSegment *segP, int nSide)
+void AddSideAsTwoTriangles (tSegment *segP, int nSide)
 {
-	CFixVector	vNormal;
+	vmsVector	vNormal;
 	sbyte       *vs = sideToVerts [nSide];
 	short			v0 = segP->verts [vs [0]];
 	short			v1 = segP->verts [vs [1]];
 	short			v2 = segP->verts [vs [2]];
 	short			v3 = segP->verts [vs [3]];
 	fix			dot;
-	CFixVector	vec_13;		//	vector from vertex 1 to vertex 3
+	vmsVector	vec_13;		//	vector from vertex 1 to vertex 3
 
 	tSide	*sideP = segP->sides + nSide;
 
 	//	Choose how to triangulate.
 	//	If a tWall, then
-	//		Always triangulate so CSegment is convex.
+	//		Always triangulate so tSegment is convex.
 	//		Use Matt's formula: Na . AD > 0, where ABCD are vertices on tSide, a is face formed by A, B, C, Na is Normal from face a.
 	//	If not a tWall, then triangulate so whatever is on the other tSide is triangulated the same (ie, between the same absoluate vertices)
 #if DBG
@@ -1785,11 +1785,11 @@ if ((SEG_IDX (segP) == nDbgSeg) && ((nDbgSide < 0) || (nSide == nDbgSide)))
 	segP = segP;
 #endif
 if (!IS_CHILD (segP->children [nSide])) {
-	vNormal = CFixVector::Normal(gameData.segs.vertices [v0],
+	vNormal = vmsVector::Normal(gameData.segs.vertices [v0],
 	                            gameData.segs.vertices [v1],
 	                            gameData.segs.vertices [v2]);
 	vec_13 = gameData.segs.vertices [v3] - gameData.segs.vertices [v1];
-	dot = CFixVector::Dot(vNormal, vec_13);
+	dot = vmsVector::Dot(vNormal, vec_13);
 
 	//	Now, signify whether to triangulate from 0:2 or 1:3
 	if (dot >= 0)
@@ -1802,13 +1802,13 @@ if (!IS_CHILD (segP->children [nSide])) {
 	if (sideP->nType == SIDE_IS_TRI_02) {
 		//VmVecNormalChecked (&vNormal, gameData.segs.vertices + v0, gameData.segs.vertices + v1, gameData.segs.vertices + v2);
 		sideP->normals [0] = vNormal;
-		vNormal = CFixVector::Normal(gameData.segs.vertices [v0], gameData.segs.vertices [v2], gameData.segs.vertices [v3]);
+		vNormal = vmsVector::Normal(gameData.segs.vertices [v0], gameData.segs.vertices [v2], gameData.segs.vertices [v3]);
 		sideP->normals [1] = vNormal;
 		}
 	else {
-		vNormal = CFixVector::Normal(gameData.segs.vertices [v0], gameData.segs.vertices [v1], gameData.segs.vertices [v3]);
+		vNormal = vmsVector::Normal(gameData.segs.vertices [v0], gameData.segs.vertices [v1], gameData.segs.vertices [v3]);
 		sideP->normals [0] = vNormal;
-		vNormal = CFixVector::Normal(gameData.segs.vertices [v1], gameData.segs.vertices [v2], gameData.segs.vertices [v3]);
+		vNormal = vmsVector::Normal(gameData.segs.vertices [v1], gameData.segs.vertices [v2], gameData.segs.vertices [v3]);
 		sideP->normals [1] = vNormal;
 		}
 #	endif
@@ -1823,14 +1823,14 @@ else {
 #	ifndef COMPACT_SEGS
 		//	Now, get vertices for Normal for each triangle based on triangulation nType.
 		bFlip = GetVertsForNormal (v0, v1, v2, 32767, vSorted, vSorted + 1, vSorted + 2, vSorted + 3);
-		sideP->normals[0] = CFixVector::Normal(
+		sideP->normals[0] = vmsVector::Normal(
 						 gameData.segs.vertices [vSorted[0]],
 						 gameData.segs.vertices [vSorted[1]],
 						 gameData.segs.vertices [vSorted[2]]);
 		if (bFlip)
 			sideP->normals[0].Neg();
 		bFlip = GetVertsForNormal (v0, v2, v3, 32767, vSorted, vSorted + 1, vSorted + 2, vSorted + 3);
-		sideP->normals[1] = CFixVector::Normal(
+		sideP->normals[1] = vmsVector::Normal(
 						 gameData.segs.vertices [vSorted[0]],
 						 gameData.segs.vertices [vSorted[1]],
 						 gameData.segs.vertices [vSorted[2]]);
@@ -1844,14 +1844,14 @@ else {
 #	ifndef COMPACT_SEGS
 		//	Now, get vertices for Normal for each triangle based on triangulation nType.
 		bFlip = GetVertsForNormal (v0, v1, v3, 32767, vSorted, vSorted + 1, vSorted + 2, vSorted + 3);
-		sideP->normals[0] = CFixVector::Normal(
+		sideP->normals[0] = vmsVector::Normal(
 						 gameData.segs.vertices [vSorted[0]],
 						 gameData.segs.vertices [vSorted[1]],
 						 gameData.segs.vertices [vSorted[2]]);
 		if (bFlip)
 			sideP->normals[0].Neg();
 		bFlip = GetVertsForNormal (v1, v2, v3, 32767, vSorted, vSorted + 1, vSorted + 2, vSorted + 3);
-		sideP->normals[1] = CFixVector::Normal(
+		sideP->normals[1] = vmsVector::Normal(
 						 gameData.segs.vertices [vSorted[0]],
 						 gameData.segs.vertices [vSorted[1]],
 						 gameData.segs.vertices [vSorted[2]]);
@@ -1875,7 +1875,7 @@ return 0;
 
 // -------------------------------------------------------------------------------
 
-void AddToVertexNormal (int nVertex, CFixVector *pvNormal)
+void AddToVertexNormal (int nVertex, vmsVector *pvNormal)
 {
 	g3sNormal	*pn = &gameData.segs.points [nVertex].p3_normal;
 
@@ -1893,12 +1893,12 @@ pn->vNormal[Z] += X2F ((*pvNormal)[Z]);
 
 int bRenderQuads = 0;
 
-void CreateWallsOnSide (CSegment *segP, int nSide)
+void CreateWallsOnSide (tSegment *segP, int nSide)
 {
 	int			vm0, vm1, vm2, vm3, bFlip;
 	int			v0, v1, v2, v3, i;
 	int			vertexList [6];
-	CFixVector	vn;
+	vmsVector	vn;
 	fix			xDistToPlane;
 	sbyte			*s2v = sideToVerts [nSide];
 
@@ -1907,7 +1907,7 @@ void CreateWallsOnSide (CSegment *segP, int nSide)
 	v2 = segP->verts [s2v [2]];
 	v3 = segP->verts [s2v [3]];
 	bFlip = GetVertsForNormal (v0, v1, v2, v3, &vm0, &vm1, &vm2, &vm3);
-	vn = CFixVector::Normal(gameData.segs.vertices [vm0], gameData.segs.vertices [vm1], gameData.segs.vertices [vm2]);
+	vn = vmsVector::Normal(gameData.segs.vertices [vm0], gameData.segs.vertices [vm1], gameData.segs.vertices [vm2]);
 	xDistToPlane = abs(gameData.segs.vertices [vm3].DistToPlane(vn, gameData.segs.vertices [vm0]));
 	if (bFlip)
 		vn.Neg();
@@ -1935,7 +1935,7 @@ void CreateWallsOnSide (CSegment *segP, int nSide)
 			nVertex = min(vertexList [0], vertexList [2]);
 #ifdef COMPACT_SEGS
 			{
-			CFixVector normals [2];
+			vmsVector normals [2];
 			GetSideNormals (segP, nSide, &normals [0], &normals [1]);
 			dist0 = VmDistToPlane (gameData.segs.vertices + vertexList [1], normals + 1, gameData.segs.vertices + nVertex);
 			dist1 = VmDistToPlane (gameData.segs.vertices + vertexList [4], normals, gameData.segs.vertices + nVertex);
@@ -1943,7 +1943,7 @@ void CreateWallsOnSide (CSegment *segP, int nSide)
 #else
 			{
 #	if DBG
-			CFixVector normals [2];
+			vmsVector normals [2];
 			GetSideNormals (segP, nSide, &normals [0], &normals [1]);
 #	endif
 			dist0 = gameData.segs.vertices [vertexList[1]].DistToPlane(s->normals[1], gameData.segs.vertices [nVertex]);
@@ -1980,7 +1980,7 @@ else {
 
 // -------------------------------------------------------------------------------
 
-void ValidateRemovableWall (CSegment *segP, int nSide, int nTexture)
+void ValidateRemovableWall (tSegment *segP, int nSide, int nTexture)
 {
 CreateWallsOnSide (segP, nSide);
 segP->sides [nSide].nBaseTex = nTexture;
@@ -1989,8 +1989,8 @@ segP->sides [nSide].nBaseTex = nTexture;
 }
 
 // -------------------------------------------------------------------------------
-//	Make a just-modified CSegment tSide valid.
-void ValidateSegmentSide (CSegment *segP, short nSide)
+//	Make a just-modified tSegment tSide valid.
+void ValidateSegmentSide (tSegment *segP, short nSide)
 {
 if (IS_WALL (WallNumP (segP, nSide)))
 	ValidateRemovableWall (segP, nSide, segP->sides [nSide].nBaseTex);
@@ -2005,14 +2005,14 @@ void ComputeVertexNormals (void)
 	int		h, i;
 	g3sPoint	*pp;
 
-for (i = gameData.segs.nVertices, pp = gameData.segs.points.Buffer (); i; i--, pp++) {
+for (i = gameData.segs.nVertices, pp = gameData.segs.points; i; i--, pp++) {
 	if (1 < (h = pp->p3_normal.nFaces)) {
 		pp->p3_normal.vNormal /= (float) h;
 		/*
 		pp->p3_normal.vNormal[Y] /= h;
 		pp->p3_normal.vNormal[Z] /= h;
 		*/
-		CFloatVector::Normalize (pp->p3_normal.vNormal);
+		fVector::Normalize (pp->p3_normal.vNormal);
 		}
 	pp->p3_normal.nFaces = 1;
 	}
@@ -2022,7 +2022,7 @@ for (i = gameData.segs.nVertices, pp = gameData.segs.points.Buffer (); i; i--, p
 
 float FaceSize (short nSegment, ubyte nSide)
 {
-	CSegment		*segP = SEGMENTS + nSegment;
+	tSegment		*segP = SEGMENTS + nSegment;
 	sbyte			*s2v = sideToVerts [nSide];
 
 	short			v0 = segP->verts [s2v [0]];
@@ -2041,17 +2041,17 @@ void ResetVertexNormals (void)
 	int		i;
 	g3sPoint	*pp;
 
-for (i = gameData.segs.nVertices, pp = gameData.segs.points.Buffer (); i; i--, pp++) {
+for (i = gameData.segs.nVertices, pp = gameData.segs.points; i; i--, pp++) {
 	pp->p3_normal.vNormal.SetZero();
 	pp->p3_normal.nFaces = 0;
 	}
 }
 
 // -------------------------------------------------------------------------------
-//	Make a just-modified CSegment valid.
+//	Make a just-modified tSegment valid.
 //		check all sides to see how many faces they each should have (0, 1, 2)
 //		create new vector normals
-void ValidateSegment (CSegment *segP)
+void ValidateSegment (tSegment *segP)
 {
 	short	tSide;
 
@@ -2072,7 +2072,7 @@ void ValidateSegmentAll (void)
 	int	s;
 
 gameOpts->render.nMathFormat = 0;
-gameData.segs.points.Clear ();
+memset (gameData.segs.points, 0, sizeof (*gameData.segs.points) * MAX_VERTICES);
 for (s = 0; s <= gameData.segs.nLastSegment; s++)
 #ifdef EDITOR
 	if (gameData.segs.segments [s].nSegment != -1)
@@ -2111,12 +2111,12 @@ gameOpts->render.nMathFormat = gameOpts->render.nDefMathFormat;
 
 
 //	------------------------------------------------------------------------------------------------------
-//	Picks a Random point in a CSegment like so:
+//	Picks a Random point in a tSegment like so:
 //		From center, go up to 50% of way towards any of the 8 vertices.
-void PickRandomPointInSeg (CFixVector *new_pos, int nSegment)
+void PickRandomPointInSeg (vmsVector *new_pos, int nSegment)
 {
 	int			vnum;
-	CFixVector	vec2;
+	vmsVector	vec2;
 
 	COMPUTE_SEGMENT_CENTER_I (new_pos, nSegment);
 	vnum = (d_rand () * MAX_VERTICES_PER_SEGMENT) >> 15;
@@ -2192,7 +2192,7 @@ return (nParentDepth + 1) * gameStates.render.bViewDist;
 
 fix FindConnectedDistanceSegments (short seg0, short seg1, int nDepth, int widFlag)
 {
-	CFixVector	p0, p1;
+	vmsVector	p0, p1;
 
 COMPUTE_SEGMENT_CENTER_I (&p0, seg0);
 COMPUTE_SEGMENT_CENTER_I (&p1, seg1);
@@ -2202,7 +2202,7 @@ return FindConnectedDistance (&p0, seg0, &p1, seg1, nDepth, widFlag, 0);
 #define	AMBIENT_SEGMENT_DEPTH		5
 
 //	-----------------------------------------------------------------------------
-//	Do a bfs from nSegment, marking slots in marked_segs if the CSegment is reachable.
+//	Do a bfs from nSegment, marking slots in marked_segs if the tSegment is reachable.
 void AmbientMarkBfs (short nSegment, sbyte *marked_segs, int nDepth)
 {
 	short	i, child;
@@ -2237,14 +2237,14 @@ for (i=0; i<=gameData.segs.nLastSegment; i++) {
 
 //	Mark all segments which are sources of the sound.
 for (i=0; i<=gameData.segs.nLastSegment; i++) {
-	CSegment	*segp = &gameData.segs.segments [i];
+	tSegment	*segp = &gameData.segs.segments [i];
 	tSegment2	*seg2p = &gameData.segs.segment2s [i];
 
 	for (j=0; j<MAX_SIDES_PER_SEGMENT; j++) {
 		tSide	*sideP = &segp->sides [j];
 
-		if ((gameData.pig.tex.tMapInfoP [sideP->nBaseTex].flags & tmi_bit) ||
-			   (gameData.pig.tex.tMapInfoP [sideP->nOvlTex].flags & tmi_bit)) {
+		if ((gameData.pig.tex.pTMapInfo [sideP->nBaseTex].flags & tmi_bit) ||
+			   (gameData.pig.tex.pTMapInfo [sideP->nOvlTex].flags & tmi_bit)) {
 			if (!IS_CHILD (segp->children [j]) || IS_WALL (sideP->nWall)) {
 				seg2p->s2Flags |= s2f_bit;
 				marked_segs [i] = 1;		//	Say it's itself that it is close enough to to hear something.

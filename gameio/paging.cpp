@@ -71,19 +71,19 @@ for (i = 0; i < vc->nFrameCount; i++)
 void PagingTouchWallEffects (int nTexture)
 {
 	int	i;
-	tEffectClip *ecP = gameData.eff.effectP.Buffer ();
+	tEffectClip *ecP = gameData.eff.pEffects;
 
 for (i = gameData.eff.nEffects [gameStates.app.bD1Data]; i; i--, ecP++) {
 	if (ecP->changingWallTexture == nTexture) {
 		PagingTouchVClip (&ecP->vc, gameStates.app.bD1Data);
 		if (ecP->nDestBm > -1)
-			PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [ecP->nDestBm].index, gameStates.app.bD1Data);	//use this bitmap when monitor destroyed
+			PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [ecP->nDestBm].index, gameStates.app.bD1Data);	//use this bitmap when monitor destroyed
 		if (ecP->dest_vclip > -1)
-			PagingTouchVClip (&gameData.eff.vClipP [ecP->dest_vclip], gameStates.app.bD1Data);		  //what tVideoClip to play when exploding
+			PagingTouchVClip (&gameData.eff.pVClips [ecP->dest_vclip], gameStates.app.bD1Data);		  //what tVideoClip to play when exploding
 		if (ecP->dest_eclip > -1)
-			PagingTouchVClip (&gameData.eff.effectP [ecP->dest_eclip].vc, gameStates.app.bD1Data); //what tEffectClip to play when exploding
+			PagingTouchVClip (&gameData.eff.pEffects [ecP->dest_eclip].vc, gameStates.app.bD1Data); //what tEffectClip to play when exploding
 		if (ecP->crit_clip > -1)
-			PagingTouchVClip (&gameData.eff.effectP [ecP->crit_clip].vc, gameStates.app.bD1Data); //what tEffectClip to play when mine critical
+			PagingTouchVClip (&gameData.eff.pEffects [ecP->crit_clip].vc, gameStates.app.bD1Data); //what tEffectClip to play when mine critical
 		}
 	}
 }
@@ -93,7 +93,7 @@ for (i = gameData.eff.nEffects [gameStates.app.bD1Data]; i; i--, ecP++) {
 void PagingTouchObjectEffects (int nTexture)
 {
 	int	i;
-	tEffectClip *ecP = gameData.eff.effectP.Buffer ();
+	tEffectClip *ecP = gameData.eff.pEffects;
 
 for (i = gameData.eff.nEffects [gameStates.app.bD1Data]; i; i--, ecP++)
 	if (ecP->changingObjectTexture == nTexture)
@@ -108,7 +108,7 @@ void PagingTouchModel (int nModel)
 	ushort		*pi;
 	tPolyModel	*pm = gameData.models.polyModels + nModel;
 
-for (i = pm->nTextures, pi = gameData.pig.tex.objBmIndexP + pm->nFirstTexture; i; i--, pi++) {
+for (i = pm->nTextures, pi = gameData.pig.tex.pObjBmIndex + pm->nFirstTexture; i; i--, pi++) {
 	j = *pi;
 	PIGGY_PAGE_IN (gameData.pig.tex.objBmIndex [j].index, 0);
 	PagingTouchObjectEffects (j);
@@ -179,13 +179,13 @@ if (ROBOTINFO (robotIndex).bossFlag == 2) {
 
 //------------------------------------------------------------------------------
 
-void PagingTouchObject (CObject *objP)
+void PagingTouchObject (tObject *objP)
 {
 	int v;
 
 switch (objP->info.renderType) {
 	case RT_NONE:
-		break;		//doesn't render, like the CPlayerData
+		break;		//doesn't render, like the tPlayer
 
 	case RT_POLYOBJ:
 		if (objP->rType.polyObjInfo.nTexOverride == -1)
@@ -236,7 +236,7 @@ switch (objP->info.nType) {
 
 //------------------------------------------------------------------------------
 
-void PagingTouchSide (CSegment * segP, short nSide)
+void PagingTouchSide (tSegment * segP, short nSide)
 {
 	int tmap1, tmap2;
 
@@ -251,16 +251,16 @@ tmap1 = segP->sides [nSide].nBaseTex;
 PagingTouchWallEffects (tmap1);
 tmap2 = segP->sides [nSide].nOvlTex;
 if (tmap2) {
-	PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tmap2].index, gameStates.app.bD1Data);
+	PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tmap2].index, gameStates.app.bD1Data);
 	PagingTouchWallEffects (tmap2);
 	}
 //else
-	PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [tmap1].index, gameStates.app.bD1Data);
+	PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [tmap1].index, gameStates.app.bD1Data);
 
 // PSX STUFF
 #ifdef PSX_BUILD_TOOLS
 // If there is water on the level, then force the water splash into memory
-if (!(gameData.pig.tex.tMapInfoP [tmap1].flags & TMI_VOLATILE) && (gameData.pig.tex.tMapInfoP [tmap1].flags & TMI_WATER)) {
+if (!(gameData.pig.tex.pTMapInfo [tmap1].flags & TMI_VOLATILE) && (gameData.pig.tex.pTMapInfo [tmap1].flags & TMI_WATER)) {
 	tBitmapIndex Splash;
 	Splash.index = 1098;
 	PIGGY_PAGE_IN (Splash.index);
@@ -278,7 +278,7 @@ if (!(gameData.pig.tex.tMapInfoP [tmap1].flags & TMI_VOLATILE) && (gameData.pig.
 
 //------------------------------------------------------------------------------
 
-void PagingTouchRobotMaker (CSegment * segP)
+void PagingTouchRobotMaker (tSegment * segP)
 {
 	tSegment2	*seg2p = &gameData.segs.segment2s [SEG_IDX (segP)];
 	int			i;
@@ -302,7 +302,7 @@ for (i = 0, robotIndex = 0; i < 2; i++, robotIndex += 32)
 void PagingTouchObjects (int nType)
 {
 	int		i;
-	CObject	*objP;
+	tObject	*objP;
 
 FORALL_OBJS (objP, i)
 	if ((nType < 0) || (objP->info.nType == nType))
@@ -311,7 +311,7 @@ FORALL_OBJS (objP, i)
 
 //------------------------------------------------------------------------------
 
-void PagingTouchSegment (CSegment * segP)
+void PagingTouchSegment (tSegment * segP)
 {
 	short			nSide, nObject;
 	tSegment2	*seg2p = &gameData.segs.segment2s [SEG_IDX (segP)];
@@ -324,7 +324,7 @@ if (seg2p->special == SEGMENT_IS_ROBOTMAKER)
 	PagingTouchRobotMaker (segP);
 for (nSide = 0; nSide < MAX_SIDES_PER_SEGMENT; nSide++) 
 	PagingTouchSide (segP, nSide);
-for (nObject = segP->objects; nObject != -1; nObject = OBJECTS [nObject].info.nNextInSeg)
+for (nObject = gameData.segs.objects [SEG_IDX (segP)]; nObject != -1; nObject = OBJECTS [nObject].info.nNextInSeg)
 	PagingTouchObject (OBJECTS + nObject);
 }
 
@@ -336,9 +336,9 @@ void PagingTouchWall (tWall *wallP)
 	tWallClip *anim;
 
 if (wallP->nClip > -1)	{
-	anim = gameData.walls.animP + wallP->nClip;
+	anim = gameData.walls.pAnims + wallP->nClip;
 	for (j=0; j < anim->nFrameCount; j++)
-		PIGGY_PAGE_IN (gameData.pig.tex.bmIndexP [anim->frames [j]].index, gameStates.app.bD1Data);
+		PIGGY_PAGE_IN (gameData.pig.tex.pBmIndex [anim->frames [j]].index, gameStates.app.bD1Data);
 	}
 }
 
@@ -413,8 +413,8 @@ void PagingTouchAllSub ()
 StopTime ();
 bBlackScreen = gameStates.render.bPaletteFadedOut;
 if (gameStates.render.bPaletteFadedOut)	{
-	CCanvas::Current ()->Clear (BLACK_RGBA);
-	paletteManager.LoadEffect  ();
+	GrClearCanvas (BLACK_RGBA);
+	GrPaletteStepLoad (NULL);
 	}
 //	ShowBoxedMessage (TXT_LOADING);
 #if TRACE			
@@ -436,8 +436,8 @@ PagingTouchAddonTextures ();
 //@@	ClearBoxedMessage ();
 
 	if (bBlackScreen)	{
-		paletteManager.ClearEffect ();
-		CCanvas::Current ()->Clear (BLACK_RGBA);
+		GrPaletteStepClear ();
+		GrClearCanvas (BLACK_RGBA);
 	}
 	StartTime (0);
 	ResetCockpit ();		//force cockpit redraw next time
@@ -468,7 +468,7 @@ static int PagingTouchPoll (int nItems, tMenuItem *m, int *key, int nCurItem)
 {
 	int	i;
 
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 if (nTouchSeg < gameData.segs.nSegments) {
 	for (i = 0; (i < PROGRESS_INCR) && (nTouchSeg < gameData.segs.nSegments); i++)
 		PagingTouchSegment (gameData.segs.segments + nTouchSeg++);
@@ -500,13 +500,13 @@ else {
 	PagingTouchVClip (&gameData.eff.vClips [0][VCLIP_PLAYER_APPEARANCE], 0);
 	PagingTouchVClip (&gameData.eff.vClips [0][VCLIP_POWERUP_DISAPPEARANCE], 0);
 	*key = -2;
-	paletteManager.LoadEffect  ();
+	GrPaletteStepLoad (NULL);
 	return nCurItem;
 	}
 m [0].value++;
 m [0].rebuild = 1;
 *key = 0;
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 return nCurItem;
 }
 

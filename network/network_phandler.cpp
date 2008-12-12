@@ -29,7 +29,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "netmisc.h"
 #include "autodl.h"
 #include "tracker.h"
-#include "banlist.h"
 
 //------------------------------------------------------------------------------
 
@@ -108,7 +107,7 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-#define THEIR	reinterpret_cast<tSequencePacket*>(dataP)
+#define THEIR	((tSequencePacket *) dataP)
 
 int GameInfoHandler (ubyte *dataP, int nLength)
 {
@@ -144,7 +143,7 @@ return 1;
 
 int GameListHandler (ubyte *dataP, int nLength)
 {
-if (banList.Find (THEIR->player.callsign))
+if (FindPlayerInBanList (THEIR->player.callsign))
 	return 0;
 if (!NetworkIAmMaster ())
 	return 0;
@@ -176,7 +175,7 @@ return 1;
 
 int RequestHandler (ubyte *dataP, int nLength)
 {
-if (banList.Find (THEIR->player.callsign))
+if (FindPlayerInBanList (THEIR->player.callsign))
 	return 0;
 if (networkData.nStatus == NETSTAT_STARTING) // Someone wants to join our game!
 	NetworkAddPlayer (THEIR);	
@@ -217,7 +216,7 @@ int SyncHandler (ubyte *dataP, int nLength)
 if (gameStates.multi.nGameType >= IPX_GAME)
 	ReceiveFullNetGamePacket (dataP, &tempNetInfo);
 else
-	tempNetInfo = *reinterpret_cast<tNetgameInfo*> (dataP);
+	tempNetInfo = *((tNetgameInfo *) dataP);
 if (NetworkBadSecurity (tempNetInfo.nSecurity, "PID_SYNC"))
 	return 0;
 if (networkData.nSecurityFlag == NETSECURITY_WAIT_FOR_SYNC) {
@@ -235,7 +234,7 @@ else {
 	networkData.nSecurityFlag = NETSECURITY_WAIT_FOR_PLAYERS;
 	networkData.nSecurityNum = tempNetInfo.nSecurity;
 	if (NetworkWaitForPlayerInfo ())
-		NetworkReadSyncPacket (reinterpret_cast<tNetgameInfo*> (dataP), 0);
+		NetworkReadSyncPacket ((tNetgameInfo *) dataP, 0);
 	networkData.nSecurityFlag = 0;
 	networkData.nSecurityNum = 0;
 	}
@@ -282,7 +281,7 @@ return 1;
 int PDataHandler (ubyte *dataP, int nLength)
 {
 if (IsNetworkGame)
-	NetworkProcessPData (reinterpret_cast<char*> (dataP));
+	NetworkProcessPData ((char *) dataP);
 return 1;
 }
 
@@ -291,7 +290,7 @@ return 1;
 int NakedPDataHandler (ubyte *dataP, int nLength)
 {
 if (IsNetworkGame)
-	NetworkProcessNakedPData (reinterpret_cast<char*> (dataP), nLength);
+	NetworkProcessNakedPData ((char *) dataP, nLength);
 return 1;
 }
 
@@ -323,7 +322,7 @@ return 1;
 
 int GameUpdateHandler (ubyte *dataP, int nLength)
 {
-if (NetworkBadSecurity (reinterpret_cast<tNetgameInfo*> (dataP)->nSecurity, "PID_GAME_UPDATE"))
+if (NetworkBadSecurity (((tNetgameInfo *) dataP)->nSecurity, "PID_GAME_UPDATE"))
 	return 0;
 if (networkData.nStatus == NETSTAT_PLAYING) {
 	if (gameStates.multi.nGameType >= IPX_GAME)
@@ -354,7 +353,7 @@ return 1;
 
 int PingReturnHandler (ubyte *dataP, int nLength)
 {
-NetworkHandlePingReturn (dataP [1]);  // dataP [1] is CPlayerData who told us of THEIR ping time
+NetworkHandlePingReturn (dataP [1]);  // dataP [1] is tPlayer who told us of THEIR ping time
 return 1;
 }
 
@@ -363,7 +362,7 @@ return 1;
 int NamesReturnHandler (ubyte *dataP, int nLength)
 {
 if (networkData.nNamesInfoSecurity != -1)
-	NetworkProcessNamesReturn (reinterpret_cast<char*> (dataP));
+	NetworkProcessNamesReturn ((char *) dataP);
 return 1;
 }
 
@@ -381,7 +380,7 @@ return 1;
 
 int MissingObjFramesHandler (ubyte *dataP, int nLength)
 {
-NetworkProcessMissingObjFrames (reinterpret_cast<char*> (dataP));
+NetworkProcessMissingObjFrames ((char *) dataP);
 return 1;
 }
 

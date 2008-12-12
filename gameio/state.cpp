@@ -108,12 +108,12 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define STATE_VERSION				39
 #define STATE_COMPATIBLE_VERSION 20
-// 0 - Put DGSS (Descent Game State Save) nId at tof.
+// 0 - Put DGSS (Descent Game State Save) id at tof.
 // 1 - Added Difficulty level save
 // 2 - Added gameStates.app.cheats.bEnabled flag
 // 3 - Added between levels save.
 // 4 - Added mission support
-// 5 - Mike changed ai and CObject structure.
+// 5 - Mike changed ai and tObject structure.
 // 6 - Added buggin' cheat save
 // 7 - Added other cheat saves and game_id.
 // 8 - Added AI stuff for escort and thief.
@@ -129,148 +129,39 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 // 20- gameStates.app.bFirstSecretVisit
 // 22- gameData.omega.xCharge
 
+#define NUM_SAVES		9
+#define THUMBNAIL_W	100
+#define THUMBNAIL_H	50
+#define THUMBNAIL_LW 200
+#define THUMBNAIL_LH 120
+#define DESC_LENGTH	20
+
 void SetFunctionMode (int);
 void InitPlayerStatsNewShip (void);
 void ShowLevelIntro (int level_num);
 void DoCloakInvulSecretStuff (fix xOldGameTime);
-void CopyDefaultsToRobot (CObject *objP);
+void CopyDefaultsToRobot (tObject *objP);
 void MultiInitiateSaveGame ();
 void MultiInitiateRestoreGame ();
 void ApplyAllChangedLight (void);
 void DoLunacyOn (void);
 void DoLunacyOff (void);
 
-int m_nLastSlot= 0;
+int sc_last_item= 0;
+grsBitmap *sc_bmp [NUM_SAVES+1];
 
 char dgss_id [4] = {'D', 'G', 'S', 'S'};
 
+int state_default_item = 0;
+
 void ComputeAllStaticLight (void);
+
+static char szDesc [NUM_SAVES + 1][DESC_LENGTH + 16];
+static char szTime [NUM_SAVES + 1][DESC_LENGTH + 16];
 
 void GameRenderFrame (void);
 
-#define	DESC_OFFSET	8
-
-#ifdef _WIN32_WCE
-# define errno -1
-# define strerror (x) "Unknown Error"
-#endif
-
-#define SECRETB_FILENAME	"secret.sgb"
-#define SECRETC_FILENAME	"secret.sgc"
-
-CSaveGameHandler saveGameHandler;
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-
-typedef struct tSaveGameInfo {
-	char		szLabel [DESC_LENGTH + 16];
-	char		szTime [DESC_LENGTH + 16];
-	CBitmap	*image;
-} tSaveGameInfo;
-
-class CSaveGameInfo {
-	private:
-		tSaveGameInfo	m_info;
-	public:
-		CSaveGameInfo () { Init (); }
-		~CSaveGameInfo () {};
-		void Init (void);
-		inline char* Label (void) { return m_info.szLabel; }
-		inline char* Time (void) { return m_info.szTime; }
-		inline CBitmap* Image (void) { return m_info.image; }
-		bool Load (char *filename, int nSlot);
-		void Destroy (void);
-};
-
-
-//------------------------------------------------------------------------------
-
-void CSaveGameInfo::Init (void)
-{
-memset (&m_info, 0, sizeof (m_info));
-strcpy (m_info.szLabel, TXT_EMPTY);
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameInfo::Destroy (void)
-{
-if (m_info.image) {
-	delete m_info.image;
-	m_info.image = NULL;
-	}
-}
-
-//------------------------------------------------------------------------------
-
-bool CSaveGameInfo::Load (char *filename, int nSlot)
-{
-	CFile	cf;
-	int	nId, nVersion;
-
-Init ();
-if (!cf.Open (filename, gameFolders.szSaveDir, "rb", 0))
-	return false;
-	//Read nId
-cf.Read (&nId, sizeof (char) * 4, 1);
-if (memcmp (&nId, dgss_id, 4)) {
-	cf.Close ();
-	return false;
-	}
-cf.Read (&nVersion, sizeof (int), 1);
-if (nVersion < STATE_COMPATIBLE_VERSION) {
-	cf.Close ();
-	return false;
-	}
-if (nSlot < 0)
-	cf.Read (m_info.szLabel, DESC_LENGTH, 1);
-else {
-	if (nSlot < NUM_SAVES)
-		sprintf (m_info.szLabel, "%d. ", nSlot + 1);
-	else
-		strcpy (m_info.szLabel, "   ");
-	cf.Read (m_info.szLabel + 3, DESC_LENGTH, 1);
-	if (nVersion < 26) {
-		m_info.image = CBitmap::Create (0, THUMBNAIL_W, THUMBNAIL_H, 1);
-		cf.Read (m_info.image->Buffer (), THUMBNAIL_W * THUMBNAIL_H, 1);
-		}
-	else {
-		m_info.image = CBitmap::Create (0, THUMBNAIL_LW, THUMBNAIL_LH, 1);
-		cf.Read (m_info.image->Buffer (), THUMBNAIL_LW * THUMBNAIL_LH, 1);
-		}
-	if (nVersion >= 9) {
-		CPalette palette;
-		palette.Read (cf);
-		m_info.image->Remap (&palette, -1, -1);
-		}
-	struct tm	*t;
-	int			h;
-#ifdef _WIN32
-	char	fn [FILENAME_LEN];
-
-	struct _stat statBuf;
-	sprintf (fn, "%s/%s", gameFolders.szSaveDir, filename);
-	h = _stat (fn, &statBuf);
-#else
-	struct stat statBuf;
-	h = stat (filename, &statBuf);
-#endif
-	if (!h && (t = localtime (&statBuf.st_mtime)))
-		sprintf (m_info.szTime, " [%d-%d-%d %d:%02d:%02d]",
-			t->tm_mon + 1, t->tm_mday, t->tm_year + 1900,
-			t->tm_hour, t->tm_min, t->tm_sec);
-	}
-cf.Close ();
-return true;
-}
-
-CSaveGameInfo saveGameInfo [NUM_SAVES + 1];
-
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------
 
 #define NM_IMG_SPACE	6
 
@@ -278,9 +169,8 @@ static int bShowTime = 1;
 
 int SaveStateMenuCallback (int nitems, tMenuItem *items, int *lastKey, int nCurItem)
 {
-	int			x, y, i = nCurItem - NM_IMG_SPACE;
-	char			c = KeyToASCII (*lastKey);
-	CBitmap	*image = saveGameInfo [i].Image ();
+	int	x, y, i = nCurItem - NM_IMG_SPACE;
+	char	c = KeyToASCII (*lastKey);
 
 if (nCurItem < 2)
 	return nCurItem;
@@ -291,34 +181,34 @@ if ((c >= '1') && (c <= '9')) {
 			return -(i + NM_IMG_SPACE) - 1;
 			}
 	}
-if (!items [NM_IMG_SPACE - 1].text || strcmp (items [NM_IMG_SPACE - 1].text, saveGameInfo [i].Time ())) {
-	items [NM_IMG_SPACE - 1].text = saveGameInfo [i].Time ();
+if (!items [NM_IMG_SPACE - 1].text || strcmp (items [NM_IMG_SPACE - 1].text, szTime [i])) {
+	items [NM_IMG_SPACE - 1].text = szTime [i];
 	items [NM_IMG_SPACE - 1].rebuild = 1;
 	}
-if (!image)
+if (!sc_bmp [i])
 	return nCurItem;
 if (gameStates.menus.bHires) {
-	x = (CCanvas::Current ()->Width () - image->Width ()) / 2;
+	x = (grdCurCanv->cvBitmap.bmProps.w - sc_bmp [i]->bmProps.w) / 2;
 	y = items [0].y - 16;
 	if (gameStates.app.bGameRunning)
-		paletteManager.LoadEffect  ();
-	GrBitmap (x, y, image);
+		GrPaletteStepLoad (NULL);
+	GrBitmap (x, y, sc_bmp [i]);
 	if (gameOpts->menus.nStyle) {
-		CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 32));
-		GrUBox (x - 1, y - 1, x + image->Width () + 1, y + image->Height () + 1);
+		GrSetColorRGBi (RGBA_PAL (0, 0, 32));
+		GrUBox (x - 1, y - 1, x + sc_bmp [i]->bmProps.w + 1, y + sc_bmp [i]->bmProps.h + 1);
 		}
 	}
 else {
-	GrBitmap ((CCanvas::Current ()->Width ()-THUMBNAIL_W) / 2, items [0].y - 5, saveGameInfo [nCurItem - 1].Image ());
+	GrBitmap ((grdCurCanv->cvBitmap.bmProps.w-THUMBNAIL_W) / 2,items [0].y - 5, sc_bmp [nCurItem - 1]);
 	}
 return nCurItem;
 }
 
 //------------------------------------------------------------------------------
 
-int LoadStateMenuCallback (int nitems, tMenuItem *items, int *lastKey, int nCurItem)
+int RestoreStateMenuCallback (int nitems, tMenuItem *items, int *lastKey, int nCurItem)
 {
-	int	i = nCurItem - NM_IMG_SPACE;
+	int	x, y, i = nCurItem - NM_IMG_SPACE;
 	char	c = KeyToASCII (*lastKey);
 
 if (nCurItem < 2)
@@ -335,183 +225,260 @@ return nCurItem;
 
 //------------------------------------------------------------------------------
 
-char *strrpad (char * str, int len)
+void rpad_string (char * string, int max_chars)
 {
-str += len;
-*str = '\0';
-for (; len; len--)
-	if (*(--str))
-		*str = ' ';
-	else {
-		*str = ' ';
-		break;
-		}
-return str;
-}
+	int i, end_found;
 
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::Init (void)
-{
-m_nDefaultSlot = 0;
-m_nLastSlot = 0;
+	end_found = 0;
+	for (i=0; i<max_chars; i++)	{
+		if (*string == 0)
+			end_found = 1;
+		if (end_found)
+			*string = ' ';
+		string++;
+	}
+	*string = 0;		// NULL terminate
 }
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::GetSaveFile (int bMulti)
+int StateGetSaveFile (char * fname, char * dsc, int bMulti)
 {
-	int			i, menuRes, choice;
-	tMenuItem	m [NUM_SAVES + 2];
-	char			filename [NUM_SAVES + 1][30];
+	CFILE cf;
+	int i, menuRes, choice, sgVersion;
+	tMenuItem m [NUM_SAVES+2];
+	char filename [NUM_SAVES+1][30];
+	char id [5];
+	int valid=0;
 
 memset (m, 0, sizeof (m));
 for (i = 0; i < NUM_SAVES; i++)	{
-	sprintf (filename [i], bMulti ? "%s.mg%x" : "%s.sg%x", LOCALPLAYER.callsign, i);
-	saveGameInfo [i].Load (filename [i], -1);
-	ADD_INPUT_MENU (i, saveGameInfo [i].Label (), DESC_LENGTH - 1, -1, NULL);
+	sc_bmp [i] = NULL;
+	if (!bMulti)
+		sprintf (filename [i], "%s.sg%x", LOCALPLAYER.callsign, i);
+	else
+		sprintf (filename [i], "%s.mg%x", LOCALPLAYER.callsign, i);
+	valid = 0;
+	if (CFOpen (&cf, filename [i], gameFolders.szSaveDir, "rb", 0)) {
+		//Read id
+		CFRead (id, sizeof (char)*4, 1, &cf);
+		if (!memcmp (id, dgss_id, 4)) {
+			//Read sgVersion
+			CFRead (&sgVersion, sizeof (int), 1, &cf);
+			if (sgVersion >= STATE_COMPATIBLE_VERSION)	{
+				// Read description
+				CFRead (szDesc [i], sizeof (char)*DESC_LENGTH, 1, &cf);
+				valid = 1;
+				}
+			}
+			CFClose (&cf);
+		}
+	if (!valid)
+		strcpy (szDesc [i], TXT_EMPTY);
+	ADD_INPUT_MENU (i, szDesc [i], DESC_LENGTH - 1, -1, NULL);
 	}
 
-m_nLastSlot = -1;
-choice = m_nDefaultSlot;
+sc_last_item = -1;
+choice = state_default_item;
 menuRes = ExecMenu1 (NULL, TXT_SAVE_GAME_MENU, NUM_SAVES, m, NULL, &choice);
 
-if (menuRes >= 0) {
-	strcpy (m_filename, filename [choice]);
-	strcpy (m_description, saveGameInfo [choice].Label());
+for (i = 0; i < NUM_SAVES; i++)	{
+	if (sc_bmp [i])
+		GrFreeBitmap (sc_bmp [i]);
 	}
-for (i = 0; i < NUM_SAVES; i++)
-	saveGameInfo [i].Destroy ();
-m_nDefaultSlot = choice;
-return (menuRes < 0) ? 0 : choice + 1;
+if (menuRes < 0)
+	return 0;
+strcpy (fname, filename [choice]);
+strcpy (dsc, szDesc [choice]);
+state_default_item = choice;
+return choice + 1;
 }
 
 //------------------------------------------------------------------------------
 
 int bRestoringMenu = 0;
 
-int CSaveGameHandler::GetLoadFile (int bMulti)
+int StateGetRestoreFile (char * fname, int bMulti)
 {
-	int			i, choice = -1, nSaves;
+	CFILE			cf;
+	int			i, j, choice = -1, sgVersion, nSaves;
 	tMenuItem	m [NUM_SAVES + NM_IMG_SPACE + 1];
-	char			filename [NUM_SAVES + 1][30];
+	char			filename [NUM_SAVES+1][30];
+	char			id [5];
+	ubyte			pal [256 * 3];
+	int			valid;
 
-nSaves = 0;
-memset (m, 0, sizeof (m));
-for (i = 0; i < NM_IMG_SPACE; i++) {
-	m [i].nType = NM_TYPE_TEXT; 
-	m [i].text = reinterpret_cast<char*> ("");
-	m [i].noscroll = 1;
-	}
-if (gameStates.app.bGameRunning) {
-	paletteManager.LoadEffect  ();
-	}
-for (i = 0; i < NUM_SAVES + 1; i++) {
-	sprintf (filename [i], bMulti ? "%s.mg%x" : "%s.sg%x", LOCALPLAYER.callsign, i);
-	if (saveGameInfo [i].Load (filename [i], i)) {
-		ADD_MENU (i + NM_IMG_SPACE, saveGameInfo [i].Label (), (i < NUM_SAVES) ? -1 : 0, NULL);
-		nSaves++;
+	nSaves = 0;
+	memset (m, 0, sizeof (m));
+	for (i = 0; i < NM_IMG_SPACE; i++) {
+		m [i].nType = NM_TYPE_TEXT; 
+		m [i].text = (char *) "";
+		m [i].noscroll = 1;
 		}
-	else {
-		m [i + NM_IMG_SPACE].nType = NM_TYPE_MENU; 
-		m [i + NM_IMG_SPACE].text = saveGameInfo [i].Label ();
+	if (gameStates.app.bGameRunning) {
+		GrPaletteStepLoad (NULL);
+		}
+	for (i = 0, j = 0; i < NUM_SAVES + 1; i++, j++) {
+		sc_bmp [i] = NULL;
+		sprintf (filename [i], bMulti ? "%s.mg%x" : "%s.sg%x", LOCALPLAYER.callsign, i);
+		valid = 0;
+		if (CFOpen (&cf, filename [i], gameFolders.szSaveDir, "rb", 0)) {
+			//Read id
+			CFRead (id, sizeof (char) * 4, 1, &cf);
+			if (!memcmp (id, dgss_id, 4)) {
+				//Read sgVersion
+				CFRead (&sgVersion, sizeof (int), 1, &cf);
+				if (sgVersion >= STATE_COMPATIBLE_VERSION)	{
+					// Read description
+					if (i < NUM_SAVES)
+						sprintf (szDesc [j], "%d. ", i + 1);
+					else
+						strcpy (szDesc [j], "   ");
+					CFRead (szDesc [j] + 3, sizeof (char) * DESC_LENGTH, 1, &cf);
+					// rpad_string (szDesc [i], DESC_LENGTH-1);
+					ADD_MENU (j + NM_IMG_SPACE, szDesc [j], (i < NUM_SAVES) ? -1 : 0, NULL);
+					// Read thumbnail
+					if (sgVersion < 26) {
+						sc_bmp [i] = GrCreateBitmap (THUMBNAIL_W, THUMBNAIL_H, 1);
+						CFRead (sc_bmp [i]->bmTexBuf, THUMBNAIL_W * THUMBNAIL_H, 1, &cf);
+						}
+					else {
+						sc_bmp [i] = GrCreateBitmap (THUMBNAIL_LW, THUMBNAIL_LH, 1);
+						CFRead (sc_bmp [i]->bmTexBuf, THUMBNAIL_LW * THUMBNAIL_LH, 1, &cf);
+						}
+					if (sgVersion >= 9) {
+						CFRead (pal, 3, 256, &cf);
+						GrRemapBitmapGood (sc_bmp [i], pal, -1, -1);
+						}
+					nSaves++;
+					valid = 1;
+					}
+				}
+			CFClose (&cf);
+			}
+		if (valid) {
+			if (bShowTime) {
+				struct tm	*t;
+				int			h;
+#ifdef _WIN32
+				char	fn [FILENAME_LEN];
+
+				struct _stat statBuf;
+				sprintf (fn, "%s/%s", gameFolders.szSaveDir, filename [i]);
+				h = _stat (fn, &statBuf);
+#else
+				struct stat statBuf;
+				h = stat (filename [i], &statBuf);
+#endif
+				if (!h && (t = localtime (&statBuf.st_mtime)))
+					sprintf (szTime [j], " [%d-%d-%d %d:%02d:%02d]",
+						t->tm_mon + 1, t->tm_mday, t->tm_year + 1900,
+						t->tm_hour, t->tm_min, t->tm_sec);
+				}
+			}
+		else {
+			strcpy (szDesc [j], TXT_EMPTY);
+			//rpad_string (szDesc [i], DESC_LENGTH-1);
+			m [j+NM_IMG_SPACE].nType = NM_TYPE_MENU; 
+			m [j+NM_IMG_SPACE].text = szDesc [j];
 		}
 	}
-if (gameStates.app.bGameRunning) 
-	paletteManager.LoadEffect  ();
-if (nSaves < 1) {
-	ExecMessageBox (NULL, NULL, 1, "Ok", TXT_NO_SAVEGAMES);
-	return 0;
+	if (gameStates.app.bGameRunning) {
+		GrPaletteStepLoad (NULL);
+		}
+
+	if (nSaves < 1)	{
+		ExecMessageBox (NULL, NULL, 1, "Ok", TXT_NO_SAVEGAMES);
+		return 0;
 	}
-if (gameStates.video.nDisplayMode == 1)	//restore menu won't fit on 640x400
-	gameStates.render.vr.nScreenFlags ^= VRF_COMPATIBLE_MENUS;
-m_nLastSlot = -1;
-bRestoringMenu = 1;
-choice = m_nDefaultSlot + NM_IMG_SPACE;
-i = ExecMenu3 (NULL, TXT_LOAD_GAME_MENU, i + NM_IMG_SPACE, m, SaveStateMenuCallback, 
-				   &choice, NULL, 190, -1);
-bRestoringMenu = 0;
-if (i < 0)
-	return 0;
-choice -= NM_IMG_SPACE;
-for (i = 0; i < NUM_SAVES + 1; i++)
-	saveGameInfo [i].Destroy ();
-if (choice >= 0) {
-	strcpy (m_filename, filename [choice]);
-	if (choice != NUM_SAVES + 1)		//no new default when restore from autosave
-		m_nDefaultSlot = choice;
-	return choice + 1;
+
+	if (gameStates.video.nDisplayMode == 1)	//restore menu won't fit on 640x400
+		gameStates.render.vr.nScreenFlags ^= VRF_COMPATIBLE_MENUS;
+
+	sc_last_item = -1;
+
+   bRestoringMenu = 1;
+	choice = state_default_item + NM_IMG_SPACE;
+	i = ExecMenu3 (NULL, TXT_LOAD_GAME_MENU, j + NM_IMG_SPACE, m, SaveStateMenuCallback, 
+					   &choice, NULL, 190, -1);
+	if (i < 0)
+		return 0;
+   bRestoringMenu = 0;
+	choice -= NM_IMG_SPACE;
+
+	for (i = 0; i < NUM_SAVES + 1; i++)	{
+		if (sc_bmp [i])
+			GrFreeBitmap (sc_bmp [i]);
 	}
-return 0;
+
+	if (choice >= 0) {
+		strcpy (fname, filename [choice]);
+		if (choice != NUM_SAVES+1)		//no new default when restore from autosave
+			state_default_item = choice;
+		return choice + 1;
+	}
+	return 0;
 }
+
+#define	DESC_OFFSET	8
+
+#define	CF_BUF_SIZE	1024
+
+#ifdef _WIN32_WCE
+# define errno -1
+# define strerror (x) "Unknown Error"
+#endif
+
 
 //	-----------------------------------------------------------------------------------
-//	Save file we're going to save over in last slot and call " [autosave backup]"
-
-void CSaveGameHandler::Backup (void)
+//	Imagine if C had a function to copy a file...
+int copy_file (const char *old_file, const char *new_file)
 {
-if (!m_override) {
-	CFile cf;
-	
-	if (cf.Open (m_filename, gameFolders.szSaveDir, "rb", 0)) {
-		char	newname [FILENAME_LEN];
+	sbyte	buf [CF_BUF_SIZE];
+	CFILE	cfIn, cfOut;
 
-		sprintf (newname, "%s.sg%x", LOCALPLAYER.callsign, NUM_SAVES);
-		cf.Seek (DESC_OFFSET, SEEK_SET);
-		cf.Write (reinterpret_cast<char*> (" [autosave backup]"), sizeof (char) * DESC_LENGTH, 1);
-		cf.Close ();
-		cf.Delete (newname, gameFolders.szSaveDir);
-		cf.Rename (m_filename, newname, gameFolders.szSaveDir);
-		}
+	if (!CFOpen (&cfOut, new_file, gameFolders.szSaveDir, "wb", 0))
+		return -1;
+	if (!CFOpen (&cfIn, old_file, gameFolders.szSaveDir, "rb", 0))
+		return -2;
+	while (!CFEoF (&cfIn)) {
+		int bytes_read = (int) CFRead (buf, 1, CF_BUF_SIZE, &cfIn);
+		if (CFError (&cfIn))
+			Error (TXT_FILEREAD_ERROR, old_file, strerror (errno));
+		Assert (bytes_read == CF_BUF_SIZE || CFEoF (&cfIn));
+		CFWrite (buf, 1, bytes_read, &cfOut);
+		if (CFError (&cfOut))
+			Error (TXT_FILEWRITE_ERROR, new_file, strerror (errno));
 	}
+
+	if (CFClose (&cfIn)) {
+		CFClose (&cfOut);
+		return -3;
+	}
+
+	if (CFClose (&cfOut))
+		return -4;
+
+	return 0;
 }
 
-//	-----------------------------------------------------------------------------------
-//	If not in multiplayer, do special secret level stuff.
-//	If secret.sgc exists, then copy it to Nsecret.sgc (where N = nSaveSlot).
-//	If it doesn't exist, then delete Nsecret.sgc
-
-void CSaveGameHandler::PushSecretSave (int nSaveSlot)
-{
-if ((nSaveSlot != -1) && !(m_bSecret || IsMultiGame)) {
-	int	rval;
-	char	tempname [32], fc;
-	CFile m_cf;
-
-	if (nSaveSlot >= 10)
-		fc = (nSaveSlot-10) + 'a';
-	else
-		fc = '0' + nSaveSlot;
-	sprintf (tempname, "%csecret.sgc", fc);
-	if (m_cf.Exist (tempname, gameFolders.szSaveDir, 0)) {
-		rval = m_cf.Delete (tempname, gameFolders.szSaveDir);
-		Assert (rval == 0);	//	Oops, error deleting file in tempname.
-		}
-	if (m_cf.Exist (SECRETC_FILENAME, gameFolders.szSaveDir, 0)) {
-		rval = m_cf.Copy (SECRETC_FILENAME, tempname);
-		Assert (rval == 0);	//	Oops, error copying tempname to secret.sgc!
-		}
-	}
-}
+#define SECRETB_FILENAME	"secret.sgb"
+#define SECRETC_FILENAME	"secret.sgc"
 
 //	-----------------------------------------------------------------------------------
 //	blind_save means don't prompt user for any info.
 
-int CSaveGameHandler::Save (int bBetweenLevels, int bSecret, int bQuick, const char *pszFilenameOverride)
+int StateSaveAll (int bBetweenLevels, int bSecretSave, int bQuick, const char *pszFilenameOverride)
 {
-	int	rval, nSaveSlot = -1;
+	int	rval, filenum = -1;
+	char	filename [128], szDesc [DESC_LENGTH+1];
 
-m_override = pszFilenameOverride;
-m_bBetweenLevels = bBetweenLevels;
-m_bQuick = bQuick;
-m_cf.Init ();
+Assert (bBetweenLevels == 0);	//between levels save ripped out
 if (IsMultiGame) {
 	MultiInitiateSaveGame ();
 	return 0;
 	}
-if (!(m_bSecret || gameOpts->gameplay.bSecretSave || gameStates.app.bD1Mission) && 
+if (!(bSecretSave || gameOpts->gameplay.bSecretSave || gameStates.app.bD1Mission) && 
 	  (gameData.missions.nCurrentLevel < 0)) {
 	HUDInitMessage (TXT_SECRET_SAVE_ERROR);
 	return 0;
@@ -520,38 +487,76 @@ if (gameStates.gameplay.bFinalBossIsDead)		//don't allow save while final boss i
 	return 0;
 //	If this is a secret save and the control center has been destroyed, don't allow
 //	return to the base level.
-if (m_bSecret && gameData.reactor.bDestroyed) {
-	CFile::Delete (SECRETB_FILENAME, gameFolders.szSaveDir);
+if (bSecretSave && gameData.reactor.bDestroyed) {
+	CFDelete (SECRETB_FILENAME, gameFolders.szSaveDir);
 	return 0;
 	}
 StopTime ();
 gameData.app.bGamePaused = 1;
-if (m_bQuick)
-	sprintf (m_filename, "%s.quick", LOCALPLAYER.callsign);
+if (bQuick)
+	sprintf (filename, "%s.quick", LOCALPLAYER.callsign);
 else {
-	if (m_bSecret == 1) {
-		m_override = m_filename;
-		sprintf (m_filename, SECRETB_FILENAME);
+	if (bSecretSave == 1) {
+		pszFilenameOverride = filename;
+		sprintf (filename, SECRETB_FILENAME);
 		} 
-	else if (m_bSecret == 2) {
-		m_override = m_filename;
-		sprintf (m_filename, SECRETC_FILENAME);
+	else if (bSecretSave == 2) {
+		pszFilenameOverride = filename;
+		sprintf (filename, SECRETC_FILENAME);
 		} 
 	else {
-		if (m_override) {
-			strcpy (m_filename, m_override);
-			sprintf (m_description, " [autosave backup]");
+		if (pszFilenameOverride) {
+			strcpy (filename, pszFilenameOverride);
+			sprintf (szDesc, " [autosave backup]");
 			}
-		else if (!(nSaveSlot = GetSaveFile (0))) {
+		else if (!(filenum = StateGetSaveFile (filename, szDesc, 0))) {
 			gameData.app.bGamePaused = 0;
 			StartTime (1);
 			return 0;
 			}
 		}
-	PushSecretSave (nSaveSlot);
-	Backup ();
+	//	MK, 1/1/96
+	//	If not in multiplayer, do special secret level stuff.
+	//	If secret.sgc exists, then copy it to Nsecret.sgc (where N = filenum).
+	//	If it doesn't exist, then delete Nsecret.sgc
+	if (!bSecretSave && !IsMultiGame) {
+		int	rval;
+		char	temp_fname [32], fc;
+
+		if (filenum != -1) {
+			if (filenum >= 10)
+				fc = (filenum-10) + 'a';
+			else
+				fc = '0' + filenum;
+			sprintf (temp_fname, "%csecret.sgc", fc);
+			if (CFExist (temp_fname,gameFolders.szSaveDir,0)) {
+				rval = CFDelete (temp_fname, gameFolders.szSaveDir);
+				Assert (rval == 0);	//	Oops, error deleting file in temp_fname.
+				}
+			if (CFExist (SECRETC_FILENAME,gameFolders.szSaveDir,0)) {
+				rval = copy_file (SECRETC_FILENAME, temp_fname);
+				Assert (rval == 0);	//	Oops, error copying temp_fname to secret.sgc!
+				}
+			}
+		}
+
+		//	Save file we're going to save over in last slot and call " [autosave backup]"
+	if (!pszFilenameOverride) {
+		CFILE tfp;
+		
+		if (CFOpen (&tfp, filename, gameFolders.szSaveDir, "rb",0)) {
+			char	newname [128];
+
+			sprintf (newname, "%s.sg%x", LOCALPLAYER.callsign, NUM_SAVES);
+			CFSeek (&tfp, DESC_OFFSET, SEEK_SET);
+			CFWrite ((char *) " [autosave backup]", sizeof (char) * DESC_LENGTH, 1, &tfp);
+			CFClose (&tfp);
+			CFDelete (newname, gameFolders.szSaveDir);
+			CFRename (filename, newname, gameFolders.szSaveDir);
+			}
+		}
 	}
-if ((rval = SaveState (bSecret)))
+if ((rval = StateSaveAllSub (filename, szDesc, bBetweenLevels)))
 	if (bQuick)
 		HUDInitMessage (TXT_QUICKSAVE);
 gameData.app.bGamePaused = 0;
@@ -561,489 +566,52 @@ return rval;
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::SaveNetGame (void)
-{
-	int	i, j;
-
-m_cf.WriteByte (netGame.nType);
-m_cf.WriteInt (netGame.nSecurity);
-m_cf.Write (netGame.szGameName, 1, NETGAME_NAME_LEN + 1);
-m_cf.Write (netGame.szMissionTitle, 1, MISSION_NAME_LEN + 1);
-m_cf.Write (netGame.szMissionName, 1, 9);
-m_cf.WriteInt (netGame.nLevel);
-m_cf.WriteByte ((sbyte) netGame.gameMode);
-m_cf.WriteByte ((sbyte) netGame.bRefusePlayers);
-m_cf.WriteByte ((sbyte) netGame.difficulty);
-m_cf.WriteByte ((sbyte) netGame.gameStatus);
-m_cf.WriteByte ((sbyte) netGame.nNumPlayers);
-m_cf.WriteByte ((sbyte) netGame.nMaxPlayers);
-m_cf.WriteByte ((sbyte) netGame.nConnected);
-m_cf.WriteByte ((sbyte) netGame.gameFlags);
-m_cf.WriteByte ((sbyte) netGame.protocolVersion);
-m_cf.WriteByte ((sbyte) netGame.versionMajor);
-m_cf.WriteByte ((sbyte) netGame.versionMinor);
-m_cf.WriteByte ((sbyte) netGame.teamVector);
-m_cf.WriteByte ((sbyte) netGame.DoMegas);
-m_cf.WriteByte ((sbyte) netGame.DoSmarts);
-m_cf.WriteByte ((sbyte) netGame.DoFusions);
-m_cf.WriteByte ((sbyte) netGame.DoHelix);
-m_cf.WriteByte ((sbyte) netGame.DoPhoenix);
-m_cf.WriteByte ((sbyte) netGame.DoAfterburner);
-m_cf.WriteByte ((sbyte) netGame.DoInvulnerability);
-m_cf.WriteByte ((sbyte) netGame.DoCloak);
-m_cf.WriteByte ((sbyte) netGame.DoGauss);
-m_cf.WriteByte ((sbyte) netGame.DoVulcan);
-m_cf.WriteByte ((sbyte) netGame.DoPlasma);
-m_cf.WriteByte ((sbyte) netGame.DoOmega);
-m_cf.WriteByte ((sbyte) netGame.DoSuperLaser);
-m_cf.WriteByte ((sbyte) netGame.DoProximity);
-m_cf.WriteByte ((sbyte) netGame.DoSpread);
-m_cf.WriteByte ((sbyte) netGame.DoSmartMine);
-m_cf.WriteByte ((sbyte) netGame.DoFlash);
-m_cf.WriteByte ((sbyte) netGame.DoGuided);
-m_cf.WriteByte ((sbyte) netGame.DoEarthShaker);
-m_cf.WriteByte ((sbyte) netGame.DoMercury);
-m_cf.WriteByte ((sbyte) netGame.bAllowMarkerView);
-m_cf.WriteByte ((sbyte) netGame.bIndestructibleLights);
-m_cf.WriteByte ((sbyte) netGame.DoAmmoRack);
-m_cf.WriteByte ((sbyte) netGame.DoConverter);
-m_cf.WriteByte ((sbyte) netGame.DoHeadlight);
-m_cf.WriteByte ((sbyte) netGame.DoHoming);
-m_cf.WriteByte ((sbyte) netGame.DoLaserUpgrade);
-m_cf.WriteByte ((sbyte) netGame.DoQuadLasers);
-m_cf.WriteByte ((sbyte) netGame.bShowAllNames);
-m_cf.WriteByte ((sbyte) netGame.BrightPlayers);
-m_cf.WriteByte ((sbyte) netGame.invul);
-m_cf.WriteByte ((sbyte) netGame.FriendlyFireOff);
-for (i = 0; i < 2; i++)
-	m_cf.Write (netGame.szTeamName [i], 1, CALLSIGN_LEN + 1);		// 18 bytes
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteInt (netGame.locations [i]);
-for (i = 0; i < MAX_PLAYERS; i++)
-	for (j = 0; j < MAX_PLAYERS; j++)
-		m_cf.WriteShort (netGame.kills [i][j]);			// 128 bytes
-m_cf.WriteShort (netGame.nSegmentCheckSum);				// 2 bytes
-for (i = 0; i < 2; i++)
-	m_cf.WriteShort (netGame.teamKills [i]);				// 4 bytes
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteShort (netGame.killed [i]);					// 16 bytes
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteShort (netGame.playerKills [i]);			// 16 bytes
-m_cf.WriteInt (netGame.KillGoal);							// 4 bytes
-m_cf.WriteFix (netGame.xPlayTimeAllowed);					// 4 bytes
-m_cf.WriteFix (netGame.xLevelTime);							// 4 bytes
-m_cf.WriteInt (netGame.controlInvulTime);				// 4 bytes
-m_cf.WriteInt (netGame.monitorVector);					// 4 bytes
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteInt (netGame.playerScore [i]);				// 32 bytes
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteByte ((sbyte) netGame.playerFlags [i]);	// 8 bytes
-m_cf.WriteShort (PacketsPerSec ());					// 2 bytes
-m_cf.WriteByte ((sbyte) netGame.bShortPackets);			// 1 bytes
-// 279 bytes
-// 355 bytes total
-m_cf.Write (netGame.AuxData, NETGAME_AUX_SIZE, 1);  // Storage for protocol-specific data (e.g., multicast session and port)
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveNetPlayers (void)
-{
-	int	i;
-
-m_cf.WriteByte ((sbyte) netPlayers.nType);
-m_cf.WriteInt (netPlayers.nSecurity);
-for (i = 0; i < MAX_PLAYERS + 4; i++) {
-	m_cf.Write (netPlayers.players [i].callsign, 1, CALLSIGN_LEN + 1);
-	m_cf.Write (netPlayers.players [i].network.ipx.server, 1, 4);
-	m_cf.Write (netPlayers.players [i].network.ipx.node, 1, 6);
-	m_cf.WriteByte ((sbyte) netPlayers.players [i].versionMajor);
-	m_cf.WriteByte ((sbyte) netPlayers.players [i].versionMinor);
-	m_cf.WriteByte ((sbyte) netPlayers.players [i].computerType);
-	m_cf.WriteByte (netPlayers.players [i].connected);
-	m_cf.WriteShort ((short) netPlayers.players [i].socket);
-	m_cf.WriteByte ((sbyte) netPlayers.players [i].rank);
-	}
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SavePlayer (CPlayerData *playerP)
-{
-	int	i;
-
-m_cf.Write (playerP->callsign, 1, CALLSIGN_LEN + 1); // The callsign of this CPlayerData, for net purposes.
-m_cf.Write (playerP->netAddress, 1, 6);					// The network address of the player.
-m_cf.WriteByte (playerP->connected);            // Is the CPlayerData connected or not?
-m_cf.WriteInt (playerP->nObject);                // What CObject number this CPlayerData is. (made an int by mk because it's very often referenced)
-m_cf.WriteInt (playerP->nPacketsGot);         // How many packets we got from them
-m_cf.WriteInt (playerP->nPacketsSent);        // How many packets we sent to them
-m_cf.WriteInt ((int) playerP->flags);           // Powerup flags, see below...
-m_cf.WriteFix (playerP->energy);                // Amount of energy remaining.
-m_cf.WriteFix (playerP->shields);               // shields remaining (protection)
-m_cf.WriteByte (playerP->lives);                // Lives remaining, 0 = game over.
-m_cf.WriteByte (playerP->level);                // Current level CPlayerData is playing. (must be signed for secret levels)
-m_cf.WriteByte ((sbyte) playerP->laserLevel);  // Current level of the laser.
-m_cf.WriteByte (playerP->startingLevel);       // What level the CPlayerData started on.
-m_cf.WriteShort (playerP->nKillerObj);       // Who killed me.... (-1 if no one)
-m_cf.WriteShort ((short) playerP->primaryWeaponFlags);   // bit set indicates the CPlayerData has this weapon.
-m_cf.WriteShort ((short) playerP->secondaryWeaponFlags); // bit set indicates the CPlayerData has this weapon.
-for (i = 0; i < MAX_PRIMARY_WEAPONS; i++)
-	m_cf.WriteShort ((short) playerP->primaryAmmo [i]); // How much ammo of each nType.
-for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
-	m_cf.WriteShort ((short) playerP->secondaryAmmo [i]); // How much ammo of each nType.
-#if 1 //for inventory system
-m_cf.WriteByte ((sbyte) playerP->nInvuls);
-m_cf.WriteByte ((sbyte) playerP->nCloaks);
-#endif
-m_cf.WriteInt (playerP->lastScore);             // Score at beginning of current level.
-m_cf.WriteInt (playerP->score);                  // Current score.
-m_cf.WriteFix (playerP->timeLevel);             // Level time played
-m_cf.WriteFix (playerP->timeTotal);             // Game time played (high word = seconds)
-if (playerP->cloakTime == 0x7fffffff)				// cloak cheat active
-	m_cf.WriteFix (playerP->cloakTime);			// Time invulnerable
-else
-	m_cf.WriteFix (playerP->cloakTime - gameData.time.xGame);      // Time invulnerable
-if (playerP->invulnerableTime == 0x7fffffff)		// invul cheat active
-	m_cf.WriteFix (playerP->invulnerableTime);      // Time invulnerable
-else
-	m_cf.WriteFix (playerP->invulnerableTime - gameData.time.xGame);      // Time invulnerable
-m_cf.WriteShort (playerP->nKillGoalCount);          // Num of players killed this level
-m_cf.WriteShort (playerP->netKilledTotal);       // Number of times killed total
-m_cf.WriteShort (playerP->netKillsTotal);        // Number of net kills total
-m_cf.WriteShort (playerP->numKillsLevel);        // Number of kills this level
-m_cf.WriteShort (playerP->numKillsTotal);        // Number of kills total
-m_cf.WriteShort (playerP->numRobotsLevel);       // Number of initial robots this level
-m_cf.WriteShort (playerP->numRobotsTotal);       // Number of robots total
-m_cf.WriteShort ((short) playerP->hostages.nRescued); // Total number of hostages rescued.
-m_cf.WriteShort ((short) playerP->hostages.nTotal);         // Total number of hostages.
-m_cf.WriteByte ((sbyte) playerP->hostages.nOnBoard);      // Number of hostages on ship.
-m_cf.WriteByte ((sbyte) playerP->hostages.nLevel);         // Number of hostages on this level.
-m_cf.WriteFix (playerP->homingObjectDist);     // Distance of nearest homing CObject.
-m_cf.WriteByte (playerP->hoursLevel);            // Hours played (since timeTotal can only go up to 9 hours)
-m_cf.WriteByte (playerP->hoursTotal);            // Hours played (since timeTotal can only go up to 9 hours)
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveObject (CObject *objP)
-{
-m_cf.WriteInt (objP->info.nSignature);      
-m_cf.WriteByte ((sbyte) objP->info.nType); 
-m_cf.WriteByte ((sbyte) objP->info.nId);
-m_cf.WriteShort (objP->info.nNextInSeg);
-m_cf.WriteShort (objP->info.nPrevInSeg);
-m_cf.WriteByte ((sbyte) objP->info.controlType);
-m_cf.WriteByte ((sbyte) objP->info.movementType);
-m_cf.WriteByte ((sbyte) objP->info.renderType);
-m_cf.WriteByte ((sbyte) objP->info.nFlags);
-m_cf.WriteShort (objP->info.nSegment);
-m_cf.WriteShort (objP->info.nAttachedObj);
-m_cf.WriteVector (OBJPOS (objP)->vPos);     
-m_cf.WriteMatrix (OBJPOS (objP)->mOrient);  
-m_cf.WriteFix (objP->info.xSize); 
-m_cf.WriteFix (objP->info.xShields);
-m_cf.WriteVector (objP->info.vLastPos);  
-m_cf.WriteByte (objP->info.contains.nType); 
-m_cf.WriteByte (objP->info.contains.nId);   
-m_cf.WriteByte (objP->info.contains.nCount);
-m_cf.WriteByte (objP->info.nCreator);
-m_cf.WriteFix (objP->info.xLifeLeft);   
-if (objP->info.movementType == MT_PHYSICS) {
-	m_cf.WriteVector (objP->mType.physInfo.velocity);   
-	m_cf.WriteVector (objP->mType.physInfo.thrust);     
-	m_cf.WriteFix (objP->mType.physInfo.mass);       
-	m_cf.WriteFix (objP->mType.physInfo.drag);       
-	m_cf.WriteFix (objP->mType.physInfo.brakes);     
-	m_cf.WriteVector (objP->mType.physInfo.rotVel);     
-	m_cf.WriteVector (objP->mType.physInfo.rotThrust);  
-	m_cf.WriteFixAng (objP->mType.physInfo.turnRoll);   
-	m_cf.WriteShort ((short) objP->mType.physInfo.flags);      
-	}
-else if (objP->info.movementType == MT_SPINNING) {
-	m_cf.WriteVector(objP->mType.spinRate);  
-	}
-switch (objP->info.controlType) {
-	case CT_WEAPON:
-		m_cf.WriteShort (objP->cType.laserInfo.parent.nType);
-		m_cf.WriteShort (objP->cType.laserInfo.parent.nObject);
-		m_cf.WriteInt (objP->cType.laserInfo.parent.nSignature);
-		m_cf.WriteFix (objP->cType.laserInfo.xCreationTime);
-		if (objP->cType.laserInfo.nLastHitObj)
-			m_cf.WriteShort (gameData.objs.nHitObjects [OBJ_IDX (objP) * MAX_HIT_OBJECTS + objP->cType.laserInfo.nLastHitObj - 1]);
-		else
-			m_cf.WriteShort (-1);
-		m_cf.WriteShort (objP->cType.laserInfo.nHomingTarget);
-		m_cf.WriteFix (objP->cType.laserInfo.xScale);
-		break;
-
-	case CT_EXPLOSION:
-		m_cf.WriteFix (objP->cType.explInfo.nSpawnTime);
-		m_cf.WriteFix (objP->cType.explInfo.nDeleteTime);
-		m_cf.WriteShort (objP->cType.explInfo.nDeleteObj);
-		m_cf.WriteShort (objP->cType.explInfo.attached.nParent);
-		m_cf.WriteShort (objP->cType.explInfo.attached.nPrev);
-		m_cf.WriteShort (objP->cType.explInfo.attached.nNext);
-		break;
-
-	case CT_AI:
-		m_cf.WriteByte ((sbyte) objP->cType.aiInfo.behavior);
-		m_cf.Write (objP->cType.aiInfo.flags, 1, MAX_AI_FLAGS);
-		m_cf.WriteShort (objP->cType.aiInfo.nHideSegment);
-		m_cf.WriteShort (objP->cType.aiInfo.nHideIndex);
-		m_cf.WriteShort (objP->cType.aiInfo.nPathLength);
-		m_cf.WriteByte (objP->cType.aiInfo.nCurPathIndex);
-		m_cf.WriteByte (objP->cType.aiInfo.bDyingSoundPlaying);
-		m_cf.WriteShort (objP->cType.aiInfo.nDangerLaser);
-		m_cf.WriteInt (objP->cType.aiInfo.nDangerLaserSig);
-		m_cf.WriteFix (objP->cType.aiInfo.xDyingStartTime);
-		break;
-
-	case CT_LIGHT:
-		m_cf.WriteFix (objP->cType.lightInfo.intensity);
-		break;
-
-	case CT_POWERUP:
-		m_cf.WriteInt (objP->cType.powerupInfo.nCount);
-		m_cf.WriteFix (objP->cType.powerupInfo.xCreationTime);
-		m_cf.WriteInt (objP->cType.powerupInfo.nFlags);
-		break;
-	}
-switch (objP->info.renderType) {
-	case RT_MORPH:
-	case RT_POLYOBJ: {
-		int i;
-		m_cf.WriteInt (objP->rType.polyObjInfo.nModel);
-		for (i = 0; i < MAX_SUBMODELS; i++)
-			m_cf.WriteAngVec (objP->rType.polyObjInfo.animAngles [i]);
-		m_cf.WriteInt (objP->rType.polyObjInfo.nSubObjFlags);
-		m_cf.WriteInt (objP->rType.polyObjInfo.nTexOverride);
-		m_cf.WriteInt (objP->rType.polyObjInfo.nAltTextures);
-		break;
-		}
-	case RT_WEAPON_VCLIP:
-	case RT_HOSTAGE:
-	case RT_POWERUP:
-	case RT_FIREBALL:
-	case RT_THRUSTER:
-		m_cf.WriteInt (objP->rType.vClipInfo.nClipIndex);
-		m_cf.WriteFix (objP->rType.vClipInfo.xFrameTime);
-		m_cf.WriteByte (objP->rType.vClipInfo.nCurFrame);
-		break;
-
-	case RT_LASER:
-		break;
-	}
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveWall (tWall *wallP)
-{
-m_cf.WriteInt (wallP->nSegment);
-m_cf.WriteInt (wallP->nSide);
-m_cf.WriteFix (wallP->hps);    
-m_cf.WriteInt (wallP->nLinkedWall);
-m_cf.WriteByte ((sbyte) wallP->nType);       
-m_cf.WriteByte ((sbyte) wallP->flags);      
-m_cf.WriteByte ((sbyte) wallP->state);      
-m_cf.WriteByte ((sbyte) wallP->nTrigger);    
-m_cf.WriteByte (wallP->nClip);   
-m_cf.WriteByte ((sbyte) wallP->keys);       
-m_cf.WriteByte (wallP->controllingTrigger);
-m_cf.WriteByte (wallP->cloakValue); 
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveExplWall (tExplWall *wallP)
-{
-m_cf.WriteInt (wallP->nSegment);
-m_cf.WriteInt (wallP->nSide);
-m_cf.WriteFix (wallP->time);    
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveCloakingWall (tCloakingWall *wallP)
-{
-	int	i;
-
-m_cf.WriteShort (wallP->nFrontWall);
-m_cf.WriteShort (wallP->nBackWall); 
-for (i = 0; i < 4; i++) {
-	m_cf.WriteFix (wallP->front_ls [i]); 
-	m_cf.WriteFix (wallP->back_ls [i]);
-	}
-m_cf.WriteFix (wallP->time);    
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveActiveDoor (tActiveDoor *doorP)
-{
-	int	i;
-
-m_cf.WriteInt (doorP->nPartCount);
-for (i = 0; i < 2; i++) {
-	m_cf.WriteShort (doorP->nFrontWall [i]);
-	m_cf.WriteShort (doorP->nBackWall [i]);
-	}
-m_cf.WriteFix (doorP->time);    
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveTrigger (tTrigger *triggerP)
-{
-	int	i;
-
-m_cf.WriteByte ((sbyte) triggerP->nType); 
-m_cf.WriteByte ((sbyte) triggerP->flags); 
-m_cf.WriteByte (triggerP->nLinks);
-m_cf.WriteFix (triggerP->value);
-m_cf.WriteFix (triggerP->time);
-for (i = 0; i < MAX_TRIGGER_TARGETS; i++) {
-	m_cf.WriteShort (triggerP->nSegment [i]);
-	m_cf.WriteShort (triggerP->nSide [i]);
-	}
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveObjTriggerRef (tObjTriggerRef *refP)
-{
-m_cf.WriteShort (refP->prev);
-m_cf.WriteShort (refP->next);
-m_cf.WriteShort (refP->nObject);
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveMatCen (tMatCenInfo *matcenP)
-{
-	int	i;
-
-for (i = 0; i < 2; i++)
-	m_cf.WriteInt (matcenP->objFlags [i]);
-m_cf.WriteFix (matcenP->xHitPoints);
-m_cf.WriteFix (matcenP->xInterval);
-m_cf.WriteShort (matcenP->nSegment);
-m_cf.WriteShort (matcenP->nFuelCen);
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveFuelCen (tFuelCenInfo *fuelcenP)
-{
-m_cf.WriteInt (fuelcenP->nType);
-m_cf.WriteInt (fuelcenP->nSegment);
-m_cf.WriteByte (fuelcenP->bFlag);
-m_cf.WriteByte (fuelcenP->bEnabled);
-m_cf.WriteByte (fuelcenP->nLives);
-m_cf.WriteFix (fuelcenP->xCapacity);
-m_cf.WriteFix (fuelcenP->xMaxCapacity);
-m_cf.WriteFix (fuelcenP->xTimer);
-m_cf.WriteFix (fuelcenP->xDisableTime);
-m_cf.WriteVector(fuelcenP->vCenter);
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveReactorTrigger (tReactorTriggers *triggerP)
-{
-	int	i;
-
-m_cf.WriteShort (triggerP->nLinks);
-for (i = 0; i < MAX_CONTROLCEN_LINKS; i++) {
-	m_cf.WriteShort (triggerP->nSegment [i]);
-	m_cf.WriteShort (triggerP->nSide [i]);
-	}
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveReactorState (tReactorStates *stateP)
-{
-m_cf.WriteInt (stateP->nObject);
-m_cf.WriteInt (stateP->bHit);
-m_cf.WriteInt (stateP->bSeenPlayer);
-m_cf.WriteInt (stateP->nNextFireTime);
-m_cf.WriteInt (stateP->nDeadObj);
-}
-
-//------------------------------------------------------------------------------
-
-void CSaveGameHandler::SaveSpawnPoint (int i)
-{
-#if DBG
-i = m_cf.Tell;
-#endif
-m_cf.WriteVector (gameData.multiplayer.playerInit [i].position.vPos);     
-m_cf.WriteMatrix (gameData.multiplayer.playerInit [i].position.mOrient);  
-m_cf.WriteShort (gameData.multiplayer.playerInit [i].nSegment);
-m_cf.WriteShort (gameData.multiplayer.playerInit [i].nSegType);
-}
-
-//------------------------------------------------------------------------------
-
-DBG (static int fPos);
-
-void CSaveGameHandler::SaveGameData (void)
+void StateSaveBinGameData (CFILE cf, int bBetweenLevels)
 {
 	int		i, j;
+	ushort	nWall, nTexture;
 	short		nObjsWithTrigger, nObject, nFirstTrigger;
-	CObject	*objP;
+	tObject	*objP;
 
-m_cf.WriteInt (gameData.segs.nMaxSegments);
 // Save the Between levels flag...
-m_cf.WriteInt (m_bBetweenLevels);
+CFWrite (&bBetweenLevels, sizeof (int), 1, &cf);
 // Save the mission info...
-m_cf.Write (gameData.missions.list + gameData.missions.nCurrentMission, sizeof (char), 9);
+CFWrite (gameData.missions.list + gameData.missions.nCurrentMission, sizeof (char), 9, &cf);
 //Save level info
-m_cf.WriteInt (gameData.missions.nCurrentLevel);
-m_cf.WriteInt (gameData.missions.nNextLevel);
+CFWrite (&gameData.missions.nCurrentLevel, sizeof (int), 1, &cf);
+CFWrite (&gameData.missions.nNextLevel, sizeof (int), 1, &cf);
 //Save gameData.time.xGame
-m_cf.WriteFix (gameData.time.xGame);
+CFWrite (&gameData.time.xGame, sizeof (fix), 1, &cf);
 // If coop save, save all
-if (IsCoopGame) {
-	m_cf.WriteInt (gameData.app.nStateGameId);
-	SaveNetGame ();
-	DBG (fPos = m_cf.Tell ());
-	SaveNetPlayers ();
-	DBG (fPos = m_cf.Tell ());
-	m_cf.WriteInt (gameData.multiplayer.nPlayers);
-	m_cf.WriteInt (gameData.multiplayer.nLocalPlayer);
+if (gameData.app.nGameMode & GM_MULTI_COOP) {
+	CFWrite (&gameData.app.nStateGameId, sizeof (int), 1, &cf);
+	CFWrite (&netGame, sizeof (tNetgameInfo), 1, &cf);
+	CFWrite (&netPlayers, sizeof (tAllNetPlayersInfo), 1, &cf);
+	CFWrite (&gameData.multiplayer.nPlayers, sizeof (int), 1, &cf);
+	CFWrite (&gameData.multiplayer.nLocalPlayer, sizeof (int), 1, &cf);
 	for (i = 0; i < gameData.multiplayer.nPlayers; i++)
-		SavePlayer (gameData.multiplayer.players + i);
-	DBG (fPos = m_cf.Tell ());
+		CFWrite (&gameData.multiplayer.players [i], sizeof (tPlayer), 1, &cf);
 	}
-//Save CPlayerData info
-SavePlayer (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer);
+//Save tPlayer info
+CFWrite (&LOCALPLAYER, sizeof (tPlayer), 1, &cf);
 // Save the current weapon info
-m_cf.WriteByte (gameData.weapons.nPrimary);
-m_cf.WriteByte (gameData.weapons.nSecondary);
+CFWrite (&gameData.weapons.nPrimary, sizeof (sbyte), 1, &cf);
+CFWrite (&gameData.weapons.nSecondary, sizeof (sbyte), 1, &cf);
 // Save the difficulty level
-m_cf.WriteInt (gameStates.app.nDifficultyLevel);
+CFWrite (&gameStates.app.nDifficultyLevel, sizeof (int), 1, &cf);
 // Save cheats enabled
-m_cf.WriteInt (gameStates.app.cheats.bEnabled);
-for (i = 0; i < 2; i++) {
-	m_cf.WriteInt (F2X (gameStates.gameplay.slowmo [i].fSpeed));
-	m_cf.WriteInt (gameStates.gameplay.slowmo [i].nState);
-	}
-for (i = 0; i < MAX_PLAYERS; i++)
-	m_cf.WriteInt (gameData.multiplayer.weaponStates [i].bTripleFusion);
-if (!m_bBetweenLevels)	{
+CFWrite (&gameStates.app.cheats.bEnabled, sizeof (int), 1, &cf);
+if (!bBetweenLevels)	{
 //Finish all morph OBJECTS
 	FORALL_OBJS (objP, i) {
-	if (objP->info.nType == OBJ_NONE) 
+		if (objP->info.nType == OBJ_NONE) 
 			continue;
 		if (objP->info.nType == OBJ_CAMERA)
-			objP->info.position.mOrient = cameraManager.Camera (objP)->Orient ();
+			objP->info.position.mOrient = gameData.cameras.cameras [gameData.objs.cameraRef [OBJ_IDX (objP)]].orient;
 		else if (objP->info.renderType == RT_MORPH) {
 			tMorphInfo *md = MorphFindData (objP);
 			if (md) {
-				CObject *mdObjP = md->objP;
+				tObject *mdObjP = md->objP;
 				mdObjP->info.controlType = md->saveControlType;
 				mdObjP->info.movementType = md->saveMovementType;
 				mdObjP->info.renderType = RT_POLYOBJ;
@@ -1058,50 +626,638 @@ if (!m_bBetweenLevels)	{
 				}
 			}
 		}
-	DBG (fPos = m_cf.Tell ());
-//Save CObject info
+//Save tObject info
 	i = gameData.objs.nLastObject [0] + 1;
-	m_cf.WriteInt (i);
-	for (j = 0; j < i; j++)
-		SaveObject (OBJECTS + j);
-	DBG (fPos = m_cf.Tell ());
+	CFWrite (&i, sizeof (int), 1, &cf);
+	CFWrite (OBJECTS, sizeof (tObject), i, &cf);
 //Save tWall info
 	i = gameData.walls.nWalls;
-	m_cf.WriteInt (i);
-	for (j = 0; j < i; j++)
-		SaveWall (gameData.walls.walls + j);
-	DBG (fPos = m_cf.Tell ());
+	CFWrite (&i, sizeof (int), 1, &cf);
+	CFWrite (gameData.walls.walls, sizeof (tWall), i, &cf);
 //Save exploding wall info
 	i = MAX_EXPLODING_WALLS;
-	m_cf.WriteInt (i);
-	for (j = 0; j < i; j++)
-		SaveExplWall (gameData.walls.explWalls + j);
-	DBG (fPos = m_cf.Tell ());
+	CFWrite (&i, sizeof (int), 1, &cf);
+	CFWrite (gameData.walls.explWalls, sizeof (*gameData.walls.explWalls), i, &cf);
 //Save door info
 	i = gameData.walls.nOpenDoors;
-	m_cf.WriteInt (i);
-	for (j = 0; j < i; j++)
-		SaveActiveDoor (gameData.walls.activeDoors + j);
-	DBG (fPos = m_cf.Tell ());
+	CFWrite (&i, sizeof (int), 1, &cf);
+	CFWrite (gameData.walls.activeDoors, sizeof (tActiveDoor), i, &cf);
 //Save cloaking tWall info
 	i = gameData.walls.nCloaking;
-	m_cf.WriteInt (i);
-	for (j = 0; j < i; j++)
-		SaveCloakingWall (gameData.walls.cloaking + j);
-	DBG (fPos = m_cf.Tell ());
+	CFWrite (&i, sizeof (int), 1, &cf);
+	CFWrite (gameData.walls.cloaking, sizeof (tCloakingWall), i, &cf);
 //Save tTrigger info
-	m_cf.WriteInt (gameData.trigs.nTriggers);
+	CFWrite (&gameData.trigs.nTriggers, sizeof (int), 1, &cf);
+	CFWrite (gameData.trigs.triggers, sizeof (tTrigger), gameData.trigs.nTriggers, &cf);
+	CFWrite (&gameData.trigs.nObjTriggers, sizeof (int), 1, &cf);
+	CFWrite (gameData.trigs.objTriggers, sizeof (tTrigger), gameData.trigs.nObjTriggers, &cf);
+	CFWrite (gameData.trigs.objTriggerRefs, sizeof (tObjTriggerRef), gameData.trigs.nObjTriggers, &cf);
+	nObjsWithTrigger = 0;
+	FORALL_OBJS (objP, nObject) {
+		nObject = OBJ_IDX (objP);
+		nFirstTrigger = gameData.trigs.firstObjTrigger [nObject];
+		if ((nFirstTrigger >= 0) && (nFirstTrigger < gameData.trigs.nObjTriggers))
+			nObjsWithTrigger++;
+		}
+	CFWrite (&nObjsWithTrigger, sizeof (nObjsWithTrigger), 1, &cf);
+	FORALL_OBJS (objP, nObject) {
+		nObject = OBJ_IDX (objP);
+		nFirstTrigger = gameData.trigs.firstObjTrigger [nObject];
+		if ((nFirstTrigger >= 0) && (nFirstTrigger < gameData.trigs.nObjTriggers)) {
+			CFWrite (&nObject, sizeof (nObject), 1, &cf);
+			CFWrite (&nFirstTrigger, sizeof (nFirstTrigger), 1, &cf);
+			}
+		}
+//Save tmap info
+	for (i = 0; i <= gameData.segs.nLastSegment; i++) {
+		for (j = 0; j < 6; j++)	{
+			nWall = WallNumI ((short) i, (short) j);
+			CFWrite (&nWall, sizeof (short), 1, &cf);
+			CFWrite (&gameData.segs.segments [i].sides [j].nBaseTex, sizeof (short), 1, &cf);
+			nTexture = gameData.segs.segments [i].sides [j].nOvlTex | (gameData.segs.segments [i].sides [j].nOvlOrient << 14);
+			CFWrite (&nTexture, sizeof (short), 1, &cf);
+			}
+		}
+// Save the fuelcen info
+	CFWrite (&gameData.reactor.bDestroyed, sizeof (int), 1, &cf);
+	CFWrite (&gameData.reactor.countdown.nTimer, sizeof (int), 1, &cf);
+	CFWrite (&gameData.matCens.nBotCenters, sizeof (int), 1, &cf);
+	CFWrite (gameData.matCens.botGens, sizeof (tMatCenInfo), gameData.matCens.nBotCenters, &cf);
+	CFWrite (&gameData.reactor.triggers, sizeof (tReactorTriggers), 1, &cf);
+	CFWrite (&gameData.matCens.nFuelCenters, sizeof (int), 1, &cf);
+	CFWrite (gameData.matCens.fuelCenters, sizeof (tFuelCenInfo), gameData.matCens.nFuelCenters, &cf);
+	CFWrite (&gameData.matCens.nFuelCenters, sizeof (int), 1, &cf);
+	CFWrite (gameData.matCens.fuelCenters, sizeof (tFuelCenInfo), gameData.matCens.nFuelCenters, &cf);
+// Save the control cen info
+	CFWrite (&gameData.reactor.bPresent, sizeof (int), 1, &cf);
+	for (i = 0; i < MAX_BOSS_COUNT; i++) {
+		CFWrite (&gameData.reactor.states [i].nObject, sizeof (int), 1, &cf);
+		CFWrite (&gameData.reactor.states [i].bHit, sizeof (int), 1, &cf);
+		CFWrite (&gameData.reactor.states [i].bSeenPlayer, sizeof (int), 1, &cf);
+		CFWrite (&gameData.reactor.states [i].nNextFireTime, sizeof (int), 1, &cf);
+		CFWrite (&gameData.reactor.states [i].nDeadObj, sizeof (int), 1, &cf);
+		}
+// Save the AI state
+	AISaveBinState (&cf);
+
+// Save the automap visited info
+	CFWrite (gameData.render.mine.bAutomapVisited, sizeof (ushort) * MAX_SEGMENTS, 1, &cf);
+	}
+CFWrite (&gameData.app.nStateGameId, sizeof (uint), 1, &cf);
+CFWrite (&gameStates.app.cheats.bLaserRapidFire, sizeof (int), 1, &cf);
+CFWrite (&gameStates.app.bLunacy, sizeof (int), 1, &cf);		//	Yes, writing this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
+CFWrite (&gameStates.app.bLunacy, sizeof (int), 1, &cf);
+// Save automap marker info
+CFWrite (gameData.marker.objects, sizeof (gameData.marker.objects), 1, &cf);
+CFWrite (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1, &cf);
+CFWrite (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1, &cf);
+CFWrite (&gameData.physics.xAfterburnerCharge, sizeof (fix), 1, &cf);
+//save last was super information
+CFWrite (&bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1, &cf);
+CFWrite (&bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1, &cf);
+//	Save flash effect stuff
+CFWrite (&gameData.render.xFlashEffect, sizeof (int), 1, &cf);
+CFWrite (&gameData.render.xTimeFlashLastPlayed, sizeof (int), 1, &cf);
+CFWrite (&gameStates.ogl.palAdd.red, sizeof (int), 1, &cf);
+CFWrite (&gameStates.ogl.palAdd.green, sizeof (int), 1, &cf);
+CFWrite (&gameStates.ogl.palAdd.blue, sizeof (int), 1, &cf);
+CFWrite (gameData.render.lights.subtracted, sizeof (gameData.render.lights.subtracted [0]), MAX_SEGMENTS, &cf);
+CFWrite (&gameStates.app.bFirstSecretVisit, sizeof (gameStates.app.bFirstSecretVisit), 1, &cf);
+CFWrite (&gameData.omega.xCharge, sizeof (gameData.omega.xCharge), 1, &cf);
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveNetGame (CFILE *cfP)
+{
+	int	i, j;
+
+CFWriteByte (netGame.nType, cfP);
+CFWriteInt (netGame.nSecurity, cfP);
+CFWrite (netGame.szGameName, 1, NETGAME_NAME_LEN + 1, cfP);
+CFWrite (netGame.szMissionTitle, 1, MISSION_NAME_LEN + 1, cfP);
+CFWrite (netGame.szMissionName, 1, 9, cfP);
+CFWriteInt (netGame.nLevel, cfP);
+CFWriteByte ((sbyte) netGame.gameMode, cfP);
+CFWriteByte ((sbyte) netGame.bRefusePlayers, cfP);
+CFWriteByte ((sbyte) netGame.difficulty, cfP);
+CFWriteByte ((sbyte) netGame.gameStatus, cfP);
+CFWriteByte ((sbyte) netGame.nNumPlayers, cfP);
+CFWriteByte ((sbyte) netGame.nMaxPlayers, cfP);
+CFWriteByte ((sbyte) netGame.nConnected, cfP);
+CFWriteByte ((sbyte) netGame.gameFlags, cfP);
+CFWriteByte ((sbyte) netGame.protocolVersion, cfP);
+CFWriteByte ((sbyte) netGame.versionMajor, cfP);
+CFWriteByte ((sbyte) netGame.versionMinor, cfP);
+CFWriteByte ((sbyte) netGame.teamVector, cfP);
+CFWriteByte ((sbyte) netGame.DoMegas, cfP);
+CFWriteByte ((sbyte) netGame.DoSmarts, cfP);
+CFWriteByte ((sbyte) netGame.DoFusions, cfP);
+CFWriteByte ((sbyte) netGame.DoHelix, cfP);
+CFWriteByte ((sbyte) netGame.DoPhoenix, cfP);
+CFWriteByte ((sbyte) netGame.DoAfterburner, cfP);
+CFWriteByte ((sbyte) netGame.DoInvulnerability, cfP);
+CFWriteByte ((sbyte) netGame.DoCloak, cfP);
+CFWriteByte ((sbyte) netGame.DoGauss, cfP);
+CFWriteByte ((sbyte) netGame.DoVulcan, cfP);
+CFWriteByte ((sbyte) netGame.DoPlasma, cfP);
+CFWriteByte ((sbyte) netGame.DoOmega, cfP);
+CFWriteByte ((sbyte) netGame.DoSuperLaser, cfP);
+CFWriteByte ((sbyte) netGame.DoProximity, cfP);
+CFWriteByte ((sbyte) netGame.DoSpread, cfP);
+CFWriteByte ((sbyte) netGame.DoSmartMine, cfP);
+CFWriteByte ((sbyte) netGame.DoFlash, cfP);
+CFWriteByte ((sbyte) netGame.DoGuided, cfP);
+CFWriteByte ((sbyte) netGame.DoEarthShaker, cfP);
+CFWriteByte ((sbyte) netGame.DoMercury, cfP);
+CFWriteByte ((sbyte) netGame.bAllowMarkerView, cfP);
+CFWriteByte ((sbyte) netGame.bIndestructibleLights, cfP);
+CFWriteByte ((sbyte) netGame.DoAmmoRack, cfP);
+CFWriteByte ((sbyte) netGame.DoConverter, cfP);
+CFWriteByte ((sbyte) netGame.DoHeadlight, cfP);
+CFWriteByte ((sbyte) netGame.DoHoming, cfP);
+CFWriteByte ((sbyte) netGame.DoLaserUpgrade, cfP);
+CFWriteByte ((sbyte) netGame.DoQuadLasers, cfP);
+CFWriteByte ((sbyte) netGame.bShowAllNames, cfP);
+CFWriteByte ((sbyte) netGame.BrightPlayers, cfP);
+CFWriteByte ((sbyte) netGame.invul, cfP);
+CFWriteByte ((sbyte) netGame.FriendlyFireOff, cfP);
+for (i = 0; i < 2; i++)
+	CFWrite (netGame.szTeamName [i], 1, CALLSIGN_LEN + 1, cfP);		// 18 bytes
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteInt (netGame.locations [i], cfP);
+for (i = 0; i < MAX_PLAYERS; i++)
+	for (j = 0; j < MAX_PLAYERS; j++)
+		CFWriteShort (netGame.kills [i][j], cfP);			// 128 bytes
+CFWriteShort (netGame.nSegmentCheckSum, cfP);				// 2 bytes
+for (i = 0; i < 2; i++)
+	CFWriteShort (netGame.teamKills [i], cfP);				// 4 bytes
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteShort (netGame.killed [i], cfP);					// 16 bytes
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteShort (netGame.playerKills [i], cfP);			// 16 bytes
+CFWriteInt (netGame.KillGoal, cfP);							// 4 bytes
+CFWriteFix (netGame.xPlayTimeAllowed, cfP);					// 4 bytes
+CFWriteFix (netGame.xLevelTime, cfP);							// 4 bytes
+CFWriteInt (netGame.controlInvulTime, cfP);				// 4 bytes
+CFWriteInt (netGame.monitorVector, cfP);					// 4 bytes
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteInt (netGame.playerScore [i], cfP);				// 32 bytes
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteByte ((sbyte) netGame.playerFlags [i], cfP);	// 8 bytes
+CFWriteShort (PacketsPerSec (), cfP);					// 2 bytes
+CFWriteByte ((sbyte) netGame.bShortPackets, cfP);			// 1 bytes
+// 279 bytes
+// 355 bytes total
+CFWrite (netGame.AuxData, NETGAME_AUX_SIZE, 1, cfP);  // Storage for protocol-specific data (e.g., multicast session and port)
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveNetPlayers (CFILE *cfP)
+{
+	int	i;
+
+CFWriteByte ((sbyte) netPlayers.nType, cfP);
+CFWriteInt (netPlayers.nSecurity, cfP);
+for (i = 0; i < MAX_PLAYERS + 4; i++) {
+	CFWrite (netPlayers.players [i].callsign, 1, CALLSIGN_LEN + 1, cfP);
+	CFWrite (netPlayers.players [i].network.ipx.server, 1, 4, cfP);
+	CFWrite (netPlayers.players [i].network.ipx.node, 1, 6, cfP);
+	CFWriteByte ((sbyte) netPlayers.players [i].versionMajor, cfP);
+	CFWriteByte ((sbyte) netPlayers.players [i].versionMinor, cfP);
+	CFWriteByte ((sbyte) netPlayers.players [i].computerType, cfP);
+	CFWriteByte (netPlayers.players [i].connected, cfP);
+	CFWriteShort ((short) netPlayers.players [i].socket, cfP);
+	CFWriteByte ((sbyte) netPlayers.players [i].rank, cfP);
+	}
+}
+
+//------------------------------------------------------------------------------
+
+void StateSavePlayer (tPlayer *playerP, CFILE *cfP)
+{
+	int	i;
+
+CFWrite (playerP->callsign, 1, CALLSIGN_LEN + 1, cfP); // The callsign of this tPlayer, for net purposes.
+CFWrite (playerP->netAddress, 1, 6, cfP);					// The network address of the player.
+CFWriteByte (playerP->connected, cfP);            // Is the tPlayer connected or not?
+CFWriteInt (playerP->nObject, cfP);                // What tObject number this tPlayer is. (made an int by mk because it's very often referenced)
+CFWriteInt (playerP->nPacketsGot, cfP);         // How many packets we got from them
+CFWriteInt (playerP->nPacketsSent, cfP);        // How many packets we sent to them
+CFWriteInt ((int) playerP->flags, cfP);           // Powerup flags, see below...
+CFWriteFix (playerP->energy, cfP);                // Amount of energy remaining.
+CFWriteFix (playerP->shields, cfP);               // shields remaining (protection)
+CFWriteByte (playerP->lives, cfP);                // Lives remaining, 0 = game over.
+CFWriteByte (playerP->level, cfP);                // Current level tPlayer is playing. (must be signed for secret levels)
+CFWriteByte ((sbyte) playerP->laserLevel, cfP);  // Current level of the laser.
+CFWriteByte (playerP->startingLevel, cfP);       // What level the tPlayer started on.
+CFWriteShort (playerP->nKillerObj, cfP);       // Who killed me.... (-1 if no one)
+CFWriteShort ((short) playerP->primaryWeaponFlags, cfP);   // bit set indicates the tPlayer has this weapon.
+CFWriteShort ((short) playerP->secondaryWeaponFlags, cfP); // bit set indicates the tPlayer has this weapon.
+for (i = 0; i < MAX_PRIMARY_WEAPONS; i++)
+	CFWriteShort ((short) playerP->primaryAmmo [i], cfP); // How much ammo of each nType.
+for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
+	CFWriteShort ((short) playerP->secondaryAmmo [i], cfP); // How much ammo of each nType.
+#if 1 //for inventory system
+CFWriteByte ((sbyte) playerP->nInvuls, cfP);
+CFWriteByte ((sbyte) playerP->nCloaks, cfP);
+#endif
+CFWriteInt (playerP->lastScore, cfP);             // Score at beginning of current level.
+CFWriteInt (playerP->score, cfP);                  // Current score.
+CFWriteFix (playerP->timeLevel, cfP);             // Level time played
+CFWriteFix (playerP->timeTotal, cfP);             // Game time played (high word = seconds)
+if (playerP->cloakTime == 0x7fffffff)				// cloak cheat active
+	CFWriteFix (playerP->cloakTime, cfP);			// Time invulnerable
+else
+	CFWriteFix (playerP->cloakTime - gameData.time.xGame, cfP);      // Time invulnerable
+if (playerP->invulnerableTime == 0x7fffffff)		// invul cheat active
+	CFWriteFix (playerP->invulnerableTime, cfP);      // Time invulnerable
+else
+	CFWriteFix (playerP->invulnerableTime - gameData.time.xGame, cfP);      // Time invulnerable
+CFWriteShort (playerP->nKillGoalCount, cfP);          // Num of players killed this level
+CFWriteShort (playerP->netKilledTotal, cfP);       // Number of times killed total
+CFWriteShort (playerP->netKillsTotal, cfP);        // Number of net kills total
+CFWriteShort (playerP->numKillsLevel, cfP);        // Number of kills this level
+CFWriteShort (playerP->numKillsTotal, cfP);        // Number of kills total
+CFWriteShort (playerP->numRobotsLevel, cfP);       // Number of initial robots this level
+CFWriteShort (playerP->numRobotsTotal, cfP);       // Number of robots total
+CFWriteShort ((short) playerP->hostages.nRescued, cfP); // Total number of hostages rescued.
+CFWriteShort ((short) playerP->hostages.nTotal, cfP);         // Total number of hostages.
+CFWriteByte ((sbyte) playerP->hostages.nOnBoard, cfP);      // Number of hostages on ship.
+CFWriteByte ((sbyte) playerP->hostages.nLevel, cfP);         // Number of hostages on this level.
+CFWriteFix (playerP->homingObjectDist, cfP);     // Distance of nearest homing tObject.
+CFWriteByte (playerP->hoursLevel, cfP);            // Hours played (since timeTotal can only go up to 9 hours)
+CFWriteByte (playerP->hoursTotal, cfP);            // Hours played (since timeTotal can only go up to 9 hours)
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveObject (tObject *objP, CFILE *cfP)
+{
+CFWriteInt (objP->info.nSignature, cfP);      
+CFWriteByte ((sbyte) objP->info.nType, cfP); 
+CFWriteByte ((sbyte) objP->info.nId, cfP);
+CFWriteShort (objP->info.nNextInSeg, cfP);
+CFWriteShort (objP->info.nPrevInSeg, cfP);
+CFWriteByte ((sbyte) objP->info.controlType, cfP);
+CFWriteByte ((sbyte) objP->info.movementType, cfP);
+CFWriteByte ((sbyte) objP->info.renderType, cfP);
+CFWriteByte ((sbyte) objP->info.nFlags, cfP);
+CFWriteShort (objP->info.nSegment, cfP);
+CFWriteShort (objP->info.nAttachedObj, cfP);
+CFWriteVector (OBJPOS (objP)->vPos, cfP);     
+CFWriteMatrix (OBJPOS (objP)->mOrient, cfP);  
+CFWriteFix (objP->info.xSize, cfP); 
+CFWriteFix (objP->info.xShields, cfP);
+CFWriteVector (objP->info.vLastPos, cfP);  
+CFWriteByte (objP->info.contains.nType, cfP); 
+CFWriteByte (objP->info.contains.nId, cfP);   
+CFWriteByte (objP->info.contains.nCount, cfP);
+CFWriteByte (objP->info.nCreator, cfP);
+CFWriteFix (objP->info.xLifeLeft, cfP);   
+if (objP->info.movementType == MT_PHYSICS) {
+	CFWriteVector (objP->mType.physInfo.velocity, cfP);   
+	CFWriteVector (objP->mType.physInfo.thrust, cfP);     
+	CFWriteFix (objP->mType.physInfo.mass, cfP);       
+	CFWriteFix (objP->mType.physInfo.drag, cfP);       
+	CFWriteFix (objP->mType.physInfo.brakes, cfP);     
+	CFWriteVector (objP->mType.physInfo.rotVel, cfP);     
+	CFWriteVector (objP->mType.physInfo.rotThrust, cfP);  
+	CFWriteFixAng (objP->mType.physInfo.turnRoll, cfP);   
+	CFWriteShort ((short) objP->mType.physInfo.flags, cfP);      
+	}
+else if (objP->info.movementType == MT_SPINNING) {
+	CFWriteVector(objP->mType.spinRate, cfP);  
+	}
+switch (objP->info.controlType) {
+	case CT_WEAPON:
+		CFWriteShort (objP->cType.laserInfo.parent.nType, cfP);
+		CFWriteShort (objP->cType.laserInfo.parent.nObject, cfP);
+		CFWriteInt (objP->cType.laserInfo.parent.nSignature, cfP);
+		CFWriteFix (objP->cType.laserInfo.xCreationTime, cfP);
+		if (objP->cType.laserInfo.nLastHitObj)
+			CFWriteShort (gameData.objs.nHitObjects [OBJ_IDX (objP) * MAX_HIT_OBJECTS + objP->cType.laserInfo.nLastHitObj - 1], cfP);
+		else
+			CFWriteShort (-1, cfP);
+		CFWriteShort (objP->cType.laserInfo.nHomingTarget, cfP);
+		CFWriteFix (objP->cType.laserInfo.xScale, cfP);
+		break;
+
+	case CT_EXPLOSION:
+		CFWriteFix (objP->cType.explInfo.nSpawnTime, cfP);
+		CFWriteFix (objP->cType.explInfo.nDeleteTime, cfP);
+		CFWriteShort (objP->cType.explInfo.nDeleteObj, cfP);
+		CFWriteShort (objP->cType.explInfo.attached.nParent, cfP);
+		CFWriteShort (objP->cType.explInfo.attached.nPrev, cfP);
+		CFWriteShort (objP->cType.explInfo.attached.nNext, cfP);
+		break;
+
+	case CT_AI:
+		CFWriteByte ((sbyte) objP->cType.aiInfo.behavior, cfP);
+		CFWrite (objP->cType.aiInfo.flags, 1, MAX_AI_FLAGS, cfP);
+		CFWriteShort (objP->cType.aiInfo.nHideSegment, cfP);
+		CFWriteShort (objP->cType.aiInfo.nHideIndex, cfP);
+		CFWriteShort (objP->cType.aiInfo.nPathLength, cfP);
+		CFWriteByte (objP->cType.aiInfo.nCurPathIndex, cfP);
+		CFWriteByte (objP->cType.aiInfo.bDyingSoundPlaying, cfP);
+		CFWriteShort (objP->cType.aiInfo.nDangerLaser, cfP);
+		CFWriteInt (objP->cType.aiInfo.nDangerLaserSig, cfP);
+		CFWriteFix (objP->cType.aiInfo.xDyingStartTime, cfP);
+		break;
+
+	case CT_LIGHT:
+		CFWriteFix (objP->cType.lightInfo.intensity, cfP);
+		break;
+
+	case CT_POWERUP:
+		CFWriteInt (objP->cType.powerupInfo.nCount, cfP);
+		CFWriteFix (objP->cType.powerupInfo.xCreationTime, cfP);
+		CFWriteInt (objP->cType.powerupInfo.nFlags, cfP);
+		break;
+	}
+switch (objP->info.renderType) {
+	case RT_MORPH:
+	case RT_POLYOBJ: {
+		int i;
+		CFWriteInt (objP->rType.polyObjInfo.nModel, cfP);
+		for (i = 0; i < MAX_SUBMODELS; i++)
+			CFWriteAngVec (objP->rType.polyObjInfo.animAngles [i], cfP);
+		CFWriteInt (objP->rType.polyObjInfo.nSubObjFlags, cfP);
+		CFWriteInt (objP->rType.polyObjInfo.nTexOverride, cfP);
+		CFWriteInt (objP->rType.polyObjInfo.nAltTextures, cfP);
+		break;
+		}
+	case RT_WEAPON_VCLIP:
+	case RT_HOSTAGE:
+	case RT_POWERUP:
+	case RT_FIREBALL:
+	case RT_THRUSTER:
+		CFWriteInt (objP->rType.vClipInfo.nClipIndex, cfP);
+		CFWriteFix (objP->rType.vClipInfo.xFrameTime, cfP);
+		CFWriteByte (objP->rType.vClipInfo.nCurFrame, cfP);
+		break;
+
+	case RT_LASER:
+		break;
+	}
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveWall (tWall *wallP, CFILE *cfP)
+{
+CFWriteInt (wallP->nSegment, cfP);
+CFWriteInt (wallP->nSide, cfP);
+CFWriteFix (wallP->hps, cfP);    
+CFWriteInt (wallP->nLinkedWall, cfP);
+CFWriteByte ((sbyte) wallP->nType, cfP);       
+CFWriteByte ((sbyte) wallP->flags, cfP);      
+CFWriteByte ((sbyte) wallP->state, cfP);      
+CFWriteByte ((sbyte) wallP->nTrigger, cfP);    
+CFWriteByte (wallP->nClip, cfP);   
+CFWriteByte ((sbyte) wallP->keys, cfP);       
+CFWriteByte (wallP->controllingTrigger, cfP);
+CFWriteByte (wallP->cloakValue, cfP); 
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveExplWall (tExplWall *wallP, CFILE *cfP)
+{
+CFWriteInt (wallP->nSegment, cfP);
+CFWriteInt (wallP->nSide, cfP);
+CFWriteFix (wallP->time, cfP);    
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveCloakingWall (tCloakingWall *wallP, CFILE *cfP)
+{
+	int	i;
+
+CFWriteShort (wallP->nFrontWall, cfP);
+CFWriteShort (wallP->nBackWall, cfP); 
+for (i = 0; i < 4; i++) {
+	CFWriteFix (wallP->front_ls [i], cfP); 
+	CFWriteFix (wallP->back_ls [i], cfP);
+	}
+CFWriteFix (wallP->time, cfP);    
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveActiveDoor (tActiveDoor *doorP, CFILE *cfP)
+{
+	int	i;
+
+CFWriteInt (doorP->nPartCount, cfP);
+for (i = 0; i < 2; i++) {
+	CFWriteShort (doorP->nFrontWall [i], cfP);
+	CFWriteShort (doorP->nBackWall [i], cfP);
+	}
+CFWriteFix (doorP->time, cfP);    
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveTrigger (tTrigger *triggerP, CFILE *cfP)
+{
+	int	i;
+
+CFWriteByte ((sbyte) triggerP->nType, cfP); 
+CFWriteByte ((sbyte) triggerP->flags, cfP); 
+CFWriteByte (triggerP->nLinks, cfP);
+CFWriteFix (triggerP->value, cfP);
+CFWriteFix (triggerP->time, cfP);
+for (i = 0; i < MAX_TRIGGER_TARGETS; i++) {
+	CFWriteShort (triggerP->nSegment [i], cfP);
+	CFWriteShort (triggerP->nSide [i], cfP);
+	}
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveObjTriggerRef (tObjTriggerRef *refP, CFILE *cfP)
+{
+CFWriteShort (refP->prev, cfP);
+CFWriteShort (refP->next, cfP);
+CFWriteShort (refP->nObject, cfP);
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveMatCen (tMatCenInfo *matcenP, CFILE *cfP)
+{
+	int	i;
+
+for (i = 0; i < 2; i++)
+	CFWriteInt (matcenP->objFlags [i], cfP);
+CFWriteFix (matcenP->xHitPoints, cfP);
+CFWriteFix (matcenP->xInterval, cfP);
+CFWriteShort (matcenP->nSegment, cfP);
+CFWriteShort (matcenP->nFuelCen, cfP);
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveFuelCen (tFuelCenInfo *fuelcenP, CFILE *cfP)
+{
+CFWriteInt (fuelcenP->nType, cfP);
+CFWriteInt (fuelcenP->nSegment, cfP);
+CFWriteByte (fuelcenP->bFlag, cfP);
+CFWriteByte (fuelcenP->bEnabled, cfP);
+CFWriteByte (fuelcenP->nLives, cfP);
+CFWriteFix (fuelcenP->xCapacity, cfP);
+CFWriteFix (fuelcenP->xMaxCapacity, cfP);
+CFWriteFix (fuelcenP->xTimer, cfP);
+CFWriteFix (fuelcenP->xDisableTime, cfP);
+CFWriteVector(fuelcenP->vCenter, cfP);
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveReactorTrigger (tReactorTriggers *triggerP, CFILE *cfP)
+{
+	int	i;
+
+CFWriteShort (triggerP->nLinks, cfP);
+for (i = 0; i < MAX_CONTROLCEN_LINKS; i++) {
+	CFWriteShort (triggerP->nSegment [i], cfP);
+	CFWriteShort (triggerP->nSide [i], cfP);
+	}
+}
+
+//------------------------------------------------------------------------------
+
+void StateSaveSpawnPoint (int i, CFILE *cfP)
+{
+#if DBG
+i = CFTell (cfP);
+#endif
+CFWriteVector (gameData.multiplayer.playerInit [i].position.vPos, cfP);     
+CFWriteMatrix (gameData.multiplayer.playerInit [i].position.mOrient, cfP);  
+CFWriteShort (gameData.multiplayer.playerInit [i].nSegment, cfP);
+CFWriteShort (gameData.multiplayer.playerInit [i].nSegType, cfP);
+}
+
+//------------------------------------------------------------------------------
+
+DBG (static int fPos);
+
+void StateSaveUniGameData (CFILE *cfP, int bBetweenLevels)
+{
+	int		i, j;
+	short		nObjsWithTrigger, nObject, nFirstTrigger;
+	tObject	*objP;
+
+CFWriteInt (gameData.segs.nMaxSegments, cfP);
+// Save the Between levels flag...
+CFWriteInt (bBetweenLevels, cfP);
+// Save the mission info...
+CFWrite (gameData.missions.list + gameData.missions.nCurrentMission, sizeof (char), 9, cfP);
+//Save level info
+CFWriteInt (gameData.missions.nCurrentLevel, cfP);
+CFWriteInt (gameData.missions.nNextLevel, cfP);
+//Save gameData.time.xGame
+CFWriteFix (gameData.time.xGame, cfP);
+// If coop save, save all
+if (IsCoopGame) {
+	CFWriteInt (gameData.app.nStateGameId, cfP);
+	StateSaveNetGame (cfP);
+	DBG (fPos = CFTell (cfP));
+	StateSaveNetPlayers (cfP);
+	DBG (fPos = CFTell (cfP));
+	CFWriteInt (gameData.multiplayer.nPlayers, cfP);
+	CFWriteInt (gameData.multiplayer.nLocalPlayer, cfP);
+	for (i = 0; i < gameData.multiplayer.nPlayers; i++)
+		StateSavePlayer (gameData.multiplayer.players + i, cfP);
+	DBG (fPos = CFTell (cfP));
+	}
+//Save tPlayer info
+StateSavePlayer (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer, cfP);
+// Save the current weapon info
+CFWriteByte (gameData.weapons.nPrimary, cfP);
+CFWriteByte (gameData.weapons.nSecondary, cfP);
+// Save the difficulty level
+CFWriteInt (gameStates.app.nDifficultyLevel, cfP);
+// Save cheats enabled
+CFWriteInt (gameStates.app.cheats.bEnabled, cfP);
+for (i = 0; i < 2; i++) {
+	CFWriteInt (F2X (gameStates.gameplay.slowmo [i].fSpeed), cfP);
+	CFWriteInt (gameStates.gameplay.slowmo [i].nState, cfP);
+	}
+for (i = 0; i < MAX_PLAYERS; i++)
+	CFWriteInt (gameData.multiplayer.weaponStates [i].bTripleFusion, cfP);
+if (!bBetweenLevels)	{
+//Finish all morph OBJECTS
+	FORALL_OBJS (objP, i) {
+	if (objP->info.nType == OBJ_NONE) 
+			continue;
+		if (objP->info.nType == OBJ_CAMERA)
+			objP->info.position.mOrient = gameData.cameras.cameras [gameData.objs.cameraRef [OBJ_IDX (objP)]].orient;
+		else if (objP->info.renderType == RT_MORPH) {
+			tMorphInfo *md = MorphFindData (objP);
+			if (md) {
+				tObject *mdObjP = md->objP;
+				mdObjP->info.controlType = md->saveControlType;
+				mdObjP->info.movementType = md->saveMovementType;
+				mdObjP->info.renderType = RT_POLYOBJ;
+				mdObjP->mType.physInfo = md->savePhysInfo;
+				md->objP = NULL;
+				} 
+			else {						//maybe loaded half-morphed from disk
+				KillObject (objP);
+				objP->info.renderType = RT_POLYOBJ;
+				objP->info.controlType = CT_NONE;
+				objP->info.movementType = MT_NONE;
+				}
+			}
+		}
+	DBG (fPos = CFTell (cfP));
+//Save tObject info
+	i = gameData.objs.nLastObject [0] + 1;
+	CFWriteInt (i, cfP);
+	for (j = 0; j < i; j++)
+		StateSaveObject (OBJECTS + j, cfP);
+	DBG (fPos = CFTell (cfP));
+//Save tWall info
+	i = gameData.walls.nWalls;
+	CFWriteInt (i, cfP);
+	for (j = 0; j < i; j++)
+		StateSaveWall (gameData.walls.walls + j, cfP);
+	DBG (fPos = CFTell (cfP));
+//Save exploding wall info
+	i = MAX_EXPLODING_WALLS;
+	CFWriteInt (i, cfP);
+	for (j = 0; j < i; j++)
+		StateSaveExplWall (gameData.walls.explWalls + j, cfP);
+	DBG (fPos = CFTell (cfP));
+//Save door info
+	i = gameData.walls.nOpenDoors;
+	CFWriteInt (i, cfP);
+	for (j = 0; j < i; j++)
+		StateSaveActiveDoor (gameData.walls.activeDoors + j, cfP);
+	DBG (fPos = CFTell (cfP));
+//Save cloaking tWall info
+	i = gameData.walls.nCloaking;
+	CFWriteInt (i, cfP);
+	for (j = 0; j < i; j++)
+		StateSaveCloakingWall (gameData.walls.cloaking + j, cfP);
+	DBG (fPos = CFTell (cfP));
+//Save tTrigger info
+	CFWriteInt (gameData.trigs.nTriggers, cfP);
 	for (i = 0; i < gameData.trigs.nTriggers; i++)
-		SaveTrigger (gameData.trigs.triggers + i);
-	DBG (fPos = m_cf.Tell ());
-	m_cf.WriteInt (gameData.trigs.nObjTriggers);
+		StateSaveTrigger (gameData.trigs.triggers + i, cfP);
+	DBG (fPos = CFTell (cfP));
+	CFWriteInt (gameData.trigs.nObjTriggers, cfP);
 	if (!gameData.trigs.nObjTriggers)
-		m_cf.WriteShort (0);
+		CFWriteShort (0, cfP);
 	else {
 		for (i = 0; i < gameData.trigs.nObjTriggers; i++)
-			SaveTrigger (gameData.trigs.objTriggers + i);
+			StateSaveTrigger (gameData.trigs.objTriggers + i, cfP);
 		for (i = 0; i < gameData.trigs.nObjTriggers; i++)
-			SaveObjTriggerRef (gameData.trigs.objTriggerRefs + i);
+			StateSaveObjTriggerRef (gameData.trigs.objTriggerRefs + i, cfP);
 		nObjsWithTrigger = 0;
 		FORALL_OBJS (objP, nObject) {
 			nObject = OBJ_IDX (objP);
@@ -1109,231 +1265,205 @@ if (!m_bBetweenLevels)	{
 			if ((nFirstTrigger >= 0) && (nFirstTrigger < gameData.trigs.nObjTriggers))
 				nObjsWithTrigger++;
 			}
-		m_cf.WriteShort (nObjsWithTrigger);
+		CFWriteShort (nObjsWithTrigger, cfP);
 		FORALL_OBJS (objP, nObject) {
 			nObject = OBJ_IDX (objP);
 			nFirstTrigger = gameData.trigs.firstObjTrigger [nObject];
 			if ((nFirstTrigger >= 0) && (nFirstTrigger < gameData.trigs.nObjTriggers)) {
-				m_cf.WriteShort (nObject);
-				m_cf.WriteShort (nFirstTrigger);
+				CFWriteShort (nObject, cfP);
+				CFWriteShort (nFirstTrigger, cfP);
 				}
 			}
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 //Save tmap info
 	for (i = 0; i <= gameData.segs.nLastSegment; i++) {
 		for (j = 0; j < 6; j++)	{
 			ushort nWall = WallNumI ((short) i, (short) j);
-			m_cf.WriteShort (nWall);
-			m_cf.WriteShort (gameData.segs.segments [i].sides [j].nBaseTex);
-			m_cf.WriteShort (gameData.segs.segments [i].sides [j].nOvlTex | (gameData.segs.segments [i].sides [j].nOvlOrient << 14));
+			CFWriteShort (nWall, cfP);
+			CFWriteShort (gameData.segs.segments [i].sides [j].nBaseTex, cfP);
+			CFWriteShort (gameData.segs.segments [i].sides [j].nOvlTex | (gameData.segs.segments [i].sides [j].nOvlOrient << 14), cfP);
 			}
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 // Save the fuelcen info
-	m_cf.WriteInt (gameData.reactor.bDestroyed);
-	m_cf.WriteFix (gameData.reactor.countdown.nTimer);
-	DBG (fPos = m_cf.Tell ());
-	m_cf.WriteInt (gameData.matCens.nBotCenters);
+	CFWriteInt (gameData.reactor.bDestroyed, cfP);
+	CFWriteFix (gameData.reactor.countdown.nTimer, cfP);
+	DBG (fPos = CFTell (cfP));
+	CFWriteInt (gameData.matCens.nBotCenters, cfP);
 	for (i = 0; i < gameData.matCens.nBotCenters; i++)
-		SaveMatCen (gameData.matCens.botGens + i);
-	m_cf.WriteInt (gameData.matCens.nEquipCenters);
+		StateSaveMatCen (gameData.matCens.botGens + i, cfP);
+	CFWriteInt (gameData.matCens.nEquipCenters, cfP);
 	for (i = 0; i < gameData.matCens.nEquipCenters; i++)
-		SaveMatCen (gameData.matCens.equipGens + i);
-	SaveReactorTrigger (&gameData.reactor.triggers);
-	m_cf.WriteInt (gameData.matCens.nFuelCenters);
+		StateSaveMatCen (gameData.matCens.equipGens + i, cfP);
+	StateSaveReactorTrigger (&gameData.reactor.triggers, cfP);
+	CFWriteInt (gameData.matCens.nFuelCenters, cfP);
 	for (i = 0; i < gameData.matCens.nFuelCenters; i++)
-		SaveFuelCen (gameData.matCens.fuelCenters + i);
-	DBG (fPos = m_cf.Tell ());
+		StateSaveFuelCen (gameData.matCens.fuelCenters + i, cfP);
+	DBG (fPos = CFTell (cfP));
 // Save the control cen info
-	m_cf.WriteInt (gameData.reactor.bPresent);
-	for (i = 0; i < MAX_BOSS_COUNT; i++)
-		SaveReactorState (gameData.reactor.states + i);
-	DBG (fPos = m_cf.Tell ());
+	CFWriteInt (gameData.reactor.bPresent, cfP);
+	for (i = 0; i < MAX_BOSS_COUNT; i++) {
+		CFWriteInt (gameData.reactor.states [i].nObject, cfP);
+		CFWriteInt (gameData.reactor.states [i].bHit, cfP);
+		CFWriteInt (gameData.reactor.states [i].bSeenPlayer, cfP);
+		CFWriteInt (gameData.reactor.states [i].nNextFireTime, cfP);
+		CFWriteInt (gameData.reactor.states [i].nDeadObj, cfP);
+		}
+	DBG (fPos = CFTell (cfP));
 // Save the AI state
-	SaveAI ();
+	AISaveUniState (cfP);
 
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 // Save the automap visited info
 	for (i = 0; i < MAX_SEGMENTS; i++)
-		m_cf.WriteShort (gameData.render.mine.bAutomapVisited [i]);
-	DBG (fPos = m_cf.Tell ());
+		CFWriteShort (gameData.render.mine.bAutomapVisited [i], cfP);
+	DBG (fPos = CFTell (cfP));
 	}
-m_cf.WriteInt ((int) gameData.app.nStateGameId);
-m_cf.WriteInt (gameStates.app.cheats.bLaserRapidFire);
-m_cf.WriteInt (gameStates.app.bLunacy);		//	Yes, writing this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
-m_cf.WriteInt (gameStates.app.bLunacy);
+CFWriteInt ((int) gameData.app.nStateGameId, cfP);
+CFWriteInt (gameStates.app.cheats.bLaserRapidFire, cfP);
+CFWriteInt (gameStates.app.bLunacy, cfP);		//	Yes, writing this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
+CFWriteInt (gameStates.app.bLunacy, cfP);
 // Save automap marker info
 for (i = 0; i < NUM_MARKERS; i++)
-	m_cf.WriteShort (gameData.marker.objects [i]);
-m_cf.Write (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1);
-m_cf.Write (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1);
-m_cf.WriteFix (gameData.physics.xAfterburnerCharge);
+	CFWriteShort (gameData.marker.objects [i], cfP);
+CFWrite (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1, cfP);
+CFWrite (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1, cfP);
+CFWriteFix (gameData.physics.xAfterburnerCharge, cfP);
 //save last was super information
-m_cf.Write (bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1);
-m_cf.Write (bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1);
+CFWrite (bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1, cfP);
+CFWrite (bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1, cfP);
 //	Save flash effect stuff
-m_cf.WriteFix (paletteManager.EffectDuration ());
-m_cf.WriteFix (paletteManager.LastEffectTime ());
-m_cf.WriteShort (paletteManager.RedEffect ());
-m_cf.WriteShort (paletteManager.GreenEffect ());
-m_cf.WriteShort (paletteManager.BlueEffect ());
-m_cf.Write (gameData.render.lights.subtracted.Buffer (), sizeof (gameData.render.lights.subtracted [0]), MAX_SEGMENTS);
-m_cf.WriteInt (gameStates.app.bFirstSecretVisit);
-m_cf.WriteFix (gameData.omega.xCharge [0]);
-m_cf.WriteShort (gameData.missions.nEnteredFromLevel);
+CFWriteFix (gameData.render.xFlashEffect, cfP);
+CFWriteFix (gameData.render.xTimeFlashLastPlayed, cfP);
+CFWriteShort (gameStates.ogl.palAdd.red, cfP);
+CFWriteShort (gameStates.ogl.palAdd.green, cfP);
+CFWriteShort (gameStates.ogl.palAdd.blue, cfP);
+CFWrite (gameData.render.lights.subtracted, sizeof (gameData.render.lights.subtracted [0]), MAX_SEGMENTS, cfP);
+CFWriteInt (gameStates.app.bFirstSecretVisit, cfP);
+CFWriteFix (gameData.omega.xCharge [0], cfP);
+CFWriteShort (gameData.missions.nEnteredFromLevel, cfP);
 for (i = 0; i < MAX_PLAYERS; i++)
-	SaveSpawnPoint (i);
+	StateSaveSpawnPoint (i, cfP);
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::SaveImage (void)
-{
-	CCanvas	*thumbCanv = CCanvas::Create (THUMBNAIL_LW, THUMBNAIL_LH);
-
-if (thumbCanv) {
-		CBitmap	bm;
-		int			i, k, x, y;
-
-	CCanvas::Push ();
-	CCanvas::SetCurrent (thumbCanv);
-	gameStates.render.nFrameFlipFlop = !gameStates.render.nFrameFlipFlop;
-	if (gameStates.ogl.nDrawBuffer == GL_BACK) {
-		gameStates.render.nFrameFlipFlop = !gameStates.render.nFrameFlipFlop;
-		GameRenderFrame ();
-		}
-	else
-		RenderFrame (0, 0);
-	bm.SetWidth ((screen.Width () / THUMBNAIL_LW) * THUMBNAIL_LW);
-	bm.SetHeight (bm.Width () * 3 / 5);	//force 5:3 aspect ratio
-	if (bm.Height () > screen.Height ()) {
-		bm.SetHeight ((screen.Height () / THUMBNAIL_LH) * THUMBNAIL_LH);
-		bm.SetWidth (bm.Height () * 5 / 3);
-		}
-	x = (screen.Width () - bm.Width ()) / 2;
-	y = (screen.Height () - bm.Height ()) / 2;
-	bm.SetBPP (3);
-	bm.CreateBuffer ();
-	//glDisable (GL_TEXTURE_2D);
-	OglSetReadBuffer (GL_FRONT, 1);
-	glReadPixels (x, y, bm.Width (), bm.Height (), GL_RGB, GL_UNSIGNED_BYTE, bm.Buffer ());
-	// do a nice, half-way smart (by merging pixel groups using their average color) image resize
-	ShrinkTGA (&bm, bm.Width () / THUMBNAIL_LW, bm.Height () / THUMBNAIL_LH, 0);
-	paletteManager.LoadEffect  ();
-	// convert the resized TGA to bmp
-	ubyte *buffer = bm.Buffer ();
-	for (y = 0; y < THUMBNAIL_LH; y++) {
-		i = y * THUMBNAIL_LW * 3;
-		k = (THUMBNAIL_LH - y - 1) * THUMBNAIL_LW;
-		for (x = 0; x < THUMBNAIL_LW; x++, k++, i += 3)
-			thumbCanv->Buffer () [k] = paletteManager.Game ()->ClosestColor (buffer [i] / 4, buffer [i+1] / 4, buffer [i+2] / 4);
-			}
-	paletteManager.LoadEffect  ();
-	bm.DestroyBuffer ();
-	m_cf.Write (thumbCanv->Buffer (), THUMBNAIL_LW * THUMBNAIL_LH, 1);
-	CCanvas::Pop ();
-	thumbCanv->Destroy ();
-	m_cf.Write (paletteManager.Game (), 3, 256);
-	}
-else	{
- 	ubyte color = 0;
- 	for (int i = 0; i < THUMBNAIL_LW * THUMBNAIL_LH; i++)
-		m_cf.Write (&color, sizeof (ubyte), 1);
-	}
-}
-
-//------------------------------------------------------------------------------
-
-int CSaveGameHandler::SaveState (int bSecret, char *filename, char *description)
+int StateSaveAllSub (const char *filename, const char *szDesc, int bBetweenLevels)
 {
 	int			i;
+	CFILE			cf;
+	gsrCanvas	*cnv;
 
+Assert (bBetweenLevels == 0);	//between levels save ripped out
 StopTime ();
-if (filename)
-	strcpy (m_filename, filename);
-if (description)
-	strcpy (m_description, description);
-m_bSecret = bSecret;
-if (!m_cf.Open (m_filename, gameFolders.szSaveDir, "wb", 0)) {
+if (!CFOpen (&cf, filename, gameFolders.szSaveDir, "wb", 0)) {
 	if (!IsMultiGame)
 		ExecMessageBox (NULL, NULL, 1, TXT_OK, TXT_SAVE_ERROR2);
 	StartTime (1);
 	return 0;
 	}
 
-//Save nId
-m_cf.Write (dgss_id, sizeof (char) * 4, 1);
-//Save m_nVersion
+//Save id
+CFWrite (dgss_id, sizeof (char) * 4, 1, &cf);
+//Save sgVersion
 i = STATE_VERSION;
-m_cf.Write (&i, sizeof (int), 1);
+CFWrite (&i, sizeof (int), 1, &cf);
 //Save description
-m_cf.Write (m_description, sizeof (char) * DESC_LENGTH, 1);
+CFWrite (szDesc, sizeof (char) * DESC_LENGTH, 1, &cf);
 // Save the current screen shot...
-SaveImage ();
-SaveGameData ();
-if (m_cf.Error ()) {
+if ((cnv = GrCreateCanvas (THUMBNAIL_LW, THUMBNAIL_LH))) {
+		grsBitmap	bm;
+		int			k, x, y;
+		gsrCanvas * cnv_save;
+		cnv_save = grdCurCanv;
+	
+	GrSetCurrentCanvas (cnv);
+	gameStates.render.nFrameFlipFlop = !gameStates.render.nFrameFlipFlop;
+	
+#if 1
+	if (gameStates.ogl.nDrawBuffer == GL_BACK) {
+		gameStates.render.nFrameFlipFlop = !gameStates.render.nFrameFlipFlop;
+		GameRenderFrame ();
+		}
+	else
+		RenderFrame (0, 0);
+#endif
+	bm.bmProps.w = (grdCurScreen->scWidth / THUMBNAIL_LW) * THUMBNAIL_LW;
+	bm.bmProps.h = bm.bmProps.w * 3 / 5;	//force 5:3 aspect ratio
+	if (bm.bmProps.h > grdCurScreen->scHeight) {
+		bm.bmProps.h = (grdCurScreen->scHeight / THUMBNAIL_LH) * THUMBNAIL_LH;
+		bm.bmProps.w = bm.bmProps.h * 5 / 3;
+		}
+	x = (grdCurScreen->scWidth - bm.bmProps.w) / 2;
+	y = (grdCurScreen->scHeight - bm.bmProps.h) / 2;
+	bm.bmBPP = 3;
+	bm.bmProps.rowSize = bm.bmProps.w * bm.bmBPP;
+	bm.bmTexBuf = (ubyte *) D2_ALLOC (bm.bmProps.w * bm.bmProps.h * bm.bmBPP);
+	//glDisable (GL_TEXTURE_2D);
+	OglSetReadBuffer (GL_FRONT, 1);
+	glReadPixels (x, y, bm.bmProps.w, bm.bmProps.h, GL_RGB, GL_UNSIGNED_BYTE, bm.bmTexBuf);
+	// do a nice, half-way smart (by merging pixel groups using their average color) image resize
+	ShrinkTGA (&bm, bm.bmProps.w / THUMBNAIL_LW, bm.bmProps.h / THUMBNAIL_LH, 0);
+	GrPaletteStepLoad (NULL);
+	// convert the resized TGA to bmp
+	for (y = 0; y < THUMBNAIL_LH; y++) {
+		i = y * THUMBNAIL_LW * 3;
+		k = (THUMBNAIL_LH - y - 1) * THUMBNAIL_LW;
+		for (x = 0; x < THUMBNAIL_LW; x++, k++, i += 3)
+			cnv->cvBitmap.bmTexBuf [k] = GrFindClosestColor (gamePalette, bm.bmTexBuf [i] / 4, bm.bmTexBuf [i+1] / 4, bm.bmTexBuf [i+2] / 4);
+			}
+	GrPaletteStepLoad (NULL);
+	D2_FREE (bm.bmTexBuf);
+	CFWrite (cnv->cvBitmap.bmTexBuf, THUMBNAIL_LW * THUMBNAIL_LH, 1, &cf);
+	GrSetCurrentCanvas (cnv_save);
+	GrFreeCanvas (cnv);
+	CFWrite (gamePalette, 3, 256, &cf);
+	}
+else	{
+ 	ubyte color = 0;
+ 	for (i = 0; i < THUMBNAIL_LW * THUMBNAIL_LH; i++)
+		CFWrite (&color, sizeof (ubyte), 1, &cf);
+	}
+StateSaveUniGameData (&cf, bBetweenLevels);
+if (CFError (&cf)) {
 	if (!IsMultiGame) {
 		ExecMessageBox (NULL, NULL, 1, TXT_OK, TXT_SAVE_ERROR);
-		m_cf.Close ();
-		m_cf.Delete (m_filename, gameFolders.szSaveDir);
+		CFClose (&cf);
+		CFDelete (filename, gameFolders.szSaveDir);
 		}
 	}
 else 
-	m_cf.Close ();
+	CFClose (&cf);
 StartTime (1);
 return 1;
 }
 
 //	-----------------------------------------------------------------------------------
-
-void CSaveGameHandler::AutoSave (int nSaveSlot)
+//	Set the tPlayer's position from the globals gameData.segs.secret.nReturnSegment and gameData.segs.secret.returnOrient.
+void SetPosFromReturnSegment (int bRelink)
 {
-if ((nSaveSlot != (NUM_SAVES + 1)) && m_bInGame) {
-	char	filename [FILENAME_LEN];
-	const char *pszOverride = m_override;
-	strcpy (filename, m_filename);
-	sprintf (m_filename, "%s.sg%x", LOCALPLAYER.callsign, NUM_SAVES);
-	Save (0, m_bSecret, 0, m_filename);
-	m_override = pszOverride;
-	strcpy (m_filename, filename);
-	}
+	int	nPlayerObj = LOCALPLAYER.nObject;
+
+COMPUTE_SEGMENT_CENTER_I (&OBJECTS [nPlayerObj].info.position.vPos, 
+							     gameData.segs.secret.nReturnSegment);
+if (bRelink)
+	RelinkObjToSeg (nPlayerObj, gameData.segs.secret.nReturnSegment);
+ResetPlayerObject ();
+OBJECTS [nPlayerObj].info.position.mOrient = gameData.segs.secret.returnOrient;
 }
 
 //	-----------------------------------------------------------------------------------
 
-void CSaveGameHandler::PopSecretSave (int nSaveSlot)
+int StateRestoreAll (int bInGame, int bSecretRestore, int bQuick, const char *pszFilenameOverride)
 {
-if ((nSaveSlot != -1) && !(m_bSecret || IsMultiGame)) {
-	int	rval;
-	char	tempname [32], fc;
+	char	filename [128], saveFilename [128];
+	int	i, nFile = -1;
 
-	if (nSaveSlot >= 10)
-		fc = (nSaveSlot-10) + 'a';
-	else
-		fc = '0' + nSaveSlot;
-	sprintf (tempname, "%csecret.sgc", fc);
-	if (m_cf.Exist (tempname, gameFolders.szSaveDir, 0)) {
-		rval = m_cf.Copy (tempname, SECRETC_FILENAME);
-		Assert (rval == 0);	//	Oops, error copying tempname to secret.sgc!
-		}
-	else
-		m_cf.Delete (SECRETC_FILENAME, gameFolders.szSaveDir);
-	}
-}
-
-//	-----------------------------------------------------------------------------------
-
-int CSaveGameHandler::Load (int bInGame, int bSecret, int bQuick, const char *pszFilenameOverride)
-{
-	int	i, nSaveSlot = -1;
-
-m_bInGame = bInGame;
-m_bQuick = bQuick;
-m_override = pszFilenameOverride;
-m_bBetweenLevels = 0;
 if (IsMultiGame) {
+#	ifdef MULTI_SAVE
 	MultiInitiateRestoreGame ();
+#	endif
 	return 0;
 	}
 if (gameData.demo.nState == ND_STATE_RECORDING)
@@ -1342,24 +1472,50 @@ if (gameData.demo.nState != ND_STATE_NORMAL)
 	return 0;
 StopTime ();
 gameData.app.bGamePaused = 1;
-if (m_bQuick) {
-	sprintf (m_filename, "%s.quick", LOCALPLAYER.callsign);
-	if (!CFile::Exist (m_filename, gameFolders.szSaveDir, 0))
-		m_bQuick = 0;
+if (bQuick) {
+	sprintf (filename, "%s.quick", LOCALPLAYER.callsign);
+	if (!CFExist (filename, gameFolders.szSaveDir, 0))
+		bQuick = 0;
 	}
-if (!m_bQuick) {
-	if (m_override) {
-		strcpy (m_filename, m_override);
-		nSaveSlot = NUM_SAVES + 1;		//	So we don't tTrigger autosave
+if (!bQuick) {
+	if (pszFilenameOverride) {
+		strcpy (filename, pszFilenameOverride);
+		nFile = NUM_SAVES+1;		//	So we don't tTrigger autosave
 		}
-	else if (!(nSaveSlot = GetLoadFile (0))) {
+	else if (!(nFile = StateGetRestoreFile (filename, 0))) {
 		gameData.app.bGamePaused = 0;
 		StartTime (1);
 		return 0;
 		}
-	PopSecretSave (nSaveSlot);
-	AutoSave (nSaveSlot);
-	if (!m_bSecret && bInGame) {
+	//	MK, 1/1/96
+	//	If not in multiplayer, do special secret level stuff.
+	//	If Nsecret.sgc (where N = nFile) exists, then copy it to secret.sgc.
+	//	If it doesn't exist, then delete secret.sgc
+
+	if (!bSecretRestore && !IsMultiGame) {
+		int	rval;
+		char	temp_fname [32], fc;
+
+		if (nFile != -1) {
+			if (nFile >= 10)
+				fc = (nFile-10) + 'a';
+			else
+				fc = '0' + nFile;
+			sprintf (temp_fname, "%csecret.sgc", fc);
+			if (CFExist (temp_fname, gameFolders.szSaveDir, 0)) {
+				rval = copy_file (temp_fname, SECRETC_FILENAME);
+				Assert (rval == 0);	//	Oops, error copying temp_fname to secret.sgc!
+				}
+			else
+				CFDelete (SECRETC_FILENAME, gameFolders.szSaveDir);
+			}
+		}
+		//	Changed, 11/15/95, MK, don't to autosave if restoring from main menu.
+	if ((nFile != (NUM_SAVES + 1)) && bInGame) {
+		sprintf (saveFilename, "%s.sg%x", LOCALPLAYER.callsign, NUM_SAVES);
+		StateSaveAll (!bInGame, bSecretRestore, 0, saveFilename);
+		}
+	if (!bSecretRestore && bInGame) {
 		int choice = ExecMessageBox (NULL, NULL, 2, TXT_YES, TXT_NO, TXT_CONFIRM_LOAD);
 		if (choice != 0) {
 			gameData.app.bGamePaused = 0;
@@ -1369,7 +1525,7 @@ if (!m_bQuick) {
 		}
 	}
 gameStates.app.bGameRunning = 0;
-i = LoadState (0, bSecret);
+i = StateRestoreAllSub (filename, 0, bSecretRestore);
 gameData.app.bGamePaused = 0;
 /*---*/PrintLog ("   rebuilding OpenGL texture data\n");
 /*---*/PrintLog ("      rebuilding effects\n");
@@ -1384,14 +1540,14 @@ return i;
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::ReadBoundedInt (int nMax, int *nVal)
+int CFReadBoundedInt (int nMax, int *nVal, CFILE *cfP)
 {
 	int	i;
 
-i = m_cf.ReadInt ();
+i = CFReadInt (cfP);
 if ((i < 0) || (i > nMax)) {
 	Warning (TXT_SAVE_CORRUPT);
-	//m_cf.Close ();
+	//CFClose (cfP);
 	return 1;
 	}
 *nVal = i;
@@ -1400,12 +1556,12 @@ return 0;
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::LoadMission (void)
+int StateLoadMission (CFILE *cfP)
 {
 	char	szMission [16];
 	int	i, nVersionFilter = gameOpts->app.nVersionFilter;
 
-m_cf.Read (szMission, sizeof (char), 9);
+CFRead (szMission, sizeof (char), 9, cfP);
 szMission [9] = '\0';
 gameOpts->app.nVersionFilter = 3;
 i = LoadMissionByName (szMission, -1);
@@ -1413,12 +1569,13 @@ gameOpts->app.nVersionFilter = nVersionFilter;
 if (i)
 	return 1;
 ExecMessageBox (NULL, NULL, 1, "Ok", TXT_MSN_LOAD_ERROR, szMission);
+//CFClose (cfP);
 return 0;
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadMulti (char *pszOrgCallSign, int bMulti)
+void StateRestoreMultiGame (char *pszOrgCallSign, int bMulti, int bSecretRestore)
 {
 if (bMulti)
 	strcpy (pszOrgCallSign, LOCALPLAYER.callsign);
@@ -1428,8 +1585,8 @@ else {
 	ChangePlayerNumTo (0);
 	strcpy (pszOrgCallSign, gameData.multiplayer.players [0].callsign);
 	gameData.multiplayer.nPlayers = 1;
-	if (!m_bSecret) {
-		InitMultiPlayerObject ();	//make sure CPlayerData's CObject set up
+	if (!bSecretRestore) {
+		InitMultiPlayerObject ();	//make sure tPlayer's tObject set up
 		InitPlayerStatsGame ();		//clear all stats
 		}
 	}
@@ -1437,8 +1594,8 @@ else {
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::SetServerPlayer (
-	CPlayerData *restoredPlayers, int nPlayers, const char *pszServerCallSign, int *pnOtherObjNum, int *pnServerObjNum)
+int StateSetServerPlayer (tPlayer *restoredPlayers, int nPlayers, const char *pszServerCallSign,
+								  int *pnOtherObjNum, int *pnServerObjNum)
 {
 	int	i,
 			nServerPlayer = -1,
@@ -1465,7 +1622,7 @@ if (gameStates.multi.nGameType >= IPX_GAME) {
 		netPlayers.players [nServerPlayer] = h;
 		}
 		{
-		CPlayerData h = restoredPlayers [0];
+		tPlayer h = restoredPlayers [0];
 		restoredPlayers [0] = restoredPlayers [nServerPlayer];
 		restoredPlayers [nServerPlayer] = h;
 		}
@@ -1477,8 +1634,8 @@ if (gameStates.multi.nGameType >= IPX_GAME) {
 #if 0
 	memcpy (netPlayers.players [gameData.multiplayer.nLocalPlayer].network.ipx.node, 
 			 IpxGetMyLocalAddress (), 6);
-	*reinterpret_cast<ushort*> ((netPlayers.players [gameData.multiplayer.nLocalPlayer].network.ipx.node + 4)) = 
-		htons (*reinterpret_cast<ushort*> ((netPlayers.players [gameData.multiplayer.nLocalPlayer].network.ipx.node + 4)));
+	*((ushort *) (netPlayers.players [gameData.multiplayer.nLocalPlayer].network.ipx.node + 4)) = 
+		htons (*((ushort *) (netPlayers.players [gameData.multiplayer.nLocalPlayer].network.ipx.node + 4)));
 #endif
 	}
 *pnOtherObjNum = nOtherObjNum;
@@ -1488,7 +1645,7 @@ return nServerPlayer;
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::GetConnectedPlayers (CPlayerData *restoredPlayers, int nPlayers)
+void StateGetConnectedPlayers (tPlayer *restoredPlayers, int nPlayers)
 {
 	int	i, j;
 
@@ -1514,7 +1671,7 @@ for (i = 0; i < MAX_PLAYERS; i++) {
 		memset (netPlayers.players [i].network.ipx.node, 0xFF, sizeof (netPlayers.players [i].network.ipx.node));
 		}
 	}
-memcpy (gameData.multiplayer.players, restoredPlayers, sizeof (CPlayerData) * nPlayers);
+memcpy (gameData.multiplayer.players, restoredPlayers, sizeof (tPlayer) * nPlayers);
 gameData.multiplayer.nPlayers = nPlayers;
 if (NetworkIAmMaster ()) {
 	for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
@@ -1527,10 +1684,10 @@ if (NetworkIAmMaster ()) {
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::FixNetworkObjects (int nServerPlayer, int nOtherObjNum, int nServerObjNum)
+void StateFixNetworkObjects (int nServerPlayer, int nOtherObjNum, int nServerObjNum)
 {
 if (IsMultiGame && (gameStates.multi.nGameType >= IPX_GAME) && (nServerPlayer > 0)) {
-	CObject h = OBJECTS [nServerObjNum];
+	tObject h = OBJECTS [nServerObjNum];
 	OBJECTS [nServerObjNum] = OBJECTS [nOtherObjNum];
 	OBJECTS [nOtherObjNum] = h;
 	OBJECTS [nServerObjNum].info.nId = nServerObjNum;
@@ -1548,9 +1705,9 @@ if (IsMultiGame && (gameStates.multi.nGameType >= IPX_GAME) && (nServerPlayer > 
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::FixObjects (void)
+void StateFixObjects (void)
 {
-	CObject	*objP = OBJECTS.Buffer ();
+	tObject	*objP = OBJECTS;
 	int		i, j, nSegment;
 
 ConvertObjects ();
@@ -1566,7 +1723,7 @@ for (i = 0; i <= gameData.objs.nLastObject [0]; i++, objP++) {
 		}
 	objP->info.nNextInSeg = objP->info.nPrevInSeg = objP->info.nSegment = -1;
 	if (objP->info.nType != OBJ_NONE) {
-		OBJECTS [i].LinkToSeg (nSegment);
+		LinkObjToSeg (i, nSegment);
 		if (objP->info.nSignature > gameData.objs.nNextSignature)
 			gameData.objs.nNextSignature = objP->info.nSignature;
 		}
@@ -1578,16 +1735,16 @@ for (i = 0; i <= gameData.objs.nLastObject [0]; i++, objP++) {
 		if (xShieldSave > 0 && (xShieldSave <= objP->info.xShields))
 			objP->info.xShields = xShieldSave;
 		else
-			objP->info.xShields /= 2;  //give CPlayerData a break
+			objP->info.xShields /= 2;  //give tPlayer a break
 		}
 	}
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::AwardReturningPlayer (CPlayerData *retPlayerP, fix xOldGameTime)
+void StateAwardReturningPlayer (tPlayer *retPlayerP, fix xOldGameTime)
 {
-CPlayerData *playerP = gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer;
+tPlayer *playerP = gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer;
 playerP->level = retPlayerP->level;
 playerP->lastScore = retPlayerP->lastScore;
 playerP->timeLevel = retPlayerP->timeLevel;
@@ -1608,272 +1765,272 @@ DoCloakInvulSecretStuff (xOldGameTime);
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadNetGame (void)
+void StateRestoreNetGame (CFILE *cfP)
 {
 	int	i, j;
 
-netGame.nType = m_cf.ReadByte ();
-netGame.nSecurity = m_cf.ReadInt ();
-m_cf.Read (netGame.szGameName, 1, NETGAME_NAME_LEN + 1);
-m_cf.Read (netGame.szMissionTitle, 1, MISSION_NAME_LEN + 1);
-m_cf.Read (netGame.szMissionName, 1, 9);
-netGame.nLevel = m_cf.ReadInt ();
-netGame.gameMode = (ubyte) m_cf.ReadByte ();
-netGame.bRefusePlayers = (ubyte) m_cf.ReadByte ();
-netGame.difficulty = (ubyte) m_cf.ReadByte ();
-netGame.gameStatus = (ubyte) m_cf.ReadByte ();
-netGame.nNumPlayers = (ubyte) m_cf.ReadByte ();
-netGame.nMaxPlayers = (ubyte) m_cf.ReadByte ();
-netGame.nConnected = (ubyte) m_cf.ReadByte ();
-netGame.gameFlags = (ubyte) m_cf.ReadByte ();
-netGame.protocolVersion = (ubyte) m_cf.ReadByte ();
-netGame.versionMajor = (ubyte) m_cf.ReadByte ();
-netGame.versionMinor = (ubyte) m_cf.ReadByte ();
-netGame.teamVector = (ubyte) m_cf.ReadByte ();
-netGame.DoMegas = (ubyte) m_cf.ReadByte ();
-netGame.DoSmarts = (ubyte) m_cf.ReadByte ();
-netGame.DoFusions = (ubyte) m_cf.ReadByte ();
-netGame.DoHelix = (ubyte) m_cf.ReadByte ();
-netGame.DoPhoenix = (ubyte) m_cf.ReadByte ();
-netGame.DoAfterburner = (ubyte) m_cf.ReadByte ();
-netGame.DoInvulnerability = (ubyte) m_cf.ReadByte ();
-netGame.DoCloak = (ubyte) m_cf.ReadByte ();
-netGame.DoGauss = (ubyte) m_cf.ReadByte ();
-netGame.DoVulcan = (ubyte) m_cf.ReadByte ();
-netGame.DoPlasma = (ubyte) m_cf.ReadByte ();
-netGame.DoOmega = (ubyte) m_cf.ReadByte ();
-netGame.DoSuperLaser = (ubyte) m_cf.ReadByte ();
-netGame.DoProximity = (ubyte) m_cf.ReadByte ();
-netGame.DoSpread = (ubyte) m_cf.ReadByte ();
-netGame.DoSmartMine = (ubyte) m_cf.ReadByte ();
-netGame.DoFlash = (ubyte) m_cf.ReadByte ();
-netGame.DoGuided = (ubyte) m_cf.ReadByte ();
-netGame.DoEarthShaker = (ubyte) m_cf.ReadByte ();
-netGame.DoMercury = (ubyte) m_cf.ReadByte ();
-netGame.bAllowMarkerView = (ubyte) m_cf.ReadByte ();
-netGame.bIndestructibleLights = (ubyte) m_cf.ReadByte ();
-netGame.DoAmmoRack = (ubyte) m_cf.ReadByte ();
-netGame.DoConverter = (ubyte) m_cf.ReadByte ();
-netGame.DoHeadlight = (ubyte) m_cf.ReadByte ();
-netGame.DoHoming = (ubyte) m_cf.ReadByte ();
-netGame.DoLaserUpgrade = (ubyte) m_cf.ReadByte ();
-netGame.DoQuadLasers = (ubyte) m_cf.ReadByte ();
-netGame.bShowAllNames = (ubyte) m_cf.ReadByte ();
-netGame.BrightPlayers = (ubyte) m_cf.ReadByte ();
-netGame.invul = (ubyte) m_cf.ReadByte ();
-netGame.FriendlyFireOff = (ubyte) m_cf.ReadByte ();
+netGame.nType = CFReadByte (cfP);
+netGame.nSecurity = CFReadInt (cfP);
+CFRead (netGame.szGameName, 1, NETGAME_NAME_LEN + 1, cfP);
+CFRead (netGame.szMissionTitle, 1, MISSION_NAME_LEN + 1, cfP);
+CFRead (netGame.szMissionName, 1, 9, cfP);
+netGame.nLevel = CFReadInt (cfP);
+netGame.gameMode = (ubyte) CFReadByte (cfP);
+netGame.bRefusePlayers = (ubyte) CFReadByte (cfP);
+netGame.difficulty = (ubyte) CFReadByte (cfP);
+netGame.gameStatus = (ubyte) CFReadByte (cfP);
+netGame.nNumPlayers = (ubyte) CFReadByte (cfP);
+netGame.nMaxPlayers = (ubyte) CFReadByte (cfP);
+netGame.nConnected = (ubyte) CFReadByte (cfP);
+netGame.gameFlags = (ubyte) CFReadByte (cfP);
+netGame.protocolVersion = (ubyte) CFReadByte (cfP);
+netGame.versionMajor = (ubyte) CFReadByte (cfP);
+netGame.versionMinor = (ubyte) CFReadByte (cfP);
+netGame.teamVector = (ubyte) CFReadByte (cfP);
+netGame.DoMegas = (ubyte) CFReadByte (cfP);
+netGame.DoSmarts = (ubyte) CFReadByte (cfP);
+netGame.DoFusions = (ubyte) CFReadByte (cfP);
+netGame.DoHelix = (ubyte) CFReadByte (cfP);
+netGame.DoPhoenix = (ubyte) CFReadByte (cfP);
+netGame.DoAfterburner = (ubyte) CFReadByte (cfP);
+netGame.DoInvulnerability = (ubyte) CFReadByte (cfP);
+netGame.DoCloak = (ubyte) CFReadByte (cfP);
+netGame.DoGauss = (ubyte) CFReadByte (cfP);
+netGame.DoVulcan = (ubyte) CFReadByte (cfP);
+netGame.DoPlasma = (ubyte) CFReadByte (cfP);
+netGame.DoOmega = (ubyte) CFReadByte (cfP);
+netGame.DoSuperLaser = (ubyte) CFReadByte (cfP);
+netGame.DoProximity = (ubyte) CFReadByte (cfP);
+netGame.DoSpread = (ubyte) CFReadByte (cfP);
+netGame.DoSmartMine = (ubyte) CFReadByte (cfP);
+netGame.DoFlash = (ubyte) CFReadByte (cfP);
+netGame.DoGuided = (ubyte) CFReadByte (cfP);
+netGame.DoEarthShaker = (ubyte) CFReadByte (cfP);
+netGame.DoMercury = (ubyte) CFReadByte (cfP);
+netGame.bAllowMarkerView = (ubyte) CFReadByte (cfP);
+netGame.bIndestructibleLights = (ubyte) CFReadByte (cfP);
+netGame.DoAmmoRack = (ubyte) CFReadByte (cfP);
+netGame.DoConverter = (ubyte) CFReadByte (cfP);
+netGame.DoHeadlight = (ubyte) CFReadByte (cfP);
+netGame.DoHoming = (ubyte) CFReadByte (cfP);
+netGame.DoLaserUpgrade = (ubyte) CFReadByte (cfP);
+netGame.DoQuadLasers = (ubyte) CFReadByte (cfP);
+netGame.bShowAllNames = (ubyte) CFReadByte (cfP);
+netGame.BrightPlayers = (ubyte) CFReadByte (cfP);
+netGame.invul = (ubyte) CFReadByte (cfP);
+netGame.FriendlyFireOff = (ubyte) CFReadByte (cfP);
 for (i = 0; i < 2; i++)
-	m_cf.Read (netGame.szTeamName [i], 1, CALLSIGN_LEN + 1);		// 18 bytes
+	CFRead (netGame.szTeamName [i], 1, CALLSIGN_LEN + 1, cfP);		// 18 bytes
 for (i = 0; i < MAX_PLAYERS; i++)
-	netGame.locations [i] = m_cf.ReadInt ();
+	netGame.locations [i] = CFReadInt (cfP);
 for (i = 0; i < MAX_PLAYERS; i++)
 	for (j = 0; j < MAX_PLAYERS; j++)
-		netGame.kills [i][j] = m_cf.ReadShort ();			// 128 bytes
-netGame.nSegmentCheckSum = m_cf.ReadShort ();				// 2 bytes
+		netGame.kills [i][j] = CFReadShort (cfP);			// 128 bytes
+netGame.nSegmentCheckSum = CFReadShort (cfP);				// 2 bytes
 for (i = 0; i < 2; i++)
-	netGame.teamKills [i] = m_cf.ReadShort ();				// 4 bytes
+	netGame.teamKills [i] = CFReadShort (cfP);				// 4 bytes
 for (i = 0; i < MAX_PLAYERS; i++)
-	netGame.killed [i] = m_cf.ReadShort ();					// 16 bytes
+	netGame.killed [i] = CFReadShort (cfP);					// 16 bytes
 for (i = 0; i < MAX_PLAYERS; i++)
-	netGame.playerKills [i] = m_cf.ReadShort ();			// 16 bytes
-netGame.KillGoal = m_cf.ReadInt ();							// 4 bytes
-netGame.xPlayTimeAllowed = m_cf.ReadFix ();					// 4 bytes
-netGame.xLevelTime = m_cf.ReadFix ();							// 4 bytes
-netGame.controlInvulTime = m_cf.ReadInt ();				// 4 bytes
-netGame.monitorVector = m_cf.ReadInt ();					// 4 bytes
+	netGame.playerKills [i] = CFReadShort (cfP);			// 16 bytes
+netGame.KillGoal = CFReadInt (cfP);							// 4 bytes
+netGame.xPlayTimeAllowed = CFReadFix (cfP);					// 4 bytes
+netGame.xLevelTime = CFReadFix (cfP);							// 4 bytes
+netGame.controlInvulTime = CFReadInt (cfP);				// 4 bytes
+netGame.monitorVector = CFReadInt (cfP);					// 4 bytes
 for (i = 0; i < MAX_PLAYERS; i++)
-	netGame.playerScore [i] = m_cf.ReadInt ();				// 32 bytes
+	netGame.playerScore [i] = CFReadInt (cfP);				// 32 bytes
 for (i = 0; i < MAX_PLAYERS; i++)
-	netGame.playerFlags [i] = (ubyte) m_cf.ReadByte ();	// 8 bytes
-netGame.nPacketsPerSec = m_cf.ReadShort ();					// 2 bytes
-netGame.bShortPackets = (ubyte) m_cf.ReadByte ();			// 1 bytes
+	netGame.playerFlags [i] = (ubyte) CFReadByte (cfP);	// 8 bytes
+netGame.nPacketsPerSec = CFReadShort (cfP);					// 2 bytes
+netGame.bShortPackets = (ubyte) CFReadByte (cfP);			// 1 bytes
 // 279 bytes
 // 355 bytes total
-m_cf.Read (netGame.AuxData, NETGAME_AUX_SIZE, 1);  // Storage for protocol-specific data (e.g., multicast session and port)
+CFRead (netGame.AuxData, NETGAME_AUX_SIZE, 1, cfP);  // Storage for protocol-specific data (e.g., multicast session and port)
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadNetPlayers (void)
+void StateRestoreNetPlayers (CFILE *cfP)
 {
 	int	i;
 
-netPlayers.nType = (ubyte) m_cf.ReadByte ();
-netPlayers.nSecurity = m_cf.ReadInt ();
+netPlayers.nType = (ubyte) CFReadByte (cfP);
+netPlayers.nSecurity = CFReadInt (cfP);
 for (i = 0; i < MAX_PLAYERS + 4; i++) {
-	m_cf.Read (netPlayers.players [i].callsign, 1, CALLSIGN_LEN + 1);
-	m_cf.Read (netPlayers.players [i].network.ipx.server, 1, 4);
-	m_cf.Read (netPlayers.players [i].network.ipx.node, 1, 6);
-	netPlayers.players [i].versionMajor = (ubyte) m_cf.ReadByte ();
-	netPlayers.players [i].versionMinor = (ubyte) m_cf.ReadByte ();
-	netPlayers.players [i].computerType = (enum compType) m_cf.ReadByte ();
-	netPlayers.players [i].connected = m_cf.ReadByte ();
-	netPlayers.players [i].socket = (ushort) m_cf.ReadShort ();
-	netPlayers.players [i].rank = (ubyte) m_cf.ReadByte ();
+	CFRead (netPlayers.players [i].callsign, 1, CALLSIGN_LEN + 1, cfP);
+	CFRead (netPlayers.players [i].network.ipx.server, 1, 4, cfP);
+	CFRead (netPlayers.players [i].network.ipx.node, 1, 6, cfP);
+	netPlayers.players [i].versionMajor = (ubyte) CFReadByte (cfP);
+	netPlayers.players [i].versionMinor = (ubyte) CFReadByte (cfP);
+	netPlayers.players [i].computerType = (enum compType) CFReadByte (cfP);
+	netPlayers.players [i].connected = CFReadByte (cfP);
+	netPlayers.players [i].socket = (ushort) CFReadShort (cfP);
+	netPlayers.players [i].rank = (ubyte) CFReadByte (cfP);
 	}
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadPlayer (CPlayerData *playerP)
+void StateRestorePlayer (tPlayer *playerP, CFILE *cfP)
 {
 	int	i;
 
-m_cf.Read (playerP->callsign, 1, CALLSIGN_LEN + 1); // The callsign of this CPlayerData, for net purposes.
-m_cf.Read (playerP->netAddress, 1, 6);					// The network address of the player.
-playerP->connected = m_cf.ReadByte ();            // Is the CPlayerData connected or not?
-playerP->nObject = m_cf.ReadInt ();                // What CObject number this CPlayerData is. (made an int by mk because it's very often referenced)
-playerP->nPacketsGot = m_cf.ReadInt ();         // How many packets we got from them
-playerP->nPacketsSent = m_cf.ReadInt ();        // How many packets we sent to them
-playerP->flags = (uint) m_cf.ReadInt ();           // Powerup flags, see below...
-playerP->energy = m_cf.ReadFix ();                // Amount of energy remaining.
-playerP->shields = m_cf.ReadFix ();               // shields remaining (protection)
-playerP->lives = m_cf.ReadByte ();                // Lives remaining, 0 = game over.
-playerP->level = m_cf.ReadByte ();                // Current level CPlayerData is playing. (must be signed for secret levels)
-playerP->laserLevel = (ubyte) m_cf.ReadByte ();  // Current level of the laser.
-playerP->startingLevel = m_cf.ReadByte ();       // What level the CPlayerData started on.
-playerP->nKillerObj = m_cf.ReadShort ();       // Who killed me.... (-1 if no one)
-playerP->primaryWeaponFlags = (ushort) m_cf.ReadShort ();   // bit set indicates the CPlayerData has this weapon.
-playerP->secondaryWeaponFlags = (ushort) m_cf.ReadShort (); // bit set indicates the CPlayerData has this weapon.
+CFRead (playerP->callsign, 1, CALLSIGN_LEN + 1, cfP); // The callsign of this tPlayer, for net purposes.
+CFRead (playerP->netAddress, 1, 6, cfP);					// The network address of the player.
+playerP->connected = CFReadByte (cfP);            // Is the tPlayer connected or not?
+playerP->nObject = CFReadInt (cfP);                // What tObject number this tPlayer is. (made an int by mk because it's very often referenced)
+playerP->nPacketsGot = CFReadInt (cfP);         // How many packets we got from them
+playerP->nPacketsSent = CFReadInt (cfP);        // How many packets we sent to them
+playerP->flags = (uint) CFReadInt (cfP);           // Powerup flags, see below...
+playerP->energy = CFReadFix (cfP);                // Amount of energy remaining.
+playerP->shields = CFReadFix (cfP);               // shields remaining (protection)
+playerP->lives = CFReadByte (cfP);                // Lives remaining, 0 = game over.
+playerP->level = CFReadByte (cfP);                // Current level tPlayer is playing. (must be signed for secret levels)
+playerP->laserLevel = (ubyte) CFReadByte (cfP);  // Current level of the laser.
+playerP->startingLevel = CFReadByte (cfP);       // What level the tPlayer started on.
+playerP->nKillerObj = CFReadShort (cfP);       // Who killed me.... (-1 if no one)
+playerP->primaryWeaponFlags = (ushort) CFReadShort (cfP);   // bit set indicates the tPlayer has this weapon.
+playerP->secondaryWeaponFlags = (ushort) CFReadShort (cfP); // bit set indicates the tPlayer has this weapon.
 for (i = 0; i < MAX_PRIMARY_WEAPONS; i++)
-	playerP->primaryAmmo [i] = (ushort) m_cf.ReadShort (); // How much ammo of each nType.
+	playerP->primaryAmmo [i] = (ushort) CFReadShort (cfP); // How much ammo of each nType.
 for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
-	playerP->secondaryAmmo [i] = (ushort) m_cf.ReadShort (); // How much ammo of each nType.
+	playerP->secondaryAmmo [i] = (ushort) CFReadShort (cfP); // How much ammo of each nType.
 #if 1 //for inventory system
-playerP->nInvuls = (ubyte) m_cf.ReadByte ();
-playerP->nCloaks = (ubyte) m_cf.ReadByte ();
+playerP->nInvuls = (ubyte) CFReadByte (cfP);
+playerP->nCloaks = (ubyte) CFReadByte (cfP);
 #endif
-playerP->lastScore = m_cf.ReadInt ();           // Score at beginning of current level.
-playerP->score = m_cf.ReadInt ();                // Current score.
-playerP->timeLevel = m_cf.ReadFix ();            // Level time played
-playerP->timeTotal = m_cf.ReadFix ();				// Game time played (high word = seconds)
-playerP->cloakTime = m_cf.ReadFix ();					// Time cloaked
+playerP->lastScore = CFReadInt (cfP);           // Score at beginning of current level.
+playerP->score = CFReadInt (cfP);                // Current score.
+playerP->timeLevel = CFReadFix (cfP);            // Level time played
+playerP->timeTotal = CFReadFix (cfP);				// Game time played (high word = seconds)
+playerP->cloakTime = CFReadFix (cfP);					// Time cloaked
 if (playerP->cloakTime != 0x7fffffff)
 	playerP->cloakTime += gameData.time.xGame;
-playerP->invulnerableTime = m_cf.ReadFix ();      // Time invulnerable
+playerP->invulnerableTime = CFReadFix (cfP);      // Time invulnerable
 if (playerP->invulnerableTime != 0x7fffffff)
 	playerP->invulnerableTime += gameData.time.xGame;
-playerP->nKillGoalCount = m_cf.ReadShort ();          // Num of players killed this level
-playerP->netKilledTotal = m_cf.ReadShort ();       // Number of times killed total
-playerP->netKillsTotal = m_cf.ReadShort ();        // Number of net kills total
-playerP->numKillsLevel = m_cf.ReadShort ();        // Number of kills this level
-playerP->numKillsTotal = m_cf.ReadShort ();        // Number of kills total
-playerP->numRobotsLevel = m_cf.ReadShort ();       // Number of initial robots this level
-playerP->numRobotsTotal = m_cf.ReadShort ();       // Number of robots total
-playerP->hostages.nRescued = (ushort) m_cf.ReadShort (); // Total number of hostages rescued.
-playerP->hostages.nTotal = (ushort) m_cf.ReadShort ();         // Total number of hostages.
-playerP->hostages.nOnBoard = (ubyte) m_cf.ReadByte ();      // Number of hostages on ship.
-playerP->hostages.nLevel = (ubyte) m_cf.ReadByte ();         // Number of hostages on this level.
-playerP->homingObjectDist = m_cf.ReadFix ();     // Distance of nearest homing CObject.
-playerP->hoursLevel = m_cf.ReadByte ();            // Hours played (since timeTotal can only go up to 9 hours)
-playerP->hoursTotal = m_cf.ReadByte ();            // Hours played (since timeTotal can only go up to 9 hours)
+playerP->nKillGoalCount = CFReadShort (cfP);          // Num of players killed this level
+playerP->netKilledTotal = CFReadShort (cfP);       // Number of times killed total
+playerP->netKillsTotal = CFReadShort (cfP);        // Number of net kills total
+playerP->numKillsLevel = CFReadShort (cfP);        // Number of kills this level
+playerP->numKillsTotal = CFReadShort (cfP);        // Number of kills total
+playerP->numRobotsLevel = CFReadShort (cfP);       // Number of initial robots this level
+playerP->numRobotsTotal = CFReadShort (cfP);       // Number of robots total
+playerP->hostages.nRescued = (ushort) CFReadShort (cfP); // Total number of hostages rescued.
+playerP->hostages.nTotal = (ushort) CFReadShort (cfP);         // Total number of hostages.
+playerP->hostages.nOnBoard = (ubyte) CFReadByte (cfP);      // Number of hostages on ship.
+playerP->hostages.nLevel = (ubyte) CFReadByte (cfP);         // Number of hostages on this level.
+playerP->homingObjectDist = CFReadFix (cfP);     // Distance of nearest homing tObject.
+playerP->hoursLevel = CFReadByte (cfP);            // Hours played (since timeTotal can only go up to 9 hours)
+playerP->hoursTotal = CFReadByte (cfP);            // Hours played (since timeTotal can only go up to 9 hours)
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadObject (CObject *objP)
+void StateRestoreObject (tObject *objP, CFILE *cfP, int sgVersion)
 {
-objP->info.nSignature = m_cf.ReadInt ();      
-objP->info.nType = (ubyte) m_cf.ReadByte (); 
+objP->info.nSignature = CFReadInt (cfP);      
+objP->info.nType = (ubyte) CFReadByte (cfP); 
 #if DBG
 if (objP->info.nType == OBJ_REACTOR)
 	objP->info.nType = objP->info.nType;
 else 
 #endif
-if ((m_nVersion < 32) && IS_BOSS (objP))
+if ((sgVersion < 32) && IS_BOSS (objP))
 	gameData.boss [(int) extraGameInfo [0].nBossCount++].nObject = OBJ_IDX (objP);
-objP->info.nId = (ubyte) m_cf.ReadByte ();
-objP->info.nNextInSeg = m_cf.ReadShort ();
-objP->info.nPrevInSeg = m_cf.ReadShort ();
-objP->info.controlType = (ubyte) m_cf.ReadByte ();
-objP->info.movementType = (ubyte) m_cf.ReadByte ();
-objP->info.renderType = (ubyte) m_cf.ReadByte ();
-objP->info.nFlags = (ubyte) m_cf.ReadByte ();
-objP->info.nSegment = m_cf.ReadShort ();
-objP->info.nAttachedObj = m_cf.ReadShort ();
-m_cf.ReadVector (objP->info.position.vPos);     
-m_cf.ReadMatrix (objP->info.position.mOrient);  
-objP->info.xSize = m_cf.ReadFix (); 
-objP->info.xShields = m_cf.ReadFix ();
-m_cf.ReadVector (objP->info.vLastPos);  
-objP->info.contains.nType = m_cf.ReadByte (); 
-objP->info.contains.nId = m_cf.ReadByte ();   
-objP->info.contains.nCount = m_cf.ReadByte ();
-objP->info.nCreator = m_cf.ReadByte ();
-objP->info.xLifeLeft = m_cf.ReadFix ();   
+objP->info.nId = (ubyte) CFReadByte (cfP);
+objP->info.nNextInSeg = CFReadShort (cfP);
+objP->info.nPrevInSeg = CFReadShort (cfP);
+objP->info.controlType = (ubyte) CFReadByte (cfP);
+objP->info.movementType = (ubyte) CFReadByte (cfP);
+objP->info.renderType = (ubyte) CFReadByte (cfP);
+objP->info.nFlags = (ubyte) CFReadByte (cfP);
+objP->info.nSegment = CFReadShort (cfP);
+objP->info.nAttachedObj = CFReadShort (cfP);
+CFReadVector (objP->info.position.vPos, cfP);     
+CFReadMatrix (objP->info.position.mOrient, cfP);  
+objP->info.xSize = CFReadFix (cfP); 
+objP->info.xShields = CFReadFix (cfP);
+CFReadVector (objP->info.vLastPos, cfP);  
+objP->info.contains.nType = CFReadByte (cfP); 
+objP->info.contains.nId = CFReadByte (cfP);   
+objP->info.contains.nCount = CFReadByte (cfP);
+objP->info.nCreator = CFReadByte (cfP);
+objP->info.xLifeLeft = CFReadFix (cfP);   
 if (objP->info.movementType == MT_PHYSICS) {
-	m_cf.ReadVector (objP->mType.physInfo.velocity);   
-	m_cf.ReadVector (objP->mType.physInfo.thrust);     
-	objP->mType.physInfo.mass = m_cf.ReadFix ();       
-	objP->mType.physInfo.drag = m_cf.ReadFix ();       
-	objP->mType.physInfo.brakes = m_cf.ReadFix ();     
-	m_cf.ReadVector (objP->mType.physInfo.rotVel);     
-	m_cf.ReadVector (objP->mType.physInfo.rotThrust);  
-	objP->mType.physInfo.turnRoll = m_cf.ReadFixAng ();   
-	objP->mType.physInfo.flags = (ushort) m_cf.ReadShort ();      
+	CFReadVector (objP->mType.physInfo.velocity, cfP);   
+	CFReadVector (objP->mType.physInfo.thrust, cfP);     
+	objP->mType.physInfo.mass = CFReadFix (cfP);       
+	objP->mType.physInfo.drag = CFReadFix (cfP);       
+	objP->mType.physInfo.brakes = CFReadFix (cfP);     
+	CFReadVector (objP->mType.physInfo.rotVel, cfP);     
+	CFReadVector (objP->mType.physInfo.rotThrust, cfP);  
+	objP->mType.physInfo.turnRoll = CFReadFixAng (cfP);   
+	objP->mType.physInfo.flags = (ushort) CFReadShort (cfP);      
 	}
 else if (objP->info.movementType == MT_SPINNING) {
-	m_cf.ReadVector (objP->mType.spinRate);  
+	CFReadVector (objP->mType.spinRate, cfP);  
 	}
 switch (objP->info.controlType) {
 	case CT_WEAPON:
-		objP->cType.laserInfo.parent.nType = m_cf.ReadShort ();
-		objP->cType.laserInfo.parent.nObject = m_cf.ReadShort ();
-		objP->cType.laserInfo.parent.nSignature = m_cf.ReadInt ();
-		objP->cType.laserInfo.xCreationTime = m_cf.ReadFix ();
-		objP->cType.laserInfo.nLastHitObj = m_cf.ReadShort ();
+		objP->cType.laserInfo.parent.nType = CFReadShort (cfP);
+		objP->cType.laserInfo.parent.nObject = CFReadShort (cfP);
+		objP->cType.laserInfo.parent.nSignature = CFReadInt (cfP);
+		objP->cType.laserInfo.xCreationTime = CFReadFix (cfP);
+		objP->cType.laserInfo.nLastHitObj = CFReadShort (cfP);
 		if (objP->cType.laserInfo.nLastHitObj < 0)
 			objP->cType.laserInfo.nLastHitObj = 0;
 		else {
 			gameData.objs.nHitObjects [OBJ_IDX (objP) * MAX_HIT_OBJECTS] = objP->cType.laserInfo.nLastHitObj;
 			objP->cType.laserInfo.nLastHitObj = 1;
 			}
-		objP->cType.laserInfo.nHomingTarget = m_cf.ReadShort ();
-		objP->cType.laserInfo.xScale = m_cf.ReadFix ();
+		objP->cType.laserInfo.nHomingTarget = CFReadShort (cfP);
+		objP->cType.laserInfo.xScale = CFReadFix (cfP);
 		break;
 
 	case CT_EXPLOSION:
-		objP->cType.explInfo.nSpawnTime = m_cf.ReadFix ();
-		objP->cType.explInfo.nDeleteTime = m_cf.ReadFix ();
-		objP->cType.explInfo.nDeleteObj = m_cf.ReadShort ();
-		objP->cType.explInfo.attached.nParent = m_cf.ReadShort ();
-		objP->cType.explInfo.attached.nPrev = m_cf.ReadShort ();
-		objP->cType.explInfo.attached.nNext = m_cf.ReadShort ();
+		objP->cType.explInfo.nSpawnTime = CFReadFix (cfP);
+		objP->cType.explInfo.nDeleteTime = CFReadFix (cfP);
+		objP->cType.explInfo.nDeleteObj = CFReadShort (cfP);
+		objP->cType.explInfo.attached.nParent = CFReadShort (cfP);
+		objP->cType.explInfo.attached.nPrev = CFReadShort (cfP);
+		objP->cType.explInfo.attached.nNext = CFReadShort (cfP);
 		break;
 
 	case CT_AI:
-		objP->cType.aiInfo.behavior = (ubyte) m_cf.ReadByte ();
-		m_cf.Read (objP->cType.aiInfo.flags, 1, MAX_AI_FLAGS);
-		objP->cType.aiInfo.nHideSegment = m_cf.ReadShort ();
-		objP->cType.aiInfo.nHideIndex = m_cf.ReadShort ();
-		objP->cType.aiInfo.nPathLength = m_cf.ReadShort ();
-		objP->cType.aiInfo.nCurPathIndex = m_cf.ReadByte ();
-		objP->cType.aiInfo.bDyingSoundPlaying = m_cf.ReadByte ();
-		objP->cType.aiInfo.nDangerLaser = m_cf.ReadShort ();
-		objP->cType.aiInfo.nDangerLaserSig = m_cf.ReadInt ();
-		objP->cType.aiInfo.xDyingStartTime = m_cf.ReadFix ();
+		objP->cType.aiInfo.behavior = (ubyte) CFReadByte (cfP);
+		CFRead (objP->cType.aiInfo.flags, 1, MAX_AI_FLAGS, cfP);
+		objP->cType.aiInfo.nHideSegment = CFReadShort (cfP);
+		objP->cType.aiInfo.nHideIndex = CFReadShort (cfP);
+		objP->cType.aiInfo.nPathLength = CFReadShort (cfP);
+		objP->cType.aiInfo.nCurPathIndex = CFReadByte (cfP);
+		objP->cType.aiInfo.bDyingSoundPlaying = CFReadByte (cfP);
+		objP->cType.aiInfo.nDangerLaser = CFReadShort (cfP);
+		objP->cType.aiInfo.nDangerLaserSig = CFReadInt (cfP);
+		objP->cType.aiInfo.xDyingStartTime = CFReadFix (cfP);
 		break;
 
 	case CT_LIGHT:
-		objP->cType.lightInfo.intensity = m_cf.ReadFix ();
+		objP->cType.lightInfo.intensity = CFReadFix (cfP);
 		break;
 
 	case CT_POWERUP:
-		objP->cType.powerupInfo.nCount = m_cf.ReadInt ();
-		objP->cType.powerupInfo.xCreationTime = m_cf.ReadFix ();
-		objP->cType.powerupInfo.nFlags = m_cf.ReadInt ();
+		objP->cType.powerupInfo.nCount = CFReadInt (cfP);
+		objP->cType.powerupInfo.xCreationTime = CFReadFix (cfP);
+		objP->cType.powerupInfo.nFlags = CFReadInt (cfP);
 		break;
 	}
 switch (objP->info.renderType) {
 	case RT_MORPH:
 	case RT_POLYOBJ: {
 		int i;
-		objP->rType.polyObjInfo.nModel = m_cf.ReadInt ();
+		objP->rType.polyObjInfo.nModel = CFReadInt (cfP);
 		for (i = 0; i < MAX_SUBMODELS; i++)
-			m_cf.ReadAngVec (objP->rType.polyObjInfo.animAngles [i]);
-		objP->rType.polyObjInfo.nSubObjFlags = m_cf.ReadInt ();
-		objP->rType.polyObjInfo.nTexOverride = m_cf.ReadInt ();
-		objP->rType.polyObjInfo.nAltTextures = m_cf.ReadInt ();
+			CFReadAngVec (objP->rType.polyObjInfo.animAngles [i], cfP);
+		objP->rType.polyObjInfo.nSubObjFlags = CFReadInt (cfP);
+		objP->rType.polyObjInfo.nTexOverride = CFReadInt (cfP);
+		objP->rType.polyObjInfo.nAltTextures = CFReadInt (cfP);
 		break;
 		}
 	case RT_WEAPON_VCLIP:
@@ -1881,9 +2038,9 @@ switch (objP->info.renderType) {
 	case RT_POWERUP:
 	case RT_FIREBALL:
 	case RT_THRUSTER:
-		objP->rType.vClipInfo.nClipIndex = m_cf.ReadInt ();
-		objP->rType.vClipInfo.xFrameTime = m_cf.ReadFix ();
-		objP->rType.vClipInfo.nCurFrame = m_cf.ReadByte ();
+		objP->rType.vClipInfo.nClipIndex = CFReadInt (cfP);
+		objP->rType.vClipInfo.xFrameTime = CFReadFix (cfP);
+		objP->rType.vClipInfo.nCurFrame = CFReadByte (cfP);
 		break;
 
 	case RT_LASER:
@@ -1893,150 +2050,139 @@ switch (objP->info.renderType) {
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadWall (tWall *wallP)
+void StateRestoreWall (tWall *wallP, CFILE *cfP)
 {
-wallP->nSegment = m_cf.ReadInt ();
-wallP->nSide = m_cf.ReadInt ();
-wallP->hps = m_cf.ReadFix ();    
-wallP->nLinkedWall = m_cf.ReadInt ();
-wallP->nType = (ubyte) m_cf.ReadByte ();       
-wallP->flags = (ubyte) m_cf.ReadByte ();      
-wallP->state = (ubyte) m_cf.ReadByte ();      
-wallP->nTrigger = (ubyte) m_cf.ReadByte ();    
-wallP->nClip = m_cf.ReadByte ();   
-wallP->keys = (ubyte) m_cf.ReadByte ();       
-wallP->controllingTrigger = m_cf.ReadByte ();
-wallP->cloakValue = m_cf.ReadByte (); 
+wallP->nSegment = CFReadInt (cfP);
+wallP->nSide = CFReadInt (cfP);
+wallP->hps = CFReadFix (cfP);    
+wallP->nLinkedWall = CFReadInt (cfP);
+wallP->nType = (ubyte) CFReadByte (cfP);       
+wallP->flags = (ubyte) CFReadByte (cfP);      
+wallP->state = (ubyte) CFReadByte (cfP);      
+wallP->nTrigger = (ubyte) CFReadByte (cfP);    
+wallP->nClip = CFReadByte (cfP);   
+wallP->keys = (ubyte) CFReadByte (cfP);       
+wallP->controllingTrigger = CFReadByte (cfP);
+wallP->cloakValue = CFReadByte (cfP); 
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadExplWall (tExplWall *wallP)
+void StateRestoreExplWall (tExplWall *wallP, CFILE *cfP)
 {
-wallP->nSegment = m_cf.ReadInt ();
-wallP->nSide = m_cf.ReadInt ();
-wallP->time = m_cf.ReadFix ();    
+wallP->nSegment = CFReadInt (cfP);
+wallP->nSide = CFReadInt (cfP);
+wallP->time = CFReadFix (cfP);    
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadCloakingWall (tCloakingWall *wallP)
+void StateRestoreCloakingWall (tCloakingWall *wallP, CFILE *cfP)
 {
 	int	i;
 
-wallP->nFrontWall = m_cf.ReadShort ();
-wallP->nBackWall = m_cf.ReadShort (); 
+wallP->nFrontWall = CFReadShort (cfP);
+wallP->nBackWall = CFReadShort (cfP); 
 for (i = 0; i < 4; i++) {
-	wallP->front_ls [i] = m_cf.ReadFix (); 
-	wallP->back_ls [i] = m_cf.ReadFix ();
+	wallP->front_ls [i] = CFReadFix (cfP); 
+	wallP->back_ls [i] = CFReadFix (cfP);
 	}
-wallP->time = m_cf.ReadFix ();    
+wallP->time = CFReadFix (cfP);    
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadActiveDoor (tActiveDoor *doorP)
+void StateRestoreActiveDoor (tActiveDoor *doorP, CFILE *cfP)
 {
 	int	i;
 
-doorP->nPartCount = m_cf.ReadInt ();
+doorP->nPartCount = CFReadInt (cfP);
 for (i = 0; i < 2; i++) {
-	doorP->nFrontWall [i] = m_cf.ReadShort ();
-	doorP->nBackWall [i] = m_cf.ReadShort ();
+	doorP->nFrontWall [i] = CFReadShort (cfP);
+	doorP->nBackWall [i] = CFReadShort (cfP);
 	}
-doorP->time = m_cf.ReadFix ();    
+doorP->time = CFReadFix (cfP);    
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadTrigger (tTrigger *triggerP)
+void StateRestoreTrigger (tTrigger *triggerP, CFILE *cfP)
 {
 	int	i;
 
-i = m_cf.Tell ();
-triggerP->nType = (ubyte) m_cf.ReadByte (); 
-triggerP->flags = (ubyte) m_cf.ReadByte (); 
-triggerP->nLinks = m_cf.ReadByte ();
-triggerP->value = m_cf.ReadFix ();
-triggerP->time = m_cf.ReadFix ();
+i = CFTell (cfP);
+triggerP->nType = (ubyte) CFReadByte (cfP); 
+triggerP->flags = (ubyte) CFReadByte (cfP); 
+triggerP->nLinks = CFReadByte (cfP);
+triggerP->value = CFReadFix (cfP);
+triggerP->time = CFReadFix (cfP);
 for (i = 0; i < MAX_TRIGGER_TARGETS; i++) {
-	triggerP->nSegment [i] = m_cf.ReadShort ();
-	triggerP->nSide [i] = m_cf.ReadShort ();
+	triggerP->nSegment [i] = CFReadShort (cfP);
+	triggerP->nSide [i] = CFReadShort (cfP);
 	}
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadObjTriggerRef (tObjTriggerRef *refP)
+void StateRestoreObjTriggerRef (tObjTriggerRef *refP, CFILE *cfP)
 {
-refP->prev = m_cf.ReadShort ();
-refP->next = m_cf.ReadShort ();
-refP->nObject = m_cf.ReadShort ();
+refP->prev = CFReadShort (cfP);
+refP->next = CFReadShort (cfP);
+refP->nObject = CFReadShort (cfP);
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadMatCen (tMatCenInfo *matcenP)
+void StateRestoreMatCen (tMatCenInfo *matcenP, CFILE *cfP)
 {
 	int	i;
 
 for (i = 0; i < 2; i++)
-	matcenP->objFlags [i] = m_cf.ReadInt ();
-matcenP->xHitPoints = m_cf.ReadFix ();
-matcenP->xInterval = m_cf.ReadFix ();
-matcenP->nSegment = m_cf.ReadShort ();
-matcenP->nFuelCen = m_cf.ReadShort ();
+	matcenP->objFlags [i] = CFReadInt (cfP);
+matcenP->xHitPoints = CFReadFix (cfP);
+matcenP->xInterval = CFReadFix (cfP);
+matcenP->nSegment = CFReadShort (cfP);
+matcenP->nFuelCen = CFReadShort (cfP);
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadFuelCen (tFuelCenInfo *fuelcenP)
+void StateRestoreFuelCen (tFuelCenInfo *fuelcenP, CFILE *cfP)
 {
-fuelcenP->nType = m_cf.ReadInt ();
-fuelcenP->nSegment = m_cf.ReadInt ();
-fuelcenP->bFlag = m_cf.ReadByte ();
-fuelcenP->bEnabled = m_cf.ReadByte ();
-fuelcenP->nLives = m_cf.ReadByte ();
-fuelcenP->xCapacity = m_cf.ReadFix ();
-fuelcenP->xMaxCapacity = m_cf.ReadFix ();
-fuelcenP->xTimer = m_cf.ReadFix ();
-fuelcenP->xDisableTime = m_cf.ReadFix ();
-m_cf.ReadVector (fuelcenP->vCenter);
+fuelcenP->nType = CFReadInt (cfP);
+fuelcenP->nSegment = CFReadInt (cfP);
+fuelcenP->bFlag = CFReadByte (cfP);
+fuelcenP->bEnabled = CFReadByte (cfP);
+fuelcenP->nLives = CFReadByte (cfP);
+fuelcenP->xCapacity = CFReadFix (cfP);
+fuelcenP->xMaxCapacity = CFReadFix (cfP);
+fuelcenP->xTimer = CFReadFix (cfP);
+fuelcenP->xDisableTime = CFReadFix (cfP);
+CFReadVector (fuelcenP->vCenter, cfP);
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadReactorTrigger (tReactorTriggers *triggerP)
+void StateRestoreReactorTrigger (tReactorTriggers *triggerP, CFILE *cfP)
 {
 	int	i;
 
-triggerP->nLinks = m_cf.ReadShort ();
+triggerP->nLinks = CFReadShort (cfP);
 for (i = 0; i < MAX_CONTROLCEN_LINKS; i++) {
-	triggerP->nSegment [i] = m_cf.ReadShort ();
-	triggerP->nSide [i] = m_cf.ReadShort ();
+	triggerP->nSegment [i] = CFReadShort (cfP);
+	triggerP->nSide [i] = CFReadShort (cfP);
 	}
 }
 
 //------------------------------------------------------------------------------
 
-void CSaveGameHandler::LoadReactorState (tReactorStates *stateP)
+int StateRestoreSpawnPoint (int i, CFILE *cfP)
 {
-stateP->nObject = m_cf.ReadInt ();
-stateP->bHit = m_cf.ReadInt ();
-stateP->bSeenPlayer = m_cf.ReadInt ();
-stateP->nNextFireTime = m_cf.ReadInt ();
-stateP->nDeadObj = m_cf.ReadInt ();
-}
-
-//------------------------------------------------------------------------------
-
-int CSaveGameHandler::LoadSpawnPoint (int i)
-{
-DBG (i = m_cf.Tell ());
-m_cf.ReadVector (gameData.multiplayer.playerInit [i].position.vPos);     
-m_cf.ReadMatrix (gameData.multiplayer.playerInit [i].position.mOrient);  
-gameData.multiplayer.playerInit [i].nSegment = m_cf.ReadShort ();
-gameData.multiplayer.playerInit [i].nSegType = m_cf.ReadShort ();
+DBG (i = CFTell (cfP));
+CFReadVector (gameData.multiplayer.playerInit [i].position.vPos, cfP);     
+CFReadMatrix (gameData.multiplayer.playerInit [i].position.mOrient, cfP);  
+gameData.multiplayer.playerInit [i].nSegment = CFReadShort (cfP);
+gameData.multiplayer.playerInit [i].nSegType = CFReadShort (cfP);
 return (gameData.multiplayer.playerInit [i].nSegment >= 0) &&
 		 (gameData.multiplayer.playerInit [i].nSegment < gameData.segs.nSegments) &&
 		 (gameData.multiplayer.playerInit [i].nSegment ==
@@ -2047,259 +2193,265 @@ return (gameData.multiplayer.playerInit [i].nSegment >= 0) &&
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::LoadUniFormat (int bMulti, fix xOldGameTime, int *nLevel)
+int StateRestoreUniGameData (CFILE *cfP, int sgVersion, int bMulti, int bSecretRestore, fix xOldGameTime, int *nLevel)
 {
-	CPlayerData	restoredPlayers [MAX_PLAYERS];
+	tPlayer	restoredPlayers [MAX_PLAYERS];
 	int		nPlayers, nServerPlayer = -1;
 	int		nOtherObjNum = -1, nServerObjNum = -1, nLocalObjNum = -1, nSavedLocalPlayer = -1;
+	int		bBetweenLevels;
 	int		nCurrentLevel, nNextLevel;
 	tWall		*wallP;
 	char		szOrgCallSign [CALLSIGN_LEN+16];
 	int		h, i, j;
 	short		nTexture;
 
-if (m_nVersion >= 39) {
-	h = m_cf.ReadInt ();
+if (sgVersion >= 39) {
+	h = CFReadInt (cfP);
 	if (h != gameData.segs.nMaxSegments) {
 		Warning (TXT_MAX_SEGS_WARNING, h);
 		return 0;
 		}
 	}
-m_bBetweenLevels = m_cf.ReadInt ();
-Assert (m_bBetweenLevels == 0);	//between levels save ripped out
+bBetweenLevels = CFReadInt (cfP);
+Assert (bBetweenLevels == 0);	//between levels save ripped out
 // Read the mission info...
-if (!LoadMission ())
+if (!StateLoadMission (cfP))
 	return 0;
 //Read level info
-nCurrentLevel = m_cf.ReadInt ();
-nNextLevel = m_cf.ReadInt ();
+nCurrentLevel = CFReadInt (cfP);
+nNextLevel = CFReadInt (cfP);
 //Restore gameData.time.xGame
-gameData.time.xGame = m_cf.ReadFix ();
+gameData.time.xGame = CFReadFix (cfP);
 // Start new game....
-CSaveGameHandler::LoadMulti (szOrgCallSign, bMulti);
+StateRestoreMultiGame (szOrgCallSign, bMulti, bSecretRestore);
 if (IsMultiGame) {
 		char szServerCallSign [CALLSIGN_LEN + 1];
 
 	strcpy (szServerCallSign, netPlayers.players [0].callsign);
-	gameData.app.nStateGameId = m_cf.ReadInt ();
-	CSaveGameHandler::LoadNetGame ();
-	DBG (fPos = m_cf.Tell ());
-	CSaveGameHandler::LoadNetPlayers ();
-	DBG (fPos = m_cf.Tell ());
-	nPlayers = m_cf.ReadInt ();
+	gameData.app.nStateGameId = CFReadInt (cfP);
+	StateRestoreNetGame (cfP);
+	DBG (fPos = CFTell (cfP));
+	StateRestoreNetPlayers (cfP);
+	DBG (fPos = CFTell (cfP));
+	nPlayers = CFReadInt (cfP);
 	nSavedLocalPlayer = gameData.multiplayer.nLocalPlayer;
-	gameData.multiplayer.nLocalPlayer = m_cf.ReadInt ();
+	gameData.multiplayer.nLocalPlayer = CFReadInt (cfP);
 	for (i = 0; i < nPlayers; i++) {
-		CSaveGameHandler::LoadPlayer (restoredPlayers + i);
+		StateRestorePlayer (restoredPlayers + i, cfP);
 		restoredPlayers [i].connected = 0;
 		}
-	DBG (fPos = m_cf.Tell ());
-	// make sure the current game host is in CPlayerData slot #0
-	nServerPlayer = SetServerPlayer (restoredPlayers, nPlayers, szServerCallSign, &nOtherObjNum, &nServerObjNum);
-	GetConnectedPlayers (restoredPlayers, nPlayers);
+	DBG (fPos = CFTell (cfP));
+	// make sure the current game host is in tPlayer slot #0
+	nServerPlayer = StateSetServerPlayer (restoredPlayers, nPlayers, szServerCallSign, &nOtherObjNum, &nServerObjNum);
+	StateGetConnectedPlayers (restoredPlayers, nPlayers);
 	}
-//Read CPlayerData info
-if (!StartNewLevelSub (nCurrentLevel, 1, m_bSecret, 1)) {
-	m_cf.Close ();
+//Read tPlayer info
+if (!StartNewLevelSub (nCurrentLevel, 1, bSecretRestore, 1)) {
+	CFClose (cfP);
 	return 0;
 	}
 nLocalObjNum = LOCALPLAYER.nObject;
-if (m_bSecret != 1)	//either no secret restore, or CPlayerData died in scret level
-	CSaveGameHandler::LoadPlayer (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer);
+if (bSecretRestore != 1)	//either no secret restore, or tPlayer died in scret level
+	StateRestorePlayer (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer, cfP);
 else {
-	CPlayerData	retPlayer;
-	CSaveGameHandler::LoadPlayer (&retPlayer);
-	AwardReturningPlayer (&retPlayer, xOldGameTime);
+	tPlayer	retPlayer;
+	StateRestorePlayer (&retPlayer, cfP);
+	StateAwardReturningPlayer (&retPlayer, xOldGameTime);
 	}
 LOCALPLAYER.nObject = nLocalObjNum;
 strcpy (LOCALPLAYER.callsign, szOrgCallSign);
 // Set the right level
-if (m_bBetweenLevels)
+if (bBetweenLevels)
 	LOCALPLAYER.level = nNextLevel;
 // Restore the weapon states
-gameData.weapons.nPrimary = m_cf.ReadByte ();
-gameData.weapons.nSecondary = m_cf.ReadByte ();
+gameData.weapons.nPrimary = CFReadByte (cfP);
+gameData.weapons.nSecondary = CFReadByte (cfP);
 SelectWeapon (gameData.weapons.nPrimary, 0, 0, 0);
 SelectWeapon (gameData.weapons.nSecondary, 1, 0, 0);
 // Restore the difficulty level
-gameStates.app.nDifficultyLevel = m_cf.ReadInt ();
+gameStates.app.nDifficultyLevel = CFReadInt (cfP);
 // Restore the cheats enabled flag
-gameStates.app.cheats.bEnabled = m_cf.ReadInt ();
+gameStates.app.cheats.bEnabled = CFReadInt (cfP);
 for (i = 0; i < 2; i++) {
-	if (m_nVersion < 33) {
+	if (sgVersion < 33) {
 		gameStates.gameplay.slowmo [i].fSpeed = 1;
 		gameStates.gameplay.slowmo [i].nState = 0;
 		}
 	else {
-		gameStates.gameplay.slowmo [i].fSpeed = X2F (m_cf.ReadInt ());
-		gameStates.gameplay.slowmo [i].nState = m_cf.ReadInt ();
+		gameStates.gameplay.slowmo [i].fSpeed = X2F (CFReadInt (cfP));
+		gameStates.gameplay.slowmo [i].nState = CFReadInt (cfP);
 		}
 	}
-if (m_nVersion > 33) {
+if (sgVersion > 33) {
 	for (i = 0; i < MAX_PLAYERS; i++)
 	   if (i != gameData.multiplayer.nLocalPlayer)
-		   gameData.multiplayer.weaponStates [i].bTripleFusion = m_cf.ReadInt ();
+		   gameData.multiplayer.weaponStates [i].bTripleFusion = CFReadInt (cfP);
    	else {
-   	   gameData.weapons.bTripleFusion = m_cf.ReadInt ();
+   	   gameData.weapons.bTripleFusion = CFReadInt (cfP);
 		   gameData.multiplayer.weaponStates [i].bTripleFusion = !gameData.weapons.bTripleFusion;  //force MultiSendWeapons
 		   }
 	}
-if (!m_bBetweenLevels)	{
+if (!bBetweenLevels)	{
 	gameStates.render.bDoAppearanceEffect = 0;			// Don't do this for middle o' game stuff.
 	//Clear out all the objects from the lvl file
-	ResetSegObjLists ();
+	memset (gameData.segs.objects, 0xff, gameData.segs.nSegments * sizeof (short));
 	ResetObjects (1);
 
 	//Read objects, and pop 'em into their respective segments.
-	DBG (fPos = m_cf.Tell ());
-	h = m_cf.ReadInt ();
+	DBG (fPos = CFTell (cfP));
+	h = CFReadInt (cfP);
 	gameData.objs.nLastObject [0] = h - 1;
 	extraGameInfo [0].nBossCount = 0;
 	for (i = 0; i < h; i++)
-		LoadObject (OBJECTS + i);
-	DBG (fPos = m_cf.Tell ());
-	FixNetworkObjects (nServerPlayer, nOtherObjNum, nServerObjNum);
+		StateRestoreObject (OBJECTS + i, cfP, sgVersion);
+	DBG (fPos = CFTell (cfP));
+	StateFixNetworkObjects (nServerPlayer, nOtherObjNum, nServerObjNum);
 	gameData.objs.nNextSignature = 0;
 	InitCamBots (1);
 	gameData.objs.nNextSignature++;
 	//	1 = Didn't die on secret level.
 	//	2 = Died on secret level.
-	if (m_bSecret && (gameData.missions.nCurrentLevel >= 0)) {
+	if (bSecretRestore && (gameData.missions.nCurrentLevel >= 0)) {
 		SetPosFromReturnSegment (0);
-		if (m_bSecret == 2)
+		if (bSecretRestore == 2)
 			InitPlayerStatsNewShip ();
 		}
 	//Restore tWall info
-	if (ReadBoundedInt (MAX_WALLS, &gameData.walls.nWalls))
+	if (CFReadBoundedInt (MAX_WALLS, &gameData.walls.nWalls, cfP))
 		return 0;
-	for (i = 0, wallP = gameData.walls.walls.Buffer (); i < gameData.walls.nWalls; i++, wallP++) {
-		CSaveGameHandler::LoadWall (wallP);
+	for (i = 0, wallP = gameData.walls.walls; i < gameData.walls.nWalls; i++, wallP++) {
+		StateRestoreWall (wallP, cfP);
 		if (wallP->nType == WALL_OPEN)
 			DigiKillSoundLinkedToSegment ((short) wallP->nSegment, (short) wallP->nSide, -1);	//-1 means kill any sound
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 	//Restore exploding wall info
-	if (ReadBoundedInt (MAX_EXPLODING_WALLS, &h))
+	if (CFReadBoundedInt (MAX_EXPLODING_WALLS, &h, cfP))
 		return 0;
 	for (i = 0; i < h; i++)
-		CSaveGameHandler::LoadExplWall (gameData.walls.explWalls + i);
-	DBG (fPos = m_cf.Tell ());
+		StateRestoreExplWall (gameData.walls.explWalls + i, cfP);
+	DBG (fPos = CFTell (cfP));
 	//Restore door info
-	if (ReadBoundedInt (MAX_DOORS, &gameData.walls.nOpenDoors))
+	if (CFReadBoundedInt (MAX_DOORS, &gameData.walls.nOpenDoors, cfP))
 		return 0;
 	for (i = 0; i < gameData.walls.nOpenDoors; i++)
-		CSaveGameHandler::LoadActiveDoor (gameData.walls.activeDoors + i);
-	DBG (fPos = m_cf.Tell ());
-	if (ReadBoundedInt (MAX_WALLS, &gameData.walls.nCloaking))
+		StateRestoreActiveDoor (gameData.walls.activeDoors + i, cfP);
+	DBG (fPos = CFTell (cfP));
+	if (CFReadBoundedInt (MAX_WALLS, &gameData.walls.nCloaking, cfP))
 		return 0;
 	for (i = 0; i < gameData.walls.nCloaking; i++)
-		CSaveGameHandler::LoadCloakingWall (gameData.walls.cloaking + i);
-	DBG (fPos = m_cf.Tell ());
+		StateRestoreCloakingWall (gameData.walls.cloaking + i, cfP);
+	DBG (fPos = CFTell (cfP));
 	//Restore tTrigger info
-	if (ReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nTriggers))
+	if (CFReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nTriggers, cfP))
 		return 0;
 	for (i = 0; i < gameData.trigs.nTriggers; i++)
-		CSaveGameHandler::LoadTrigger (gameData.trigs.triggers + i);
-	DBG (fPos = m_cf.Tell ());
-	//Restore CObject tTrigger info
-	if (ReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nObjTriggers))
+		StateRestoreTrigger (gameData.trigs.triggers + i, cfP);
+	DBG (fPos = CFTell (cfP));
+	//Restore tObject tTrigger info
+	if (CFReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nObjTriggers, cfP))
 		return 0;
 	if (gameData.trigs.nObjTriggers > 0) {
 		for (i = 0; i < gameData.trigs.nObjTriggers; i++)
-			CSaveGameHandler::LoadTrigger (gameData.trigs.objTriggers + i);
+			StateRestoreTrigger (gameData.trigs.objTriggers + i, cfP);
 		for (i = 0; i < gameData.trigs.nObjTriggers; i++)
-			CSaveGameHandler::LoadObjTriggerRef (gameData.trigs.objTriggerRefs + i);
-		if (m_nVersion < 36) {
-			j = (m_nVersion < 35) ? 700 : MAX_OBJECTS_D2X;
+			StateRestoreObjTriggerRef (gameData.trigs.objTriggerRefs + i, cfP);
+		if (sgVersion < 36) {
+			j = (sgVersion < 35) ? 700 : MAX_OBJECTS_D2X;
 			for (i = 0; i < j; i++)
-				gameData.trigs.firstObjTrigger [i] = m_cf.ReadShort ();
+				gameData.trigs.firstObjTrigger [i] = CFReadShort (cfP);
 			}
 		else {
-			gameData.trigs.firstObjTrigger.Clear (0xff);
-			for (i = m_cf.ReadShort (); i; i--) {
-				j = m_cf.ReadShort ();
-				gameData.trigs.firstObjTrigger [j] = m_cf.ReadShort ();
+			memset (gameData.trigs.firstObjTrigger, 0xff, sizeof (short) * MAX_OBJECTS_D2X);
+			for (i = CFReadShort (cfP); i; i--) {
+				j = CFReadShort (cfP);
+				gameData.trigs.firstObjTrigger [j] = CFReadShort (cfP);
 				}
 			}
 		}
-	else if (m_nVersion < 36)
-		m_cf.Seek (((m_nVersion < 35) ? 700 : MAX_OBJECTS_D2X) * sizeof (short), SEEK_CUR);
+	else if (sgVersion < 36)
+		CFSeek (cfP, ((sgVersion < 35) ? 700 : MAX_OBJECTS_D2X) * sizeof (short), SEEK_CUR);
 	else
-		m_cf.ReadShort ();
-	DBG (fPos = m_cf.Tell ());
+		CFReadShort (cfP);
+	DBG (fPos = CFTell (cfP));
 	//Restore tmap info
 	for (i = 0; i <= gameData.segs.nLastSegment; i++)	{
 		for (j = 0; j < 6; j++)	{
-			gameData.segs.segments [i].sides [j].nWall = m_cf.ReadShort ();
-			gameData.segs.segments [i].sides [j].nBaseTex = m_cf.ReadShort ();
-			nTexture = m_cf.ReadShort ();
+			gameData.segs.segments [i].sides [j].nWall = CFReadShort (cfP);
+			gameData.segs.segments [i].sides [j].nBaseTex = CFReadShort (cfP);
+			nTexture = CFReadShort (cfP);
 			gameData.segs.segments [i].sides [j].nOvlTex = nTexture & 0x3fff;
 			gameData.segs.segments [i].sides [j].nOvlOrient = (nTexture >> 14) & 3;
 			}
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 	//Restore the fuelcen info
-	for (i = 0, wallP = gameData.walls.walls.Buffer (); i < gameData.walls.nWalls; i++, wallP++) {
+	for (i = 0, wallP = gameData.walls.walls; i < gameData.walls.nWalls; i++, wallP++) {
 		if ((wallP->nType == WALL_DOOR) && (wallP->flags & WALL_DOOR_OPENED))
 			AnimateOpeningDoor (SEGMENTS + wallP->nSegment, wallP->nSide, -1);
 		else if ((wallP->nType == WALL_BLASTABLE) && (wallP->flags & WALL_BLASTED))
 			BlastBlastableWall (SEGMENTS + wallP->nSegment, wallP->nSide);
 		}
-	gameData.reactor.bDestroyed = m_cf.ReadInt ();
-	gameData.reactor.countdown.nTimer = m_cf.ReadFix ();
-	DBG (fPos = m_cf.Tell ());
-	if (ReadBoundedInt (MAX_ROBOT_CENTERS, &gameData.matCens.nBotCenters))
+	gameData.reactor.bDestroyed = CFReadInt (cfP);
+	gameData.reactor.countdown.nTimer = CFReadFix (cfP);
+	DBG (fPos = CFTell (cfP));
+	if (CFReadBoundedInt (MAX_ROBOT_CENTERS, &gameData.matCens.nBotCenters, cfP))
 		return 0;
 	for (i = 0; i < gameData.matCens.nBotCenters; i++)
-		CSaveGameHandler::LoadMatCen (gameData.matCens.botGens + i);
-	if (m_nVersion >= 30) {
-		if (ReadBoundedInt (MAX_EQUIP_CENTERS, &gameData.matCens.nEquipCenters))
+		StateRestoreMatCen (gameData.matCens.botGens + i, cfP);
+	if (sgVersion >= 30) {
+		if (CFReadBoundedInt (MAX_EQUIP_CENTERS, &gameData.matCens.nEquipCenters, cfP))
 			return 0;
 		for (i = 0; i < gameData.matCens.nEquipCenters; i++)
-			CSaveGameHandler::LoadMatCen (gameData.matCens.equipGens + i);
+			StateRestoreMatCen (gameData.matCens.equipGens + i, cfP);
 		}
 	else {
 		gameData.matCens.nBotCenters = 0;
 		memset (gameData.matCens.botGens, 0, sizeof (gameData.matCens.botGens));
 		}
-	CSaveGameHandler::LoadReactorTrigger (&gameData.reactor.triggers);
-	if (ReadBoundedInt (MAX_FUEL_CENTERS, &gameData.matCens.nFuelCenters))
+	StateRestoreReactorTrigger (&gameData.reactor.triggers, cfP);
+	if (CFReadBoundedInt (MAX_FUEL_CENTERS, &gameData.matCens.nFuelCenters, cfP))
 		return 0;
 	for (i = 0; i < gameData.matCens.nFuelCenters; i++)
-		CSaveGameHandler::LoadFuelCen (gameData.matCens.fuelCenters + i);
-	DBG (fPos = m_cf.Tell ());
+		StateRestoreFuelCen (gameData.matCens.fuelCenters + i, cfP);
+	DBG (fPos = CFTell (cfP));
 	// Restore the control cen info
-	if (m_nVersion < 31) {
-		gameData.reactor.states [0].bHit = m_cf.ReadInt ();
-		gameData.reactor.states [0].bSeenPlayer = m_cf.ReadInt ();
-		gameData.reactor.states [0].nNextFireTime = m_cf.ReadInt ();
-		gameData.reactor.bPresent = m_cf.ReadInt ();
-		gameData.reactor.states [0].nDeadObj = m_cf.ReadInt ();
+	if (sgVersion < 31) {
+		gameData.reactor.states [0].bHit = CFReadInt (cfP);
+		gameData.reactor.states [0].bSeenPlayer = CFReadInt (cfP);
+		gameData.reactor.states [0].nNextFireTime = CFReadInt (cfP);
+		gameData.reactor.bPresent = CFReadInt (cfP);
+		gameData.reactor.states [0].nDeadObj = CFReadInt (cfP);
 		}
 	else {
 		int	i;
 
-		gameData.reactor.bPresent = m_cf.ReadInt ();
-		for (i = 0; i < MAX_BOSS_COUNT; i++)
-			LoadReactorState (gameData.reactor.states + i);
+		gameData.reactor.bPresent = CFReadInt (cfP);
+		for (i = 0; i < MAX_BOSS_COUNT; i++) {
+			gameData.reactor.states [i].nObject = CFReadInt (cfP);
+			gameData.reactor.states [i].bHit = CFReadInt (cfP);
+			gameData.reactor.states [i].bSeenPlayer = CFReadInt (cfP);
+			gameData.reactor.states [i].nNextFireTime = CFReadInt (cfP);
+			gameData.reactor.states [i].nDeadObj = CFReadInt (cfP);
+			}
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 	// Restore the AI state
-	LoadAIUniFormat ();
+	AIRestoreUniState (cfP, sgVersion);
 	// Restore the automap visited info
-	DBG (fPos = m_cf.Tell ());
-	FixObjects ();
+	DBG (fPos = CFTell (cfP));
+	StateFixObjects ();
 	SpecialResetObjects ();
-	if (m_nVersion > 37) {
+	if (sgVersion > 37) {
 		for (i = 0; i < MAX_SEGMENTS; i++)
-			gameData.render.mine.bAutomapVisited [i] = (ushort) m_cf.ReadShort ();
+			gameData.render.mine.bAutomapVisited [i] = (ushort) CFReadShort (cfP);
 		}
 	else {
-		int	i, j = (m_nVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2;
+		int	i, j = (sgVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2;
 		for (i = 0; i < j; i++)
-			gameData.render.mine.bAutomapVisited [i] = (ushort) m_cf.ReadByte ();
+			gameData.render.mine.bAutomapVisited [i] = (ushort) CFReadByte (cfP);
 		}
-	DBG (fPos = m_cf.Tell ());
+	DBG (fPos = CFTell (cfP));
 	//	Restore hacked up weapon system stuff.
 	gameData.fusion.xNextSoundTime = gameData.time.xGame;
 	gameData.fusion.xAutoFireTime = 0;
@@ -2309,54 +2461,54 @@ if (!m_bBetweenLevels)	{
 	gameData.missiles.xLastFiredTime = gameData.time.xGame;
 	}
 gameData.app.nStateGameId = 0;
-gameData.app.nStateGameId = (uint) m_cf.ReadInt ();
-gameStates.app.cheats.bLaserRapidFire = m_cf.ReadInt ();
-gameStates.app.bLunacy = m_cf.ReadInt ();		//	Yes, reading this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
-gameStates.app.bLunacy = m_cf.ReadInt ();
+gameData.app.nStateGameId = (uint) CFReadInt (cfP);
+gameStates.app.cheats.bLaserRapidFire = CFReadInt (cfP);
+gameStates.app.bLunacy = CFReadInt (cfP);		//	Yes, reading this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
+gameStates.app.bLunacy = CFReadInt (cfP);
 if (gameStates.app.bLunacy)
 	DoLunacyOn ();
 
-DBG (fPos = m_cf.Tell ());
+DBG (fPos = CFTell (cfP));
 for (i = 0; i < NUM_MARKERS; i++)
-	gameData.marker.objects [i] = m_cf.ReadShort ();
-m_cf.Read (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1);
-m_cf.Read (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1);
+	gameData.marker.objects [i] = CFReadShort (cfP);
+CFRead (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1, cfP);
+CFRead (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1, cfP);
 
-if (m_bSecret != 1)
-	gameData.physics.xAfterburnerCharge = m_cf.ReadFix ();
+if (bSecretRestore != 1)
+	gameData.physics.xAfterburnerCharge = CFReadFix (cfP);
 else {
-	m_cf.ReadFix ();
+	CFReadFix (cfP);
 	}
 //read last was super information
-m_cf.Read (&bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1);
-m_cf.Read (&bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1);
-paletteManager.SetEffectDuration (m_cf.ReadFix ());
-paletteManager.SetLastEffectTime (m_cf.ReadFix ());
-paletteManager.SetRedEffect ((ubyte) m_cf.ReadShort ());
-paletteManager.SetGreenEffect ((ubyte) m_cf.ReadShort ());
-paletteManager.SetBlueEffect ((ubyte) m_cf.ReadShort ());
-m_cf.Read (gameData.render.lights.subtracted.Buffer (), 
+CFRead (&bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1, cfP);
+CFRead (&bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1, cfP);
+gameData.render.xFlashEffect = CFReadFix (cfP);
+gameData.render.xTimeFlashLastPlayed = CFReadFix (cfP);
+gameStates.ogl.palAdd.red = CFReadShort (cfP);
+gameStates.ogl.palAdd.green = CFReadShort (cfP);
+gameStates.ogl.palAdd.blue = CFReadShort (cfP);
+CFRead (gameData.render.lights.subtracted, 
 		  sizeof (gameData.render.lights.subtracted [0]), 
-		  (m_nVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2);
+		  (sgVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2, cfP);
 ApplyAllChangedLight ();
-gameStates.app.bFirstSecretVisit = m_cf.ReadInt ();
-if (m_bSecret) 
+gameStates.app.bFirstSecretVisit = CFReadInt (cfP);
+if (bSecretRestore) 
 	gameStates.app.bFirstSecretVisit = 0;
 
-if (m_bSecret != 1)
+if (bSecretRestore != 1)
 	gameData.omega.xCharge [0] = 
-	gameData.omega.xCharge [1] = m_cf.ReadFix ();
+	gameData.omega.xCharge [1] = CFReadFix (cfP);
 else
-	m_cf.ReadFix ();
-if (m_nVersion > 27)
-	gameData.missions.nEnteredFromLevel = m_cf.ReadShort ();
+	CFReadFix (cfP);
+if (sgVersion > 27)
+	gameData.missions.nEnteredFromLevel = CFReadShort (cfP);
 *nLevel = nCurrentLevel;
-if (m_nVersion >= 37) {
+if (sgVersion >= 37) {
 	tObjPosition playerInitSave [MAX_PLAYERS];
 
 	memcpy (playerInitSave, gameData.multiplayer.playerInit, sizeof (playerInitSave));
 	for (h = 1, i = 0; i < MAX_PLAYERS; i++)
-		if (!CSaveGameHandler::LoadSpawnPoint (i))
+		if (!StateRestoreSpawnPoint (i, cfP))
 			h = 0;
 	if (!h)
 		memcpy (gameData.multiplayer.playerInit, playerInitSave, sizeof (playerInitSave));
@@ -2366,175 +2518,175 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::LoadBinFormat (int bMulti, fix xOldGameTime, int *nLevel)
+int StateRestoreBinGameData (CFILE *cfP, int sgVersion, int bMulti, int bSecretRestore, fix xOldGameTime, int *nLevel)
 {
-	CPlayerData	restoredPlayers [MAX_PLAYERS];
+	tPlayer	restoredPlayers [MAX_PLAYERS];
 	int		nPlayers, nServerPlayer = -1;
 	int		nOtherObjNum = -1, nServerObjNum = -1, nLocalObjNum = -1, nSavedLocalPlayer = -1;
+	int		bBetweenLevels;
 	int		nCurrentLevel, nNextLevel;
 	tWall		*wallP;
 	char		szOrgCallSign [CALLSIGN_LEN+16];
 	int		i, j;
 	short		nTexture;
 
-m_cf.Read (&m_bBetweenLevels, sizeof (int), 1);
-Assert (m_bBetweenLevels == 0);	//between levels save ripped out
+CFRead (&bBetweenLevels, sizeof (int), 1, cfP);
+Assert (bBetweenLevels == 0);	//between levels save ripped out
 // Read the mission info...
-if (!LoadMission ())
+if (!StateLoadMission (cfP))
 	return 0;
 //Read level info
-m_cf.Read (&nCurrentLevel, sizeof (int), 1);
-m_cf.Read (&nNextLevel, sizeof (int), 1);
+CFRead (&nCurrentLevel, sizeof (int), 1, cfP);
+CFRead (&nNextLevel, sizeof (int), 1, cfP);
 //Restore gameData.time.xGame
-m_cf.Read (&gameData.time.xGame, sizeof (fix), 1);
+CFRead (&gameData.time.xGame, sizeof (fix), 1, cfP);
 // Start new game....
-CSaveGameHandler::LoadMulti (szOrgCallSign, bMulti);
+StateRestoreMultiGame (szOrgCallSign, bMulti, bSecretRestore);
 if (gameData.app.nGameMode & GM_MULTI) {
 		char szServerCallSign [CALLSIGN_LEN + 1];
 
 	strcpy (szServerCallSign, netPlayers.players [0].callsign);
-	m_cf.Read (&gameData.app.nStateGameId, sizeof (int), 1);
-	m_cf.Read (&netGame, sizeof (tNetgameInfo), 1);
-	m_cf.Read (&netPlayers, sizeof (tAllNetPlayersInfo), 1);
-	m_cf.Read (&nPlayers, sizeof (gameData.multiplayer.nPlayers), 1);
-	m_cf.Read (&gameData.multiplayer.nLocalPlayer, sizeof (gameData.multiplayer.nLocalPlayer), 1);
+	CFRead (&gameData.app.nStateGameId, sizeof (int), 1, cfP);
+	CFRead (&netGame, sizeof (tNetgameInfo), 1, cfP);
+	CFRead (&netPlayers, sizeof (tAllNetPlayersInfo), 1, cfP);
+	CFRead (&nPlayers, sizeof (gameData.multiplayer.nPlayers), 1, cfP);
+	CFRead (&gameData.multiplayer.nLocalPlayer, sizeof (gameData.multiplayer.nLocalPlayer), 1, cfP);
 	nSavedLocalPlayer = gameData.multiplayer.nLocalPlayer;
 	for (i = 0; i < nPlayers; i++)
-		m_cf.Read (restoredPlayers + i, sizeof (CPlayerData), 1);
-	nServerPlayer = SetServerPlayer (restoredPlayers, nPlayers, szServerCallSign, &nOtherObjNum, &nServerObjNum);
-	GetConnectedPlayers (restoredPlayers, nPlayers);
+		CFRead (restoredPlayers + i, sizeof (tPlayer), 1, cfP);
+	nServerPlayer = StateSetServerPlayer (restoredPlayers, nPlayers, szServerCallSign, &nOtherObjNum, &nServerObjNum);
+	StateGetConnectedPlayers (restoredPlayers, nPlayers);
 	}
 
-//Read CPlayerData info
-if (!StartNewLevelSub (nCurrentLevel, 1, m_bSecret, 1)) {
-	m_cf.Close ();
+//Read tPlayer info
+if (!StartNewLevelSub (nCurrentLevel, 1, bSecretRestore, 1)) {
+	CFClose (cfP);
 	return 0;
 	}
 nLocalObjNum = LOCALPLAYER.nObject;
-if (m_bSecret != 1)	//either no secret restore, or CPlayerData died in scret level
-	m_cf.Read (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer, sizeof (CPlayerData), 1);
+if (bSecretRestore != 1)	//either no secret restore, or tPlayer died in scret level
+	CFRead (gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer, sizeof (tPlayer), 1, cfP);
 else {
-	CPlayerData	retPlayer;
-	m_cf.Read (&retPlayer, sizeof (CPlayerData), 1);
-	AwardReturningPlayer (&retPlayer, xOldGameTime);
+	tPlayer	retPlayer;
+	CFRead (&retPlayer, sizeof (tPlayer), 1, cfP);
+	StateAwardReturningPlayer (&retPlayer, xOldGameTime);
 	}
 LOCALPLAYER.nObject = nLocalObjNum;
 strcpy (LOCALPLAYER.callsign, szOrgCallSign);
 // Set the right level
-if (m_bBetweenLevels)
+if (bBetweenLevels)
 	LOCALPLAYER.level = nNextLevel;
 // Restore the weapon states
-m_cf.Read (&gameData.weapons.nPrimary, sizeof (sbyte), 1);
-m_cf.Read (&gameData.weapons.nSecondary, sizeof (sbyte), 1);
+CFRead (&gameData.weapons.nPrimary, sizeof (sbyte), 1, cfP);
+CFRead (&gameData.weapons.nSecondary, sizeof (sbyte), 1, cfP);
 SelectWeapon (gameData.weapons.nPrimary, 0, 0, 0);
 SelectWeapon (gameData.weapons.nSecondary, 1, 0, 0);
 // Restore the difficulty level
-m_cf.Read (&gameStates.app.nDifficultyLevel, sizeof (int), 1);
+CFRead (&gameStates.app.nDifficultyLevel, sizeof (int), 1, cfP);
 // Restore the cheats enabled flag
-m_cf.Read (&gameStates.app.cheats.bEnabled, sizeof (int), 1);
-if (!m_bBetweenLevels)	{
+CFRead (&gameStates.app.cheats.bEnabled, sizeof (int), 1, cfP);
+if (!bBetweenLevels)	{
 	gameStates.render.bDoAppearanceEffect = 0;			// Don't do this for middle o' game stuff.
 	//Clear out all the OBJECTS from the lvl file
-	ResetSegObjLists ();
+	memset (gameData.segs.objects, 0xff, gameData.segs.nSegments * sizeof (short));
 	ResetObjects (1);
 	//Read objects, and pop 'em into their respective segments.
-	m_cf.Read (&i, sizeof (int), 1);
+	CFRead (&i, sizeof (int), 1, cfP);
 	gameData.objs.nLastObject [0] = i - 1;
-	m_cf.Read (OBJECTS.Buffer (), sizeof (CObject), i);
-	FixNetworkObjects (nServerPlayer, nOtherObjNum, nServerObjNum);
-	FixObjects ();
+	CFRead (OBJECTS, sizeof (tObject), i, cfP);
+	StateFixNetworkObjects (nServerPlayer, nOtherObjNum, nServerObjNum);
+	StateFixObjects ();
 	SpecialResetObjects ();
 	InitCamBots (1);
 	gameData.objs.nNextSignature++;
 	//	1 = Didn't die on secret level.
 	//	2 = Died on secret level.
-	if (m_bSecret && (gameData.missions.nCurrentLevel >= 0)) {
+	if (bSecretRestore && (gameData.missions.nCurrentLevel >= 0)) {
 		SetPosFromReturnSegment (0);
-		if (m_bSecret == 2)
+		if (bSecretRestore == 2)
 			InitPlayerStatsNewShip ();
 		}
 	//Restore tWall info
-	if (ReadBoundedInt (MAX_WALLS, &gameData.walls.nWalls))
+	if (CFReadBoundedInt (MAX_WALLS, &gameData.walls.nWalls, cfP))
 		return 0;
-	m_cf.Read (gameData.walls.walls.Buffer (), sizeof (tWall), gameData.walls.nWalls);
+	CFRead (gameData.walls.walls, sizeof (tWall), gameData.walls.nWalls, cfP);
 	//now that we have the walls, check if any sounds are linked to
 	//walls that are now open
-	for (i = 0, wallP = gameData.walls.walls.Buffer (); i < gameData.walls.nWalls; i++, wallP++)
+	for (i = 0, wallP = gameData.walls.walls; i < gameData.walls.nWalls; i++, wallP++)
 		if (wallP->nType == WALL_OPEN)
 			DigiKillSoundLinkedToSegment ((short) wallP->nSegment, (short) wallP->nSide, -1);	//-1 means kill any sound
 	//Restore exploding wall info
-	if (m_nVersion >= 10) {
-		m_cf.Read (&i, sizeof (int), 1);
-		m_cf.Read (gameData.walls.explWalls.Buffer (), sizeof (gameData.walls.explWalls [0]), i);
+	if (sgVersion >= 10) {
+		CFRead (&i, sizeof (int), 1, cfP);
+		CFRead (gameData.walls.explWalls, sizeof (*gameData.walls.explWalls), i, cfP);
 		}
 	//Restore door info
-	if (ReadBoundedInt (MAX_DOORS, &gameData.walls.nOpenDoors))
+	if (CFReadBoundedInt (MAX_DOORS, &gameData.walls.nOpenDoors, cfP))
 		return 0;
-	m_cf.Read (gameData.walls.activeDoors.Buffer (), sizeof (tActiveDoor), gameData.walls.nOpenDoors);
-	if (m_nVersion >= 14) {		//Restore cloaking tWall info
-		if (ReadBoundedInt (MAX_WALLS, &gameData.walls.nCloaking))
+	CFRead (gameData.walls.activeDoors, sizeof (tActiveDoor), gameData.walls.nOpenDoors, cfP);
+	if (sgVersion >= 14) {		//Restore cloaking tWall info
+		if (CFReadBoundedInt (MAX_WALLS, &gameData.walls.nCloaking, cfP))
 			return 0;
-		m_cf.Read (gameData.walls.cloaking.Buffer (), sizeof (tCloakingWall), gameData.walls.nCloaking);
+		CFRead (gameData.walls.cloaking, sizeof (tCloakingWall), gameData.walls.nCloaking, cfP);
 		}
 	//Restore tTrigger info
-	if (ReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nTriggers))
+	if (CFReadBoundedInt (MAX_TRIGGERS, &gameData.trigs.nTriggers, cfP))
 		return 0;
-	m_cf.Read (gameData.trigs.triggers.Buffer (), sizeof (tTrigger), gameData.trigs.nTriggers);
-	if (m_nVersion >= 26) {
-		//Restore CObject tTrigger info
+	CFRead (gameData.trigs.triggers, sizeof (tTrigger), gameData.trigs.nTriggers, cfP);
+	if (sgVersion >= 26) {
+		//Restore tObject tTrigger info
 
-		m_cf.Read (&gameData.trigs.nObjTriggers, sizeof (gameData.trigs.nObjTriggers), 1);
+		CFRead (&gameData.trigs.nObjTriggers, sizeof (gameData.trigs.nObjTriggers), 1, cfP);
 		if (gameData.trigs.nObjTriggers > 0) {
-			m_cf.Read (gameData.trigs.objTriggers.Buffer (), sizeof (tTrigger), gameData.trigs.nObjTriggers);
-			m_cf.Read (gameData.trigs.objTriggerRefs.Buffer (), sizeof (tObjTriggerRef), gameData.trigs.nObjTriggers);
-			m_cf.Read (gameData.trigs.firstObjTrigger.Buffer (), sizeof (short), 700);
+			CFRead (gameData.trigs.objTriggers, sizeof (tTrigger), gameData.trigs.nObjTriggers, cfP);
+			CFRead (gameData.trigs.objTriggerRefs, sizeof (tObjTriggerRef), gameData.trigs.nObjTriggers, cfP);
+			CFRead (gameData.trigs.firstObjTrigger, sizeof (short), 700, cfP);
 			}
 		else
-			m_cf.Seek ((m_nVersion < 35) ? 700 : MAX_OBJECTS_D2X * sizeof (short), SEEK_CUR);
+			CFSeek (cfP, (sgVersion < 35) ? 700 : MAX_OBJECTS_D2X * sizeof (short), SEEK_CUR);
 		}
 	//Restore tmap info
 	for (i = 0; i <= gameData.segs.nLastSegment; i++)	{
 		for (j = 0; j < 6; j++)	{
-			gameData.segs.segments [i].sides [j].nWall = m_cf.ReadShort ();
-			gameData.segs.segments [i].sides [j].nBaseTex = m_cf.ReadShort ();
-			nTexture = m_cf.ReadShort ();
+			gameData.segs.segments [i].sides [j].nWall = CFReadShort (cfP);
+			gameData.segs.segments [i].sides [j].nBaseTex = CFReadShort (cfP);
+			nTexture = CFReadShort (cfP);
 			gameData.segs.segments [i].sides [j].nOvlTex = nTexture & 0x3fff;
 			gameData.segs.segments [i].sides [j].nOvlOrient = (nTexture >> 14) & 3;
 			}
 		}
 //Restore the fuelcen info
-	gameData.reactor.bDestroyed = m_cf.ReadInt ();
-	gameData.reactor.countdown.nTimer = m_cf.ReadFix ();
-	if (ReadBoundedInt (MAX_ROBOT_CENTERS, &gameData.matCens.nBotCenters))
+	gameData.reactor.bDestroyed = CFReadInt (cfP);
+	gameData.reactor.countdown.nTimer = CFReadFix (cfP);
+	if (CFReadBoundedInt (MAX_ROBOT_CENTERS, &gameData.matCens.nBotCenters, cfP))
 		return 0;
 	for (i = 0; i < gameData.matCens.nBotCenters; i++) {
-		m_cf.Read (gameData.matCens.botGens [i].objFlags, sizeof (int), 2);
-		m_cf.Read (&gameData.matCens.botGens [i].xHitPoints, 
-						sizeof (tMatCenInfo) - (reinterpret_cast<char*> (&gameData.matCens.botGens [i].xHitPoints) - reinterpret_cast<char*> (&gameData.matCens.botGens [i])), 1);
+		CFRead (gameData.matCens.botGens [i].objFlags, sizeof (int), 2, cfP);
+		CFRead (&gameData.matCens.botGens [i].xHitPoints, sizeof (tMatCenInfo) - ((char *) &gameData.matCens.botGens [i].xHitPoints - (char *) &gameData.matCens.botGens [i]), 1, cfP);
 		}
-	m_cf.Read (&gameData.reactor.triggers, sizeof (tReactorTriggers), 1);
-	if (ReadBoundedInt (MAX_FUEL_CENTERS, &gameData.matCens.nFuelCenters))
+	CFRead (&gameData.reactor.triggers, sizeof (tReactorTriggers), 1, cfP);
+	if (CFReadBoundedInt (MAX_FUEL_CENTERS, &gameData.matCens.nFuelCenters, cfP))
 		return 0;
-	m_cf.Read (gameData.matCens.fuelCenters, sizeof (tFuelCenInfo), gameData.matCens.nFuelCenters);
+	CFRead (gameData.matCens.fuelCenters, sizeof (tFuelCenInfo), gameData.matCens.nFuelCenters, cfP);
 
 	// Restore the control cen info
-	gameData.reactor.states [0].bHit = m_cf.ReadInt ();
-	gameData.reactor.states [0].bSeenPlayer = m_cf.ReadInt ();
-	gameData.reactor.states [0].nNextFireTime = m_cf.ReadInt ();
-	gameData.reactor.bPresent = m_cf.ReadInt ();
-	gameData.reactor.states [0].nDeadObj = m_cf.ReadInt ();
+	gameData.reactor.states [0].bHit = CFReadInt (cfP);
+	gameData.reactor.states [0].bSeenPlayer = CFReadInt (cfP);
+	gameData.reactor.states [0].nNextFireTime = CFReadInt (cfP);
+	gameData.reactor.bPresent = CFReadInt (cfP);
+	gameData.reactor.states [0].nDeadObj = CFReadInt (cfP);
 	// Restore the AI state
-	LoadAIBinFormat ();
+	AIRestoreBinState (cfP, sgVersion);
 	// Restore the automap visited info
-	if (m_nVersion > 37)
-		m_cf.Read (gameData.render.mine.bAutomapVisited, sizeof (ushort), MAX_SEGMENTS);
+	if (sgVersion > 37)
+		CFRead (gameData.render.mine.bAutomapVisited, sizeof (ushort), MAX_SEGMENTS, cfP);
 	else {
-		int	i, j = (m_nVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2;
+		int	i, j = (sgVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2;
 		for (i = 0; i < j; i++)
-			gameData.render.mine.bAutomapVisited [i] = (ushort) m_cf.ReadByte ();
+			gameData.render.mine.bAutomapVisited [i] = (ushort) CFReadByte (cfP);
 		}
 	
-	m_cf.Read (gameData.render.mine.bAutomapVisited, sizeof (ubyte), (m_nVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2);
+	CFRead (gameData.render.mine.bAutomapVisited, sizeof (ubyte), (sgVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2, cfP);
 
 	//	Restore hacked up weapon system stuff.
 	gameData.fusion.xNextSoundTime = gameData.time.xGame;
@@ -2546,76 +2698,75 @@ if (!m_bBetweenLevels)	{
 }
 gameData.app.nStateGameId = 0;
 
-if (m_nVersion >= 7)	{
-	m_cf.Read (&gameData.app.nStateGameId, sizeof (uint), 1);
-	m_cf.Read (&gameStates.app.cheats.bLaserRapidFire, sizeof (int), 1);
-	m_cf.Read (&gameStates.app.bLunacy, sizeof (int), 1);		//	Yes, writing this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
-	m_cf.Read (&gameStates.app.bLunacy, sizeof (int), 1);
+if (sgVersion >= 7)	{
+	CFRead (&gameData.app.nStateGameId, sizeof (uint), 1, cfP);
+	CFRead (&gameStates.app.cheats.bLaserRapidFire, sizeof (int), 1, cfP);
+	CFRead (&gameStates.app.bLunacy, sizeof (int), 1, cfP);		//	Yes, writing this twice.  Removed the Ugly robot system, but didn't want to change savegame format.
+	CFRead (&gameStates.app.bLunacy, sizeof (int), 1, cfP);
 	if (gameStates.app.bLunacy)
 		DoLunacyOn ();
 }
 
-if (m_nVersion >= 17) {
-	m_cf.Read (gameData.marker.objects, sizeof (gameData.marker.objects), 1);
-	m_cf.Read (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1);
-	m_cf.Read (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1);
+if (sgVersion >= 17) {
+	CFRead (gameData.marker.objects, sizeof (gameData.marker.objects), 1, cfP);
+	CFRead (gameData.marker.nOwner, sizeof (gameData.marker.nOwner), 1, cfP);
+	CFRead (gameData.marker.szMessage, sizeof (gameData.marker.szMessage), 1, cfP);
 }
 else {
 	int num,dummy;
 
 	// skip dummy info
-	m_cf.Read (&num, sizeof (int), 1);       //was NumOfMarkers
-	m_cf.Read (&dummy, sizeof (int), 1);     //was CurMarker
-	m_cf.Seek (num * (sizeof (CFixVector) + 40), SEEK_CUR);
+	CFRead (&num, sizeof (int), 1, cfP);       //was NumOfMarkers
+	CFRead (&dummy, sizeof (int), 1, cfP);     //was CurMarker
+	CFSeek (cfP, num * (sizeof (vmsVector) + 40), SEEK_CUR);
 	for (num = 0; num < NUM_MARKERS; num++)
 		gameData.marker.objects [num] = -1;
 }
 
-if (m_nVersion >= 11) {
-	if (m_bSecret != 1)
-		m_cf.Read (&gameData.physics.xAfterburnerCharge, sizeof (fix), 1);
+if (sgVersion >= 11) {
+	if (bSecretRestore != 1)
+		CFRead (&gameData.physics.xAfterburnerCharge, sizeof (fix), 1, cfP);
 	else {
 		fix	dummy_fix;
-		m_cf.Read (&dummy_fix, sizeof (fix), 1);
+		CFRead (&dummy_fix, sizeof (fix), 1, cfP);
 	}
 }
-if (m_nVersion >= 12) {
+if (sgVersion >= 12) {
 	//read last was super information
-	m_cf.Read (&bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1);
-	m_cf.Read (&bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1);
-	paletteManager.SetEffectDuration ((fix) m_cf.ReadInt ());
-	paletteManager.SetLastEffectTime ((fix) m_cf.ReadInt ());
-	paletteManager.SetRedEffect ((ubyte) m_cf.ReadShort ());
-	paletteManager.SetGreenEffect ((ubyte) m_cf.ReadShort ());
-	paletteManager.SetBlueEffect ((ubyte) m_cf.ReadShort ());
+	CFRead (&bLastPrimaryWasSuper, sizeof (bLastPrimaryWasSuper), 1, cfP);
+	CFRead (&bLastSecondaryWasSuper, sizeof (bLastSecondaryWasSuper), 1, cfP);
+	CFRead (&gameData.render.xFlashEffect, sizeof (int), 1, cfP);
+	CFRead (&gameData.render.xTimeFlashLastPlayed, sizeof (int), 1, cfP);
+	CFRead (&gameStates.ogl.palAdd.red, sizeof (int), 1, cfP);
+	CFRead (&gameStates.ogl.palAdd.green, sizeof (int), 1, cfP);
+	CFRead (&gameStates.ogl.palAdd.blue, sizeof (int), 1, cfP);
 	}
 else {
-	paletteManager.ResetEffect ();
+	ResetPaletteAdd ();
 	}
 
 //	Load gameData.render.lights.subtracted
-if (m_nVersion >= 16) {
-	m_cf.Read (gameData.render.lights.subtracted.Buffer (), sizeof (gameData.render.lights.subtracted [0]), 
-				  (m_nVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2);
+if (sgVersion >= 16) {
+	CFRead (gameData.render.lights.subtracted, sizeof (gameData.render.lights.subtracted [0]), (sgVersion > 22) ? MAX_SEGMENTS : MAX_SEGMENTS_D2, cfP);
 	ApplyAllChangedLight ();
-	//ComputeAllStaticLight ();	//	set xAvgSegLight field in CSegment struct.  See note at that function.
+	//ComputeAllStaticLight ();	//	set xAvgSegLight field in tSegment struct.  See note at that function.
 	}
 else
-	gameData.render.lights.subtracted.Clear ();
+	memset (gameData.render.lights.subtracted, 0, sizeof (gameData.render.lights.subtracted));
 
-if (m_bSecret) 
+if (bSecretRestore) 
 	gameStates.app.bFirstSecretVisit = 0;
-else if (m_nVersion >= 20)
-	m_cf.Read (&gameStates.app.bFirstSecretVisit, sizeof (gameStates.app.bFirstSecretVisit), 1);
+else if (sgVersion >= 20)
+	CFRead (&gameStates.app.bFirstSecretVisit, sizeof (gameStates.app.bFirstSecretVisit), 1, cfP);
 else
 	gameStates.app.bFirstSecretVisit = 1;
 
-if (m_nVersion >= 22) {
-	if (m_bSecret != 1)
-		m_cf.Read (&gameData.omega.xCharge, sizeof (fix), 1);
+if (sgVersion >= 22) {
+	if (bSecretRestore != 1)
+		CFRead (&gameData.omega.xCharge, sizeof (fix), 1, cfP);
 	else {
 		fix	dummy_fix;
-		m_cf.Read (&dummy_fix, sizeof (fix), 1);
+		CFRead (&dummy_fix, sizeof (fix), 1, cfP);
 		}
 	}
 *nLevel = nCurrentLevel;
@@ -2624,46 +2775,42 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int CSaveGameHandler::LoadState (int bMulti, int bSecret, char *filename)
+int StateRestoreAllSub (const char *filename, int bMulti, int bSecretRestore)
 {
-	char		szDescription [DESC_LENGTH + 1];
-	char		nId [5];
-	int		nLevel, i;
+	CFILE		cf;
+	char		szDesc [DESC_LENGTH + 1];
+	char		id [5];
+	int		nLevel, sgVersion, i;
 	fix		xOldGameTime = gameData.time.xGame;
 
+if (!CFOpen (&cf, filename, gameFolders.szSaveDir, "rb", 0))
+	return 0;
 StopTime ();
-if (filename)
-	strcpy (m_filename, filename);
-if (!m_cf.Open (m_filename, gameFolders.szSaveDir, "rb", 0)) {
+//Read id
+CFRead (id, sizeof (char)*4, 1, &cf);
+if (memcmp (id, dgss_id, 4)) {
+	CFClose (&cf);
 	StartTime (1);
 	return 0;
 	}
-m_bSecret = bSecret;
-//Read nId
-m_cf.Read (nId, sizeof (char)*4, 1);
-if (memcmp (nId, dgss_id, 4)) {
-	m_cf.Close ();
-	StartTime (1);
-	return 0;
-	}
-//Read m_nVersion
-m_cf.Read (&m_nVersion, sizeof (int), 1);
-if (m_nVersion < STATE_COMPATIBLE_VERSION)	{
-	m_cf.Close ();
+//Read sgVersion
+CFRead (&sgVersion, sizeof (int), 1, &cf);
+if (sgVersion < STATE_COMPATIBLE_VERSION)	{
+	CFClose (&cf);
 	StartTime (1);
 	return 0;
 	}
 // Read description
-m_cf.Read (szDescription, sizeof (char) * DESC_LENGTH, 1);
+CFRead (szDesc, sizeof (char) * DESC_LENGTH, 1, &cf);
 // Skip the current screen shot...
-m_cf.Seek ((m_nVersion < 26) ? THUMBNAIL_W * THUMBNAIL_H : THUMBNAIL_LW * THUMBNAIL_LH, SEEK_CUR);
-// skip the palette
-m_cf.Seek (768, SEEK_CUR);
-if (m_nVersion < 27)
-	i = LoadBinFormat (bMulti, xOldGameTime, &nLevel);
+CFSeek (&cf, (sgVersion < 26) ? THUMBNAIL_W * THUMBNAIL_H : THUMBNAIL_LW * THUMBNAIL_LH, SEEK_CUR);
+// And now...skip the goddamn palette stuff that somebody forgot to add
+CFSeek (&cf, 768, SEEK_CUR);
+if (sgVersion < 27)
+	i = StateRestoreBinGameData (&cf, sgVersion, bMulti, bSecretRestore, xOldGameTime, &nLevel);
 else
-	i = LoadUniFormat (bMulti, xOldGameTime, &nLevel);
-m_cf.Close ();
+	i = StateRestoreUniGameData (&cf, sgVersion, bMulti, bSecretRestore, xOldGameTime, &nLevel);
+CFClose (&cf);
 if (!i) {
 	StartTime (1);
 	return 0;
@@ -2696,30 +2843,75 @@ return 1;
 }
 
 //------------------------------------------------------------------------------
-
-int CSaveGameHandler::GetGameId (char *filename)
+//	When loading a saved game, segp->xAvgSegLight is bogus.
+//	This is because ApplyAllChangedLight, which is supposed to properly update this value,
+//	cannot do so because it needs the original light cast from a light which is no longer there.
+//	That is, a light has been blown out, so the texture remaining casts 0 light, but the static light
+//	which is present in the xAvgSegLight field contains the light cast from that light.
+void ComputeAllStaticLight (void)
 {
-	int	nId;
+	int		h, i, j, k;
+	tSegment	*segP;
+	tSide		*sideP;
+	fix		total_light;
 
-if (!m_cf.Open (filename, gameFolders.szSaveDir, "rb", 0))
+	for (i=0, segP = gameData.segs.segments; i<=gameData.segs.nLastSegment; i++, segP++) {
+		total_light = 0;
+		for (h = j = 0, sideP = segP->sides; j < MAX_SIDES_PER_SEGMENT; j++, sideP++) {
+			if ((segP->children [j] < 0) || IS_WALL (sideP->nWall)) {
+				h++;
+				for (k = 0; k < 4; k++)
+					total_light += sideP->uvls [k].l;
+			}
+		}
+		gameData.segs.segment2s [i].xAvgSegLight = h ? total_light / (h * 4) : 0;
+	}
+}
+
+//------------------------------------------------------------------------------
+
+int StateGetGameId (char *filename)
+{
+	int sgVersion;
+	CFILE cf;
+	int bBetweenLevels;
+	char mission [16];
+	char szDesc [DESC_LENGTH+1];
+	char id [5];
+	int dumbint;
+
+if (!CFOpen (&cf, filename, gameFolders.szSaveDir, "rb", 0))
 	return 0;
-//Read nId
-m_cf.Read (&nId, sizeof (char) * 4, 1);
-if (memcmp (&nId, dgss_id, 4)) {
-	m_cf.Close ();
+//Read id
+CFRead (id, sizeof (char)*4, 1, &cf);
+if (memcmp (id, dgss_id, 4)) {
+	CFClose (&cf);
 	return 0;
 	}
-//Read m_nVersion
-m_nVersion = m_cf.ReadInt ();
-if (m_nVersion < STATE_COMPATIBLE_VERSION) {
-	m_cf.Close ();
-	return 0;
-	}
-// skip the description, current image, palette, mission name, between levels flag and mission info
-m_cf.Seek (DESC_LENGTH + ImageSize () + 768 + 9 * sizeof (char) + 5 * sizeof (int), SEEK_CUR);
-m_nGameId = m_cf.ReadInt ();
-m_cf.Close ();
-return m_nGameId;
+//Read sgVersion
+CFRead (&sgVersion, sizeof (int), 1, &cf);
+if (sgVersion < STATE_COMPATIBLE_VERSION)	{
+CFClose (&cf);
+return 0;
+}
+// Read description
+CFRead (szDesc, sizeof (char)*DESC_LENGTH, 1, &cf);
+// Skip the current screen shot...
+CFSeek (&cf, (sgVersion < 26) ? THUMBNAIL_W * THUMBNAIL_H : THUMBNAIL_LW * THUMBNAIL_LH, SEEK_CUR);
+// And now...skip the palette stuff that somebody forgot to add
+CFSeek (&cf, 768, SEEK_CUR);
+// Read the Between levels flag...
+CFRead (&bBetweenLevels, sizeof (int), 1, &cf);
+Assert (bBetweenLevels == 0);	//between levels save ripped out
+// Read the mission info...
+CFRead (mission, sizeof (char), 9, &cf);
+//Read level info
+CFRead (&dumbint, sizeof (int), 1, &cf);
+CFRead (&dumbint, sizeof (int), 1, &cf);
+//Restore gameData.time.xGame
+CFRead (&dumbint, sizeof (fix), 1, &cf);
+CFRead (&gameData.app.nStateGameId, sizeof (int), 1, &cf);
+return (gameData.app.nStateGameId);
 }
 
 //------------------------------------------------------------------------------

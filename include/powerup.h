@@ -113,13 +113,13 @@ extern tPowerupTypeInfo powerupInfo[MAX_POWERUP_TYPES];
 
 void InitPowerupTables (void);
 
-void DrawPowerup(CObject *objP);
+void DrawPowerup(tObject *objP);
 
 //returns true if powerup consumed
-int DoPowerup(CObject *objP, int nPlayer);
+int DoPowerup(tObject *objP, int nPlayer);
 
 //process (animate) a powerup for one frame
-void DoPowerupFrame(CObject *objP);
+void DoPowerupFrame(tObject *objP);
 void UpdatePowerupClip (tVideoClip *vcP, tVClipInfo *vciP, int nObject);
 void UpdateFlagClips (void);
 
@@ -130,11 +130,14 @@ void DoMegaWowPowerup(int quantity);
 
 void _CDECL_ PowerupBasic(int redadd, int greenadd, int blueadd, int score, const char *format, ...);
 
+#if 0
+#define PowerupTypeInfoReadN(pti, n, fp) CFRead(pti, sizeof(tPowerupTypeInfo), n, fp)
+#else
 /*
  * reads n tPowerupTypeInfo structs from a CFILE
  */
-int ReadPowerupTypeInfos (tPowerupTypeInfo *pti, int n, CFile& cf);
-
+extern int PowerupTypeInfoReadN(tPowerupTypeInfo *pti, int n, CFILE *fp);
+#endif
 int ApplyCloak (int bForce, int nPlayer);
 int ApplyInvul (int bForce, int nPlayer);
 
@@ -148,8 +151,8 @@ short PowerupsOnShips (int nPowerup);
 void SpawnLeftoverPowerups (short nObject);
 void CheckInventory (void);
 
-int PickupEnergyBoost (CObject *objP, int nPlayer);
-int PickupEquipment (CObject *objP, int nEquipment, const char *pszHave, const char *pszGot, int nPlayer);
+int PickupEnergyBoost (tObject *objP, int nPlayer);
+int PickupEquipment (tObject *objP, int nEquipment, const char *pszHave, const char *pszGot, int nPlayer);
 
 #define	PowerupsInMine(_nPowerup) \
 			((gameStates.multi.nGameType == UDP_GAME) ? \

@@ -155,6 +155,20 @@ return 0;
 
 //------------------------------------------------------------------------------
 
+#if DBG
+void DumpSegments (void)
+{
+	FILE * fp;
+
+fp = fopen ("TEST.DMP", "wb");
+fwrite (gameData.segs.segments, sizeof (tSegment)* (gameData.segs.nLastSegment+1), 1, fp);    
+fclose (fp);
+con_printf (CONDBG, "SS=%d\n", sizeof (tSegment));
+}
+#endif
+
+//------------------------------------------------------------------------------
+
 int NetworkStartGame (void)
 {
 	int i, bAutoRun;
@@ -194,7 +208,7 @@ networkData.nStatus = NETSTAT_STARTING;
 IpxInitNetGameAuxData (netGame.AuxData);
 NetworkSetGameMode (netGame.gameMode);
 d_srand (TimerGetFixedSeconds ());
-netGame.nSecurity = d_rand ();  // For syncing Netgames with CPlayerData packets
+netGame.nSecurity = d_rand ();  // For syncing Netgames with tPlayer packets
 if (NetworkSelectPlayers (bAutoRun)) {
 	StartNewLevel (netGame.nLevel, 0);
 	ResetAllPlayerTimeouts ();
@@ -273,7 +287,7 @@ while (IpxGetPacketData (packet) > 0)
 
 void NetworkTimeoutPlayer (int nPlayer)
 {
-	// Remove a CPlayerData from the game if we haven't heard from them in 
+	// Remove a tPlayer from the game if we haven't heard from them in 
 	// a long time.
 	int i, n = 0;
 
@@ -371,7 +385,7 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 	if (nakedData.nLength) {
 		Assert (nakedData.nDestPlayer >- 1);
 		if (gameStates.multi.nGameType >= IPX_GAME) 
-			IPXSendPacketData (reinterpret_cast<ubyte*> (nakedData.buf), nakedData.nLength, 
+			IPXSendPacketData ((ubyte *) nakedData.buf, nakedData.nLength, 
 									netPlayers.players [nakedData.nDestPlayer].network.ipx.server, 
 									netPlayers.players [nakedData.nDestPlayer].network.ipx.node, 
 									gameData.multiplayer.players [nakedData.nDestPlayer].netAddress);
@@ -410,12 +424,12 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 				shortSyncPack.nPackets = networkData.syncPack.nPackets;
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (&shortSyncPack), 
+					(ubyte*)&shortSyncPack, 
 					sizeof (tFrameInfoShort) - networkData.nMaxXDataSize + networkData.syncPack.dataSize);
 #else
 				SquishShortFrameInfo (shortSyncPack, send_data);
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (send_data), 
+					(ubyte*)send_data, 
 					IPX_SHORT_INFO_SIZE-networkData.nMaxXDataSize+networkData.syncPack.dataSize);
 #endif
 				}
@@ -444,7 +458,7 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 #endif
 				networkData.syncPack.nPackets = INTEL_INT (gameData.multiplayer.players [0].nPacketsSent++);
 				IpxSendGamePacket (
-					reinterpret_cast<ubyte*> (&networkData.syncPack), 
+					(ubyte*)&networkData.syncPack, 
 					sizeof (tFrameInfo) - networkData.nMaxXDataSize + send_dataSize);
 				}
 			networkData.syncPack.dataSize = 0;               // Start data over at 0 length.
@@ -465,7 +479,7 @@ if ((networkData.nStatus == NETSTAT_PLAYING) && !gameStates.app.bEndLevelSequenc
 
 	if ((networkData.xLastTimeoutCheck > F1_0) && !gameData.reactor.bDestroyed) {
 		fix t = (fix) SDL_GetTicks ();
-	// Check for CPlayerData timeouts
+	// Check for tPlayer timeouts
 		for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
 			if ((i != gameData.multiplayer.nLocalPlayer) && 
 				((gameData.multiplayer.players [i].connected == 1) || bDownloading [i])) {
@@ -524,7 +538,7 @@ mybuf [0]=flag;
 mybuf [1]=gameData.multiplayer.nLocalPlayer;
 if (gameStates.multi.nGameType >= IPX_GAME)
 	IPXSendPacketData (
-			reinterpret_cast<ubyte*> (mybuf), 2, 
+			(ubyte *)mybuf, 2, 
 		netPlayers.players [nPlayer].network.ipx.server, 
 		netPlayers.players [nPlayer].network.ipx.node, 
 		gameData.multiplayer.players [nPlayer].netAddress);
@@ -563,7 +577,7 @@ void OpenSendLog (void)
  {
   int i;
 
-SendLogFile = reinterpret_cast<FILE*> (fopen ("sendlog.net", "w"));
+SendLogFile= (FILE *)fopen ("sendlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTSent [i] = 0;
  }
@@ -574,7 +588,7 @@ void OpenReceiveLog (void)
  {
 int i;
 
-ReceiveLogFile= reinterpret_cast<FILE*> (fopen ("recvlog.net", "w"));
+ReceiveLogFile= (FILE *)fopen ("recvlog.net", "w");
 for (i = 0; i < 100; i++)
 	TTRecv [i] = 0;
  }

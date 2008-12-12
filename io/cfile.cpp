@@ -22,7 +22,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #	include <sys/stat.h>
 #else
 #	include <sys/stat.h>
-#	include <errno.h>
 #endif
 
 #include "inferno.h"
@@ -32,17 +31,16 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "d_io.h"
 #include "error.h"
 #include "cfile.h"
-#include "hogfile.h"
 #include "byteswap.h"
 #include "mission.h"
 #include "console.h"
 #include "findfile.h"
-#include "text.h"
 
 #define SORT_HOGFILES 1
 
 int nCFileError = 0;
 
+tGameHogFiles gameHogFiles;
 tGameFolders gameFolders;
 
 // ----------------------------------------------------------------------------
@@ -72,92 +70,49 @@ return i;
 
 // ----------------------------------------------------------------------------
 
-void SplitPath (const char *szFullPath, char *szFolder, char *szFile, char *szExt)
+void CFUseAltHogDir (char * path) 
 {
-	int	h = 0, i, j, l = (int) strlen (szFullPath) - 1;
-
-i = l;
-#ifdef _WIN32
-while ((i >= 0) && (szFullPath [i] != '/') && (szFullPath [i] != '\\') && (szFullPath [i] != ':'))
-#else
-while ((i >= 0) && (szFullPath [i] != '/'))
-#endif
-	i--;
-i++;
-j = l - 1;
-while ((j > i) && (szFullPath [j] != '.'))
-	j--;
-if (szFolder) {
-	if (i > 0)
-		strncpy (szFolder, szFullPath, i);
-	szFolder [i] = '\0';
-	}
-if (szFile) {
-	if (!j || (j > i))
-		strncpy (szFile, szFullPath + i, h = (j ? j : l + 1) - i);
-	szFile [h] = '\0';
-	}
-if (szExt) {
-	if (j && (j < l))
-		strncpy (szExt, szFullPath + j, l - j);
-	szExt [l - j] = '\0';
-	}
+gameFolders.bAltHogDirInited = 
+	 (strcmp (path, gameFolders.szDataDir) != 0) && (GetAppFolder ("", gameFolders.szAltHogDir, path, "descent2.hog") == 0);
 }
 
-//------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+//in case no one installs one
+int defaultErrorCounter = 0;
 
-void CFile::ChangeFilenameExtension (char *dest, const char *src, const char *newExt)
+//ptr to counter of how many critical errors
+int *criticalErrorCounterPtr = &defaultErrorCounter;
+
+// ----------------------------------------------------------------------------
+//tell cfP about your critical error counter
+void CFSetCriticalErrorCounterPtr (int *ptr)
 {
-	int i;
-
-strcpy (dest, src);
-if (newExt [0] == '.')
-	newExt++;
-for (i = 1; i < (int) strlen (dest); i++)
-	if ((dest [i] == '.') || (dest [i] == ' ') || (dest [i] == 0))
-		break;
-if (i < FILENAME_LEN - 5) {
-	dest [i] = '.';
-	dest [i+1] = newExt [0];
-	dest [i+2] = newExt [1];
-	dest [i+3] = newExt [2];
-	dest [i+4] = 0;
-	}
-}
-
-//------------------------------------------------------------------------------
-
-char *GameDataFilename (char *pszFilename, const char *pszExt, int nLevel, int nType)
-{
-	char	szFilename [FILENAME_LEN];
-
-SplitPath (*hogFileManager.AltFiles ().szName ? hogFileManager.AltFiles ().szName : 
-			  gameStates.app.bD1Mission ? hogFileManager.D1Files ().szName : hogFileManager.D2Files ().szName, 
-			  NULL, szFilename, NULL);
-if (nType < 0) {
-	if (nLevel < 0)
-		sprintf (pszFilename, "%s-s%d.%s", szFilename, -nLevel, pszExt);
-	else
-		sprintf (pszFilename, "%s-%d.%s", szFilename, nLevel, pszExt);
-	}
-else {
-	if (nLevel < 0)
-		sprintf (pszFilename, "%s-s%d.%s%d", szFilename, -nLevel, pszExt, nType);
-	else
-		sprintf (pszFilename, "%s-%d.%s%d", szFilename, nLevel, pszExt, nType);
-	}
-return pszFilename;
+criticalErrorCounterPtr = ptr;
 }
 
 // ----------------------------------------------------------------------------
 
-FILE *CFile::GetFileHandle (const char *filename, const char *folder, const char *mode) 
+inline void CFCriticalError (int error)
+{
+if (*criticalErrorCounterPtr) {
+	if (error)
+		*criticalErrorCounterPtr += error;
+	else
+		*criticalErrorCounterPtr = 0;
+	}
+}
+
+// ----------------------------------------------------------------------------
+
+FILE *CFGetFileHandle (const char *filename, const char *folder, const char *mode) 
 {
 	FILE	*fp;
 	char	fn [FILENAME_LEN];
 	const char *pfn;
 
+CFCriticalError (0);
 if (!*filename || (strlen (filename) + strlen (folder) >= FILENAME_LEN)) {
+	CFCriticalError (1);
 	return NULL;
 	}
 if ((*filename != '/') && (strstr (filename, "./") != filename) && *folder) {
@@ -168,87 +123,355 @@ if ((*filename != '/') && (strstr (filename, "./") != filename) && *folder) {
  	pfn = filename;
  
 fp = fopen (pfn, mode);
-if (!fp && gameFolders.bAltHogDirInited && strcmp (folder, gameFolders.szAltHogDir)) {
-   sprintf (fn, "%s/%s", gameFolders.szAltHogDir);
+ if (!fp && gameFolders.bAltHogDirInited && strcmp (folder, gameFolders.szAltHogDir)) {
+   sprintf (fn, "%s/%s", gameFolders.szAltHogDir, filename);
    pfn = fn;
    fp = fopen (pfn, mode);
 	}
 //if (!fp) PrintLog ("CFGetFileHandle (): error opening %s\n", pfn);
+CFCriticalError (fp == NULL);
 return fp;
 }
 
 // ----------------------------------------------------------------------------
-
-int CFile::Size (const char *hogname, const char *folder, int bUseD1Hog)
+//returns 1 if file loaded with no errors
+int CFInitHogFile (const char *pszFile, const char *folder, tHogFile *hogFiles, int *nFiles) 
 {
+	char	id [4];
+	FILE	*fp;
+	int	i, len;
+	char	fn [FILENAME_LEN];
+	const char  *psz;
+
+CFCriticalError (0);
+if (*folder) {
+	sprintf (fn, "%s/%s", folder, pszFile);
+	pszFile = fn;
+	}
+*nFiles = 0;
+if (! (fp = CFGetFileHandle (pszFile, "", "rb")))
+	return 0;
+if ((psz = strstr (pszFile, ".rdl")) || (psz = strstr (pszFile, ".rl2"))) {
+	while ((psz >= pszFile) && (*psz != '\\') && (*psz != '/') && (*psz != ':'))
+		psz--;
+	*nFiles = 1;
+	strncpy (hogFiles [0].name, psz + 1, 13);
+	hogFiles [0].offset = 0;
+	hogFiles [0].length = -1;
+	return 1;
+	}
+
+fread (id, 3, 1, fp);
+if (strncmp (id, "DHF", 3)) {
+	fclose (fp);
+	return 0;
+	}
+
+for (;;) {
+	if (*nFiles >= MAX_HOGFILES) {
+		fclose (fp);
+		Error ("HOGFILE is limited to %d files.\n",  MAX_HOGFILES);
+		}
+	i = (int) fread (hogFiles [*nFiles].name, 13, 1, fp);
+	if (i != 1)	{		//eof here is ok
+		fclose (fp);
+		return 1;
+		}
+	hogFiles [*nFiles].name [12] = '\0';
+	i = (int) fread (&len, 4, 1, fp);
+	if (i != 1)	{
+		fclose (fp);
+		return 0;
+		}
+	len = INTEL_INT (len);
+	hogFiles [*nFiles].length = len;
+	hogFiles [*nFiles].offset = ftell (fp);
+	 (*nFiles)++;
+	// Skip over
+	i = fseek (fp, len, SEEK_CUR);
+	}
+}
+
+// ----------------------------------------------------------------------------
+
+#if SORT_HOGFILES
+
+void QSortHogFiles (tHogFile *hogFiles, int left, int right)
+{
+	int		l = left,
+				r = right;
+	tHogFile	m = hogFiles [(l + r) / 2];
+
+do {
+	while (stricmp (hogFiles [l].name, m.name) < 0)
+		l++;
+	while (stricmp (hogFiles [r].name, m.name) > 0)
+		r--;
+	if (l <= r) {
+		if (l < r) {
+			tHogFile	h = hogFiles [l];
+			hogFiles [l] = hogFiles [r];
+			hogFiles [r] = h;
+			}
+		l++;
+		r--;
+		}
+	} while (l <= r);
+if (l < right)
+	QSortHogFiles (hogFiles, l, right);
+if (r > left)
+	QSortHogFiles (hogFiles, left, r);
+}
+
+#endif
+
+// ----------------------------------------------------------------------------
+
+int CFUseHogFile (tHogFileList *hogP, const char *name, const char *folder)
+{
+if (hogP->bInitialized)
+	return 1;
+if (name) {
+	strcpy (hogP->szName, name);
+	hogP->bInitialized = *name && CFInitHogFile (hogP->szName, folder, hogP->files, &hogP->nFiles);
+	if (*(hogP->szName))
+		PrintLog ("   found hogP file '%s'\n", hogP->szName);
+	if (hogP->bInitialized && (hogP->nFiles > 0)) {
+#if SORT_HOGFILES
+		QSortHogFiles (hogP->files, 0, hogP->nFiles - 1);
+#endif
+		return 1;
+		}
+	} 
+return 0;
+}
+
+// ----------------------------------------------------------------------------
+
+int CFUseAltHogFile (const char * name) 
+{
+gameHogFiles.AltHogFiles.bInitialized = 0;
+return CFUseHogFile (&gameHogFiles.AltHogFiles, name, "");
+}
+
+// ----------------------------------------------------------------------------
+
+int CFUseD2XHogFile (const char * name) 
+{
+return CFUseHogFile (&gameHogFiles.D2XHogFiles, name, gameFolders.szMissionDir);
+}
+
+// ----------------------------------------------------------------------------
+
+int CFUseXLHogFile (const char * name) 
+{
+return CFUseHogFile (&gameHogFiles.XLHogFiles, name, gameFolders.szDataDir);
+}
+
+// ----------------------------------------------------------------------------
+
+int CFUseExtraHogFile (const char * name) 
+{
+return gameStates.app.bHaveExtraData = 
+	!gameStates.app.bNostalgia &&
+	CFUseHogFile (&gameHogFiles.ExtraHogFiles, name, gameFolders.szDataDir);
+}
+
+// ----------------------------------------------------------------------------
+
+int CFUseD1HogFile (const char * name) 
+{
+return CFUseHogFile (&gameHogFiles.D1HogFiles, name, gameFolders.szDataDir);
+}
+
+// ----------------------------------------------------------------------------
+//Specify the name of the tHogFile.  Returns 1 if tHogFile found & had files
+int CFileInit (const char *pszHogName, const char *pszFolder)
+{
+if (!*pszHogName) {
+	memset (&gameHogFiles, 0, sizeof (gameHogFiles));
+	memset (&gameFolders, 0, sizeof (gameFolders));
+	return 1;
+	}
+Assert (gameHogFiles.D2HogFiles.bInitialized == 0);
+if (CFInitHogFile (pszHogName, pszFolder, gameHogFiles.D2HogFiles.files, &gameHogFiles.D2HogFiles.nFiles)) {
+	strcpy (gameHogFiles.D2HogFiles.szName, pszHogName);
+	gameHogFiles.D2HogFiles.bInitialized = 1;
+#if SORT_HOGFILES
+	QSortHogFiles (gameHogFiles.D2HogFiles.files, 0, gameHogFiles.D2HogFiles.nFiles - 1);
+#endif
+	CFUseD2XHogFile ("d2x.hog");
+	CFUseXLHogFile ("d2x-xl.hog");
+	CFUseExtraHogFile ("extra.hog");
+	CFUseD1HogFile ("descent.hog");
+	return 1;
+	}
+return 0;	//not loaded!
+}
+
+// ----------------------------------------------------------------------------
+
+int CFSize (const char *hogname, const char *folder, int bUseD1Hog)
+{
+	CFILE cf;
+//	char fn [FILENAME_LEN];
 #if ! (defined (_WIN32_WCE) || defined (_WIN32))
 	struct stat statbuf;
 
 //	sprintf (fn, "%s/%s", folder, hogname);
-if (!Open (hogname, gameFolders.szDataDir, "rb", bUseD1Hog))
+if (!CFOpen (&cf, hogname, gameFolders.szDataDir, "rb", bUseD1Hog))
 	return -1;
 #ifdef _WIN32
-fstat (_fileno (m_cf.file), &statbuf);
+fstat (_fileno (cf.file), &statbuf);
 #else
-fstat (fileno (m_cf.file), &statbuf);
+fstat (fileno (cf.file), &statbuf);
 #endif
-Close ();
+CFClose (&cf);
 return statbuf.st_size;
 #else
 	DWORD size;
 
 //sprintf (fn, "%s%s%s", folder, *folder ? "/" : "", hogname);
-if (!Open (hogname, gameFolders.szDataDir, "rb", bUseD1Hog))
+if (!CFOpen (&cf, hogname, gameFolders.szDataDir, "rb", bUseD1Hog))
 	return -1;
-size = m_cf.size;
-Close ();
+size = cf.size;
+CFClose (&cf);
 return size;
 #endif
 }
 
 // ----------------------------------------------------------------------------
-// CFile::EoF () Tests for end-of-file on a stream
+
+#if SORT_HOGFILES
+
+tHogFile *BFindHogFile (tHogFile *hogFiles, int nFiles, const char *pszFile)
+{
+	int	i, m,
+			l = 0,
+			r = nFiles - 1;
+
+do {
+	m = (l + r) / 2;
+	i = stricmp (hogFiles [m].name, pszFile);
+	if (i < 0)
+		l = m + 1;
+	else if (i > 0)
+		r = m - 1;
+	else
+		return hogFiles + m;
+	} while (l <= r);
+return NULL;
+}
+
+#endif
+
+// ----------------------------------------------------------------------------
+/*
+ * return handle for file called "name", embedded in one of the hogfiles
+ */
+
+FILE *CFFindHogFile (tHogFileList *hogP, const char *folder, const char *name, int *length)
+{
+	FILE		*fp;
+	int		i;
+	tHogFile	*phf;
+	char		*hogFilename = hogP->szName;
+  
+if (! (hogP->bInitialized && *hogFilename))
+	return NULL;
+if (*folder) {
+	char fn [FILENAME_LEN];
+
+	sprintf (fn, "%s/%s", folder, hogP->szName);
+	hogFilename = fn;
+	}
+#if SORT_HOGFILES
+if ((phf = BFindHogFile (hogP->files, hogP->nFiles, name))) {
+#else
+for (i = hogP->nFiles, phf = hogP->files; i; i--, phf++) {
+	if (stricmp (phf->name, name))
+		continue;
+#endif
+	if (!(fp = CFGetFileHandle (hogFilename, "", "rb")))
+		return NULL;
+	fseek (fp, phf->offset, SEEK_SET);
+	if (length)
+		*length = phf->length;
+	return fp;
+	}
+//PrintLog ("CFFindHogFile (): '%s:%s' not found\n", hogFilename, name);
+return NULL;
+}
+
+// ----------------------------------------------------------------------------
+
+FILE* CFFindLibFile (const char *name, int *length, int bUseD1Hog)
+{
+	FILE* fp;
+  
+if ((fp = CFFindHogFile (&gameHogFiles.AltHogFiles, "", name, length)))
+	return fp;
+if ((fp = CFFindHogFile (&gameHogFiles.XLHogFiles, gameFolders.szDataDir, name, length)))
+	return fp;
+if ((fp = CFFindHogFile (&gameHogFiles.ExtraHogFiles, gameFolders.szDataDir, name, length)))
+	return fp;
+if (bUseD1Hog) {
+	if ((fp = CFFindHogFile (&gameHogFiles.D1HogFiles, gameFolders.szDataDir, name, length)))
+		return fp;
+	}
+else {
+	if ((fp = CFFindHogFile (&gameHogFiles.D2XHogFiles, gameFolders.szMissionDir, name, length)))
+		return fp;
+	if ((fp = CFFindHogFile (&gameHogFiles.D2HogFiles, gameFolders.szDataDir, name, length)))
+		return fp;
+	}
+//PrintLog ("File '%s' not found\n", name);
+return NULL;
+}
+
+// ----------------------------------------------------------------------------
+// CFEoF () Tests for end-of-file on a stream
 //
 // returns a nonzero value after the first read operation that attempts to read
 // past the end of the file. It returns 0 if the current position is not end of file.
 // There is no error return.
 
-int CFile::EoF (void)
+int CFEoF (CFILE *cfP)
 {
 #if DBG
-if (!m_cf.file)
+if (! (cfP && cfP->file))
 	return 1;
 #endif
-return (m_cf.rawPosition >= m_cf.size);
+return (cfP->raw_position >= cfP->size);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::Error (void)
+int CFError (CFILE *cfP)
 {
-return ferror (m_cf.file);
+return ferror (cfP->file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::Exist (const char *filename, const char *folder, int bUseD1Hog) 
+int CFExist (const char *filename, const char *folder, int bUseD1Hog) 
 {
 	int	length, bNoHOG = 0;
 	FILE	*fp;
-	char	*pfn = const_cast<char*> (filename);
+	char	*pfn = (char *) filename;
 
 if (*pfn == '\x01') 
 	pfn++;
 else {
 	bNoHOG = (*pfn == '\x02');
-	if ((fp = GetFileHandle (pfn + bNoHOG, folder, "rb"))) { // Check for non-hogP file first...
+	if ((fp = CFGetFileHandle (pfn + bNoHOG, folder, "rb"))) { // Check for non-hogP file first...
 		fclose (fp);
 		return 1;
 		}
 	if (bNoHOG)
 		return 0;
 	}
-if ((fp = hogFileManager.Find (pfn, &length, bUseD1Hog))) {
+if ((fp = CFFindLibFile (pfn, &length, bUseD1Hog))) {
 	fclose (fp);
 	return 2;		// file found in hogP
 	}
@@ -257,7 +480,7 @@ return 0;		// Couldn't find it.
 
 // ----------------------------------------------------------------------------
 // Deletes a file.
-int CFile::Delete (const char *filename, const char* folder)
+int CFDelete (const char *filename, const char* folder)
 {
 	char	fn [FILENAME_LEN];
 
@@ -271,7 +494,7 @@ sprintf (fn, "%s%s%s", folder, *folder ? "/" : "", filename);
 
 // ----------------------------------------------------------------------------
 // Rename a file.
-int CFile::Rename (const char *oldname, const char *newname, const char *folder)
+int CFRename (const char *oldname, const char *newname, const char *folder)
 {
 	char	fno [FILENAME_LEN], fnn [FILENAME_LEN];
 
@@ -286,7 +509,7 @@ sprintf (fnn, "%s%s%s", folder, *folder ? "/" : "", newname);
 
 // ----------------------------------------------------------------------------
 // Make a directory.
-int CFile::MkDir (const char *pathname)
+int CFMkDir (const char *pathname)
 {
 #if defined (_WIN32_WCE) || defined (_WIN32)
 return !CreateDirectory (pathname, NULL);
@@ -297,22 +520,22 @@ return mkdir (pathname, 0755);
 
 // ----------------------------------------------------------------------------
 
-int CFile::Open (const char *filename, const char *folder, const char *mode, int bUseD1Hog) 
+int CFOpen (CFILE *cfP, const char *filename, const char *folder, const char *mode, int bUseD1Hog) 
 {
 	int	length = -1;
 	FILE	*fp = NULL;
 	const char	*pszHogExt, *pszFileExt;
 
-m_cf.file = NULL;
-if (!(filename && *filename))
+cfP->file = NULL;
+if (! (filename && *filename))
 	return 0;
 if ((*filename != '\x01') /*&& !bUseD1Hog*/) {
-	fp = GetFileHandle (filename, folder, mode);		// Check for non-hogP file first...
+	fp = CFGetFileHandle (filename, folder, mode);		// Check for non-hogP file first...
 	if (!fp && 
 		 ((pszFileExt = strstr (filename, ".rdl")) || (pszFileExt = strstr (filename, ".rl2"))) &&
-		 (pszHogExt = strchr (hogFileManager.AltHogFile (), '.')) &&
+		 (pszHogExt = strchr (gameHogFiles.szAltHogFile, '.')) &&
 		 !stricmp (pszFileExt, pszHogExt))
-		fp = GetFileHandle (hogFileManager.AltHogFile (), folder, mode);		// Check for non-hogP file first...
+		fp = CFGetFileHandle (gameHogFiles.szAltHogFile, folder, mode);		// Check for non-hogP file first...
 	}
 else {
 	fp = NULL;		//don't look in dir, only in tHogFile
@@ -320,102 +543,107 @@ else {
 	}
 
 if (!fp) {
-	if ((fp = hogFileManager.Find (filename, &length, bUseD1Hog)))
+	if ((fp = CFFindLibFile (filename, &length, bUseD1Hog)))
 		if (stricmp (mode, "rb")) {
-			::Error ("Cannot read hogP file\n (wrong file io mode).\n");
+			Error ("Cannot read hogP file\n (wrong file io mode).\n");
 			return 0;
 			}
 	}
 if (!fp) 
 	return 0;
-m_cf.file = fp;
-m_cf.rawPosition = 0;
-m_cf.size = (length < 0) ? ffilelength (fp) : length;
-m_cf.libOffset = (length < 0) ? 0 : ftell (fp);
-m_cf.filename = const_cast<char*> (filename);
+cfP->file = fp;
+cfP->raw_position = 0;
+cfP->size = (length < 0) ? ffilelength (fp) : length;
+cfP->lib_offset = (length < 0) ? 0 : ftell (fp);
+cfP->filename = (char *) filename;
 return 1;
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::Init (void) 
+int CFLength (CFILE *cfP, int bUseD1Hog) 
 {
-memset (&m_cf, 0, sizeof (m_cf)); 
-m_cf.rawPosition = -1; 
+return cfP ? cfP->size : 0;
 }
 
 // ----------------------------------------------------------------------------
-
-int CFile::Length (void) 
-{
-return m_cf.size;
-}
-
-// ----------------------------------------------------------------------------
-// Write () writes to the file
+// CFWrite () writes to the file
 //
 // returns:   number of full elements actually written
 //
 //
-int CFile::Write (const void *buf, int nElemSize, int nElemCount)
+int CFWrite (const void *buf, int nElemSize, int nElemCount, CFILE *cfP)
 {
 	int nWritten;
 
-if (!m_cf.file) {
+if (!cfP) {
+	CFCriticalError (1);
 	return 0;
 	}
-nWritten = (int) fwrite (buf, nElemSize, nElemCount, m_cf.file);
-m_cf.rawPosition = ftell (m_cf.file);
+Assert (cfP != NULL);
+Assert (buf != NULL);
+Assert (nElemSize > 0);
+Assert (cfP->file != NULL);
+Assert (cfP->lib_offset == 0);
+nWritten = (int) fwrite (buf, nElemSize, nElemCount, cfP->file);
+cfP->raw_position = ftell (cfP->file);
+CFCriticalError (nWritten != nElemCount);
 return nWritten;
 }
 
 // ----------------------------------------------------------------------------
-// CFile::PutC () writes a character to a file
+// CFPutC () writes a character to a file
 //
 // returns:   success ==> returns character written
 //            error   ==> EOF
 //
-int CFile::PutC (int c)
+int CFPutC (int c, CFILE *cfP)
 {
 	int char_written;
 
-char_written = fputc (c, m_cf.file);
-m_cf.rawPosition = ftell (m_cf.file);
+Assert (cfP != NULL);
+Assert (cfP->file != NULL);
+Assert (cfP->lib_offset == 0);
+char_written = fputc (c, cfP->file);
+cfP->raw_position = ftell (cfP->file);
 return char_written;
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::GetC (void) 
+int CFGetC (CFILE *cfP) 
 {
 	int c;
 
-if (m_cf.rawPosition >= m_cf.size) 
+if (cfP->raw_position >= cfP->size) 
 	return EOF;
-c = getc (m_cf.file);
+c = getc (cfP->file);
 if (c != EOF)
-	m_cf.rawPosition = ftell (m_cf.file) - m_cf.libOffset;
+	cfP->raw_position = ftell (cfP->file) - cfP->lib_offset;
 return c;
 }
 
 // ----------------------------------------------------------------------------
-// CFile::PutS () writes a string to a file
+// CFPutS () writes a string to a file
 //
 // returns:   success ==> non-negative value
 //            error   ==> EOF
 //
-int CFile::PutS (const char *str)
+int CFPutS (const char *str, CFILE *cfP)
 {
 	int ret;
 
-ret = fputs (str, m_cf.file);
-m_cf.rawPosition = ftell (m_cf.file);
+Assert (cfP != NULL);
+Assert (str != NULL);
+Assert (cfP->file != NULL);
+ret = fputs (str, cfP->file);
+cfP->raw_position = ftell (cfP->file);
 return ret;
 }
 
 // ----------------------------------------------------------------------------
 
-char * CFile::GetS (char * buf, size_t n) 
+char * CFGetS (char * buf, size_t n, CFILE *cfP) 
 {
 	char * t = buf;
 	size_t i;
@@ -423,16 +651,18 @@ char * CFile::GetS (char * buf, size_t n)
 
 for (i = 0; i < n - 1; i++) {
 	do {
-		if (m_cf.rawPosition >= m_cf.size) {
+		if (cfP->raw_position >= cfP->size) {
 			*buf = 0;
 			return (buf == t) ? NULL : t;
 			}
-		c = GetC ();
+		c = CFGetC (cfP);
 		if (c == 0 || c == 10)       // Unix line ending
 			break;
 		if (c == 13) {      // Mac or DOS line ending
-			int c1 = GetC ();
-			Seek ( -1, SEEK_CUR);
+			int c1;
+
+			c1 = CFGetC (cfP);
+			CFSeek (cfP, -1, SEEK_CUR);
 			if (c1 == 10) // DOS line ending
 				continue;
 			else            // Mac line ending
@@ -451,184 +681,186 @@ return  t;
 
 // ----------------------------------------------------------------------------
 
-size_t CFile::Read (void *buf, size_t elsize, size_t nelem) 
+size_t CFRead (void *buf, size_t elsize, size_t nelem, CFILE *cfP) 
 {
-uint i, size = (int) (elsize * nelem);
+unsigned int i, size = (int) (elsize * nelem);
 
-if (!m_cf.file || (m_cf.size < 1)) 
+if (!cfP || (size < 1)) {
+	CFCriticalError (1);
 	return 0;
-i = (int) fread (buf, 1, size, m_cf.file);
-m_cf.rawPosition += i;
+	}
+i = (int) fread (buf, 1, size, cfP->file);
+CFCriticalError (i != size);
+cfP->raw_position += i;
 return i / elsize;
 }
 
 
 // ----------------------------------------------------------------------------
 
-int CFile::Tell (void) 
+int CFTell (CFILE *cfP) 
 {
-return m_cf.rawPosition;
+return cfP ? cfP->raw_position : -1;
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::Seek (long int offset, int where) 
+int CFSeek (CFILE *cfP, long int offset, int where) 
 {
-if (!m_cf.size)
+if (!cfP)
 	return -1;
 
-	int destPos;
+	int c, goal_position;
 
 switch (where) {
 	case SEEK_SET:
-		destPos = offset;
+		goal_position = offset;
 		break;
 	case SEEK_CUR:
-		destPos = m_cf.rawPosition + offset;
+		goal_position = cfP->raw_position + offset;
 		break;
 	case SEEK_END:
-		destPos = m_cf.size + offset;
+		goal_position = cfP->size + offset;
 		break;
 	default:
 		return 1;
 	}
-int c = fseek (m_cf.file, m_cf.libOffset + destPos, SEEK_SET);
-m_cf.rawPosition = ftell (m_cf.file) - m_cf.libOffset;
+c = fseek (cfP->file, cfP->lib_offset + goal_position, SEEK_SET);
+CFCriticalError (c);
+cfP->raw_position = ftell (cfP->file) - cfP->lib_offset;
 return c;
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::Close (void)
+int CFClose (CFILE *cfP)
 {
 	int result;
 
-if (!m_cf.file)
+if (! (cfP && cfP->file))
 	return 0;
-result = fclose (m_cf.file);
-m_cf.file = NULL;
-m_cf.size = 0;
-m_cf.rawPosition = -1;
+result = fclose (cfP->file);
+cfP->file = NULL;
 return result;
 }
 
 // ----------------------------------------------------------------------------
-// routines to read basic data types from CFile::ILE's.  Put here to
+// routines to read basic data types from CFILE's.  Put here to
 // simplify mac/pc reading from cfiles.
 
-int CFile::ReadInt (void)
+int CFReadInt (CFILE *file)
 {
 	int32_t i;
 
-Read (&i, sizeof (i), 1);
-//Error ("Error reading int in CFile::ReadInt ()");
+CFCriticalError (CFRead (&i, sizeof (i), 1, file) != 1);
+//Error ("Error reading int in CFReadInt ()");
 return INTEL_INT (i);
 }
 
 // ----------------------------------------------------------------------------
 
-short CFile::ReadShort (void)
+short CFReadShort (CFILE *file)
 {
 	int16_t s;
 
-Read (&s, sizeof (s), 1);
-//Error ("Error reading short in CFile::ReadShort ()");
+CFCriticalError (CFRead (&s, sizeof (s), 1, file) != 1);
+//Error ("Error reading short in CFReadShort ()");
 return INTEL_SHORT (s);
 }
 
 // ----------------------------------------------------------------------------
 
-sbyte CFile::ReadByte (void)
+sbyte CFReadByte (CFILE *file)
 {
 	sbyte b;
 
-if (Read (&b, sizeof (b), 1) != 1)
+if (CFRead (&b, sizeof (b), 1, file) != 1)
 	return nCFileError;
-//Error ("Error reading byte in CFile::ReadByte ()");
+//Error ("Error reading byte in CFReadByte ()");
 return b;
 }
 
 // ----------------------------------------------------------------------------
 
-float CFile::ReadFloat (void)
+float CFReadFloat (CFILE *file)
 {
 	float f;
 
-Read (&f, sizeof (f), 1) ;
-//Error ("Error reading float in CFile::ReadFloat ()");
+CFCriticalError (CFRead (&f, sizeof (f), 1, file) != 1);
+//Error ("Error reading float in CFReadFloat ()");
 return INTEL_FLOAT (f);
 }
 
 // ----------------------------------------------------------------------------
 //Read and return a double (64 bits)
 //Throws an exception of nType (nCFileError *) if the OS returns an error on read
-double CFile::ReadDouble (void)
+double CFReadDouble (CFILE *file)
 {
 	double d;
 
-Read (&d, sizeof (d), 1);
+CFCriticalError (CFRead (&d, sizeof (d), 1, file) != 1);
 return INTEL_DOUBLE (d);
 }
 
 // ----------------------------------------------------------------------------
 
-fix CFile::ReadFix (void)
+fix CFReadFix (CFILE *file)
 {
 	fix f;
 
-Read (&f, sizeof (f), 1) ;
-//Error ("Error reading fix in CFile::ReadFix ()");
+CFCriticalError (CFRead (&f, sizeof (f), 1, file) != 1);
+//Error ("Error reading fix in CFReadFix ()");
 return (fix) INTEL_INT ((int) f);
 return f;
 }
 
 // ----------------------------------------------------------------------------
 
-fixang CFile::ReadFixAng (void)
+fixang CFReadFixAng (CFILE *file)
 {
 	fixang f;
 
-Read (&f, 2, 1);
-//Error ("Error reading fixang in CFile::ReadFixAng ()");
+CFCriticalError (CFRead (&f, 2, 1, file) != 1);
+//Error ("Error reading fixang in CFReadFixAng ()");
 return (fixang) INTEL_SHORT ((int) f);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::ReadVector (CFixVector& v) 
+void CFReadVector (vmsVector& v, CFILE *file) 
 {
-v [X] = ReadFix ();
-v [Y] = ReadFix ();
-v [Z] = ReadFix ();
+v [X] = CFReadFix (file);
+v [Y] = CFReadFix (file);
+v [Z] = CFReadFix (file);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::ReadAngVec (vmsAngVec& v)
+void CFReadAngVec (vmsAngVec& v, CFILE *file)
 {
-v [PA] = ReadFixAng ();
-v [BA] = ReadFixAng ();
-v [HA] = ReadFixAng ();
+v [PA] = CFReadFixAng (file);
+v [BA] = CFReadFixAng (file);
+v [HA] = CFReadFixAng (file);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::ReadMatrix (vmsMatrix& m)
+void CFReadMatrix (vmsMatrix& m,CFILE *file)
 {
-ReadVector (m [RVEC]);
-ReadVector (m [UVEC]);
-ReadVector (m [FVEC]);
+CFReadVector (m [RVEC], file);
+CFReadVector (m [UVEC], file);
+CFReadVector (m [FVEC], file);
 }
 
 
 // ----------------------------------------------------------------------------
 
-void CFile::ReadString (char *buf, int n)
+void CFReadString (char *buf, int n, CFILE *file)
 {
 	char c;
 
 do {
-	c = (char) ReadByte ();
+	c = (char) CFReadByte (file);
 	if (n > 0) {
 		*buf++ = c;
 		n--;
@@ -639,107 +871,108 @@ do {
 // ----------------------------------------------------------------------------
 // equivalent write functions of above read functions follow
 
-int CFile::WriteInt (int i)
+int CFWriteInt (int i, CFILE *file)
 {
 i = INTEL_INT (i);
-return Write (&i, sizeof (i), 1);
+return CFWrite (&i, sizeof (i), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteShort (short s)
+int CFWriteShort (short s, CFILE *file)
 {
 s = INTEL_SHORT (s);
-return Write(&s, sizeof (s), 1);
+return CFWrite (&s, sizeof (s), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteByte (sbyte b)
+int CFWriteByte (sbyte b, CFILE *file)
 {
-return Write (&b, sizeof (b), 1);
+return CFWrite (&b, sizeof (b), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteFloat (float f)
+int CFWriteFloat (float f, CFILE *file)
 {
 f = INTEL_FLOAT (f);
-return Write (&f, sizeof (f), 1);
+return CFWrite (&f, sizeof (f), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 //Read and return a double (64 bits)
 //Throws an exception of nType (nCFileError *) if the OS returns an error on read
-int CFile::WriteDouble (double d)
+int cfile_write_double (double d, CFILE *file)
 {
 d = INTEL_DOUBLE (d);
-return Write (&d, sizeof (d), 1);
+return CFWrite (&d, sizeof (d), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteFix (fix x)
+int CFWriteFix (fix x, CFILE *file)
 {
 x = INTEL_INT (x);
-return Write (&x, sizeof (x), 1);
+return CFWrite (&x, sizeof (x), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteFixAng (fixang a)
+int CFWriteFixAng (fixang a, CFILE *file)
 {
 a = INTEL_SHORT (a);
-return Write (&a, sizeof (a), 1);
+return CFWrite (&a, sizeof (a), 1, file);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::WriteVector (const CFixVector& v)
+void CFWriteVector (const vmsVector& v, CFILE *file)
 {
-WriteFix (v [X]);
-WriteFix (v [Y]);
-WriteFix (v [Z]);
+CFWriteFix (v [X], file);
+CFWriteFix (v [Y], file);
+CFWriteFix (v [Z], file);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::WriteAngVec (const vmsAngVec& v)
+void CFWriteAngVec (const vmsAngVec& v, CFILE *file)
 {
-WriteFixAng (v [PA]);
-WriteFixAng (v [BA]);
-WriteFixAng (v [HA]);
+CFWriteFixAng (v [PA], file);
+CFWriteFixAng (v [BA], file);
+CFWriteFixAng (v [HA], file);
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::WriteMatrix (const vmsMatrix& m)
+void CFWriteMatrix (const vmsMatrix& m, CFILE *file)
 {
-WriteVector (m [RVEC]);
-WriteVector (m [UVEC]);
-WriteVector (m [FVEC]);
+CFWriteVector (m [RVEC], file);
+CFWriteVector (m [UVEC], file);
+CFWriteVector (m [FVEC], file);
 }
 
 
 // ----------------------------------------------------------------------------
 
-int CFile::WriteString (const char *buf)
+int CFWriteString (const char *buf, CFILE *file)
 {
-if (buf && *buf && Write (buf, (int) strlen (buf), 1))
-	return (int) WriteByte (0);   // write out NULL termination
+if (buf && *buf && CFWrite (buf, (int) strlen (buf), 1, file))
+	return (int) CFWriteByte (0, file);   // write out NULL termination
 return 0;
 }
 
 // ----------------------------------------------------------------------------
 
-int CFile::Extract (const char *filename, const char *folder, int bUseD1Hog, const char *szDestName)
+int CFExtract (const char *filename, const char *folder, int bUseD1Hog, const char *szDestName)
 {
+	CFILE		cf;
 	FILE		*fp;
 	char		szDest [FILENAME_LEN], fn [FILENAME_LEN];
 	static	char buf [4096];
 	int		h, l;
 
-if (!Open (filename, folder, "rb", bUseD1Hog))
+if (!CFOpen (&cf, filename, folder, "rb", bUseD1Hog))
 	return 0;
 strcpy (fn, filename);
 if (*szDestName) {
@@ -755,75 +988,44 @@ if (*szDestName) {
 	}
 sprintf (szDest, "%s%s%s", gameFolders.szCacheDir, *gameFolders.szCacheDir ? "/" : "", fn);
 if (! (fp = fopen (szDest, "wb"))) {
-	Close ();
+	CFClose (&cf);
 	return 0;
 	}
-for (h = sizeof (buf), l = m_cf.size; l; l -= h) {
+for (h = sizeof (buf), l = cf.size; l; l -= h) {
 	if (h > l)
 		h = l;
-	Read (buf, h, 1);
+	CFRead (buf, h, 1, &cf);
 	fwrite (buf, h, 1, fp);
 	}
-Close ();
+CFClose (&cf);
 fclose (fp);
 return 1;
 }
 
-//	-----------------------------------------------------------------------------------
-//	Imagine if C had a function to copy a file...
-
-#define COPY_BUF_SIZE 65536
-
-int CFile::Copy (const char *pszSrc, const char *pszDest)
-{
-	sbyte	buf [COPY_BUF_SIZE];
-	CFile	cf;
-
-if (!cf.Open (pszDest, gameFolders.szSaveDir, "wb", 0))
-	return -1;
-if (!Open (pszSrc, gameFolders.szSaveDir, "rb", 0))
-	return -2;
-while (!EoF ()) {
-	int bytes_read = (int) Read (buf, 1, COPY_BUF_SIZE);
-	if (Error ())
-		::Error (TXT_FILEREAD_ERROR, pszSrc, strerror (errno));
-	Assert (bytes_read == COPY_BUF_SIZE || EoF ());
-	cf.Write (buf, 1, bytes_read);
-	if (cf.Error ())
-		::Error (TXT_FILEWRITE_ERROR, pszDest, strerror (errno));
-	}
-if (Close ()) {
-	cf.Close ();
-	return -3;
-	}
-if (cf.Close ())
-	return -4;
-return 0;
-}
-
 // ----------------------------------------------------------------------------
 
-char *CFile::ReadData (const char *filename, const char *folder, int bUseD1Hog)
+char *CFReadData (const char *filename, const char *folder, int bUseD1Hog)
 {
+	CFILE		cf;
 	char		*pData = NULL;
 	size_t	nSize;
 
-if (!Open (filename, folder, "rb", bUseD1Hog))
+if (!CFOpen (&cf, filename, folder, "rb", bUseD1Hog))
 	return NULL;
-nSize = Length ();
-if (!(pData = new char [nSize]))
+nSize = CFLength (&cf, bUseD1Hog);
+if (! (pData = (char *) D2_ALLOC ((unsigned int) nSize)))
 	return NULL;
-if (!Read (pData, nSize, 1)) {
-	delete[] pData;
+if (!CFRead (pData, nSize, 1, &cf)) {
+	D2_FREE (pData);
 	pData = NULL;
 	}
-Close ();
+CFClose (&cf);
 return pData;
 }
 
 // ----------------------------------------------------------------------------
 
-void CFile::SplitPath (const char *szFullPath, char *szFolder, char *szFile, char *szExt)
+void CFSplitPath (const char *szFullPath, char *szFolder, char *szFile, char *szExt)
 {
 	int	h = 0, i, j, l = (int) strlen (szFullPath) - 1;
 
@@ -855,22 +1057,68 @@ if (szExt) {
 	}
 }
 
+//------------------------------------------------------------------------------
+
+void ChangeFilenameExtension (char *dest, const char *src, const char *newExt)
+{
+	int i;
+
+strcpy (dest, src);
+if (newExt [0] == '.')
+	newExt++;
+for (i = 1; i < (int) strlen (dest); i++)
+	if ((dest [i] == '.') || (dest [i] == ' ') || (dest [i] == 0))
+		break;
+if (i < 123) {
+	dest [i] = '.';
+	dest [i+1] = newExt [0];
+	dest [i+2] = newExt [1];
+	dest [i+3] = newExt [2];
+	dest [i+4] = 0;
+	}
+}
+
 // ----------------------------------------------------------------------------
 
-time_t CFile::Date (const char *filename, const char *folder, int bUseD1Hog)
+time_t CFDate (const char *filename, const char *folder, int bUseD1Hog)
 {
+	CFILE cf;
 	struct stat statbuf;
 
 //	sprintf (fn, "%s/%s", folder, hogname);
-if (!Open (filename, folder, "rb", bUseD1Hog))
+if (!CFOpen (&cf, filename, folder, "rb", bUseD1Hog))
 	return -1;
 #ifdef _WIN32
-fstat (_fileno (m_cf.file), &statbuf);
+fstat (_fileno (cf.file), &statbuf);
 #else
-fstat (fileno (m_cf.file), &statbuf);
+fstat (fileno (cf.file), &statbuf);
 #endif
-Close ();
+CFClose (&cf);
 return statbuf.st_mtime;
+}
+
+//------------------------------------------------------------------------------
+
+char *GameDataFilename (char *pszFilename, const char *pszExt, int nLevel, int nType)
+{
+	char	szFilename [FILENAME_LEN];
+
+CFSplitPath (*gameHogFiles.AltHogFiles.szName ? gameHogFiles.AltHogFiles.szName : 
+				 gameStates.app.bD1Mission ? gameHogFiles.D1HogFiles.szName : gameHogFiles.D2HogFiles.szName, 
+				 NULL, szFilename, NULL);
+if (nType < 0) {
+	if (nLevel < 0)
+		sprintf (pszFilename, "%s-s%d.%s", szFilename, -nLevel, pszExt);
+	else
+		sprintf (pszFilename, "%s-%d.%s", szFilename, nLevel, pszExt);
+	}
+else {
+	if (nLevel < 0)
+		sprintf (pszFilename, "%s-s%d.%s%d", szFilename, -nLevel, pszExt, nType);
+	else
+		sprintf (pszFilename, "%s-%d.%s%d", szFilename, nLevel, pszExt, nType);
+	}
+return pszFilename;
 }
 
 // ----------------------------------------------------------------------------

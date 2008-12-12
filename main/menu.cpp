@@ -29,7 +29,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "joy.h"
 #include "slew.h"
 #include "args.h"
-#include "hogfile.h"
 #include "newdemo.h"
 #include "timer.h"
 #include "text.h"
@@ -366,7 +365,7 @@ ADD_MENU (nOptions, TXT_VIEW_DEMO, KEY_D, HTX_MAIN_DEMO);
 mainOpts.nDemo = nOptions++;
 ADD_MENU (nOptions, TXT_VIEW_SCORES, KEY_H, HTX_MAIN_SCORES);
 mainOpts.nScores = nOptions++;
-if (CFile::Exist ("orderd2.pcx", gameFolders.szDataDir, 0)) { // SHAREWARE
+if (CFExist ("orderd2.pcx", gameFolders.szDataDir, 0)) { // SHAREWARE
 	ADD_MENU (nOptions, TXT_ORDERING_INFO, -1, NULL);
 	mainOpts.nOrder = nOptions++;
 	}
@@ -402,7 +401,7 @@ int MainMenu (void)
 
 IpxClose ();
 memset (m, 0, sizeof (m));
-//paletteManager.Load (MENU_PALETTE, NULL, 0, 1, 0);		//get correct palette
+//LoadPalette (MENU_PALETTE, NULL, 0, 1, 0);		//get correct palette
 
 if (!LOCALPLAYER.callsign [0]) {
 	SelectPlayer ();
@@ -432,7 +431,7 @@ do {
 		ExecMainMenuOption (nChoice);
 } while (gameStates.app.nFunctionMode == FMODE_MENU);
 if (gameStates.app.nFunctionMode == FMODE_GAME)
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 FlushInput ();
 StopPlayerMovement ();
 return mainOpts.nChoice;
@@ -451,7 +450,7 @@ for (h = j = 0; j < i; j++)
 		h += GetNumMovies (j);
 if (!h)
 	return;
-if (!(m = new char * [h]))
+if (!(m = (char **) D2_ALLOC (h * sizeof (char **))))
 	return;
 for (i = j = 0; i < h; i++)
 	if ((ps = CycleThroughMovies (i == 0, 0))) {
@@ -469,7 +468,7 @@ if (i > -1) {
 	PlayMovie (m [i], 1, 1, gameOpts->movies.bResize);
 	SDL_ShowCursor (1);
 	}
-delete[] m;
+D2_FREE (m);
 SongsPlayCurrentSong (1);
 }
 
@@ -479,13 +478,13 @@ static void PlayMenuSong (void)
 {
 	int h, i, j = 0;
 	char * m [MAX_NUM_SONGS + 2];
-	CFile cf;
+	CFILE cf;
 	char	szSongTitles [2][14] = {"- Descent 2 -", "- Descent 1 -"};
 
 m [j++] = szSongTitles [0];
 for (i = 0; i < gameData.songs.nTotalSongs; i++) {
-	if (cf.Open (reinterpret_cast<char*> (gameData.songs.info [i].filename), gameFolders.szDataDir, "rb", i >= gameData.songs.nSongs [0])) {
-		cf.Close ();
+	if (CFOpen (&cf, (char *) gameData.songs.info [i].filename, gameFolders.szDataDir, "rb", i >= gameData.songs.nSongs [0])) {
+		CFClose (&cf);
 		if (i == gameData.songs.nSongs [0])
 			m [j++] = szSongTitles [1];
 		m [j++] = gameData.songs.info [i].filename;
@@ -582,7 +581,7 @@ else if (nChoice == mainOpts.nSingle) {
 	NewGameMenu ();
 	}
 else if (nChoice == mainOpts.nLoad) {
-	if (!saveGameHandler.Load (0, 0, 0, NULL))
+	if (!StateRestoreAll (0, 0, 0, NULL))
 		SetFunctionMode (FMODE_MENU);
 	}
 #if DBG
@@ -595,7 +594,7 @@ else if (nChoice == mainOpts.nLoadDirect) {
 	ExecMenu (NULL, "Enter level to load", 1, m, NULL, NULL);
 	nLevel = atoi (m->text);
 	if (nLevel && (nLevel >= gameData.missions.nLastSecretLevel) && (nLevel <= gameData.missions.nLastLevel)) {
-		paletteManager.FadeOut ();
+		GrPaletteFadeOut (NULL, 32, 0);
 		StartNewGame (nLevel);
 		}
 	}
@@ -618,7 +617,7 @@ else if (nChoice == mainOpts.nDemo) {
 		NDStartPlayback (demoFile);
 	}
 else if (nChoice == mainOpts.nScores) {
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	ScoresView (-1);
 	}
 else if (nChoice == mainOpts.nMovies) {
@@ -628,7 +627,7 @@ else if (nChoice == mainOpts.nSongs) {
 	PlayMenuSong ();
 	}
 else if (nChoice == mainOpts.nCredits) {
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	SongsStopAll ();
 	ShowCredits (NULL); 
 	}
@@ -645,7 +644,7 @@ else if (nChoice == mainOpts.nQuit) {
 #ifdef EDITOR
 	if (SafetyCheck ()) {
 #endif
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	SetFunctionMode (FMODE_EXIT);
 #ifdef EDITOR
 	}
@@ -883,14 +882,12 @@ if (gameStates.app.nCompSpeed == 0) {
 	gameOpts->render.effects.nShrapnels = 0;
 	gameOpts->render.particles.bAuxViews = 0;
 	gameOpts->render.lightnings.bAuxViews = 0;
-	gameOpts->render.particles.bMonitors = 0;
-	gameOpts->render.lightnings.bMonitors = 0;
 	gameOpts->render.coronas.nStyle = 0;
 	gameOpts->ogl.nMaxLightsPerFace = 4;
 	gameOpts->ogl.nMaxLightsPerPass = 4;
 	gameOpts->ogl.nMaxLightsPerObject = 4;
 	extraGameInfo [0].bShadows = 0;
-	extraGameInfo [0].bUseParticles = 0;
+	extraGameInfo [0].bUseSmoke = 0;
 	extraGameInfo [0].bUseLightnings = 0;
 	extraGameInfo [0].bUseCameras = 0;
 	extraGameInfo [0].bPlayerShield = 0;
@@ -899,7 +896,7 @@ if (gameStates.app.nCompSpeed == 0) {
 	}
 else if (gameStates.app.nCompSpeed == 1) {
 	gameOpts->render.nQuality = 2;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	gameOpts->render.particles.bPlayers = 0;
 	gameOpts->render.particles.bRobots = 1;
 	gameOpts->render.particles.bMissiles = 1;
@@ -908,8 +905,6 @@ else if (gameStates.app.nCompSpeed == 1) {
 	gameOpts->render.particles.bStatic = 0;
 	gameOpts->render.particles.bAuxViews = 0;
 	gameOpts->render.lightnings.bAuxViews = 0;
-	gameOpts->render.particles.bMonitors = 0;
-	gameOpts->render.lightnings.bMonitors = 0;
 	gameOpts->render.particles.nDens [0] =
 	gameOpts->render.particles.nDens [1] =
 	gameOpts->render.particles.nDens [2] =
@@ -936,8 +931,6 @@ else if (gameStates.app.nCompSpeed == 1) {
 	gameOpts->render.nLightingMethod = 0;
 	gameOpts->render.particles.bAuxViews = 0;
 	gameOpts->render.lightnings.bAuxViews = 0;
-	gameOpts->render.particles.bMonitors = 0;
-	gameOpts->render.lightnings.bMonitors = 0;
 	gameOpts->ogl.bLightObjects = 0;
 	gameOpts->ogl.nMaxLightsPerFace = 8;
 	gameOpts->ogl.nMaxLightsPerPass = 8;
@@ -949,7 +942,7 @@ else if (gameStates.app.nCompSpeed == 1) {
 	gameOpts->render.shadows.nClip = 0;
 	gameOpts->render.shadows.nReach = 0;
 	extraGameInfo [0].bShadows = 1;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	extraGameInfo [0].bUseLightnings = 1;
 	extraGameInfo [0].bPlayerShield = 0;
 	extraGameInfo [0].bThrusterFlames = 1;
@@ -957,7 +950,7 @@ else if (gameStates.app.nCompSpeed == 1) {
 	}
 else if (gameStates.app.nCompSpeed == 2) {
 	gameOpts->render.nQuality = 2;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	gameOpts->render.particles.bPlayers = 0;
 	gameOpts->render.particles.bRobots = 1;
 	gameOpts->render.particles.bMissiles = 1;
@@ -989,8 +982,6 @@ else if (gameStates.app.nCompSpeed == 2) {
 	gameOpts->render.cockpit.bTextGauges = 0;
 	gameOpts->render.nLightingMethod = 1;
 	gameOpts->render.particles.bAuxViews = 0;
-	gameOpts->render.particles.bMonitors = 0;
-	gameOpts->render.lightnings.bMonitors = 0;
 	gameOpts->render.lightnings.nQuality = 1;
 	gameOpts->render.lightnings.nStyle = 1;
 	gameOpts->render.lightnings.bPlasma = 0;
@@ -1012,7 +1003,7 @@ else if (gameStates.app.nCompSpeed == 2) {
 	gameOpts->render.shadows.nClip = 1;
 	gameOpts->render.shadows.nReach = 1;
 	extraGameInfo [0].bShadows = 1;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	extraGameInfo [0].bUseLightnings = 1;
 	extraGameInfo [0].bPlayerShield = 1;
 	extraGameInfo [0].bThrusterFlames = 1;
@@ -1020,7 +1011,7 @@ else if (gameStates.app.nCompSpeed == 2) {
 	}
 else if (gameStates.app.nCompSpeed == 3) {
 	gameOpts->render.nQuality = 3;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	gameOpts->render.particles.bPlayers = 1;
 	gameOpts->render.particles.bRobots = 1;
 	gameOpts->render.particles.bMissiles = 1;
@@ -1052,8 +1043,6 @@ else if (gameStates.app.nCompSpeed == 3) {
 	gameOpts->render.cockpit.bTextGauges = 0;
 	gameOpts->render.nLightingMethod = 1;
 	gameOpts->render.particles.bAuxViews = 0;
-	gameOpts->render.particles.bMonitors = 0;
-	gameOpts->render.lightnings.bMonitors = 0;
 	gameOpts->render.lightnings.nQuality = 1;
 	gameOpts->render.lightnings.nStyle = 1;
 	gameOpts->render.lightnings.bPlasma = 0;
@@ -1075,7 +1064,7 @@ else if (gameStates.app.nCompSpeed == 3) {
 	gameOpts->render.shadows.nClip = 1;
 	gameOpts->render.shadows.nReach = 1;
 	extraGameInfo [0].bShadows = 1;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	extraGameInfo [0].bUseLightnings = 1;
 	extraGameInfo [0].bPlayerShield = 1;
 	extraGameInfo [0].bThrusterFlames = 1;
@@ -1083,7 +1072,7 @@ else if (gameStates.app.nCompSpeed == 3) {
 	}
 else if (gameStates.app.nCompSpeed == 4) {
 	gameOpts->render.nQuality = 4;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	gameOpts->render.particles.bPlayers = 1;
 	gameOpts->render.particles.bRobots = 1;
 	gameOpts->render.particles.bMissiles = 1;
@@ -1114,8 +1103,6 @@ else if (gameStates.app.nCompSpeed == 4) {
 	gameOpts->render.coronas.nStyle = 2;
 	gameOpts->render.nLightingMethod = 1;
 	gameOpts->render.particles.bAuxViews = 1;
-	gameOpts->render.particles.bMonitors = 1;
-	gameOpts->render.lightnings.bMonitors = 1;
 	gameOpts->render.lightnings.nQuality = 1;
 	gameOpts->render.lightnings.nStyle = 2;
 	gameOpts->render.lightnings.bPlasma = 1;
@@ -1138,7 +1125,7 @@ else if (gameStates.app.nCompSpeed == 4) {
 	gameOpts->render.shadows.nClip = 1;
 	gameOpts->render.shadows.nReach = 1;
 	extraGameInfo [0].bShadows = 1;
-	extraGameInfo [0].bUseParticles = 1;
+	extraGameInfo [0].bUseSmoke = 1;
 	extraGameInfo [0].bUseLightnings = 1;
 	extraGameInfo [0].bPlayerShield = 1;
 	extraGameInfo [0].bThrusterFlames = 1;
@@ -1410,7 +1397,7 @@ do {
 
 int SelectAndLoadMission (int bMulti, int *bAnarchyOnly)
 {
-	int	i, j, nMissions, nDefaultMission, nNewMission = -1;
+	int	i, nMissions, nDefaultMission, nNewMission = -1;
 	char	*szMsnNames [MAX_MISSIONS];
 
 	static const char *menuTitles [4];
@@ -1428,10 +1415,8 @@ do {
 		return -1;
 	nDefaultMission = 0;
 	for (i = 0; i < nMissions; i++) {
-
 		szMsnNames [i] = gameData.missions.list [i].szMissionName;
-		j = MsnHasGameVer (szMsnNames [i]) ? 4 : 0;
-		if (!stricmp (szMsnNames [i] + j, gameConfig.szLastMission))
+		if (!stricmp (szMsnNames [i], gameConfig.szLastMission))
 			nDefaultMission = i;
 		}
 	gameStates.app.nExtGameStatus = bMulti ? GAMESTAT_START_MULTIPLAYER_MISSION : GAMESTAT_SELECT_MISSION;
@@ -1474,7 +1459,7 @@ gameStates.app.bD1Data = 0;
 SetDataVersion (-1);
 if ((nMission < 0) || gameOpts->app.bSinglePlayer)
 	gameFolders.szMsnSubDir [0] = '\0';
-hogFileManager.UseAlt ("");
+CFUseAltHogFile ("");
 do {
 	nMissions = BuildMissionList (0, nFolder);
 	if (nMissions < 1)
@@ -1526,7 +1511,7 @@ try_again:
 		return;
 	nNewLevel = atoi (m [1].text);
 	if ((nNewLevel <= 0) || (nNewLevel > nHighestPlayerLevel)) {
-		m [0].text = const_cast<char*> (TXT_ENTER_TO_CONT);
+		m [0].text = (char *) TXT_ENTER_TO_CONT;
 		ExecMessageBox (NULL, NULL, 1, TXT_OK, TXT_INVALID_LEVEL); 
 		goto try_again;
 	}
@@ -1535,7 +1520,7 @@ try_again:
 WritePlayerFile ();
 if (!DifficultyMenu ())
 	return;
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 if (!StartNewGame (nNewLevel))
 	SetFunctionMode (FMODE_MENU);
 }
@@ -1590,7 +1575,7 @@ gameStates.app.bD1Data = 0;
 SetDataVersion (-1);
 if ((nMission < 0) || gameOpts->app.bSinglePlayer)
 	gameFolders.szMsnSubDir [0] = '\0';
-hogFileManager.UseAlt ("");
+CFUseAltHogFile ("");
 for (;;) {
 	memset (m, 0, sizeof (m));
 	nOptions = 0;
@@ -1679,7 +1664,7 @@ if (gameStates.app.nDifficultyLevel != i) {
 WritePlayerFile ();
 if (optLevel > 0)
 	nLevel = atoi (m [optLevel].text);
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 if (!bMsnLoaded)
 	LoadMission (nMission);
 if (!StartNewGame (nLevel))
@@ -1697,7 +1682,7 @@ int ConfigMenuCallback (int nitems, tMenuItem * items, int *nLastKey, int nCurIt
 {
 if (gameStates.app.bNostalgia) {
 	if (nCurItem == optBrightness)
-		paletteManager.SetGamma (items [optBrightness].value);
+		GrSetPaletteGamma (items [optBrightness].value);
 	}
 return nCurItem;
 }
@@ -1981,7 +1966,7 @@ if (gameOpts->app.bExpertMode) {
 	v = m->value;
 	if (gameOpts->render.cockpit.nWindowSize != v) {
 		gameOpts->render.cockpit.nWindowSize = v;
-		m->text = const_cast<char*> (szCWS [v]);
+		m->text = (char *) szCWS [v];
 		m->rebuild = 1;
 		}
 
@@ -2365,7 +2350,7 @@ do {
 		}
 	else
 		optSoftParticles [1] = -1; 
-	if (extraGameInfo [0].bUseParticles) {
+	if (extraGameInfo [0].bUseSmoke) {
 		ADD_CHECK (nOptions, TXT_SOFT_SMOKE, (gameOpts->render.effects.bSoftParticles & 4) != 0, KEY_O, HTX_SOFT_SMOKE);
 		optSoftParticles [2] = nOptions++;
 		}
@@ -2501,7 +2486,7 @@ do {
 		optCoronas = nOptions++;
 		ADD_CHECK (nOptions, TXT_RENDER_SPARKS, gameOpts->render.automap.bSparks, KEY_P, HTX_RENDER_SPARKS);
 		optSparks = nOptions++;
-		ADD_CHECK (nOptions, TXT_AUTOMAP_SMOKE, gameOpts->render.automap.bParticles, KEY_S, HTX_AUTOMAP_SMOKE);
+		ADD_CHECK (nOptions, TXT_AUTOMAP_SMOKE, gameOpts->render.automap.bSmoke, KEY_S, HTX_AUTOMAP_SMOKE);
 		optSmoke = nOptions++;
 		ADD_CHECK (nOptions, TXT_AUTOMAP_LIGHTNINGS, gameOpts->render.automap.bLightnings, KEY_S, HTX_AUTOMAP_LIGHTNINGS);
 		optLightnings = nOptions++;
@@ -2565,7 +2550,7 @@ do {
 	GET_VAL (gameOpts->render.automap.bGrayOut, optGrayOut);
 	GET_VAL (gameOpts->render.automap.bCoronas, optCoronas);
 	GET_VAL (gameOpts->render.automap.bSparks, optSparks);
-	GET_VAL (gameOpts->render.automap.bParticles, optSmoke);
+	GET_VAL (gameOpts->render.automap.bSmoke, optSmoke);
 	GET_VAL (gameOpts->render.automap.bLightnings, optLightnings);
 	GET_VAL (gameOpts->render.automap.bSkybox, optSkybox);
 	if (automapOpts.nOptRadarRange >= 0)
@@ -2964,8 +2949,8 @@ do {
 			GET_VAL (gameOpts->render.cameras.bHires, optHiresCams);
 		}
 	if (bFSCameras != gameOpts->render.cameras.bFitToWall) {
-		cameraManager.Destroy ();
-		cameraManager.Create ();
+		DestroyCameras ();
+		CreateCameras ();
 		}
 	} while (i == -2);
 }
@@ -2979,12 +2964,14 @@ int SmokeOptionsCallback (int nitems, tMenuItem * menus, int * key, int nCurItem
 
 m = menus + smokeOpts.nUse;
 v = m->value;
-if (v != extraGameInfo [0].bUseParticles) {
-	extraGameInfo [0].bUseParticles = v;
+if (v != extraGameInfo [0].bUseSmoke) {
+	extraGameInfo [0].bUseSmoke = v;
+	if (!v)
+		FreePartList ();
 	*key = -2;
 	return nCurItem;
 	}
-if (extraGameInfo [0].bUseParticles) {
+if (extraGameInfo [0].bUseSmoke) {
 	m = menus + smokeOpts.nQuality;
 	v = m->value;
 	if (v != gameOpts->render.particles.bSort) {
@@ -3095,7 +3082,7 @@ if (extraGameInfo [0].bUseParticles) {
 		}
 	}
 else
-	particleManager.Shutdown ();
+	DestroyAllSmoke ();
 return nCurItem;
 }
 
@@ -3138,8 +3125,7 @@ void SmokeOptionsMenu ()
 	tMenuItem m [40];
 	int	i, j, choice = 0;
 	int	nOptions;
-	int	nOptSmokeLag, optStaticParticles, optCollisions, optDisperse, 
-			optRotate = -1, optAuxViews = -1, optMonitors = -1, optWiggle = -1, optWobble = -1;
+	int	nOptSmokeLag, optStaticSmoke, optCollisions, optDisperse, optRotate = -1, optAuxViews = -1, optWiggle = -1, optWobble = -1;
 	char	szSmokeQual [50];
 
 pszSmokeSize [0] = TXT_SMALL;
@@ -3171,15 +3157,15 @@ do {
 	memset (m, 0, sizeof (m));
 	memset (&smokeOpts, 0xff, sizeof (smokeOpts));
 	nOptions = 0;
-	nOptSmokeLag = optStaticParticles = optCollisions = optDisperse = -1;
+	nOptSmokeLag = optStaticSmoke = optCollisions = optDisperse = -1;
 
-	ADD_CHECK (nOptions, TXT_USE_SMOKE, extraGameInfo [0].bUseParticles, KEY_U, HTX_ADVRND_USESMOKE);
+	ADD_CHECK (nOptions, TXT_USE_SMOKE, extraGameInfo [0].bUseSmoke, KEY_U, HTX_ADVRND_USESMOKE);
 	smokeOpts.nUse = nOptions++;
 	for (j = 1; j < 5; j++)
 		smokeOpts.nSize [j] =
 		smokeOpts.nDensity [j] = 
 		smokeOpts.nAlpha [j] = -1;
-	if (extraGameInfo [0].bUseParticles) {
+	if (extraGameInfo [0].bUseSmoke) {
 		if (gameOpts->app.bExpertMode) {
 			sprintf (szSmokeQual + 1, TXT_SMOKE_QUALITY, pszSmokeQual [NMCLAMP (gameOpts->render.particles.bSort, 0, 2)]);
 			*szSmokeQual = *(TXT_SMOKE_QUALITY - 1);
@@ -3237,7 +3223,7 @@ do {
 				nOptions++;
 				}
 			ADD_CHECK (nOptions, TXT_SMOKE_STATIC, gameOpts->render.particles.bStatic, KEY_T, HTX_ADVRND_STATICSMOKE);
-			optStaticParticles = nOptions++;
+			optStaticSmoke = nOptions++;
 #if 0
 			ADD_CHECK (nOptions, TXT_SMOKE_COLLISION, gameOpts->render.particles.bCollisions, KEY_I, HTX_ADVRND_SMOKECOLL);
 			optCollisions = nOptions++;
@@ -3248,8 +3234,6 @@ do {
 			optRotate = nOptions++;
 			ADD_CHECK (nOptions, TXT_SMOKE_AUXVIEWS, gameOpts->render.particles.bAuxViews, KEY_W, HTX_SMOKE_AUXVIEWS);
 			optAuxViews = nOptions++;
-			ADD_CHECK (nOptions, TXT_SMOKE_MONITORS, gameOpts->render.particles.bMonitors, KEY_M, HTX_SMOKE_MONITORS);
-			optMonitors = nOptions++;
 			ADD_TEXT (nOptions, "", 0);
 			nOptions++;
 			ADD_CHECK (nOptions, TXT_SMOKE_BUBBLES, gameOpts->render.particles.bBubbles, KEY_B, HTX_SMOKE_BUBBLES);
@@ -3269,23 +3253,22 @@ do {
 		smokeOpts.nMissiles =
 		smokeOpts.nDebris =
 		smokeOpts.nBubbles =
-		optStaticParticles =
+		optStaticSmoke =
 		optCollisions =
 		optDisperse = 
 		optRotate = 
-		optAuxViews = 
-		optMonitors = -1;
+		optAuxViews = -1;
 
 	Assert (sizeofa (m) >= nOptions);
 	do {
 		i = ExecMenu1 (NULL, TXT_SMOKE_MENUTITLE, nOptions, m, &SmokeOptionsCallback, &choice);
 		} while (i >= 0);
-	if ((extraGameInfo [0].bUseParticles = m [smokeOpts.nUse].value)) {
+	if ((extraGameInfo [0].bUseSmoke = m [smokeOpts.nUse].value)) {
 		GET_VAL (gameOpts->render.particles.bPlayers, smokeOpts.nPlayer);
 		GET_VAL (gameOpts->render.particles.bRobots, smokeOpts.nRobots);
 		GET_VAL (gameOpts->render.particles.bMissiles, smokeOpts.nMissiles);
 		GET_VAL (gameOpts->render.particles.bDebris, smokeOpts.nDebris);
-		GET_VAL (gameOpts->render.particles.bStatic, optStaticParticles);
+		GET_VAL (gameOpts->render.particles.bStatic, optStaticSmoke);
 #if 0
 		GET_VAL (gameOpts->render.particles.bCollisions, optCollisions);
 #else
@@ -3295,7 +3278,6 @@ do {
 		GET_VAL (gameOpts->render.particles.bRotate, optRotate);
 		GET_VAL (gameOpts->render.particles.bDecreaseLag, nOptSmokeLag);
 		GET_VAL (gameOpts->render.particles.bAuxViews, optAuxViews);
-		GET_VAL (gameOpts->render.particles.bMonitors, optMonitors);
 		if (gameOpts->render.particles.bBubbles) {
 			GET_VAL (gameOpts->render.particles.bWiggleBubbles, optWiggle);
 			GET_VAL (gameOpts->render.particles.bWobbleBubbles, optWobble);
@@ -3354,7 +3336,7 @@ if (gameOpts->app.bExpertMode) {
 			}
 		}
 	m = menus + renderOpts.nWallTransp;
-	v = (FADE_LEVELS * m->value + 5) / 10;
+	v = (GR_ACTUAL_FADE_LEVELS * m->value + 5) / 10;
 	if (extraGameInfo [0].grWallTransparency != v) {
 		extraGameInfo [0].grWallTransparency = v;
 		sprintf (m->text, TXT_WALL_TRANSP, m->value * 10, '%');
@@ -3682,7 +3664,7 @@ m = menus + lightningOpts.nUse;
 v = m->value;
 if (v != extraGameInfo [0].bUseLightnings) {
 	if (!(extraGameInfo [0].bUseLightnings = v))
-		lightningManager.Shutdown (0);
+		DestroyAllLightnings (0);
 	*key = -2;
 	return nCurItem;
 	}
@@ -3693,7 +3675,7 @@ if (extraGameInfo [0].bUseLightnings) {
 		gameOpts->render.lightnings.nQuality = v;
 		sprintf (m->text, TXT_LIGHTNING_QUALITY, pszLightningQuality [v]);
 		m->rebuild = 1;
-		lightningManager.Shutdown (0);
+		DestroyAllLightnings (0);
 		}
 	m = menus + lightningOpts.nStyle;
 	v = m->value;
@@ -3719,7 +3701,7 @@ void LightningOptionsMenu (void)
 	tMenuItem m [15];
 	int	i, choice = 0;
 	int	nOptions;
-	int	optDamage, optExplosions, optPlayers, optRobots, optStatic, optRobotOmega, optPlasma, optAuxViews, optMonitors;
+	int	optDamage, optExplosions, optPlayers, optRobots, optStatic, optRobotOmega, optPlasma, optAuxViews;
 	char	szQuality [50], szStyle [100];
 
 	pszLightningQuality [0] = TXT_LOW;
@@ -3739,8 +3721,7 @@ do {
 	optStatic = 
 	optRobotOmega = 
 	optPlasma = 
-	optAuxViews = 
-	optMonitors = -1;
+	optAuxViews = -1;
 
 	ADD_CHECK (nOptions, TXT_LIGHTNING_ENABLE, extraGameInfo [0].bUseLightnings, KEY_U, HTX_LIGHTNING_ENABLE);
 	lightningOpts.nUse = nOptions++;
@@ -3775,8 +3756,6 @@ do {
 			}
 		ADD_CHECK (nOptions, TXT_LIGHTNING_AUXVIEWS, gameOpts->render.lightnings.bAuxViews, KEY_D, HTX_LIGHTNING_AUXVIEWS);
 		optAuxViews = nOptions++;
-		ADD_CHECK (nOptions, TXT_LIGHTNING_MONITORS, gameOpts->render.lightnings.bMonitors, KEY_M, HTX_LIGHTNING_MONITORS);
-		optMonitors = nOptions++;
 		}
 	Assert (sizeofa (m) >= (size_t) nOptions);
 	for (;;) {
@@ -3793,15 +3772,14 @@ do {
 		GET_VAL (gameOpts->render.lightnings.bStatic, optStatic);
 		GET_VAL (gameOpts->render.lightnings.bRobotOmega, optRobotOmega);
 		GET_VAL (gameOpts->render.lightnings.bAuxViews, optAuxViews);
-		GET_VAL (gameOpts->render.lightnings.bMonitors, optMonitors);
 		}
 	} while (i == -2);
 if (!gameOpts->render.lightnings.bPlayers)
-	lightningManager.DestroyForPlayers ();
+	DestroyPlayerLightnings ();
 if (!gameOpts->render.lightnings.bRobots)
-	lightningManager.DestroyForRobots ();
+	DestroyRobotLightnings ();
 if (!gameOpts->render.lightnings.bStatic)
-	lightningManager.DestroyStatic ();
+	DestroyStaticLightnings ();
 }
 
 //------------------------------------------------------------------------------
@@ -3944,8 +3922,8 @@ int RenderOptionsCallback (int nitems, tMenuItem * menus, int * key, int nCurIte
 if (!gameStates.app.bNostalgia) {
 	m = menus + optBrightness;
 	v = m->value;
-	if (v != paletteManager.GetGamma ())
-		paletteManager.SetGamma (v);
+	if (v != GrGetPaletteGamma ())
+		GrSetPaletteGamma (v);
 	}
 m = menus + renderOpts.nMaxFPS;
 v = fpsTable [m->value];
@@ -3993,7 +3971,7 @@ if (gameOpts->app.bExpertMode) {
 			}
 		}
 	m = menus + renderOpts.nWallTransp;
-	v = (FADE_LEVELS * m->value + 5) / 10;
+	v = (GR_ACTUAL_FADE_LEVELS * m->value + 5) / 10;
 	if (extraGameInfo [0].grWallTransparency != v) {
 		extraGameInfo [0].grWallTransparency = v;
 		sprintf (m->text, TXT_WALL_TRANSP, m->value * 10, '%');
@@ -4048,7 +4026,7 @@ do {
 	nOptions = 0;
 	optPowerupOpts = optAutomapOpts = -1;
 	if (!gameStates.app.bNostalgia) {
-		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, paletteManager.GetGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
+		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, GrGetPaletteGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
 		optBrightness = nOptions++;
 		}
 	if (gameOpts->render.nMaxFPS > 1)
@@ -4089,7 +4067,7 @@ do {
 			}
 		ADD_TEXT (nOptions, "", 0);
 		nOptions++;
-		h = extraGameInfo [0].grWallTransparency * 10 / FADE_LEVELS;
+		h = extraGameInfo [0].grWallTransparency * 10 / GR_ACTUAL_FADE_LEVELS;
 		sprintf (szWallTransp + 1, TXT_WALL_TRANSP, h * 10, '%');
 		*szWallTransp = *(TXT_WALL_TRANSP - 1);
 		ADD_SLIDER (nOptions, szWallTransp + 1, h, 0, 10, KEY_T, HTX_ADVRND_WALLTRANSP);
@@ -4203,7 +4181,7 @@ do {
 			}
 		} while (i >= 0);
 	if (!gameStates.app.bNostalgia)
-		paletteManager.SetGamma (m [optBrightness].value);
+		GrSetPaletteGamma (m [optBrightness].value);
 	if (gameOpts->app.bExpertMode) {
 		gameOpts->render.color.bWalls = m [optColoredWalls].value;
 		GET_VAL (gameOpts->render.bDepthSort, optDepthSort);
@@ -4919,7 +4897,7 @@ do {
 	ADD_TEXT (nOptions, "", 0);
 	nOptions++;
 	if (gameStates.app.bNostalgia) {
-		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, paletteManager.GetGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
+		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, GrGetPaletteGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
 		optBrightness = nOptions++;
 		}
 	
@@ -5068,7 +5046,7 @@ if (m [soundOpts.nRedbook].value != gameStates.sound.bRedbookEnabled) {
 			m [soundOpts.nRedbook].rebuild = 1;
 			}
 		}
-	m [soundOpts.nMusicVol].text = gameStates.sound.bRedbookEnabled ? const_cast<char*> (TXT_CD_VOLUME) : const_cast<char*> (TXT_MIDI_VOLUME);
+	m [soundOpts.nMusicVol].text = (char *) (gameStates.sound.bRedbookEnabled ? TXT_CD_VOLUME : TXT_MIDI_VOLUME);
 	m [soundOpts.nMusicVol].rebuild = 1;
 	}
 
@@ -5408,9 +5386,9 @@ if (!i)
 if (i == optOptions)
 	ConfigMenu ();
 else if (i == optLoad)
-	saveGameHandler.Load (1, 0, 0, NULL);
+	StateRestoreAll (1, 0, 0, NULL);
 else if (i == optSave)
-	saveGameHandler.Save (0, 0, 0, NULL);
+	StateSaveAll (0, 0, 0, NULL);
 return 1;
 }
 
@@ -5418,7 +5396,7 @@ return 1;
 
 static inline int MultiChoice (int nType, int bJoin)
 {
-return *(reinterpret_cast<int*> (&multiOpts) + 2 * nType + bJoin);
+return *(((int *) &multiOpts) + 2 * nType + bJoin);
 }
 
 void MultiplayerMenu ()
@@ -5572,13 +5550,13 @@ ExecMessageBox (TXT_SORRY, NULL, 1, TXT_OK, TXT_INV_ADDRESS);
 
  char *MENU_PCX_NAME (void)
 {
-if (CFile::Exist (MENU_PCX_FULL, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_FULL);
-if (CFile::Exist (MENU_PCX_OEM, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_OEM);
-if (CFile::Exist (MENU_PCX_SHAREWARE, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_SHAREWARE);
-return const_cast<char*> (MENU_PCX_MAC_SHARE);
+if (CFExist (MENU_PCX_FULL, gameFolders.szDataDir, 0))
+	return (char *) MENU_PCX_FULL;
+if (CFExist (MENU_PCX_OEM, gameFolders.szDataDir, 0))
+	return (char *) MENU_PCX_OEM;
+if (CFExist (MENU_PCX_SHAREWARE, gameFolders.szDataDir, 0))
+	return (char *) MENU_PCX_SHAREWARE;
+return (char *) MENU_PCX_MAC_SHARE;
 }
 //------------------------------------------------------------------------------
 //eof

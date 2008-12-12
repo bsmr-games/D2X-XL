@@ -39,17 +39,17 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 //	-----------------------------------------------------------------------------
 
-CCanvas *Canv_SBEnergyGauge;
-CCanvas *Canv_SBAfterburnerGauge;
+gsrCanvas *Canv_SBEnergyGauge;
+gsrCanvas *Canv_SBAfterburnerGauge;
 
 //	-----------------------------------------------------------------------------
 
 void SBInitGaugeCanvases (void)
 {
-if (!bHaveGaugeCanvases && paletteManager.Game ()) {
+if (!bHaveGaugeCanvases && gamePalette) {
 	PAGE_IN_GAUGE (SB_GAUGE_ENERGY);
-	Canv_SBEnergyGauge = CCanvas::Create (SB_ENERGY_GAUGE_W, SB_ENERGY_GAUGE_H);
-	Canv_SBAfterburnerGauge = CCanvas::Create (SB_AFTERBURNER_GAUGE_W, SB_AFTERBURNER_GAUGE_H);
+	Canv_SBEnergyGauge = GrCreateCanvas (SB_ENERGY_GAUGE_W, SB_ENERGY_GAUGE_H);
+	Canv_SBAfterburnerGauge = GrCreateCanvas (SB_AFTERBURNER_GAUGE_W, SB_AFTERBURNER_GAUGE_H);
 	}
 }
 
@@ -58,8 +58,8 @@ if (!bHaveGaugeCanvases && paletteManager.Game ()) {
 void SBCloseGaugeCanvases (void)
 {
 if (bHaveGaugeCanvases) {
-	Canv_SBEnergyGauge->Destroy ();
-	Canv_SBAfterburnerGauge->Destroy ();
+	GrFreeCanvas (Canv_SBEnergyGauge);
+	GrFreeCanvas (Canv_SBAfterburnerGauge);
 	}
 }
 
@@ -87,19 +87,19 @@ void SBShowScore (void)
 
 bRedrawScore = -99 ? (IsMultiGame && !IsCoopGame) : -1;
 if (oldScore [gameStates.render.vr.nCurrentPage] == bRedrawScore) {
-	fontManager.SetCurrent (GAME_FONT);
-	fontManager.SetColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
+	GrSetCurFont (GAME_FONT);
+	GrSetFontColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
 	nIdLabel = HUDPrintF (&nIdLabel, SB_SCORE_LABEL_X, SB_SCORE_Y, "%s:", (IsMultiGame && !IsCoopGame) ? TXT_KILLS : TXT_SCORE);
 	}
-fontManager.SetCurrent (GAME_FONT);
+GrSetCurFont (GAME_FONT);
 sprintf (szScore, "%5d", (IsMultiGame && !IsCoopGame) ? LOCALPLAYER.netKillsTotal : LOCALPLAYER.score);
-FONT->StringSize (szScore, w, h, aw);
+GrGetStringSize (szScore, &w, &h, &aw);
 x = SB_SCORE_RIGHT-w-HUD_LHX (2);
 y = SB_SCORE_Y;
 //erase old score
-CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 0));
-HUDRect (lastX [(gameStates.video.nDisplayMode ? 2 : 0) + gameStates.render.vr.nCurrentPage], y, SB_SCORE_RIGHT, y + GAME_FONT->Height ());
-fontManager.SetColorRGBi ((IsMultiGame && !IsCoopGame) ? MEDGREEN_RGBA : GREEN_RGBA, 1, 0, 0);
+GrSetColorRGBi (RGBA_PAL (0, 0, 0));
+HUDRect (lastX [(gameStates.video.nDisplayMode ? 2 : 0) + gameStates.render.vr.nCurrentPage], y, SB_SCORE_RIGHT, y + GAME_FONT->ftHeight);
+GrSetFontColorRGBi ((IsMultiGame && !IsCoopGame) ? MEDGREEN_RGBA : GREEN_RGBA, 1, 0, 0);
 nIdScore = HUDPrintF (&nIdScore, x, y, szScore);
 lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage] = x;
 }
@@ -119,12 +119,12 @@ if (IsMultiGame && !IsCoopGame)
 	return;
 if (scoreDisplay [gameStates.render.vr.nCurrentPage] == 0)
 	return;
-fontManager.SetCurrent (GAME_FONT);
+GrSetCurFont (GAME_FONT);
 scoreTime -= gameData.time.xFrame;
 if (scoreTime > 0) {
 	if (scoreDisplay [gameStates.render.vr.nCurrentPage] != last_score_display [gameStates.render.vr.nCurrentPage] || frc) {
-		CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 0));
-		GrRect (lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage], SB_SCORE_ADDED_Y, SB_SCORE_ADDED_RIGHT, SB_SCORE_ADDED_Y+GAME_FONT->Height ());
+		GrSetColorRGBi (RGBA_PAL (0, 0, 0));
+		GrRect (lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage], SB_SCORE_ADDED_Y, SB_SCORE_ADDED_RIGHT, SB_SCORE_ADDED_Y+GAME_FONT->ftHeight);
 		last_score_display [gameStates.render.vr.nCurrentPage] = scoreDisplay [gameStates.render.vr.nCurrentPage];
 		}
 	color = X2I (scoreTime * 20) + 10;
@@ -136,16 +136,16 @@ if (scoreTime > 0) {
 		sprintf (szScore, "%s", TXT_CHEATER);
 	else
 		sprintf (szScore, "%5d", scoreDisplay [gameStates.render.vr.nCurrentPage]);
-	FONT->StringSize (szScore, w, h, aw);
+	GrGetStringSize (szScore, &w, &h, &aw);
 	x = SB_SCORE_ADDED_RIGHT-w-HUD_LHX (2);
-	fontManager.SetColorRGBi (RGBA_PAL2 (0, color, 0), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (0, color, 0), 1, 0, 0);
 	nIdTotalScore = GrPrintF (&nIdTotalScore, x, SB_SCORE_ADDED_Y, szScore);
 	lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage] = x;
 	} 
 else {
 	//erase old score
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 0));
-	GrRect (lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage], SB_SCORE_ADDED_Y, SB_SCORE_ADDED_RIGHT, SB_SCORE_ADDED_Y+GAME_FONT->Height ());
+	GrSetColorRGBi (RGBA_PAL (0, 0, 0));
+	GrRect (lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage], SB_SCORE_ADDED_Y, SB_SCORE_ADDED_RIGHT, SB_SCORE_ADDED_Y+GAME_FONT->ftHeight);
 	scoreTime = 0;
 	scoreDisplay [gameStates.render.vr.nCurrentPage] = 0;
 	}
@@ -184,13 +184,13 @@ void SBShowLives (void)
 {
 	int x = SB_LIVES_X, y = SB_LIVES_Y;
 
-	CBitmap *bmP = gameData.pig.tex.bitmaps [0] + GET_GAUGE_INDEX (GAUGE_LIVES);
+	grsBitmap *bmP = gameData.pig.tex.bitmaps [0] + GET_GAUGE_INDEX (GAUGE_LIVES);
 
 	static int nIdLives [2] = {0, 0}, nIdKilled = 0;
   
 if (oldLives [gameStates.render.vr.nCurrentPage] == -1) {
-	fontManager.SetCurrent (GAME_FONT);
-	fontManager.SetColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
+	GrSetCurFont (GAME_FONT);
+	GrSetFontColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
 	nIdLives [0] = IsMultiGame ? 
 						HUDPrintF (&nIdLives [0], SB_LIVES_LABEL_X, SB_LIVES_LABEL_Y, "%s:", TXT_DEATHS) : 
 						HUDPrintF (&nIdLives [0], SB_LIVES_LABEL_X, SB_LIVES_LABEL_Y, "%s:", TXT_LIVES);
@@ -202,11 +202,11 @@ if (IsMultiGame) {
 	int x;
 
 		sprintf (szKilled, "%5d", LOCALPLAYER.netKilledTotal);
-		FONT->StringSize (szKilled, w, h, aw);
-		CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 0));
+		GrGetStringSize (szKilled, &w, &h, &aw);
+		GrSetColorRGBi (RGBA_PAL (0, 0, 0));
 		HUDRect (lastX [(gameStates.video.nDisplayMode ? 2 : 0) + gameStates.render.vr.nCurrentPage], 
-					y + 1, SB_SCORE_RIGHT, y + GAME_FONT->Height ());
-		fontManager.SetColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
+					y + 1, SB_SCORE_RIGHT, y + GAME_FONT->ftHeight);
+		GrSetFontColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
 		x = SB_SCORE_RIGHT - w - 2;	
 		nIdKilled = HUDPrintF (&nIdKilled, x, y + 1, szKilled);
 		lastX [(gameStates.video.nDisplayMode?2:0)+gameStates.render.vr.nCurrentPage] = x;
@@ -215,15 +215,15 @@ if (IsMultiGame) {
 if ((oldLives [gameStates.render.vr.nCurrentPage] == -1) || 
 	 (LOCALPLAYER.lives != oldLives [gameStates.render.vr.nCurrentPage])) {
 //erase old icons
-	CCanvas::Current ()->SetColorRGBi (RGBA_PAL (0, 0, 0));
+	GrSetColorRGBi (RGBA_PAL (0, 0, 0));
    
-	HUDRect (x, y, SB_SCORE_RIGHT, y + bmP->Height ());
+	HUDRect (x, y, SB_SCORE_RIGHT, y + bmP->bmProps.h);
 	if (LOCALPLAYER.lives - 1 > 0) {
-		fontManager.SetCurrent (GAME_FONT);
-		fontManager.SetColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
+		GrSetCurFont (GAME_FONT);
+		GrSetFontColorRGBi (MEDGREEN_RGBA, 1, 0, 0);
 		PAGE_IN_GAUGE (GAUGE_LIVES);
 		HUDBitBlt (x, y, bmP, F1_0, 0);
-		nIdLives [1] = HUDPrintF (&nIdLives [1], x + bmP->Width () + GAME_FONT->Width (), y, "x %d", LOCALPLAYER.lives - 1);
+		nIdLives [1] = HUDPrintF (&nIdLives [1], x + bmP->bmProps.w + GAME_FONT->ftWidth, y, "x %d", LOCALPLAYER.lives - 1);
 		}
 	}
 }
@@ -237,7 +237,7 @@ void SBDrawEnergyBar (int nEnergy)
 
 	static int nIdEnergyBar = 0;
 
-//	CCanvas::SetCurrent (Canv_SBEnergyGauge);
+//	GrSetCurrentCanvas (Canv_SBEnergyGauge);
 
 	PAGE_IN_GAUGE (SB_GAUGE_ENERGY);
 	if (gameStates.app.bD1Mission)
@@ -249,7 +249,7 @@ void SBDrawEnergyBar (int nEnergy)
 									  gameData.pig.tex.bitmaps [0] + GET_GAUGE_INDEX (SB_GAUGE_ENERGY), F1_0, 0);
 	erase_height = (100 - nEnergy) * SB_ENERGY_GAUGE_H / 100;
 	if (erase_height > 0) {
-		CCanvas::Current ()->SetColorRGBi (BLACK_RGBA);
+		GrSetColorRGBi (BLACK_RGBA);
 		glDisable (GL_BLEND);
 		HUDRect (
 			SB_ENERGY_GAUGE_X, 
@@ -258,16 +258,16 @@ void SBDrawEnergyBar (int nEnergy)
 			SB_ENERGY_GAUGE_Y+erase_height);
 		glEnable (GL_BLEND);
 	}
-CCanvas::SetCurrent (GetCurrentGameScreen ());
+GrSetCurrentCanvas (GetCurrentGameScreen ());
 //draw numbers
 sprintf (energy_str, "%d", nEnergy);
-FONT->StringSize (energy_str, w, h, aw);
-fontManager.SetColorRGBi (RGBA_PAL2 (25, 18, 6), 1, 0, 0);
+GrGetStringSize (energy_str, &w, &h, &aw);
+GrSetFontColorRGBi (RGBA_PAL2 (25, 18, 6), 1, 0, 0);
 nIdEnergyBar = HUDPrintF (&nIdEnergyBar, 
 								  SB_ENERGY_GAUGE_X + ((SB_ENERGY_GAUGE_W - w)/2), 
-								  SB_ENERGY_GAUGE_Y + SB_ENERGY_GAUGE_H - GAME_FONT->Height () - (GAME_FONT->Height () / 4), 
+								  SB_ENERGY_GAUGE_Y + SB_ENERGY_GAUGE_H - GAME_FONT->ftHeight - (GAME_FONT->ftHeight / 4), 
 							     "%d", nEnergy);
-Canv_SBEnergyGauge->FreeTexture ();
+OglFreeBmTexture (&Canv_SBEnergyGauge->cvBitmap);
 }
 
 //	-----------------------------------------------------------------------------
@@ -283,14 +283,14 @@ void SBDrawAfterburner (void)
 
 	if (gameStates.app.bD1Mission)
 		return;
-//	CCanvas::SetCurrent (Canv_SBAfterburnerGauge);
+//	GrSetCurrentCanvas (Canv_SBAfterburnerGauge);
 	PAGE_IN_GAUGE (SB_GAUGE_AFTERBURNER);
 	HUDBitBlt (SB_AFTERBURNER_GAUGE_X, SB_AFTERBURNER_GAUGE_Y, gameData.pig.tex.bitmaps [0] + GET_GAUGE_INDEX (SB_GAUGE_AFTERBURNER), F1_0, 0);
 	erase_height = FixMul ((f1_0 - gameData.physics.xAfterburnerCharge), SB_AFTERBURNER_GAUGE_H);
 //	HUDMessage (0, "AB: %d", erase_height);
 
 	if (erase_height > 0) {
-		CCanvas::Current ()->SetColorRGBi (BLACK_RGBA);
+		GrSetColorRGBi (BLACK_RGBA);
 		glDisable (GL_BLEND);
 		HUDRect (
 			SB_AFTERBURNER_GAUGE_X, 
@@ -299,19 +299,19 @@ void SBDrawAfterburner (void)
 			SB_AFTERBURNER_GAUGE_Y+erase_height-1);
 		glEnable (GL_BLEND);
 	}
-CCanvas::SetCurrent (GetCurrentGameScreen ());
+GrSetCurrentCanvas (GetCurrentGameScreen ());
 //draw legend
 if (LOCALPLAYER.flags & PLAYER_FLAGS_AFTERBURNER)
-	fontManager.SetColorRGBi (RGBA_PAL2 (45, 0, 0), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (45, 0, 0), 1, 0, 0);
 else 
-	fontManager.SetColorRGBi (RGBA_PAL2 (12, 12, 12), 1, 0, 0);
+	GrSetFontColorRGBi (RGBA_PAL2 (12, 12, 12), 1, 0, 0);
 
-FONT->StringSize (ab_str, w, h, aw);
+GrGetStringSize (ab_str, &w, &h, &aw);
 nIdAfterBurner = HUDPrintF (&nIdAfterBurner, 
 									 SB_AFTERBURNER_GAUGE_X + ((SB_AFTERBURNER_GAUGE_W - w)/2), 
-									 SB_AFTERBURNER_GAUGE_Y+SB_AFTERBURNER_GAUGE_H-GAME_FONT->Height () - (GAME_FONT->Height () / 4), 
+									 SB_AFTERBURNER_GAUGE_Y+SB_AFTERBURNER_GAUGE_H-GAME_FONT->ftHeight - (GAME_FONT->ftHeight / 4), 
 									 "AB");
-Canv_SBAfterburnerGauge->FreeTexture ();
+OglFreeBmTexture (&Canv_SBAfterburnerGauge->cvBitmap);
 }
 
 //	-----------------------------------------------------------------------------
@@ -321,11 +321,11 @@ void SBDrawShieldNum (int shield)
 	static int nIdShieldNum = 0;
 
 //draw numbers
-fontManager.SetCurrent (GAME_FONT);
-fontManager.SetColorRGBi (RGBA_PAL2 (14, 14, 23), 1, 0, 0);
+GrSetCurFont (GAME_FONT);
+GrSetFontColorRGBi (RGBA_PAL2 (14, 14, 23), 1, 0, 0);
 //erase old one
 PIGGY_PAGE_IN (gameData.pig.tex.cockpitBmIndex [gameStates.render.cockpit.nMode + (gameStates.video.nDisplayMode? (gameData.models.nCockpits/2):0)].index, 0);
-HUDRect (SB_SHIELD_NUM_X, SB_SHIELD_NUM_Y, SB_SHIELD_NUM_X+ (gameStates.video.nDisplayMode?27:13), SB_SHIELD_NUM_Y+GAME_FONT->Height ());
+HUDRect (SB_SHIELD_NUM_X, SB_SHIELD_NUM_Y, SB_SHIELD_NUM_X+ (gameStates.video.nDisplayMode?27:13), SB_SHIELD_NUM_Y+GAME_FONT->ftHeight);
 nIdShieldNum = HUDPrintF (&nIdShieldNum, (shield>99)?SB_SHIELD_NUM_X: ((shield>9)?SB_SHIELD_NUM_X+2:SB_SHIELD_NUM_X+4), SB_SHIELD_NUM_Y, "%d", shield);
 }
 
@@ -335,7 +335,7 @@ void SBDrawShieldBar (int shield)
 {
 	int bm_num = shield>=100?9: (shield / 10);
 
-CCanvas::SetCurrent (GetCurrentGameScreen ());
+GrSetCurrentCanvas (GetCurrentGameScreen ());
 PAGE_IN_GAUGE (GAUGE_SHIELDS + 9 - bm_num);
 HUDBitBlt (SB_SHIELD_GAUGE_X, SB_SHIELD_GAUGE_Y, &gameData.pig.tex.bitmaps [0][GET_GAUGE_INDEX (GAUGE_SHIELDS+9-bm_num)], F1_0, 0);
 }
@@ -344,10 +344,10 @@ HUDBitBlt (SB_SHIELD_GAUGE_X, SB_SHIELD_GAUGE_Y, &gameData.pig.tex.bitmaps [0][G
 
 void SBDrawKeys (void)
 {
-	CBitmap * bmP;
+	grsBitmap * bmP;
 	int flags = LOCALPLAYER.flags;
 
-CCanvas::SetCurrent (GetCurrentGameScreen ());
+GrSetCurrentCanvas (GetCurrentGameScreen ());
 bmP = &gameData.pig.tex.bitmaps [0][GET_GAUGE_INDEX ((flags&PLAYER_FLAGS_BLUE_KEY)?SB_GAUGE_BLUE_KEY:SB_GAUGE_BLUE_KEY_OFF)];
 PAGE_IN_GAUGE ((flags&PLAYER_FLAGS_BLUE_KEY)?SB_GAUGE_BLUE_KEY:SB_GAUGE_BLUE_KEY_OFF);
 HUDBitBlt (SB_GAUGE_KEYS_X, SB_GAUGE_BLUE_KEY_Y, bmP, F1_0, 0);
@@ -366,7 +366,7 @@ void SBDrawInvulnerableShip (void)
 {
 	fix tInvul = LOCALPLAYER.invulnerableTime + INVULNERABLE_TIME_MAX - gameData.time.xGame;
 
-CCanvas::SetCurrent (GetCurrentGameScreen ());
+GrSetCurrentCanvas (GetCurrentGameScreen ());
 if (tInvul <= 0) 
 	SBDrawShieldBar (X2IR (LOCALPLAYER.shields));
 else if ((tInvul > F1_0 * 4) || (gameData.time.xGame & 0x8000)) {
@@ -377,7 +377,7 @@ else if ((tInvul > F1_0 * 4) || (gameData.time.xGame & 0x8000)) {
 
 //	-----------------------------------------------------------------------------
 
-//print out some CPlayerData statistics
+//print out some tPlayer statistics
 void SBRenderGauges (void)
 {
 	int nEnergy = X2IR (LOCALPLAYER.energy);

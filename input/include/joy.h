@@ -62,33 +62,29 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define MAX_BUTTONS 20
 #endif
 
-typedef struct tJoyButton {
+struct joybutton {
 	int state;
 	int lastState;
 	fix xTimeWentDown;
 	int numDowns;
 	int numUps;
-} tJoyButton;
+};
 
-typedef struct tJoyAxisCal {
-	int		nMin;
-	int		nCenter;
-	int		nMax;
-} tJoyAxisCal;
-
-typedef struct tJoyAxis {
-	int			nValue;
-	tJoyAxisCal	cal;
-} tJoyAxis;
+struct joyaxis {
+	int		value;
+	int		min_val;
+	int		center_val;
+	int		max_val;
+};
 
 typedef struct tSdlJoystick {
-	SDL_Joystick	*handle;
-	int				nAxes;
-	int				nButtons;
-	int				nHats;
-	int				hatMap [MAX_HATS_PER_JOYSTICK];  //Note: Descent expects hats to be buttons, so these are indices into Joystick.buttons
-	int				axisMap [MAX_AXES_PER_JOYSTICK];
-	int				buttonMap [MAX_BUTTONS_PER_JOYSTICK];
+	SDL_Joystick *handle;
+	int n_axes;
+	int n_buttons;
+	int n_hats;
+	int hat_map [MAX_HATS_PER_JOYSTICK];  //Note: Descent expects hats to be buttons, so these are indices into Joystick.buttons
+	int axis_map [MAX_AXES_PER_JOYSTICK];
+	int button_map [MAX_BUTTONS_PER_JOYSTICK];
 } tSdlJoystick;
 
 extern struct tSdlJoystick /*SDL_Joystick*/ sdlJoysticks [MAX_JOYSTICKS];
@@ -98,10 +94,10 @@ extern struct tSdlJoystick /*SDL_Joystick*/ sdlJoysticks [MAX_JOYSTICKS];
 // assumes the stick is centered and sets the minimum value to 0 and
 // the maximum value to 2 times the centered reading. Returns 0 if no
 // joystick was detected, 1 if everything is ok.
-// JoyInit (void) is called.
+// JoyInit() is called.
 
-int JoyInit (void);
-void JoyClose (void);
+int JoyInit();
+void joy_close();
 
 extern char bJoyInstalled;
 extern char bJoyPresent;
@@ -117,9 +113,9 @@ extern char bJoyPresent;
 // left position is usually always 0,0 on most joys.  But, the safest
 // bet is to do all three, or let the user choose which ones to set.
 
-void joy_set_ul (void);
-void joy_set_lr (void);
-void joy_set_cen (void);
+void joy_set_ul();
+void joy_set_lr();
+void joy_set_cen();
 
 
 //==========================================================================
@@ -128,18 +124,18 @@ void joy_set_cen (void);
 // is in the lower right hand corner. Always returns 0,0 if no stick
 // is present.
 
-void JoyGetPos (int *x, int *y);
+void JoyGetPos(int *x, int *y);
 
 //==========================================================================
 // This just reads the buttons and returns their status.  When bit 0
 // is 1, button 1 is pressed, when bit 1 is 1, button 2 is pressed.
-int JoyGetBtns (void);
+int JoyGetBtns();
 
 //==========================================================================
 // This returns the number of times a button went either down or up since
 // the last call to this function.
-int JoyGetButtonUpCnt (int btn);
-int JoyGetButtonDownCnt (int btn);
+int JoyGetButtonUpCnt(int btn);
+int JoyGetButtonDownCnt(int btn);
 
 //==========================================================================
 // This returns how long (in approximate milliseconds) that each of the
@@ -148,21 +144,21 @@ int JoyGetButtonDownCnt (int btn);
 // it, and held it down for 6 more ticks. The time returned would be 9.
 fix JoyGetButtonDownTime(int btn);
 
-uint JoyReadRawButtons (void);
-uint JoyReadRawAxis (uint mask, int *axis);
-void JoyFlush (void);
-ubyte JoyGetPresentMask (void);
+unsigned int joy_read_raw_buttons();
+unsigned int JoyReadRawAxis(unsigned int mask, int *axis);
+void JoyFlush();
+ubyte JoyGetPresentMask();
 void JoySetTimerRate(int maxValue);
-int JoyGetTimerRate (void);
+int JoyGetTimerRate();
 
-int JoyGetButtonState (int btn);
-void JoySetCenFake (int channel);
-ubyte JoyReadStick (ubyte masks, int *axis);
-void JoyGetCalVals (tJoyAxisCal *cal, int nAxes);
-void JoySetCalVals (tJoyAxisCal *cal, int nAxes);
-void JoySetBtnValues (int btn, int state, fix timedown, int downcount, int upcount);
-int JoyGetScaledReading (int raw, int axn);
-void JoySetSlowReading (int flag);
+int JoyGetButtonState(int btn);
+void JoySetCenFake(int channel);
+ubyte JoyReadStick(ubyte masks, int *axis);
+void JoyGetCalVals(int *axis_min, int *axis_center, int *axis_max);
+void JoySetCalVals(int *axis_min, int *axis_center, int *axis_max);
+void JoySetBtnValues(int btn, int state, fix timedown, int downcount, int upcount);
+int JoyGetScaledReading(int raw, int axn);
+void JoySetSlowReading(int flag);
 int JoySetDeadzone (int nRelZone, int nAxis);
 
 extern int joyDeadzone [4];

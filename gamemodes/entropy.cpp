@@ -37,7 +37,7 @@ return -1;
 int CountRooms (void)
 {
 	int		i;
-	xsegment	*segP = gameData.segs.xSegments.Buffer ();
+	xsegment	*segP = gameData.segs.xSegments;
 
 memset (gameData.entropy.nRoomOwners, 0xFF, sizeof (gameData.entropy.nRoomOwners));
 memset (gameData.entropy.nTeamRooms, 0, sizeof (gameData.entropy.nTeamRooms));
@@ -58,9 +58,9 @@ return gameData.entropy.nTotalRooms;
 void ConquerRoom (int newOwner, int oldOwner, int roomId)
 {
 	int			f, h, i, j, jj, k, kk, nObject;
-	CSegment		*segP;
+	tSegment		*segP;
 	xsegment		*xsegP;
-	CObject		*objP;
+	tObject		*objP;
 	tFuelCenInfo	*fuelP;
 	short			virusGens [MAX_FUEL_CENTERS];
 
@@ -76,7 +76,7 @@ void ConquerRoom (int newOwner, int oldOwner, int roomId)
 // back to their original nType
 gameData.entropy.nTeamRooms [oldOwner]--;
 gameData.entropy.nTeamRooms [newOwner]++;
-for (i = 0, j = jj = 0, k = kk = MAX_FUEL_CENTERS, segP = gameData.segs.segments.Buffer (), xsegP = gameData.segs.xSegments.Buffer (); 
+for (i = 0, j = jj = 0, k = kk = MAX_FUEL_CENTERS, segP = gameData.segs.segments, xsegP = gameData.segs.xSegments; 
 	  i <= gameData.segs.nLastSegment; 
 	  i++, segP++, xsegP++) {
 	if ((xsegP->group == roomId) && (xsegP->owner == oldOwner)) {
@@ -87,7 +87,7 @@ for (i = 0, j = jj = 0, k = kk = MAX_FUEL_CENTERS, segP = gameData.segs.segments
 			if (extraGameInfo [1].entropy.bRevertRooms && (-1 < (f = FindFuelCen (i))) &&
 				 (gameData.matCens.origStationTypes [f] != SEGMENT_IS_NOTHING))
 				virusGens [--kk] = f;
-			for (nObject = segP->objects; nObject >= 0; nObject = objP->info.nNextInSeg) {
+			for (nObject = gameData.segs.objects [SEG_IDX (segP)]; nObject >= 0; nObject = objP->info.nNextInSeg) {
 				objP = OBJECTS + nObject;
 				if ((objP->info.nType == OBJ_POWERUP) && (objP->info.nType == POW_ENTROPY_VIRUS))
 					objP->info.nCreator = newOwner;
@@ -123,7 +123,7 @@ if (extraGameInfo [1].entropy.bRevertRooms && (jj + (MAX_FUEL_CENTERS - kk)) && 
 // check if the other newOwner's last virus center has been conquered
 // if so, find a fuel or repair center owned by that and turn it into a virus generator
 // preferrably convert repair centers
-for (i = 0, h = -1, xsegP = gameData.segs.xSegments.Buffer (); i <= gameData.segs.nLastSegment; i++, xsegP++)
+for (i = 0, h = -1, xsegP = gameData.segs.xSegments; i <= gameData.segs.nLastSegment; i++, xsegP++)
 	if (xsegP->owner == oldOwner) 
 		switch (gameData.segs.segment2s [i].special) {
 			case SEGMENT_IS_ROBOTMAKER:
@@ -171,7 +171,7 @@ if (gameStates.entropy.bConquerWarning) {
 
 int CheckConquerRoom (xsegment *segP)
 {
-	CPlayerData	*playerP = gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer;
+	tPlayer	*playerP = gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer;
 	int		team = GetTeam (gameData.multiplayer.nLocalPlayer) + 1;
 	time_t	t;
 

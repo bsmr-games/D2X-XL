@@ -52,7 +52,7 @@ int ToggleShowOnlyCurSide(void);
 
 // When any render function needs to know what's looking at it, it
 // should access RenderViewerObject members.
-extern fix xRenderZoom;     // the CPlayerData's zoom factor
+extern fix xRenderZoom;     // the tPlayer's zoom factor
 
 // This is used internally to RenderFrame(), but is included here so AI
 // can use it for its own purposes.
@@ -63,7 +63,7 @@ extern short nRenderList [MAX_SEGMENTS_D2X];
 extern int Render_only_bottom;
 #endif
 
-// Set the following to turn on CPlayerData head turning
+// Set the following to turn on tPlayer head turning
 // If the above flag is set, these angles specify the orientation of the head
 extern vmsAngVec Player_head_angles;
 
@@ -77,8 +77,8 @@ void SetRenderView (fix nEyeOffset, short *pnStartSeg, int bOglScale);
 
 void RenderMine (short nStartSeg, fix xExeOffset, int nWindow);
 void RenderShadowQuad (int bWhite);
-int RenderShadowMap (CDynLight *pLight);
-void UpdateRenderedData (int window_num, CObject *viewer, int rearViewFlag, int user);
+int RenderShadowMap (tDynLight *pLight);
+void UpdateRenderedData (int window_num, tObject *viewer, int rearViewFlag, int user);
 void RenderObjList (int nListPos, int nWindow);
 void RenderMineSegment (int nn);
 void RenderEffects (int nWindow);
@@ -93,9 +93,9 @@ void CloseDynLighting (void);
 
 //------------------------------------------------------------------------------
 
-static inline bool GuidedMslView (CObject ** objPP)
+static inline bool GuidedMslView (tObject ** objPP)
 {
-	CObject *objP = gameData.objs.guidedMissile [gameData.multiplayer.nLocalPlayer].objP;
+	tObject *objP = gameData.objs.guidedMissile [gameData.multiplayer.nLocalPlayer].objP;
 
 *objPP = objP;
 return objP && 
@@ -106,12 +106,12 @@ return objP &&
 
 //------------------------------------------------------------------------------
 
-static inline CObject *GuidedInMainView (void)
+static inline tObject *GuidedInMainView (void)
 {
 if (!gameOpts->render.cockpit.bGuidedInMainView)
 	return NULL;
 
-CObject *objP;
+tObject *objP;
 
 return GuidedMslView (&objP) ? objP : NULL;
 }

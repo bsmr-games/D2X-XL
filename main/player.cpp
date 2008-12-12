@@ -13,28 +13,28 @@
 #include "network.h"
 
 //-------------------------------------------------------------------------
-// reads a CPlayerShip structure from a CFile
+// reads a tPlayerShip structure from a CFILE
  
-void PlayerShipRead (CPlayerShip *ps, CFile& cf)
+void PlayerShipRead (tPlayerShip *ps, CFILE *fp)
 {
 	int i;
 
-ps->nModel = cf.ReadInt ();
-ps->nExplVClip = cf.ReadInt ();
-ps->mass = cf.ReadFix ();
-ps->drag = cf.ReadFix ();
-ps->maxThrust = cf.ReadFix ();
-ps->reverseThrust = cf.ReadFix ();
-ps->brakes = cf.ReadFix ();
-ps->wiggle = cf.ReadFix ();
-ps->maxRotThrust = cf.ReadFix ();
+ps->nModel = CFReadInt (fp);
+ps->nExplVClip = CFReadInt (fp);
+ps->mass = CFReadFix (fp);
+ps->drag = CFReadFix (fp);
+ps->maxThrust = CFReadFix (fp);
+ps->reverseThrust = CFReadFix (fp);
+ps->brakes = CFReadFix (fp);
+ps->wiggle = CFReadFix (fp);
+ps->maxRotThrust = CFReadFix (fp);
 for (i = 0; i < N_PLAYER_GUNS; i++)
-	cf.ReadVector (ps->gunPoints[i]);
+	CFReadVector (ps->gunPoints[i], fp);
 }
 
 //-------------------------------------------------------------------------
 
-int EquippedPlayerGun (CObject *objP)
+int EquippedPlayerGun (tObject *objP)
 {
 if (objP->info.nType == OBJ_PLAYER) {
 		int		nPlayer = objP->info.nId;
@@ -49,7 +49,7 @@ return 0;
 
 static int nBombIds [] = {SMART_INDEX, MEGA_INDEX, EARTHSHAKER_INDEX};
 
-int EquippedPlayerBomb (CObject *objP)
+int EquippedPlayerBomb (tObject *objP)
 {
 if (objP->info.nType == OBJ_PLAYER) {
 		int		nPlayer = objP->info.nId;
@@ -66,7 +66,7 @@ return 0;
 
 static int nMissileIds [] = {CONCUSSION_INDEX, HOMING_INDEX, FLASHMSL_INDEX, GUIDED_INDEX, MERCURY_INDEX};
 
-int EquippedPlayerMissile (CObject *objP, int *nMissiles)
+int EquippedPlayerMissile (tObject *objP, int *nMissiles)
 {
 if (objP->info.nType == OBJ_PLAYER) {
 		int		nPlayer = objP->info.nId;
@@ -95,7 +95,7 @@ return 1000 * WI_fire_wait (nWeapon) / F1_0;
 
 void UpdateFiringSounds (void)
 {
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates;
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates;
 	tFiringData		*fP;
 	int				bGatling, bGatlingSound, i;
 
@@ -162,7 +162,7 @@ else if (gameData.weapons.firing [1].nDuration) {
 void UpdatePlayerWeaponInfo (void)
 {
 	int				i, bUpdate = 0;
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates + gameData.multiplayer.nLocalPlayer;
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates + gameData.multiplayer.nLocalPlayer;
 	tFiringData		*fP;
 
 if (gameStates.app.bPlayerIsDead)

@@ -28,12 +28,11 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "modex.h"
 #include "ogl_defs.h"
 #include "gr.h"
-#include "bitmap.h"
 
 #ifndef D1XD3D
 void gr_upixel( int x, int y )
 {
-	switch (MODE)
+	switch (TYPE)
 	{
 	case BM_OGL:
 		OglUPixelC(x,y, &COLOR);
@@ -47,7 +46,7 @@ void gr_upixel( int x, int y )
 		gr_video_memory[(ROWSIZE * (y+YOFFSET)) + ((x+XOFFSET)>>2)] = COLOR.index;
 		return;
 	case BM_SVGA:
-		gr_vesa_pixel( COLOR, (uint)DATA + (uint)ROWSIZE * y + x);
+		gr_vesa_pixel( COLOR, (unsigned int)DATA + (unsigned int)ROWSIZE * y + x);
 		return;
 #endif
 	}
@@ -61,38 +60,38 @@ void gr_pixel( int x, int y )
 }
 
 #ifndef D1XD3D
-inline void gr_bm_upixel( CBitmap * bmP, int x, int y, ubyte color )
+inline void gr_bm_upixel( grsBitmap * bm, int x, int y, unsigned char color )
 {
-	tCanvasColor c;
-	switch (bmP->Mode ())
+	grsColor c;
+	switch (bm->bmProps.nType)
 	{
 	case BM_OGL:
 		c.index = color;
 		c.rgb = 0;
-		OglUPixelC (bmP->Left () + x, bmP->Top () + y, &c);
+		OglUPixelC(bm->bmProps.x + x, bm->bmProps.y + y, &c);
 		return;
 	case BM_LINEAR:
-		(*bmP) [bmP->RowSize () * y + x] = color;
+		bm->bmTexBuf[ bm->bmProps.rowSize*y+x ] = color;
 		return;
 #ifdef __DJGPP__
 	case BM_MODEX:
-		x += bmP->Left ();
-		y += bmP->Top ();
+		x += bm->bmProps.x;
+		y += bm->bmProps.y;
 		gr_modex_setplane( x & 3 );
-		gr_video_memory[(bmP->RowSize () * y) + (x/4)] = color;
+		gr_video_memory[(bm->bmProps.rowSize * y) + (x/4)] = color;
 		return;
 	case BM_SVGA:
-		gr_vesa_pixel(color,(uint)bmP->Buffer () + (uint)bmP->RowSize () * y + x);
+		gr_vesa_pixel(color,(unsigned int)bm->bmTexBuf + (unsigned int)bm->bmProps.rowSize * y + x);
 		return;
 #endif
 	}
 }
 #endif
 
-void gr_bm_pixel( CBitmap * bmP, int x, int y, ubyte color )
+void gr_bm_pixel( grsBitmap * bm, int x, int y, unsigned char color )
 {
-	if ((x<0) || (y<0) || (x >= bmP->Width ()) || (y >= bmP->Height ())) return;
-	gr_bm_upixel (bmP, x, y, color);
+	if ((x<0) || (y<0) || (x>=bm->bmProps.w) || (y>=bm->bmProps.h)) return;
+	gr_bm_upixel (bm, x, y, color);
 }
 
 

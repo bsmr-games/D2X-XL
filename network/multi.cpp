@@ -57,8 +57,8 @@ typedef struct tMultiHandlerInfo {
 	char				noEndLevelSeq;
 } tMultiHandlerInfo;
 
-void MultiResetPlayerObject (CObject *objP);
-void MultiResetObjectTexture (CObject *objP);
+void MultiResetPlayerObject (tObject *objP);
+void MultiResetObjectTexture (tObject *objP);
 void MultiAddLifetimeKilled ();
 void MultiAddLifetimeKills ();
 void MultiSendPlayByPlay (int num, int spnum, int dpnum);
@@ -85,7 +85,7 @@ void MultiDoConquerWarning (char *buf);
 
 // LOCALIZE ME!!
 
-void DropPlayerEggs (CObject *player); // from collide.c
+void DropPlayerEggs (tObject *player); // from collide.c
 
 //
 // Global variaszPlayers
@@ -107,15 +107,15 @@ typedef struct tNetPlayerStats {
 	fix    shields;               // shields remaining (protection)
 	ubyte  lives;                 // Lives remaining, 0 = game over.
 	ubyte  laserLevel;				// Current level of the laser.
-	ubyte  primaryWeaponFlags;		// bit set indicates the CPlayerData has this weapon.
-	ubyte  secondaryWeaponFlags;  // bit set indicates the CPlayerData has this weapon.
+	ubyte  primaryWeaponFlags;		// bit set indicates the tPlayer has this weapon.
+	ubyte  secondaryWeaponFlags;  // bit set indicates the tPlayer has this weapon.
 	ushort primaryAmmo [MAX_PRIMARY_WEAPONS];     // How much ammo of each nType.
 	ushort secondaryAmmo [MAX_SECONDARY_WEAPONS]; // How much ammo of each nType.
 	int    lastScore;             // Score at beginning of current level.
 	int    score;                 // Current score.
 	fix    cloakTime;             // Time cloaked
 	fix    invulnerableTime;      // Time invulnerable
-	fix    homingObjectDist;      // Distance of nearest homing CObject.
+	fix    homingObjectDist;      // Distance of nearest homing tObject.
 	short  nKillGoalCount;
 	short  netKilledTotal;        // Number of times nKilled total
 	short  netKillsTotal;         // Number of net kills total
@@ -216,21 +216,21 @@ int multiMessageLengths [MULTI_MAX_TYPE+1] = {
 	22	 // MULTI_PLAYER_WEAPONS
 };
 
-void extract_netplayer_stats (tNetPlayerStats *ps, CPlayerData * pd);
-void use_netplayer_stats (CPlayerData * ps, tNetPlayerStats *pd);
+void extract_netplayer_stats (tNetPlayerStats *ps, tPlayer * pd);
+void use_netplayer_stats (tPlayer * ps, tNetPlayerStats *pd);
 
-CPlayerShip defaultPlayerShip;
+tPlayerShip defaultPlayerShip;
 #if 0
  = {
 	108, 58, 262144, 2162, 511180, 0, 0, F1_0 / 2, 9175,
-	{CFixVector::Create(146013, -59748, 35756),
-	 CFixVector::Create(-147477, -59892, 34430),
- 	 CFixVector::Create(222008, -118473, 148201),
-	 CFixVector::Create(-223479, -118213, 148302),
-	 CFixVector::Create(153026, -185, -91405),
-	 CFixVector::Create(-156840, -185, -91405),
-	 CFixVector::Create(1608, -87663, 184978),
-	 CFixVector::Create(-1608, -87663, -190825)}};
+	{vmsVector::Create(146013, -59748, 35756),
+	 vmsVector::Create(-147477, -59892, 34430),
+ 	 vmsVector::Create(222008, -118473, 148201),
+	 vmsVector::Create(-223479, -118213, 148302),
+	 vmsVector::Create(153026, -185, -91405),
+	 vmsVector::Create(-156840, -185, -91405),
+	 vmsVector::Create(1608, -87663, 184978),
+	 vmsVector::Create(-1608, -87663, -190825)}};
 #endif
 
 //-----------------------------------------------------------------------------
@@ -258,8 +258,8 @@ defaultPlayerShip.gunPoints [0].Create (-1608, -87663, -190825);
 
 //-----------------------------------------------------------------------------
 // check protection
-// return 0 if CPlayerData cheats and cheat cannot be neutralized
-// currently doesn't do anything besides setting CPlayerData ship physics to default values.
+// return 0 if tPlayer cheats and cheat cannot be neutralized
+// currently doesn't do anything besides setting tPlayer ship physics to default values.
 
 int MultiProtectGame (void)
 {
@@ -302,7 +302,7 @@ return (result);
 }
 
 //-----------------------------------------------------------------------------
-// Map a local CObject number to a remote + nOwner
+// Map a local tObject number to a remote + nOwner
 
 int ObjnumLocalToRemote (int nLocalObj, sbyte *nOwner)
 {
@@ -374,9 +374,9 @@ gameData.multigame.localToRemote [nLocalObj] = nLocalObj;
 
 void ResetNetworkObjects ()
 {
-gameData.multigame.localToRemote.Clear (0xff);
-gameData.multigame.remoteToLocal.Clear (0xff);
-gameData.multigame.nObjOwner.Clear (0xff);
+memset (gameData.multigame.localToRemote, -1, MAX_OBJECTS * sizeof (short));
+memset (gameData.multigame.remoteToLocal, -1, MAX_NUM_NET_PLAYERS * MAX_OBJECTS * sizeof (short));
+memset (gameData.multigame.nObjOwner, -1, MAX_OBJECTS);
 }
 
 //
@@ -389,35 +389,35 @@ gameData.multigame.nObjOwner.Clear (0xff);
 
 void ResetPlayerPaths (void)
 {
-	CPlayerData	*playerP = gameData.multiplayer.players;
+	tPlayer	*playerP = gameData.multiplayer.players;
 	int		i;
 
 for (i = 0; i < MAX_PLAYERS; i++, playerP++)
-	gameData.render.thrusters [i].path.Reset (10, 1);
+	ResetFlightPath (&gameData.render.thrusters [i].path, 10, 1);
 }
 
 // -----------------------------------------------------------------------------
 
 void SetPlayerPaths (void)
 {
-	CPlayerData	*playerP = gameData.multiplayer.players;
+	tPlayer	*playerP = gameData.multiplayer.players;
 	int		i;
 
 for (i = 0; i < gameData.multiplayer.nPlayers; i++, playerP++)
-	gameData.render.thrusters [i].path.SetPoint (OBJECTS + playerP->nObject);
+	SetPathPoint (&gameData.render.thrusters [i].path, OBJECTS + playerP->nObject);
 }
 
 // -----------------------------------------------------------------------------
 
 void MultiSetFlagPos (void)
 {
-	CPlayerData	*playerP = gameData.multiplayer.players;
+	tPlayer	*playerP = gameData.multiplayer.players;
 #if 1//ndef _DEBUG
 	int		i;
 
 for (i = 0; i < gameData.multiplayer.nPlayers; i++, playerP++)
 	if (playerP->flags & PLAYER_FLAGS_FLAG)
-		gameData.pig.flags [!GetTeam (i)].path.SetPoint (OBJECTS + playerP->nObject);
+		SetPathPoint (&gameData.pig.flags [!GetTeam (i)].path, OBJECTS + playerP->nObject);
 #else
 SetPathPoint (&gameData.pig.flags [0].path, OBJECTS + playerP->nObject);
 #endif
@@ -469,7 +469,7 @@ return (netGame.teamVector & (1 << nPlayer)) ? 1 : 0;
 
 void MultiSendPlayerWeapons (int nPlayer)
 {
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates + nPlayer;
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates + nPlayer;
 
 gameData.multigame.msg.buf [0] = (char) MULTI_PLAYER_WEAPONS;
 gameData.multigame.msg.buf [1] = (char) nPlayer;
@@ -491,7 +491,7 @@ MultiSendData (gameData.multigame.msg.buf, 22, 0);
 
 void MultiDoPlayerWeapons (char *buf)
 {
-	CWeaponState	*wsP = gameData.multiplayer.weaponStates + (int) buf [1];
+	tWeaponState	*wsP = gameData.multiplayer.weaponStates + (int) buf [1];
 	tFiringData		*fP;
 	int				i;
 
@@ -586,7 +586,7 @@ SetTeam ((int) buf [1], (int) buf [2]);
 
 //-----------------------------------------------------------------------------
 
-void StartPlayerDeathSequence (CObject *player);
+void StartPlayerDeathSequence (tObject *player);
 
 void SwitchTeam (int nPlayer, int bForce)
 {
@@ -615,7 +615,7 @@ for (h = i = 0; i < gameData.multiplayer.nPlayers; i++) {
 	teamScore [t] = gameData.multiplayer.players [i].score;
 	}
 i = gameData.multiplayer.nPlayers / 2;
-// put CPlayerData on red team if red team smaller or weaker than blue team
+// put tPlayer on red team if red team smaller or weaker than blue team
 // and on blue team otherwise
 SetTeam (nPlayer, (h < i) || ((h == i) && (teamScore [1] < teamScore [0])) ? 1 : 0);
 MultiSendSetTeam (nPlayer);
@@ -641,7 +641,7 @@ if (gameStates.app.bHaveExtraGameInfo &&
 		teamScore [t] = gameData.multiplayer.players [i].score;
 		}
 	h = teamCount [0] - teamCount [1];
-	// don't change teams if 1 CPlayerData or less difference
+	// don't change teams if 1 tPlayer or less difference
 	if ((h  >= -1) && (h <= 1))
 		return;
 	// don't change teams if smaller team is better
@@ -715,14 +715,14 @@ gameData.objs.deadPlayerCamera = 0;
 
 void MultiMakePlayerGhost (int nPlayer)
 {
-	CObject *objP;
+	tObject *objP;
 
 if ((nPlayer == gameData.multiplayer.nLocalPlayer) || (nPlayer >= MAX_NUM_NET_PLAYERS) || (nPlayer < 0)) {
 	Int3 (); // Non-terminal, see Rob
 	return;
 	}
 objP = OBJECTS + gameData.multiplayer.players [nPlayer].nObject;
-objP->SetType (OBJ_GHOST);
+SetObjectType (objP, OBJ_GHOST);
 objP->info.renderType = RT_NONE;
 objP->info.movementType = MT_NONE;
 MultiResetPlayerObject (objP);
@@ -734,14 +734,14 @@ if (gameData.app.nGameMode & GM_MULTI_ROBOTS)
 
 void MultiMakeGhostPlayer (int nPlayer)
 {
-	CObject *objP;
+	tObject *objP;
 
 if ((nPlayer == gameData.multiplayer.nLocalPlayer) || (nPlayer  >= MAX_NUM_NET_PLAYERS)) {
 	Int3 (); // Non-terminal, see rob
 	return;
 	}
 objP = OBJECTS + gameData.multiplayer.players [nPlayer].nObject;
-objP->SetType (OBJ_PLAYER);
+SetObjectType (objP, OBJ_PLAYER);
 objP->info.movementType = MT_PHYSICS;
 MultiResetPlayerObject (objP);
 }
@@ -803,20 +803,20 @@ char bMultiSuicide = 0;
 void MultiComputeKill (int nKiller, int nKilled)
 {
 	// Figure out the results of a network kills and add it to the
-	// appropriate CPlayerData's tally.
+	// appropriate tPlayer's tally.
 
 	int		nKilledPlayer, killedType, t0, t1;
 	int		nKillerPlayer, killerType, nKillerId;
 	int		nKillGoal;
 	char		szKilled [(CALLSIGN_LEN*2)+4];
 	char		szKiller [(CALLSIGN_LEN*2)+4];
-	CPlayerData	*pKiller, *pKilled;
-	CObject	*objP;
+	tPlayer	*pKiller, *pKilled;
+	tObject	*objP;
 
 gameData.score.nKillsChanged = 1;
 bMultiSuicide = 0;
 
-// Both CObject numbers are localized already!
+// Both tObject numbers are localized already!
 if ((nKilled < 0) || (nKilled > gameData.objs.nLastObject [0]) ||
 	 (nKiller < 0) || (nKiller > gameData.objs.nLastObject [0])) {
 	Int3 (); // See Rob, illegal value passed to computeKill;
@@ -829,7 +829,7 @@ objP = OBJECTS + nKiller;
 killerType = objP->info.nType;
 nKillerId = objP->info.nId;
 if ((killedType != OBJ_PLAYER) && (killedType != OBJ_GHOST)) {
-	Int3 (); // computeKill passed non-CPlayerData CObject!
+	Int3 (); // computeKill passed non-tPlayer tObject!
 	return;
 	}
 pKilled = gameData.multiplayer.players + nKilledPlayer;
@@ -881,7 +881,7 @@ if (gameData.app.nGameMode & GM_TEAM)
 	sprintf (szKiller, "%s (%s)", pKiller->callsign, netGame.szTeamName [GetTeam (nKillerPlayer)]);
 else
 	sprintf (szKiller, "%s", pKiller->callsign);
-// Beyond this point, it was definitely a CPlayerData-CPlayerData kill situation
+// Beyond this point, it was definitely a tPlayer-tPlayer kill situation
 #if DBG
 if ((nKillerPlayer < 0) || (nKillerPlayer  >= gameData.multiplayer.nPlayers))
 	Int3 (); // See rob, tracking down bug with kill HUD messages
@@ -947,7 +947,7 @@ else {
 					ipx_udpSrc.src_node [1],
 					ipx_udpSrc.src_node [2],
 					ipx_udpSrc.src_node [3],
-					*reinterpret_cast<ushort*> (ipx_udpSrc.src_node + 4));
+					*((ushort *) (ipx_udpSrc.src_node + 4)));
 		pKiller->netKillsTotal++;
 		pKiller->nKillGoalCount++;
 		}
@@ -1041,7 +1041,7 @@ Assert (buf [0] <= MULTI_MAX_TYPE);
 if ((gameData.app.nGameMode & GM_NETWORK) && (buf [0] < 1))
 	return;
 else if (gameData.app.nGameMode & GM_NETWORK)
-	NetworkSendData (reinterpret_cast<ubyte*> (buf), len, repeat);
+	NetworkSendData ((ubyte *) buf, len, repeat);
 }
 
 //-----------------------------------------------------------------------------
@@ -1132,7 +1132,7 @@ return 0;
 }
 
 //-----------------------------------------------------------------------------
-// Do any miscellaneous stuff for a new network CPlayerData after death
+// Do any miscellaneous stuff for a new network tPlayer after death
 
 void MultiDoDeath (int nObject)
 {
@@ -1159,7 +1159,7 @@ else if (weapon >= MISSILE_ADJUST) {
 	int h = weapon - MISSILE_ADJUST;
 	ubyte weapon_id = secondaryWeaponToWeaponInfo [h];
 	int weapon_gun = secondaryWeaponToGunNum [h] + (flags & 1);
-	CPlayerData *playerP = gameData.multiplayer.players + nPlayer;
+	tPlayer *playerP = gameData.multiplayer.players + nPlayer;
 	if (h == GUIDED_INDEX)
 		gameData.multigame.bIsGuided = 1;
 	if (playerP->secondaryAmmo [h] > 0)
@@ -1184,7 +1184,7 @@ else {
 }
 
 //-----------------------------------------------------------------------------
-// This routine does only CPlayerData positions, mode game only
+// This routine does only tPlayer positions, mode game only
 
 void MultiDoPosition (char *buf)
 {
@@ -1192,16 +1192,16 @@ void MultiDoPosition (char *buf)
 	tShortPos sp;
 #endif
 int nPlayer = (gameData.multiplayer.nLocalPlayer + 1) % 2;
-CObject *objP = OBJECTS + gameData.multiplayer.players [nPlayer].nObject;
+tObject *objP = OBJECTS + gameData.multiplayer.players [nPlayer].nObject;
 if (gameData.app.nGameMode & GM_NETWORK) {
 	Int3 (); // Get Jason, what the hell are we doing here?
 	return;
 	}
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
-ExtractShortPos (objP, reinterpret_cast<tShortPos*> (buf+1), 0);
+ExtractShortPos (objP, (tShortPos *) (buf+1), 0);
 #else
-memcpy (reinterpret_cast<ubyte*> (sp.bytemat), reinterpret_cast<ubyte*> ((buf + 1), 9);
-memcpy (reinterpret_cast<ubyte*> (&sp.xo), reinterpret_cast<ubyte*> (buf + 10), 14);
+memcpy ((ubyte *) (sp.bytemat), (ubyte *) (buf + 1), 9);
+memcpy ((ubyte *)& (sp.xo), (ubyte *) (buf + 10), 14);
 ExtractShortPos (&OBJECTS [gameData.multiplayer.players [nPlayer].nObject], &sp, 1);
 #endif
 if (objP->info.movementType == MT_PHYSICS)
@@ -1213,7 +1213,7 @@ if (objP->info.movementType == MT_PHYSICS)
 void MultiDoReappear (char *buf)
 {
 	short nObject = GET_INTEL_SHORT (buf + 1);
-	CObject *objP = OBJECTS + nObject;
+	tObject *objP = OBJECTS + nObject;
 
 Assert (nObject >= 0);
 MultiMakeGhostPlayer (objP->info.nId);
@@ -1222,13 +1222,13 @@ gameData.multigame.kills.pFlags [objP->info.nId] = 0;
 }
 
 //-----------------------------------------------------------------------------
-// Only call this for players, not robots.  nPlayer is CPlayerData number, not
+// Only call this for players, not robots.  nPlayer is tPlayer number, not
 // Object number.
 
 void MultiDoPlayerExplode (char *buf)
 {
-	CObject	*objP;
-	CPlayerData	*playerP;
+	tObject	*objP;
+	tPlayer	*playerP;
 	int		count, nPlayer, i;
 	fix		shields;
 	short		s;
@@ -1242,7 +1242,7 @@ if ((nPlayer < 0) || (nPlayer >= gameData.multiplayer.nPlayers))
 Assert (nPlayer >= 0);
 Assert (nPlayer < gameData.multiplayer.nPlayers);
 #endif
-// If we are in the process of sending OBJECTS to a new CPlayerData, reset that process
+// If we are in the process of sending OBJECTS to a new tPlayer, reset that process
 NetworkResetObjSync (-1);
 // Stuff the gameData.multiplayer.players structure to prepare for the explosion
 playerP = gameData.multiplayer.players + nPlayer;
@@ -1290,7 +1290,7 @@ for (i = nRemoteCreated; i < gameData.multigame.create.nLoc; i++)
 if (buf [0] == MULTI_PLAYER_EXPLODE) {
 	KillPlayerSmoke (nPlayer);
 	ExplodeBadassPlayer (objP);
-	objP->info.nFlags &= ~OF_SHOULD_BE_DEAD;              //don't really kill CPlayerData
+	objP->info.nFlags &= ~OF_SHOULD_BE_DEAD;              //don't really kill tPlayer
 	MultiMakePlayerGhost (nPlayer);
 	}
 else
@@ -1319,8 +1319,8 @@ MultiComputeKill (nKiller, nKilled);
 }
 
 //-----------------------------------------------------------------------------
-// Changed by MK on 10/20/94 to send NULL as CObject to NetDestroyReactor if it got -1
-// which means not a controlcen CObject, but contained in another CObject
+// Changed by MK on 10/20/94 to send NULL as tObject to NetDestroyReactor if it got -1
+// which means not a controlcen tObject, but contained in another tObject
 
 void MultiDoDestroyReactor (char *buf)
 {
@@ -1379,7 +1379,7 @@ MultiMakePlayerGhost (buf [1]);
 
 void MultiDoRemObj (char *buf)
 {
-	short nObject; // which CObject to remove
+	short nObject; // which tObject to remove
 	short nLocalObj;
 	sbyte obj_owner; // which remote list is it entered in
 	int	id;
@@ -1503,7 +1503,7 @@ void MultiDoDoorOpen (char *buf)
 {
 	int nSegment;
 	sbyte tSide;
-	CSegment *segP;
+	tSegment *segP;
 	tWall *wallP;
 	ubyte flag;
 
@@ -1546,7 +1546,7 @@ CreateSmallFireballOnObject (&OBJECTS [gameData.multiplayer.players [nPlayer].nO
 
 void MultiDoCtrlcenFire (char *buf)
 {
-	CFixVector to_target;
+	vmsVector to_target;
 	char nGun;
 	short nObject;
 	int i, count = 1;
@@ -1575,7 +1575,7 @@ void MultiDoCreatePowerup (char *buf)
 	int			nLocalObj;
 	int			nPlayer;
 	int			count = 1;
-	CFixVector	vNewPos;
+	vmsVector	vNewPos;
 	char			powerupType;
 
 if (gameStates.app.bEndLevelSequence || gameData.reactor.bDestroyed)
@@ -1596,8 +1596,8 @@ if ((nSegment < 0) || (nSegment > gameData.segs.nLastSegment)) {
 	Int3 ();
 	return;
 	}
-memcpy (&vNewPos, buf + count, sizeof (CFixVector));
-count += sizeof (CFixVector);
+memcpy (&vNewPos, buf + count, sizeof (vmsVector));
+count += sizeof (vmsVector);
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 INTEL_VECTOR (vNewPos);
 #endif
@@ -1608,7 +1608,7 @@ if (nLocalObj < 0)
 NetworkResetObjSync (nLocalObj);
 OBJECTS [nLocalObj].info.position.vPos = vNewPos;
 OBJECTS [nLocalObj].mType.physInfo.velocity.SetZero();
-OBJECTS [nLocalObj].RelinkToSeg (nSegment);
+RelinkObjToSeg (nLocalObj, nSegment);
 MapObjnumLocalToRemote (nLocalObj, nObject, nPlayer);
 ObjectCreateExplosion (nSegment, &vNewPos, I2X (5), VCLIP_POWERUP_DISAPPEARANCE);
 #if 0
@@ -1670,7 +1670,7 @@ if (gameStates.multi.nGameType == UDP_GAME)
 	nObject = GET_INTEL_SHORT (buf + 3);
 else
 	nObject = gameData.multiplayer.players [nPlayer].nObject;
-CheckTriggerSub (nObject, gameData.trigs.triggers.Buffer (), gameData.trigs.nTriggers, tTrigger, nPlayer, 0, 0);
+CheckTriggerSub (nObject, gameData.trigs.triggers, gameData.trigs.nTriggers, tTrigger, nPlayer, 0, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -1703,7 +1703,7 @@ if ((tTrigger < 0) || (tTrigger  >= gameData.trigs.nObjTriggers)) {
 	Int3 (); // Illegal tTrigger number in multiplayer
 	return;
 	}
-CheckTriggerSub (gameData.multiplayer.players [nPlayer].nObject, gameData.trigs.objTriggers.Buffer (),
+CheckTriggerSub (gameData.multiplayer.players [nPlayer].nObject, gameData.trigs.objTriggers,
 					  gameData.trigs.nObjTriggers, tTrigger, nPlayer, 0, 1);
 }
 
@@ -1714,7 +1714,7 @@ void MultiDoDropMarker (char *buf)
 	int nPlayer = (int) (buf [1]);
 	int nMsg = (int) (buf [2]);
 	int nMarker = nPlayer * 2 + nMsg;
-	CFixVector position;
+	vmsVector position;
 
 if (nPlayer == gameData.multiplayer.nLocalPlayer)  // my marker? don't set it down cuz it might screw up the orientation
 	return;
@@ -1786,28 +1786,28 @@ void MultiDoReqPlayer (char *buf)
 tNetPlayerStats ps;
 ubyte player_n;
 // Send my tNetPlayerStats to everyone!
-player_n = *reinterpret_cast<ubyte*> (buf+1);
+player_n = *(ubyte *) (buf+1);
 if ((player_n == gameData.multiplayer.nLocalPlayer) || (player_n == 255)) {
 	extract_netplayer_stats (&ps, gameData.multiplayer.players + gameData.multiplayer.nLocalPlayer);
 	ps.nLocalPlayer = gameData.multiplayer.nLocalPlayer;
 	ps.messageType = MULTI_SEND_PLAYER;            // SET
-	MultiSendData (reinterpret_cast<char*> (&ps), sizeof (tNetPlayerStats), 0);
+	MultiSendData ((char *)&ps, sizeof (tNetPlayerStats), 0);
 	}
 }
 
 //-----------------------------------------------------------------------------
-// Got a CPlayerData packet from someone!!!
+// Got a tPlayer packet from someone!!!
 
 void MultiDoSendPlayer (char *buf)
 {
-tNetPlayerStats *p = reinterpret_cast<tNetPlayerStats*> (buf);
+tNetPlayerStats *p = (tNetPlayerStats *)buf;
 Assert (p->nLocalPlayer <= gameData.multiplayer.nPlayers);
 use_netplayer_stats (gameData.multiplayer.players  + p->nLocalPlayer, p);
 }
 
 //-----------------------------------------------------------------------------
 // A generic, emergency function to solve proszPlayerms that crop up
-// when a CPlayerData exits quick-out from the game because of a
+// when a tPlayer exits quick-out from the game because of a
 // serial connection loss.  Fixes several weird bugs!
 
 void MultiResetStuff (void)
@@ -1821,11 +1821,11 @@ ResetRearView ();
 
 //-----------------------------------------------------------------------------
 
-void MultiResetPlayerObject (CObject *objP)
+void MultiResetPlayerObject (tObject *objP)
 {
 	int i;
 
-//Init physics for a non-console CPlayerData
+//Init physics for a non-console tPlayer
 if (objP > OBJECTS + gameData.objs.nLastObject [0])
 	return;
 if ((objP->info.nType != OBJ_PLAYER) && (objP->info.nType != OBJ_GHOST))
@@ -1845,7 +1845,7 @@ objP->rType.polyObjInfo.nModel = gameData.pig.ship.player->nModel;              
 objP->rType.polyObjInfo.nSubObjFlags = 0;         //zero the flags
 for (i = 0; i < MAX_SUBMODELS; i++)
 	objP->rType.polyObjInfo.animAngles[i].SetZero();
-//reset textures for this, if not CPlayerData 0
+//reset textures for this, if not tPlayer 0
 MultiResetObjectTexture (objP);
 // Clear misc
 objP->info.nFlags = 0;
@@ -1855,7 +1855,7 @@ if (objP->info.nType == OBJ_GHOST)
 
 //-----------------------------------------------------------------------------
 
-void MultiResetObjectTexture (CObject *objP)
+void MultiResetObjectTexture (tObject *objP)
 {
 	int				id, i, j;
 	tPolyModel		*po = gameData.models.polyModels + objP->rType.polyObjInfo.nModel;
@@ -1871,9 +1871,9 @@ else {
 	//Assert (N_PLAYER_SHIP_TEXTURES == po->nTextures);
 	bmiP = mpTextureIndex [--id];
 	for (i = 0, j = po->nFirstTexture; i < N_PLAYER_SHIP_TEXTURES; i++, j++)
-		bmiP [i] = gameData.pig.tex.objBmIndex [gameData.pig.tex.objBmIndexP [j]];
-	bmiP [4] = gameData.pig.tex.objBmIndex [gameData.pig.tex.objBmIndexP [gameData.pig.tex.nFirstMultiBitmap + id * 2]];
-	bmiP [5] = gameData.pig.tex.objBmIndex [gameData.pig.tex.objBmIndexP [gameData.pig.tex.nFirstMultiBitmap + id * 2 + 1]];
+		bmiP [i] = gameData.pig.tex.objBmIndex [gameData.pig.tex.pObjBmIndex [j]];
+	bmiP [4] = gameData.pig.tex.objBmIndex [gameData.pig.tex.pObjBmIndex [gameData.pig.tex.nFirstMultiBitmap + id * 2]];
+	bmiP [5] = gameData.pig.tex.objBmIndex [gameData.pig.tex.pObjBmIndex [gameData.pig.tex.nFirstMultiBitmap + id * 2 + 1]];
 	objP->rType.polyObjInfo.nAltTextures = id;
 	}
 }
@@ -1957,11 +1957,11 @@ MultiSendData (gameData.multigame.msg.buf, 5, 2);
 
 //-----------------------------------------------------------------------------
 
-void MultiSendDropMarker (int CPlayerData, CFixVector position, char messagenum, char text [])
+void MultiSendDropMarker (int tPlayer, vmsVector position, char messagenum, char text [])
 {
-if (CPlayerData < gameData.multiplayer.nPlayers) {
+if (tPlayer < gameData.multiplayer.nPlayers) {
 	gameData.multigame.msg.buf [0] = (char)MULTI_MARKER;
-	gameData.multigame.msg.buf [1] = (char)CPlayerData;
+	gameData.multigame.msg.buf [1] = (char)tPlayer;
 	gameData.multigame.msg.buf [2] = messagenum;
 	PUT_INTEL_INT (gameData.multigame.msg.buf+3, position[X]);
 	PUT_INTEL_INT (gameData.multigame.msg.buf+7, position[Y]);
@@ -2027,7 +2027,7 @@ Assert (gameData.multigame.create.nLoc <= MAX_NET_CREATE_OBJECTS);
 memset (gameData.multigame.msg.buf + bufI, -1, MAX_NET_CREATE_OBJECTS*sizeof (short));
 for (i = 0; i < gameData.multigame.create.nLoc; i++) {
 	if (gameData.multigame.create.nObjNums [i] <= 0) {
-		Int3 (); // Illegal value in created egg CObject numbers
+		Int3 (); // Illegal value in created egg tObject numbers
 		bufI += 2;
 		continue;
 		}
@@ -2053,7 +2053,7 @@ if (gameData.app.nGameMode & GM_MULTI_ROBOTS)
 extern ubyte secondaryWeaponToPowerup [];
 extern ubyte primaryWeaponToPowerup [];
 
-// put a lid on how many OBJECTS will be spewed by an exploding CPlayerData
+// put a lid on how many OBJECTS will be spewed by an exploding tPlayer
 // to prevent rampant powerups in netgames
 
 void MultiCapObjects (void)
@@ -2255,13 +2255,13 @@ if (gameData.app.nGameMode & GM_NETWORK)
 	return;
 gameData.multigame.msg.buf [count++] = (char)MULTI_POSITION;
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
-CreateShortPos (reinterpret_cast<tShortPos*> (gameData.multigame.msg.buf + count), OBJECTS+nObject, 0);
+CreateShortPos ((tShortPos *) (gameData.multigame.msg.buf + count), OBJECTS+nObject, 0);
 count += sizeof (tShortPos);
 #else
 CreateShortPos (&sp, OBJECTS+nObject, 1);
-memcpy (gameData.multigame.msg.buf + count, reinterpret_cast<ubyte*> (sp.bytemat), 9);
+memcpy (& (gameData.multigame.msg.buf [count]), (ubyte *) (sp.bytemat), 9);
 count += 9;
-memcpy (gameData.multigame.msg.buf + count, reinterpret_cast<ubyte*> (&sp.xo), 14);
+memcpy (& (gameData.multigame.msg.buf [count]), (ubyte *)& (sp.xo), 14);
 count += 14;
 #endif
 MultiSendData (gameData.multigame.msg.buf, count, 0);
@@ -2281,7 +2281,7 @@ gameData.multigame.msg.buf [0] = (char) MULTI_KILL;
 gameData.multigame.msg.buf [1] = gameData.multiplayer.nLocalPlayer;
 if (nKillerObj > -1) {
 	// do it with variable player since INTEL_SHORT won't work on return val from function.
-	short s = (short) ObjnumLocalToRemote (nKillerObj, reinterpret_cast<sbyte*> (&gameData.multigame.msg.buf [4]));
+	short s = (short) ObjnumLocalToRemote (nKillerObj, (sbyte *) &gameData.multigame.msg.buf [4]);
 	PUT_INTEL_SHORT (gameData.multigame.msg.buf + 2, s);
 	}
 else {
@@ -2348,7 +2348,7 @@ if (IsMultiGame && (gameStates.multi.nGameType == UDP_GAME) && (gameStates.app.n
 }
 
 //-----------------------------------------------------------------------------
-// Tell the other guy to remove an CObject from his list
+// Tell the other guy to remove an tObject from his list
 
 void MultiSendRemObj (int nObject)
 {
@@ -2465,7 +2465,7 @@ NetworkSendNakedPacket (gameData.multigame.msg.buf, 5, nPlayer);
 // Part 3 : Functions that change or prepare the game for multiplayer use.
 //          Not including functions needed to synchronize or start the
 //          particular nType of multiplayer game.  Includes preparing the
-//                      mines, CPlayerData structures, etc.
+//                      mines, tPlayer structures, etc.
 
 //-----------------------------------------------------------------------------
 
@@ -2479,10 +2479,10 @@ MultiSendData (gameData.multigame.msg.buf, 2, 0);
 
 //-----------------------------------------------------------------------------
 
-void MultiSendCtrlcenFire (CFixVector *vGoal, int nBestGun, int nObject)
+void MultiSendCtrlcenFire (vmsVector *vGoal, int nBestGun, int nObject)
 {
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
-	CFixVector vSwapped;
+	vmsVector vSwapped;
 #endif
 	int count = 0;
 
@@ -2505,14 +2505,14 @@ MultiSendData (gameData.multigame.msg.buf, count, 0);
 
 //-----------------------------------------------------------------------------
 
-void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, CFixVector *pos)
+void MultiSendCreatePowerup (int powerupType, int nSegment, int nObject, vmsVector *pos)
 {
 	// Create a powerup on a remote machine, used for remote
 	// placement of used powerups like missiles and cloaking
 	// powerups.
 
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
-	CFixVector vSwapped;
+	vmsVector vSwapped;
 #endif
 	int count = 0;
 
@@ -2528,8 +2528,8 @@ count += 2;
 PUT_INTEL_SHORT (gameData.multigame.msg.buf + count, nObject);
 count += 2;
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
-memcpy (gameData.multigame.msg.buf + count, pos, sizeof (CFixVector));
-count += sizeof (CFixVector);
+memcpy (gameData.multigame.msg.buf + count, pos, sizeof (vmsVector));
+count += sizeof (vmsVector);
 #else
 vSwapped[X] = (fix)INTEL_INT ((int) (*pos) [X]);
 vSwapped[Y] = (fix)INTEL_INT ((int) (*pos) [Y]);
@@ -2678,7 +2678,7 @@ MultiSendData (gameData.multigame.msg.buf, count, 1);
 
 void MultiSendHostageDoorStatus (int wallnum)
 {
-	// Tell the other CPlayerData what the hit point status of a hostage door
+	// Tell the other tPlayer what the hit point status of a hostage door
 	// should be
 	int count = 0;
 
@@ -2707,7 +2707,7 @@ void MultiPrepLevel (void)
 
 	int		i, ng = 0, nObject;
 	int		cloakCount, invCount;
-	CObject	*objP;
+	tObject	*objP;
 
 Assert (gameData.app.nGameMode & GM_MULTI);
 Assert (gameData.multiplayer.nPlayerPositions > 0);
@@ -2746,7 +2746,7 @@ FORALL_STATIC_OBJS (objP, i) {
 		nObject = CreatePowerup (POW_SHIELD_BOOST, -1, objP->info.nSegment, objP->info.position.vPos, 1);
 		ReleaseObject ((short) i);
 		if (nObject != -1) {
-			CObject	*objP = OBJECTS + nObject;
+			tObject	*objP = OBJECTS + nObject;
 			objP->rType.vClipInfo.nClipIndex = gameData.objs.pwrUp.info [POW_SHIELD_BOOST].nClipIndex;
 			objP->rType.vClipInfo.xFrameTime = gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].xFrameTime;
 			objP->rType.vClipInfo.nCurFrame = 0;
@@ -2820,7 +2820,7 @@ FORALL_STATIC_OBJS (objP, i) {
 			BashToShield (i, "proximity");
 		// Special: Make all proximity bombs into shields if in
 		// hoard mode because we use the proximity slot in the
-		// CPlayerData struct to signify how many orbs the CPlayerData has.
+		// tPlayer struct to signify how many orbs the tPlayer has.
 		if (objP->info.nId == POW_PROXMINE && ng && (gameData.app.nGameMode & (GM_HOARD | GM_ENTROPY)))
 			BashToShield (i, "proximity");
 		if (objP->info.nId == POW_SMARTMINE && ng && (gameData.app.nGameMode & GM_ENTROPY))
@@ -2888,7 +2888,7 @@ int MultiFindGoalTexture (short t)
 if (t == TMI_FUELCEN)
 	return 333;
 for (i = 0;i<gameData.pig.tex.nTextures [gameStates.app.bD1Data];i++)
-	if (gameData.pig.tex.tMapInfoP [i].flags & t)
+	if (gameData.pig.tex.pTMapInfo [i].flags & t)
 		return i;
 Int3 (); // Hey, there is no goal texture for this PIG!!!!
 // Edit bitmaps.tbl and designate two textures to be RED and BLUE
@@ -2901,7 +2901,7 @@ return -1;
 // override a segments texture with the owning team's textures.
 // if nOldTexture  >= 0, only override textures equal to nOldTexture
 
-void OverrideTextures (CSegment *segP, short nTexture, short nOldTexture, short nTexture2, int bFullBright, int bForce)
+void OverrideTextures (tSegment *segP, short nTexture, short nOldTexture, short nTexture2, int bFullBright, int bForce)
 {
 	int j, v;
 
@@ -2932,7 +2932,7 @@ int Goal_blue_segnum, Goal_red_segnum;
 
 void ChangeSegmentTexture (int nSegment, int oldOwner)
 {
-	CSegment	*segP = gameData.segs.segments + nSegment;
+	tSegment	*segP = gameData.segs.segments + nSegment;
 	tSegment2 *seg2P = gameData.segs.segment2s + nSegment;
 	xsegment *xSegP = gameData.segs.xSegments + nSegment;
 	int		bFullBright = ((gameData.app.nGameMode & GM_HOARD) != 0) || ((gameData.app.nGameMode & GM_ENTROPY) && extraGameInfo [1].entropy.bBrightenRooms);
@@ -3013,10 +3013,10 @@ void MultiSetRobotAI (void)
 
 int MultiDeleteExtraObjects ()
 {
-	int 		nType, nnp = 0;
-	CObject *objP;
+	int 		i, nType, nnp = 0;
+	tObject *objP;
 
-// Go through the CObject list and remove any objects not used in
+// Go through the tObject list and remove any objects not used in
 // 'Anarchy!' games.
 // This function also prints the total number of available multiplayer
 // positions in this level, even though this should always be 8 or more!
@@ -3030,7 +3030,7 @@ FORALL_OBJS (objP, i) {
 	else if ((nType != OBJ_NONE) && (nType != OBJ_PLAYER) && (nType != OBJ_POWERUP) &&
 				(nType != OBJ_MONSTERBALL) && (nType != OBJ_EXPLOSION) && (nType != OBJ_REACTOR) &&
 				(nType != OBJ_HOSTAGE) && ((nType != OBJ_WEAPON) || (objP->info.nId != SMALLMINE_ID))) {
-		// Before deleting CObject, if it's a robot, drop it's special powerup, if any
+		// Before deleting tObject, if it's a robot, drop it's special powerup, if any
 		if (nType == OBJ_ROBOT)
 			if (objP->info.contains.nCount && (objP->info.contains.nType == OBJ_POWERUP))
 				ObjectCreateEgg (objP);
@@ -3070,6 +3070,8 @@ void MultiInitiateSaveGame ()
 	uint game_id;
 	int i;
 	ubyte slot;
+	char filename [128];
+	char desc [24];
 
 if ((gameStates.app.bEndLevelSequence) || (gameData.reactor.bDestroyed))
 	return;
@@ -3077,7 +3079,7 @@ if (!MultiAllPlayersAlive ()) {
 	HUDInitMessage (TXT_SAVE_DEADPLRS);
 	return;
  }
-slot = saveGameHandler.GetSaveFile (1);
+slot = StateGetSaveFile (filename, desc, 1);
 if (!slot)
 	return;
 slot--;
@@ -3085,19 +3087,22 @@ slot--;
 game_id = TimerGetFixedSeconds ();
 game_id ^= gameData.multiplayer.nPlayers<<4;
 for (i = 0; i<gameData.multiplayer.nPlayers; i++)
-	game_id ^= *reinterpret_cast<uint*> (gameData.multiplayer.players [i].callsign);
+	game_id ^= *(uint *) gameData.multiplayer.players [i].callsign;
 if (game_id == 0)
 	game_id = 1; // 0 is invalid
-MultiSendSaveGame (slot, game_id, saveGameHandler.Description ());
+MultiSendSaveGame (slot, game_id, desc);
 MultiDoFrame ();
-MultiSaveGame (slot, game_id, saveGameHandler.Description ());
+MultiSaveGame (slot, game_id, desc);
 }
 
 //-----------------------------------------------------------------------------
 
+extern int StateGetGameId (char *);
+
 void MultiInitiateRestoreGame ()
 {
 	ubyte slot;
+	char filename [128];
 
 #if !DBG
 if (gameStates.app.bEndLevelSequence || gameData.reactor.bDestroyed)
@@ -3108,12 +3113,12 @@ if (!MultiAllPlayersAlive ()) {
 	return;
 	}
 //StopTime ();
-slot = saveGameHandler.GetLoadFile (1);
+slot = StateGetRestoreFile (filename, 1);
 if (!slot) {
 	//StartTime (0);
 	return;
 	}
-gameData.app.nStateGameId = saveGameHandler.GetGameId (saveGameHandler.Filename ());
+gameData.app.nStateGameId = StateGetGameId (filename);
 if (!gameData.app.nStateGameId)
 	return;
 slot--;
@@ -3125,17 +3130,17 @@ MultiRestoreGame (slot, gameData.app.nStateGameId);
 
 //-----------------------------------------------------------------------------
 
-void MultiSaveGame (ubyte slot, uint id, char *description)
+void MultiSaveGame (ubyte slot, uint id, char *desc)
 {
 	char filename [128];
 
 if ((gameStates.app.bEndLevelSequence) || (gameData.reactor.bDestroyed))
 	return;
 sprintf (filename, "%s.mg%d", LOCALPLAYER.callsign, slot);
-HUDInitMessage (TXT_SAVEGAME_NO, slot, description);
+HUDInitMessage (TXT_SAVEGAME_NO, slot, desc);
 StopTime ();
 gameData.app.nStateGameId = id;
-saveGameHandler.SaveState (0, filename, description);
+StateSaveAllSub (filename, desc, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -3143,7 +3148,7 @@ saveGameHandler.SaveState (0, filename, description);
 void MultiRestoreGame (ubyte slot, uint id)
 {
 	char		filename [128];
-	CPlayerData	nSavedPlayer;
+	tPlayer	nSavedPlayer;
 	int		i;
 	uint		thisid;
 
@@ -3156,20 +3161,20 @@ sprintf (filename, "%s.mg%d", LOCALPLAYER.callsign, slot);
 gameData.app.bGamePaused = 1;
 for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 	MultiStripRobots (i);
-thisid = saveGameHandler.GetGameId (filename);
+thisid = StateGetGameId (filename);
 if (thisid != id) {
 	MultiBadRestore ();
 	gameData.app.bGamePaused = 0;
 	return;
 	}
-saveGameHandler.LoadState (1, 0, filename);
+StateRestoreAllSub (filename, 1, 0);
 RebuildRenderContext (1);
 gameData.app.bGamePaused = 0;
 }
 
 //-----------------------------------------------------------------------------
 
-void extract_netplayer_stats (tNetPlayerStats *ps, CPlayerData * pd)
+void extract_netplayer_stats (tNetPlayerStats *ps, tPlayer * pd)
 {
 	int i;
 
@@ -3178,8 +3183,8 @@ ps->energy = (fix)INTEL_INT (pd->energy);                            // Amount o
 ps->shields = (fix)INTEL_INT (pd->shields);                          // shields remaining (protection)
 ps->lives = pd->lives;                                              // Lives remaining, 0 = game over.
 ps->laserLevel = pd->laserLevel;                                  // Current level of the laser.
-ps->primaryWeaponFlags = (ubyte) pd->primaryWeaponFlags;                  // bit set indicates the CPlayerData has this weapon.
-ps->secondaryWeaponFlags = (ubyte) pd->secondaryWeaponFlags;              // bit set indicates the CPlayerData has this weapon.
+ps->primaryWeaponFlags = (ubyte) pd->primaryWeaponFlags;                  // bit set indicates the tPlayer has this weapon.
+ps->secondaryWeaponFlags = (ubyte) pd->secondaryWeaponFlags;              // bit set indicates the tPlayer has this weapon.
 for (i = 0; i < MAX_PRIMARY_WEAPONS; i++)
 	ps->primaryAmmo [i] = INTEL_SHORT (pd->primaryAmmo [i]);
 for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
@@ -3189,7 +3194,7 @@ for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
 ps->lastScore = INTEL_INT (pd->lastScore);                           // Score at beginning of current level.
 ps->score = INTEL_INT (pd->score);                                     // Current score.
 ps->cloakTime = (fix)INTEL_INT (pd->cloakTime);                      // Time cloaked
-ps->homingObjectDist = (fix)INTEL_INT (pd->homingObjectDist);      // Distance of nearest homing CObject.
+ps->homingObjectDist = (fix)INTEL_INT (pd->homingObjectDist);      // Distance of nearest homing tObject.
 ps->invulnerableTime = (fix)INTEL_INT (pd->invulnerableTime);        // Time invulnerable
 ps->nKillGoalCount = INTEL_SHORT (pd->nKillGoalCount);
 ps->netKilledTotal = INTEL_SHORT (pd->netKilledTotal);             // Number of times nKilled total
@@ -3205,7 +3210,7 @@ ps->nHostagesOnBoard = pd->hostages.nOnBoard;                        // Number o
 
 //-----------------------------------------------------------------------------
 
-void use_netplayer_stats (CPlayerData * ps, tNetPlayerStats *pd)
+void use_netplayer_stats (tPlayer * ps, tNetPlayerStats *pd)
 {
 	int i;
 
@@ -3214,8 +3219,8 @@ ps->energy = (fix)INTEL_INT ((int)pd->energy);           // Amount of energy rem
 ps->shields = (fix)INTEL_INT ((int)pd->shields);         // shields remaining (protection)
 ps->lives = pd->lives;                                  // Lives remaining, 0 = game over.
 ps->laserLevel = pd->laserLevel;                      // Current level of the laser.
-ps->primaryWeaponFlags = pd->primaryWeaponFlags;      // bit set indicates the CPlayerData has this weapon.
-ps->secondaryWeaponFlags = pd->secondaryWeaponFlags;  // bit set indicates the CPlayerData has this weapon.
+ps->primaryWeaponFlags = pd->primaryWeaponFlags;      // bit set indicates the tPlayer has this weapon.
+ps->secondaryWeaponFlags = pd->secondaryWeaponFlags;  // bit set indicates the tPlayer has this weapon.
 for (i = 0; i < MAX_PRIMARY_WEAPONS; i++)
 	ps->primaryAmmo [i] = INTEL_SHORT (pd->primaryAmmo [i]);
 for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
@@ -3225,7 +3230,7 @@ for (i = 0; i < MAX_SECONDARY_WEAPONS; i++)
 ps->lastScore = INTEL_INT (pd->lastScore);             // Score at beginning of current level.
 ps->score = INTEL_INT (pd->score);                       // Current score.
 ps->cloakTime = (fix)INTEL_INT ((int)pd->cloakTime);   // Time cloaked
-ps->homingObjectDist = (fix)INTEL_INT ((int)pd->homingObjectDist); // Distance of nearest homing CObject.
+ps->homingObjectDist = (fix)INTEL_INT ((int)pd->homingObjectDist); // Distance of nearest homing tObject.
 ps->invulnerableTime = (fix)INTEL_INT ((int)pd->invulnerableTime); // Time invulnerable
 ps->nKillGoalCount = INTEL_SHORT (pd->nKillGoalCount);
 ps->netKilledTotal = INTEL_SHORT (pd->netKilledTotal); // Number of times nKilled total
@@ -3243,7 +3248,7 @@ ps->hostages.nOnBoard = pd->nHostagesOnBoard;            // Number of hostages o
 
 void MultiSendDropWeapon (int nObject, int seed)
 {
-	CObject *objP;
+	tObject *objP;
 	int count = 0;
 	int ammoCount;
 
@@ -3276,7 +3281,7 @@ MultiSendData (gameData.multigame.msg.buf, 12, 2);
 void MultiDoDropWeapon (char *buf)
 {
 	int 		nPlayer, ammo, nObject, nRemoteObj, seed;
-	CObject	*objP;
+	tObject	*objP;
 	ubyte		powerupId;
 
 powerupId = (ubyte) (buf [1]);
@@ -3297,7 +3302,7 @@ if (gameData.app.nGameMode & GM_NETWORK)
 
 //-----------------------------------------------------------------------------
 
-void MultiSendGuidedInfo (CObject *miss, char done)
+void MultiSendGuidedInfo (tObject *miss, char done)
 {
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 	tShortPos sp;
@@ -3308,13 +3313,13 @@ gameData.multigame.msg.buf [count++] = (char)MULTI_GUIDED;
 gameData.multigame.msg.buf [count++] = (char)gameData.multiplayer.nLocalPlayer;
 gameData.multigame.msg.buf [count++] = done;
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
-CreateShortPos (reinterpret_cast<tShortPos*> (gameData.multigame.msg.buf + count), miss, 0);
+CreateShortPos ((tShortPos *) (gameData.multigame.msg.buf + count), miss, 0);
 count += sizeof (tShortPos);
 #else
 CreateShortPos (&sp, miss, 1);
-memcpy (& (gameData.multigame.msg.buf [count]), reinterpret_cast<ubyte*> (sp.bytemat), 9);
+memcpy (& (gameData.multigame.msg.buf [count]), (ubyte *) (sp.bytemat), 9);
 count += 9;
-memcpy (& (gameData.multigame.msg.buf [count]), reinterpret_cast<ubyte*> (&sp.xo), 14);
+memcpy (& (gameData.multigame.msg.buf [count]), (ubyte *) &sp.xo, 14);
 count += 14;
 #endif
 MultiSendData (gameData.multigame.msg.buf, count, 0);
@@ -3330,7 +3335,7 @@ void MultiDoGuided (char *buf)
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 	tShortPos sp;
 #endif
-	CObject *gmObjP = gameData.objs.guidedMissile [nPlayer].objP;
+	tObject *gmObjP = gameData.objs.guidedMissile [nPlayer].objP;
 
 if (gmObjP == NULL) {
 	if (++fun >= 50)
@@ -3343,16 +3348,16 @@ else if (++fun >= 50)
 		ReleaseGuidedMissile (nPlayer);
 		return;
 		}
-	if ((gmObjP < OBJECTS.Buffer ()) ||
+	if ((gmObjP < OBJECTS) ||
 		 (gmObjP - OBJECTS > gameData.objs.nLastObject [0])) {
 		Int3 ();  // Get Jason immediately!
 		return;
 		}
 #if !(defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__))
-ExtractShortPos (gmObjP, reinterpret_cast<tShortPos*> (buf + count), 0);
+ExtractShortPos (gmObjP, (tShortPos *) (buf + count), 0);
 #else
-memcpy (reinterpret_cast<ubyte*> ((sp.bytemat), reinterpret_cast<ubyte*> (buf + count), 9);
-memcpy (reinterpret_cast<ubyte*> (& (sp.xo), reinterpret_cast<ubyte*> (buf + count + 9), 14);
+memcpy ((ubyte *) (sp.bytemat), (ubyte *) (buf + count), 9);
+memcpy ((ubyte *)& (sp.xo), (ubyte *) (buf + count + 9), 14);
 ExtractShortPos (gmObjP, &sp, 1);
 #endif
 count += sizeof (tShortPos);
@@ -3401,7 +3406,7 @@ MultiSendData (gameData.multigame.msg.buf, count, 1);
 
 void MultiSendWallStatusSpecific (int nPlayer, int wallnum, ubyte nType, ubyte flags, ubyte state)
 {
-	// Send tWall states a specific rejoining CPlayerData
+	// Send tWall states a specific rejoining tPlayer
 	short count = 0;
 
 Assert (gameData.app.nGameMode & GM_NETWORK);
@@ -3507,7 +3512,7 @@ if (gameData.reactor.bDestroyed) {
 #endif
 countDown = -1;
 gameStates.entropy.bExitSequence = 0;
-for (i = 0, xSegP = gameData.segs.xSegments.Buffer (); i <= gameData.segs.nLastSegment; i++, xSegP++)
+for (i = 0, xSegP = gameData.segs.xSegments; i <= gameData.segs.nLastSegment; i++, xSegP++)
 	if ((t = (int) xSegP->owner) > 0) {
 		bGotRoom [--t] = 1;
 		if (bGotRoom [!t])
@@ -3527,7 +3532,7 @@ for (h = i = 0; i < gameData.multiplayer.nPlayers; i++)
 if ((h  >= extraGameInfo [1].entropy.nCaptureVirusLimit) && extraGameInfo [1].entropy.nVirusStability)
 	return;
 HUDInitMessage (TXT_WINNING_TEAM, t ? TXT_RED : TXT_BLUE);
-for (i = 0, xSegP = gameData.segs.xSegments.Buffer (); i <= gameData.segs.nLastSegment; i++, xSegP++) {
+for (i = 0, xSegP = gameData.segs.xSegments; i <= gameData.segs.nLastSegment; i++, xSegP++) {
 	if (xSegP->owner != t + 1)
 		xSegP->owner = t + 1;
 	ChangeSegmentTexture (i, -1);
@@ -3556,7 +3561,7 @@ else {
 void MultiCheckForKillGoalWinner ()
 {
 	int i, best = 0, bestnum = 0;
-	CObject *objP;
+	tObject *objP;
 
 if (gameData.reactor.bDestroyed)
 	return;
@@ -3715,7 +3720,7 @@ void MultiDoMonsterball (char *buf)
 {
 	int			bCreate, bufP = 1;
 	short			nSegment;
-	CFixVector	v;
+	vmsVector	v;
 
 bCreate = (int) buf [bufP++];
 nSegment = GET_INTEL_SHORT (buf + bufP);
@@ -3849,7 +3854,7 @@ memcpy (gameData.multigame.msg.buf + 3, gameData.walls.activeDoors + i, sizeof (
 count += sizeof (tActiveDoor);
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 {
-tActiveDoor *ad = reinterpret_cast<tActiveDoor*> (gameData.multigame.msg.buf + 3);
+tActiveDoor *ad = (tActiveDoor *) (gameData.multigame.msg.buf + 3);
 ad->nPartCount = INTEL_INT (ad->nPartCount);
 ad->nFrontWall [0] = INTEL_SHORT (ad->nFrontWall [0]);
 ad->nFrontWall [1] = INTEL_SHORT (ad->nFrontWall [1]);
@@ -3955,7 +3960,7 @@ MultiDoOrbBonus (gameData.multigame.msg.buf);
 void MultiDoCaptureBonus (char *buf)
 {
 	// Figure out the results of a network kills and add it to the
-	// appropriate CPlayerData's tally.
+	// appropriate tPlayer's tally.
 
 	int 	nPlayer = (int) buf [1];
 	short	nTeam, nKillGoal, penalty = 0, bonus;
@@ -4035,7 +4040,7 @@ int GetOrbBonus (char num)
 
 //-----------------------------------------------------------------------------
 	// Figure out the results of a network kills and add it to the
-	// appropriate CPlayerData's tally.
+	// appropriate tPlayer's tally.
 
 void MultiDoOrbBonus (char *buf)
 {
@@ -4131,8 +4136,8 @@ MultiSendFlags ((char) gameData.multiplayer.nLocalPlayer);
 
 //-----------------------------------------------------------------------------
 
-int bSoundHacked = 0;
-CDigiSound reversedSound;
+int SoundHacked = 0;
+tDigiSound ReversedSound;
 
 void MultiSendGotOrb (char nPlayer)
 {
@@ -4156,7 +4161,7 @@ else if (GetTeam (nPlayer) == TEAM_RED)
 else
 	DigiStartSoundQueued (SOUND_HUD_BLUE_GOT_FLAG, F1_0*2);
 gameData.multiplayer.players [nPlayer].flags |= PLAYER_FLAGS_FLAG;
-gameData.pig.flags [!GetTeam (nPlayer)].path.Reset (10, -1);
+ResetFlightPath (&gameData.pig.flags [!GetTeam (nPlayer)].path, 10, -1);
 HUDInitMessage (TXT_PICKFLAG2, gameData.multiplayer.players [nPlayer].callsign);
 }
 
@@ -4239,7 +4244,7 @@ LOCALPLAYER.flags &= ~ (PLAYER_FLAGS_FLAG);
 
 void MultiSendDropFlag (int nObject, int seed)
 {
-	CObject *objP;
+	tObject *objP;
 	int count = 0;
 
 objP = &OBJECTS [nObject];
@@ -4266,7 +4271,7 @@ MultiSendData (gameData.multigame.msg.buf, 12, 2);
 void MultiDoDropFlag (char *buf)
 {
 	int nPlayer, ammo, nObject, nRemoteObj, seed;
-	CObject *objP;
+	tObject *objP;
 	ubyte powerupId;
 
 powerupId = (ubyte) buf [1];
@@ -4553,7 +4558,7 @@ gameData.trigs.triggers [(int) ((ubyte) buf [1])].flags |= TF_DISABLED;
 }
 
 //-----------------------------------------------------------------------------
-// This function adds a kill to lifetime stats of this CPlayerData, and possibly
+// This function adds a kill to lifetime stats of this tPlayer, and possibly
 // gives a promotion.  If so, it will tell everyone else
 
 void MultiAddLifetimeKills ()
@@ -4580,7 +4585,7 @@ WritePlayerFile ();
 
 void MultiAddLifetimeKilled ()
 {
-	// This function adds a "nKilled" to lifetime stats of this CPlayerData, and possibly
+	// This function adds a "nKilled" to lifetime stats of this tPlayer, and possibly
 	// gives a demotion.  If so, it will tell everyone else
 
 	int oldrank;
@@ -4664,18 +4669,17 @@ pingStats [0].launchTime = 0;
 void MultiQuickSoundHack (int nSound)
 {
 	int			l, i, j;
-	CDigiSound	*dsP = gameData.pig.sound.sounds [gameStates.sound.bD1Sound] + nSound;
+	tDigiSound	*dsP = gameData.pig.sound.sounds [gameStates.sound.bD1Sound] + nSound;
 	ubyte			*dataP;
 
 nSound = DigiXlatSound ((short) nSound);
 l = dsP->nLength [dsP->bDTX];
-if (reversedSound.data [0].Create (l)) {
-	reversedSound.nLength [0] = l;
-	dataP = dsP->data [dsP->bDTX] + l;
-	for (i = 0, j = l; i < l; i++)
-		reversedSound.data [0][i] = *(--dataP);
-	bSoundHacked = 1;
-	}
+ReversedSound.data [0] = (ubyte *) D2_ALLOC (l);
+ReversedSound.nLength [0] = l;
+dataP = dsP->data [dsP->bDTX] + l;
+for (i = 0, j = l; i < l; i++)
+	ReversedSound.data [0][i] = *(--dataP);
+SoundHacked = 1;
 }
 
 //-----------------------------------------------------------------------------
@@ -4722,7 +4726,7 @@ switch (whichplay) {
 
 void MultiDoReturnFlagHome (char *buf)
 {
-	CObject	*objP = OBJECTS.Buffer ();
+	tObject	*objP = OBJECTS;
 	int		i;
 	ushort	nType = buf [1];
 	ushort	id = buf [2];
@@ -4803,7 +4807,7 @@ void MultiSendTeleport (char nPlayer, short nSegment, char nSide)
 {
 gameData.multigame.msg.buf [0] = (char) MULTI_TELEPORT;
 gameData.multigame.msg.buf [1] = nPlayer; // dummy values
-*reinterpret_cast<short*> (gameData.multigame.msg.buf + 2) = INTEL_SHORT (nSegment);
+* ((short *) (gameData.multigame.msg.buf + 2)) = INTEL_SHORT (nSegment);
 gameData.multigame.msg.buf [4] = nSide; // dummy values
 MultiSendData (gameData.multigame.msg.buf, 5, 0);
 }

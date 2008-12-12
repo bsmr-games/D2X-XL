@@ -23,38 +23,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "u_mem.h"
 #include "error.h"
 
-//------------------------------------------------------------------------------
-
-char *strcompress (char *str)
-{
-for (char *ps = str; *ps; ps++)
-	if (*ps == 'a')
-		*ps = '4';
-	else if (*ps == 'e')
-		*ps = '3';
-	else if (*ps == 'i')
-		*ps = '1';
-	else if (*ps == 'o')
-		*ps = '0';
-	else if (*ps == 'u')
-		*ps = 'v';
-return str;
-}
-
-//------------------------------------------------------------------------------
-
-char *StrDup (const char *source)
-{
-	char	*newstr;
-	int	l = (int) strlen (source) + 1;
-
-if ((newstr = new char [l]))
-	memcpy (newstr, source, l);
-return newstr;
-}
-
-//------------------------------------------------------------------------------
-
 #if 0
 // string compare without regard to case
 

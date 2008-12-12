@@ -82,7 +82,7 @@ ushort LongSqrt (int32_t a);
 extern int nMathFormat;
 extern int nDefMathFormat;
 
-uint sqrt64 (unsigned QLONG a);
+unsigned int sqrt64 (unsigned QLONG a);
 
 #define mul64(_a,_b)	((QLONG) (_a) * (QLONG) (_b))
 
@@ -120,7 +120,7 @@ fix FixISqrt (fix a);
 
 //-----------------------------------------------------------------------------
 
-static inline void d_srand (uint seed)
+static inline void d_srand (unsigned int seed)
 {
 srand(seed);
 }

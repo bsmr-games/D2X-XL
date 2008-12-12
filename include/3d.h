@@ -21,7 +21,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 extern int g3d_interp_outline;      //if on, polygon models outlined in white
 
-extern CFixVector Matrix_scale;     //how the matrix is currently scaled
+extern vmsVector Matrix_scale;     //how the matrix is currently scaled
 
 extern short highest_texture_num;
 
@@ -54,7 +54,7 @@ typedef struct g3sCodes {
 //Used to store rotated points for mines.  Has frame count to indicate
 //if rotated, and flag to indicate if projected.
 typedef struct g3sNormal {
-	CFloatVector		vNormal;
+	fVector		vNormal;
 	ubyte			nFaces;	// # of faces that use this vertex
 } g3sNormal;
 
@@ -63,29 +63,29 @@ typedef struct tScreenPos {
 } tScreenPos;
 
 typedef struct g3sPoint {
-	CFixVector	p3_src;			//untransformed point
-	CFixVector	p3_vec;			//x,y,z of rotated point
-	tUVL			p3_uvl;			//u,v,l coords
+	vmsVector	p3_src;			//untransformed point
+	vmsVector	p3_vec;			//x,y,z of rotated point
+	tUVL		p3_uvl;			//u,v,l coords
 	tScreenPos	p3_screen;		//screen x&y
-	ubyte			p3_codes;		//clipping codes
-	ubyte			p3_flags;		//projected?
-	short			p3_key;
+	ubyte		p3_codes;		//clipping codes
+	ubyte		p3_flags;		//projected?
+	short		p3_key;
 	int			p3_index;		//keep structure longword aligned
 	g3sNormal	p3_normal;
 } g3sPoint;
 
-//An CObject, such as a robot
+//An tObject, such as a robot
 typedef struct g3sObject {
-	CFixVector o3_pos;       //location of this CObject
-	vmsAngVec o3_orient;    //orientation of this CObject
-	int o3_nverts;          //number of points in the CObject
-	int o3_nfaces;          //number of faces in the CObject
+	vmsVector o3_pos;       //location of this tObject
+	vmsAngVec o3_orient;    //orientation of this tObject
+	int o3_nverts;          //number of points in the tObject
+	int o3_nfaces;          //number of faces in the tObject
 
 	//this will be filled in later
 
 } g3sObject;
 
-typedef void tmap_drawer_func (CBitmap *, int, g3sPoint **);
+typedef void tmap_drawer_func (grsBitmap *, int, g3sPoint **);
 typedef void flat_drawer_func (int, int *);
 typedef int line_drawer_func (fix, fix, fix, fix);
 typedef tmap_drawer_func *tmap_drawer_fp;
@@ -109,10 +109,10 @@ void _CDECL_ g3_close (void);
 void G3StartFrame (int bFlat, int bResetColorBuf);
 
 //set view from x,y,z & p,b,h, zoom.  Must call one of g3_setView_* ()
-void G3SetViewAngles (const CFixVector& view_pos, const vmsAngVec& view_orient,fix zoom);
+void G3SetViewAngles (const vmsVector& view_pos, const vmsAngVec& view_orient,fix zoom);
 
 //set view from x,y,z, viewer matrix, and zoom.  Must call one of g3_setView_* ()
-void G3SetViewMatrix (const CFixVector& view_pos, const vmsMatrix& view_matrix,fix zoom, int bOglScale);
+void G3SetViewMatrix (const vmsVector& view_pos, const vmsMatrix& view_matrix,fix zoom, int bOglScale);
 
 //end the frame
 void G3EndFrame (void);
@@ -121,17 +121,17 @@ void G3EndFrame (void);
 void g3_draw_horizon (int sky_color,int ground_color);
 
 //get vectors that are edge of horizon
-int g3_compute_sky_polygon (fix *points_2d,CFixVector *vecs);
+int g3_compute_sky_polygon (fix *points_2d,vmsVector *vecs);
 
 //Instancing
 
 //instance at specified point with specified orientation
-//void G3StartInstanceMatrix (const CFixVector& pos);
-void G3StartInstanceMatrix (const CFixVector& pos,
+//void G3StartInstanceMatrix (const vmsVector& pos);
+void G3StartInstanceMatrix (const vmsVector& pos,
                            const vmsMatrix& orient=vmsMatrix::IDENTITY);
 
 //instance at specified point with specified orientation
-void G3StartInstanceAngles (const CFixVector& pos,
+void G3StartInstanceAngles (const vmsVector& pos,
                            const vmsAngVec& angles = vmsAngVec::ZERO);
 
 //pops the old context
@@ -150,18 +150,18 @@ fix g3_get_zoom (char axis,fixang fov,short window_width,short window_height);
 
 //returns the normalized, unscaled view vectors
 // \unused
-void g3_getView_vectors (CFixVector& forward, CFixVector& up, CFixVector& right);
+void g3_getView_vectors (vmsVector& forward, vmsVector& up, vmsVector& right);
 
 //returns true if a plane is facing the viewer. takes the unrotated surface
 //normal of the plane, and a point on it.  The normal need not be normalized
-int G3CheckNormalFacing (const CFixVector& v, const CFixVector& norm);
+int G3CheckNormalFacing (const vmsVector& v, const vmsVector& norm);
 
 //Point definition and rotation functions:
 
 //specify the arrays refered to by the 'pointlist' parms in the following
 //functions.  I'm not sure if we will keep this function, but I need
 //it now.
-//void g3_set_points (g3sPoint *points,CFixVector *vecs);
+//void g3_set_points (g3sPoint *points,vmsVector *vecs);
 
 //returns codes_and & codes_or of a list of points numbers
 g3sCodes g3_check_codes (int nv,g3sPoint **pointlist);
@@ -193,28 +193,28 @@ return p->p3_codes = cc;
 ubyte G3EncodePoint (g3sPoint *point);
 #endif
 
-static inline CFixVector& G3TranslatePoint (CFixVector& dest, const CFixVector& src) 
+static inline vmsVector& G3TranslatePoint (vmsVector& dest, const vmsVector& src) 
 {
 return dest = src - viewInfo.pos;
 }
 
-static inline CFixVector& G3RotatePoint (CFixVector& dest, const CFixVector& src, int bUnscaled) 
+static inline vmsVector& G3RotatePoint (vmsVector& dest, const vmsVector& src, int bUnscaled) 
 {
 return dest = viewInfo.view [bUnscaled] * src;
 }
 
-static inline CFixVector& G3TransformPoint (CFixVector& dest, const CFixVector& src, int bUnscaled) 
+static inline vmsVector& G3TransformPoint (vmsVector& dest, const vmsVector& src, int bUnscaled) 
 {
-CFixVector vTrans = src - viewInfo.pos;
+vmsVector vTrans = src - viewInfo.pos;
 return dest = viewInfo.view [bUnscaled] * vTrans;
 }
 
-static inline CFloatVector& G3TranslatePoint (CFloatVector& dest, const CFloatVector& src) 
+static inline fVector& G3TranslatePoint (fVector& dest, const fVector& src) 
 {
 return dest = src - viewInfo.posf;
 }
 
-static inline CFloatVector& G3RotatePoint (CFloatVector& dest, const CFloatVector& src, int bUnscaled) 
+static inline fVector& G3RotatePoint (fVector& dest, const fVector& src, int bUnscaled) 
 {
 return dest = viewInfo.viewf [bUnscaled] * src;
 }
@@ -224,13 +224,13 @@ static inline fVector3& G3RotatePoint (fVector3& dest, const fVector3& src, int 
 return dest = viewInfo.viewf [bUnscaled] * src;
 }
 
-static inline CFloatVector& G3TransformPoint (CFloatVector& dest, const CFloatVector& src, int bUnscaled) 
+static inline fVector& G3TransformPoint (fVector& dest, const fVector& src, int bUnscaled) 
 {
-CFloatVector vTrans = src - viewInfo.posf;
+fVector vTrans = src - viewInfo.posf;
 return dest = viewInfo.viewf [bUnscaled] * vTrans;
 }
 
-static inline ubyte G3TransformAndEncodePoint (g3sPoint* dest, const CFixVector& src) 
+static inline ubyte G3TransformAndEncodePoint (g3sPoint* dest, const vmsVector& src) 
 {
 dest->p3_src = src;
 G3TransformPoint (dest->p3_vec, src, 0);
@@ -239,17 +239,17 @@ return G3EncodePoint (dest);
 }
 
 //calculate the depth of a point - returns the z coord of the rotated point
-fix G3CalcPointDepth (const CFixVector& pnt);
+fix G3CalcPointDepth (const vmsVector& pnt);
 
 //from a 2d point, compute the vector through that point
-void G3Point2Vec (CFixVector& v, short sx, short sy);
+void G3Point2Vec (vmsVector& v, short sx, short sy);
 
 //delta rotation functions
-const CFixVector& G3RotateDeltaX (CFixVector& dest, fix dx);
-const CFixVector& G3RotateDeltaY (CFixVector& dest, fix dy);
-const CFixVector& G3RotateDeltaZ (CFixVector& dest, fix dz);
-const CFixVector& G3RotateDeltaVec (CFixVector& dest, const CFixVector& src);
-ubyte G3AddDeltaVec (g3sPoint *dest,g3sPoint *src,CFixVector *deltav);
+const vmsVector& G3RotateDeltaX (vmsVector& dest, fix dx);
+const vmsVector& G3RotateDeltaY (vmsVector& dest, fix dy);
+const vmsVector& G3RotateDeltaZ (vmsVector& dest, fix dz);
+const vmsVector& G3RotateDeltaVec (vmsVector& dest, const vmsVector& src);
+ubyte G3AddDeltaVec (g3sPoint *dest,g3sPoint *src,vmsVector *deltav);
 
 //Drawing functions:
 
@@ -259,7 +259,7 @@ int G3DrawPoly (int nv,g3sPoint **pointlist);
 
 //draw a texture-mapped face.
 //returns 1 if off screen, 0 if drew
-int G3DrawTMap (int nv,g3sPoint **pointlist,tUVL *uvl_list,CBitmap *bm, int bBlend);
+int G3DrawTMap (int nv,g3sPoint **pointlist,tUVL *uvl_list,grsBitmap *bm, int bBlend);
 
 //draw a sortof sphere - i.e., the 2d radius is proportional to the 3d
 //radius, but not to the distance from the eye
@@ -275,8 +275,8 @@ int G3DrawSphere (g3sPoint *pnt,fix rad, int bBigSphere);
 //is passed, this function works like G3CheckNormalFacing () plus
 //G3DrawPoly ().
 //returns -1 if not facing, 1 if off screen, 0 if drew
-int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, CFixVector *norm, CFixVector *pnt);
-int G3CheckAndDrawTMap (int nv, g3sPoint **pointlist, tUVL *uvl_list, CBitmap *bmP, CFixVector *norm, CFixVector *pnt);
+int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, vmsVector *norm, vmsVector *pnt);
+int G3CheckAndDrawTMap (int nv, g3sPoint **pointlist, tUVL *uvl_list, grsBitmap *bmP, vmsVector *norm, vmsVector *pnt);
 
 //draws a line. takes two points.
 int G3DrawLine (g3sPoint *p0,g3sPoint *p1);
@@ -285,15 +285,15 @@ int G3DrawLine (g3sPoint *p0,g3sPoint *p1);
 //returns 1 if off screen, 0 if drew
 int G3DrawRodPoly (g3sPoint *bot_point,fix bot_width,g3sPoint *top_point,fix top_width);
 
-//draw a bitmap CObject that is always facing you
+//draw a bitmap tObject that is always facing you
 //returns 1 if off screen, 0 if drew
-int G3DrawRodTexPoly (CBitmap *bitmap,g3sPoint *bot_point,fix bot_width,g3sPoint *top_point,fix top_width,fix light, tUVL *uvlList);
+int G3DrawRodTexPoly (grsBitmap *bitmap,g3sPoint *bot_point,fix bot_width,g3sPoint *top_point,fix top_width,fix light, tUVL *uvlList);
 
 //draws a bitmap with the specified 3d width & height
 //returns 1 if off screen, 0 if drew
-int G3DrawBitmap (const CFixVector& vPos, fix xWidth, fix xHeight, CBitmap *bmP, tRgbaColorf *color, float alpha, int nTransp);
+int G3DrawBitmap (const vmsVector& vPos, fix xWidth, fix xHeight, grsBitmap *bmP, tRgbaColorf *color, float alpha, int nTransp);
 
-int G3DrawSprite (const CFixVector& vPos, fix xWidth, fix xHeight, CBitmap *bmP, tRgbaColorf *color, float alpha, int bAdditive, float fSoftRad);
+int G3DrawSprite (const vmsVector& vPos, fix xWidth, fix xHeight, grsBitmap *bmP, tRgbaColorf *color, float alpha, int bAdditive, float fSoftRad);
 
 //specifies 2d drawing routines to use instead of defaults.  Passing
 //NULL for either or both restores defaults

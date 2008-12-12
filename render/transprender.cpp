@@ -59,11 +59,10 @@ inline int AllocTranspItems (void)
 {
 if (transpItems.depthBufP)
 	return 1;
-if (!(transpItems.depthBufP = new tTranspItem* [ITEM_DEPTHBUFFER_SIZE]))
+if (!(transpItems.depthBufP = (struct tTranspItem **) D2_ALLOC (ITEM_DEPTHBUFFER_SIZE * sizeof (struct tTranspItem *))))
 	return 0;
-if (!(transpItems.itemListP = new tTranspItem [ITEM_BUFFER_SIZE])) {
-	delete[] transpItems.depthBufP;
-	transpItems.depthBufP = NULL;
+if (!(transpItems.itemListP = (struct tTranspItem *) D2_ALLOC (ITEM_BUFFER_SIZE * sizeof (struct tTranspItem)))) {
+	D2_FREE (transpItems.depthBufP);
 	return 0;
 	}
 transpItems.nFreeItems = 0;
@@ -75,10 +74,8 @@ return 1;
 
 void FreeTranspItems (void)
 {
-delete[] transpItems.itemListP;
-transpItems.itemListP = NULL;
-delete[] transpItems.depthBufP;
-transpItems.depthBufP = NULL;
+D2_FREE (transpItems.itemListP);
+D2_FREE (transpItems.depthBufP);
 }
 
 //------------------------------------------------------------------------------
@@ -193,7 +190,7 @@ return 1;
 int TISplitPoly (tTranspPoly *item, int nDepth)
 {
 	tTranspPoly		split [2];
-	CFloatVector		vSplit;
+	fVector		vSplit;
 	tRgbaColorf	color;
 	int			i, l, i0, i1, i2, i3, nMinLen = 0x7fff, nMaxLen = 0;
 	float			z, zMin, zMax, *c, *c0, *c1;
@@ -224,7 +221,7 @@ if ((nDepth > 1) || !nMaxLen || (nMaxLen < 10) || ((nMaxLen <= 30) && ((split [0
 	}
 if (split [0].nVertices == 3) {
 	i1 = (i0 + 1) % 3;
-	vSplit = CFloatVector::Avg(split [0].vertices [i0], split [0].vertices [i1]);
+	vSplit = fVector::Avg(split [0].vertices [i0], split [0].vertices [i1]);
 	split [0].vertices [i0] =
 	split [1].vertices [i1] = vSplit;
 	split [0].sideLength [i0] =
@@ -236,7 +233,7 @@ if (split [0].nVertices == 3) {
 		split [1].texCoord [i1].v.v = (split [0].texCoord [i1].v.v + split [0].texCoord [i0].v.v) / 2;
 		}
 	if (split [0].nColors == 3) {
-		for (i = 4, c = reinterpret_cast<float*> (&color, c0 = reinterpret_cast<float*> (split [0].color + i0), c1 = reinterpret_cast<float*> (split [0].color + i1); i; i--)
+		for (i = 4, c = (float *) &color, c0 = (float *) (split [0].color + i0), c1 = (float *) (split [0].color + i1); i; i--)
 			*c++ = (*c0++ + *c1++) / 2;
 		split [0].color [i0] =
 		split [1].color [i1] = color;
@@ -246,10 +243,10 @@ else {
 	i1 = (i0 + 1) % 4;
 	i2 = (i0 + 2) % 4;
 	i3 = (i1 + 2) % 4;
-	vSplit = CFloatVector::Avg(split [0].vertices [i0], split [0].vertices [i1]);
+	vSplit = fVector::Avg(split [0].vertices [i0], split [0].vertices [i1]);
 	split [0].vertices [i1] =
 	split [1].vertices [i0] = vSplit;
-	vSplit = CFloatVector::Avg(split [0].vertices [i2], split [0].vertices [i3]);
+	vSplit = fVector::Avg(split [0].vertices [i2], split [0].vertices [i3]);
 	split [0].vertices [i2] =
 	split [1].vertices [i3] = vSplit;
 	if (split [0].bmP) {
@@ -263,11 +260,11 @@ else {
 		split [1].texCoord [i3].v.v = (split [0].texCoord [i3].v.v + split [0].texCoord [i2].v.v) / 2;
 		}
 	if (split [0].nColors == 4) {
-		for (i = 4, c = reinterpret_cast<float*> (&color, c0 = reinterpret_cast<float*> (split [0].color + i0), c1 = reinterpret_cast<float*> (split [0].color + i1); i; i--)
+		for (i = 4, c = (float *) &color, c0 = (float *) (split [0].color + i0), c1 = (float *) (split [0].color + i1); i; i--)
 			*c++ = (*c0++ + *c1++) / 2;
 		split [0].color [i1] =
 		split [1].color [i0] = color;
-		for (i = 4, c = reinterpret_cast<float*> (&color, c0 = reinterpret_cast<float*> (split [0].color + i2), c1 = reinterpret_cast<float*> (split [0].color + i3); i; i--)
+		for (i = 4, c = (float *) &color, c0 = (float *) (split [0].color + i2), c1 = (float *) (split [0].color + i3); i; i--)
 			*c++ = (*c0++ + *c1++) / 2;
 		split [0].color [i2] =
 		split [1].color [i3] = color;
@@ -284,10 +281,10 @@ return TISplitPoly (split, nDepth + 1) && TISplitPoly (split + 1, nDepth + 1);
 
 //------------------------------------------------------------------------------
 
-int TIAddObject (CObject *objP)
+int TIAddObject (tObject *objP)
 {
 	tTranspObject	item;
-	CFixVector		vPos;
+	vmsVector		vPos;
 
 if (objP->info.nType == 255)
 	return 0;
@@ -298,8 +295,8 @@ return AddTranspItem (tiObject, &item, sizeof (item), vPos [Z], vPos [Z]);
 
 //------------------------------------------------------------------------------
 
-int TIAddPoly (tFace *faceP, grsTriangle *triP, CBitmap *bmP,
-					CFloatVector *vertices, char nVertices, tTexCoord2f *texCoord, tRgbaColorf *color,
+int TIAddPoly (grsFace *faceP, grsTriangle *triP, grsBitmap *bmP,
+					fVector *vertices, char nVertices, tTexCoord2f *texCoord, tRgbaColorf *color,
 					tFaceColor *altColor, char nColors, char bDepthMask, int nPrimitive, int nWrap, int bAdditive,
 					short nSegment)
 {
@@ -341,11 +338,11 @@ if ((item.nColors = nColors)) {
 	else
 		item.nColors = 0;
 	}
-memcpy (item.vertices, vertices, nVertices * sizeof (CFloatVector));
+memcpy (item.vertices, vertices, nVertices * sizeof (fVector));
 #if TI_SPLIT_POLYS
 if (bDepthMask && transpItems.bSplitPolys) {
 	for (i = 0; i < nVertices; i++)
-		item.sideLength [i] = (short) (CFloatVector::Dist(vertices [i], vertices [(i + 1) % nVertices]) + 0.5f);
+		item.sideLength [i] = (short) (fVector::Dist(vertices [i], vertices [(i + 1) % nVertices]) + 0.5f);
 	return TISplitPoly (&item, 0);
 	}
 else
@@ -380,15 +377,15 @@ else
 
 //------------------------------------------------------------------------------
 
-int TIAddFaceTris (tFace *faceP)
+int TIAddFaceTris (grsFace *faceP)
 {
 	grsTriangle	*triP;
-	CFloatVector		vertices [3];
+	fVector		vertices [3];
 	int			h, i, j, bAdditive = FaceIsAdditive (faceP);
-	CBitmap	*bmP = faceP->bTextured ? /*faceP->bmTop ? faceP->bmTop :*/ faceP->bmBot : NULL;
+	grsBitmap	*bmP = faceP->bTextured ? /*faceP->bmTop ? faceP->bmTop :*/ faceP->bmBot : NULL;
 
 if (bmP)
-	bmP = bmP->Override (-1);
+	bmP = BmOverride (bmP, -1);
 #if DBG
 if ((faceP->nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide == nDbgSide)))
 	faceP = faceP;
@@ -397,7 +394,7 @@ triP = gameData.segs.faces.tris + faceP->nTriIndex;
 for (h = faceP->nTris; h; h--, triP++) {
 	for (i = 0, j = triP->nIndex; i < 3; i++, j++) {
 #if 1
-		G3TransformPoint (vertices [i], *(reinterpret_cast<CFloatVector*> (gameData.segs.faces.vertices + j)), 0);
+		G3TransformPoint (vertices [i], *((fVector *)(gameData.segs.faces.vertices + j)), 0);
 #else
 		if (gameStates.render.automap.bDisplay)
 			G3TransformPoint (vertices + i, gameData.segs.fVertices + triP->index [i], 0);
@@ -416,24 +413,24 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int TIAddFace (tFace *faceP)
+int TIAddFace (grsFace *faceP)
 {
 if (gameStates.render.bTriangleMesh)
 	return TIAddFaceTris (faceP);
 
-	CFloatVector		vertices [4];
+	fVector		vertices [4];
 	int			i, j;
-	CBitmap	*bmP = faceP->bTextured ? /*faceP->bmTop ? faceP->bmTop :*/ faceP->bmBot : NULL;
+	grsBitmap	*bmP = faceP->bTextured ? /*faceP->bmTop ? faceP->bmTop :*/ faceP->bmBot : NULL;
 
 if (bmP)
-	bmP = bmP->Override (-1);
+	bmP = BmOverride (bmP, -1);
 #if DBG
 if ((faceP->nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide == nDbgSide)))
 	faceP = faceP;
 #endif
 for (i = 0, j = faceP->nIndex; i < 4; i++, j++) {
 #if 1
-	G3TransformPoint (vertices [i], *(reinterpret_cast<CFloatVector*> (gameData.segs.faces.vertices + j)), 0);
+	G3TransformPoint (vertices [i], *((fVector *) (gameData.segs.faces.vertices + j)), 0);
 #else
 	if (gameStates.render.automap.bDisplay)
 		G3TransformPoint(vertices [i], gameData.segs.fVertices [faceP->index [i]], 0);
@@ -450,11 +447,11 @@ return TIAddPoly (faceP, NULL, bmP,
 
 //------------------------------------------------------------------------------
 
-int TIAddSprite (CBitmap *bmP, const CFixVector& position, tRgbaColorf *color,
+int TIAddSprite (grsBitmap *bmP, const vmsVector& position, tRgbaColorf *color,
 					  int nWidth, int nHeight, char nFrame, char bAdditive, float fSoftRad)
 {
 	tTranspSprite	item;
-	CFixVector		vPos;
+	vmsVector		vPos;
 
 item.bmP = bmP;
 if ((item.bColor = (color != NULL)))
@@ -471,10 +468,10 @@ return AddTranspItem (tiSprite, &item, sizeof (item), vPos [Z], vPos [Z]);
 
 //------------------------------------------------------------------------------
 
-int TIAddSpark (const CFixVector& position, char nType, int nSize, char nFrame)
+int TIAddSpark (const vmsVector& position, char nType, int nSize, char nFrame)
 {
 	tTranspSpark	item;
-	CFixVector		vPos;
+	vmsVector		vPos;
 
 item.nSize = nSize;
 item.nFrame = nFrame;
@@ -486,10 +483,10 @@ return AddTranspItem (tiSpark, &item, sizeof (item), vPos [Z], vPos [Z]);
 
 //------------------------------------------------------------------------------
 
-int TIAddSphere (tTranspSphereType nType, float red, float green, float blue, float alpha, CObject *objP)
+int TIAddSphere (tTranspSphereType nType, float red, float green, float blue, float alpha, tObject *objP)
 {
 	tTranspSphere	item;
-	CFixVector		vPos;
+	vmsVector		vPos;
 
 item.nType = nType;
 item.color.red = red;
@@ -503,35 +500,39 @@ return AddTranspItem (tiSphere, &item, sizeof (item), vPos [Z], vPos [Z]);
 
 //------------------------------------------------------------------------------
 
-int TIAddParticle (CParticle *particle, float fBrightness, int nThread)
+int TIAddParticle (tParticle *particle, float fBrightness, int nThread)
 {
 	tTranspParticle	item;
-	fix					z;
 
 item.particle = particle;
 item.fBrightness = fBrightness;
-z = particle->Transform (gameStates.render.bPerPixelLighting == 2);
+G3TransformPoint(particle->transPos, particle->pos, gameStates.render.bPerPixelLighting == 2);
 if (gameStates.app.bMultiThreaded && gameData.app.bUseMultiThreading [rtTransparency])
-	return AddTranspItemMT (tiParticle, &item, sizeof (item), z, z, nThread);
+	return AddTranspItemMT (tiParticle, &item, sizeof (item), particle->transPos [Z], particle->transPos [Z], nThread);
 else
-	return AddTranspItem (tiParticle, &item, sizeof (item), z, z);
+	return AddTranspItem (tiParticle, &item, sizeof (item), particle->transPos [Z], particle->transPos [Z]);
 }
 
 //------------------------------------------------------------------------------
 
-int TIAddLightning (CLightning *lightningP, short nDepth)
+int TIAddLightnings (tLightning *lightnings, short nLightnings, short nDepth)
 {
 	tTranspLightning	item;
-	CFixVector			vPos;
+	vmsVector			vPos;
 	int					z;
 
-item.lightning = lightningP;
+if (nLightnings < 1)
+	return 0;
+item.lightning = lightnings;
+item.nLightnings = nLightnings;
 item.nDepth = nDepth;
-G3TransformPoint (vPos, lightningP->m_vPos, 0);
-z = vPos [Z];
-G3TransformPoint (vPos, lightningP->m_vEnd, 0);
-if (z < vPos [Z])
+for (; nLightnings; nLightnings--, lightnings++) {
+	G3TransformPoint(vPos, lightnings->vPos, 0);
 	z = vPos [Z];
+	G3TransformPoint(vPos, lightnings->vEnd, 0);
+	if (z < vPos [Z])
+		z = vPos [Z];
+	}
 if (!AddTranspItem (tiLightning, &item, sizeof (item), z, z))
 	return 0;
 return 1;
@@ -539,18 +540,36 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int TIAddLightTrail (CBitmap *bmP, CFloatVector *vThruster, tTexCoord2f *tcThruster, CFloatVector *vFlame, tTexCoord2f *tcFlame, tRgbaColorf *colorP)
+int TIAddLightningSegment (fVector *vLine, fVector *vPlasma, tRgbaColorf *color, char bPlasma, char bStart, char bEnd, short nDepth)
+{
+	tTranspLightningSegment	item;
+	fix							z;
+
+memcpy (item.vLine, vLine, 2 * sizeof (fVector));
+if ((item.bPlasma = bPlasma))
+	memcpy (item.vPlasma, vPlasma, 4 * sizeof (fVector));
+memcpy (&item.color, color, sizeof (tRgbaColorf));
+item.bStart = bStart;
+item.bEnd = bEnd;
+item.nDepth = nDepth;
+z = F2X ((item.vLine [0][Z] + item.vLine [1][Z]) / 2);
+return AddTranspItem (tiLightningSegment, &item, sizeof (item), z, z);
+}
+
+//------------------------------------------------------------------------------
+
+int TIAddLightTrail (grsBitmap *bmP, fVector *vThruster, tTexCoord2f *tcThruster, fVector *vFlame, tTexCoord2f *tcFlame, tRgbaColorf *colorP)
 {
 	tTranspLightTrail	item;
 	int					i, j;
 	float					z = 0;
 
 item.bmP = bmP;
-memcpy (item.vertices, vThruster, 4 * sizeof (CFloatVector));
+memcpy (item.vertices, vThruster, 4 * sizeof (fVector));
 memcpy (item.texCoord, tcThruster, 4 * sizeof (tTexCoord2f));
 item.color = *colorP;
 if ((item.bTrail = (vFlame != NULL))) {
-	memcpy (item.vertices + 4, vFlame, 3 * sizeof (CFloatVector));
+	memcpy (item.vertices + 4, vFlame, 3 * sizeof (fVector));
 	memcpy (item.texCoord + 4, tcFlame, 3 * sizeof (tTexCoord2f));
 	j = 7;
 	}
@@ -753,7 +772,7 @@ if (gameStates.ogl.bShadersOk && (gameStates.render.history.nShader >= 0)) {
 
 //------------------------------------------------------------------------------
 
-int LoadTranspItemImage (CBitmap *bmP, char nColors, char nFrame, int nWrap,
+int LoadTranspItemImage (grsBitmap *bmP, char nColors, char nFrame, int nWrap,
 								 int bClientState, int nTransp, int bShader, int bUseLightmaps,
 								 int bHaveDecal, int bDecal)
 {
@@ -766,17 +785,17 @@ if (bmP) {
 		transpItems.bTextured = 1;
 		}
 	if (bDecal == 1)
-		bmP = bmP->Override (-1);
+		bmP = BmOverride (bmP, -1);
 	if ((bmP != transpItems.bmP [bDecal]) || (nFrame != transpItems.nFrame) || (nWrap != transpItems.nWrap)) {
 		gameData.render.nStateChanges++;
 		if (bmP) {
-			if (bmP->Bind (1, nTransp)) {
+			if (OglBindBmTex (bmP, 1, nTransp)) {
 				transpItems.bmP [bDecal] = NULL;
 				return 0;
 				}
 			if (bDecal != 2)
-				bmP = bmP->Override (nFrame);
-			bmP->Texture ()->Wrap (nWrap);
+				bmP = BmOverride (bmP, nFrame);
+			OglTexWrap (bmP->glTexture, nWrap);
 			transpItems.nWrap = nWrap;
 			transpItems.nFrame = nFrame;
 			}
@@ -813,9 +832,9 @@ glVertexPointer (3, GL_FLOAT, 0, gameData.segs.faces.vertices + nIndex);
 void TIRenderPoly (tTranspPoly *item)
 {
 PROF_START
-	tFace		*faceP;
+	grsFace		*faceP;
 	grsTriangle	*triP;
-	CBitmap		*bmBot = item->bmP, *bmTop = NULL, *mask;
+	grsBitmap	*bmBot = item->bmP, *bmTop = NULL, *bmMask;
 	int			i, j, nIndex, bLightmaps, bDecal, bSoftBlend = 0;
 
 #if TI_POLY_OFFSET
@@ -826,7 +845,7 @@ if (!bmBot) {
 	}
 #endif
 #if DBG
-if (bmBot && strstr (bmBot->Name (), "glare.tga"))
+if (bmBot && strstr (bmBot->szName, "glare.tga"))
 	item = item;
 #endif
 #if 1
@@ -860,25 +879,25 @@ if (transpItems.bDepthMask)
 if (transpItems.bDepthMask != item->bDepthMask)
 	glDepthMask (transpItems.bDepthMask = item->bDepthMask);
 #endif
-bmTop = faceP ? faceP->bmTop->Override (-1) : NULL;
-if (bmTop && !(bmTop->Flags () & (BM_FLAG_SUPER_TRANSPARENT | BM_FLAG_TRANSPARENT | BM_FLAG_SEE_THRU))) {
+bmTop = faceP ? BmOverride (faceP->bmTop, -1) : NULL;
+if (bmTop && !(bmTop->bmProps.flags & (BM_FLAG_SUPER_TRANSPARENT | BM_FLAG_TRANSPARENT | BM_FLAG_SEE_THRU))) {
 	bmBot = bmTop;
-	bmTop = mask = NULL;
+	bmTop = bmMask = NULL;
 	bDecal = -1;
 	}
 #if RENDER_TRANSP_DECALS
 else {
 	bDecal = bmTop != NULL;
-	mask = (bDecal && ((bmTop->Flags () & BM_FLAG_SUPER_TRANSPARENT) != 0) && gameStates.render.textures.bHaveMaskShader) ? bmTop->Mask () : NULL;
+	bmMask = (bDecal && ((bmTop->bmProps.flags & BM_FLAG_SUPER_TRANSPARENT) != 0) && gameStates.render.textures.bHaveMaskShader) ? BM_MASK (bmTop) : NULL;
 	}
 #else
 bDecal = 0;
-mask = NULL;
+bmMask = NULL;
 #endif
 if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 1, 3,
-	 (faceP != NULL) || bSoftBlend, bLightmaps, mask ? 2 : bDecal > 0, 0) &&
+	 (faceP != NULL) || bSoftBlend, bLightmaps, bmMask ? 2 : bDecal > 0, 0) &&
 	 ((bDecal < 1) || LoadTranspItemImage (bmTop, 0, 0, item->nWrap, 1, 3, 1, bLightmaps, 0, 1)) &&
-	 (!mask || LoadTranspItemImage (mask, 0, 0, item->nWrap, 1, 3, 1, bLightmaps, 0, 2))) {
+	 (!bmMask || LoadTranspItemImage (bmMask, 0, 0, item->nWrap, 1, 3, 1, bLightmaps, 0, 2))) {
 	nIndex = triP ? triP->nIndex : faceP ? faceP->nIndex : 0;
 	if (triP || faceP) {
 		TISetRenderPointers (GL_TEXTURE0 + bLightmaps, nIndex, bDecal < 0);
@@ -886,7 +905,7 @@ if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 
 			glNormalPointer (GL_FLOAT, 0, gameData.segs.faces.normals + nIndex);
 		if (bDecal > 0) {
 			TISetRenderPointers (GL_TEXTURE1 + bLightmaps, nIndex, 1);
-			if (mask)
+			if (bmMask)
 				TISetRenderPointers (GL_TEXTURE2 + bLightmaps, nIndex, 1);
 			}
 		}
@@ -895,7 +914,7 @@ if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 
 		glClientActiveTexture (GL_TEXTURE0);
 		if (transpItems.bTextured)
 			glTexCoordPointer (2, GL_FLOAT, 0, item->texCoord);
-		glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), item->vertices);
+		glVertexPointer (3, GL_FLOAT, sizeof (fVector), item->vertices);
 		}
 	OglSetupTransform (faceP != NULL);
 	if (item->nColors > 1) {
@@ -913,7 +932,7 @@ if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 
 			}
 		}
 	else if (item->nColors == 1)
-		glColor4fv (reinterpret_cast<GLfloat*> (item->color));
+		glColor4fv ((GLfloat *) item->color);
 	else
 		glColor3d (1, 1, 1);
 	i = item->bAdditive;
@@ -1010,9 +1029,9 @@ if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 
 								transpItems.bTextured ? NULL : faceP ? &faceP->color : item->color);
 #if 0
 		if (triP)
-			glNormal3fv (reinterpret_cast<GLfloat*> (gameData.segs.faces.normals + triP->nIndex));
+			glNormal3fv ((GLfloat *) (gameData.segs.faces.normals + triP->nIndex));
 		else if (faceP)
-			glNormal3fv (reinterpret_cast<GLfloat*> (gameData.segs.faces.normals + faceP->nIndex));
+			glNormal3fv ((GLfloat *) (gameData.segs.faces.normals + faceP->nIndex));
 #endif
 		glDrawArrays (item->nPrimitive, 0, item->nVertices);
 		}
@@ -1022,7 +1041,7 @@ if (LoadTranspItemImage (bmBot, bLightmaps ? 0 : item->nColors, 0, item->nWrap, 
 	}
 else
 #endif
-if (LoadTranspItemImage (bmBot, item->nColors, 0, item->nWrap, 0, 3, 1, lightmapManager.HaveLightmaps () && (faceP != NULL), 0, 0)) {
+if (LoadTranspItemImage (bmBot, item->nColors, 0, item->nWrap, 0, 3, 1, HaveLightmaps () && (faceP != NULL), 0, 0)) {
 	if (item->bAdditive == 1) {
 		TIResetShader ();
 		glBlendFunc (GL_ONE, GL_ONE);
@@ -1042,32 +1061,32 @@ if (LoadTranspItemImage (bmBot, item->nColors, 0, item->nWrap, 0, 3, 1, lightmap
 	if (item->nColors > 1) {
 		if (bmBot) {
 			for (i = 0; i < j; i++) {
-				glColor4fv (reinterpret_cast<GLfloat*> (item->color + i));
-				glTexCoord2fv (reinterpret_cast<GLfloat*> (item->texCoord + i));
-				glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + i));
+				glColor4fv ((GLfloat *) (item->color + i));
+				glTexCoord2fv ((GLfloat *) (item->texCoord + i));
+				glVertex3fv ((GLfloat *) (item->vertices + i));
 				}
 			}
 		else {
 			for (i = 0; i < j; i++) {
-				glColor4fv (reinterpret_cast<GLfloat*> (item->color + i));
-				glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + i));
+				glColor4fv ((GLfloat *) (item->color + i));
+				glVertex3fv ((GLfloat *) (item->vertices + i));
 				}
 			}
 		}
 	else {
 		if (item->nColors)
-			glColor4fv (reinterpret_cast<GLfloat*> (item->color));
+			glColor4fv ((GLfloat *) item->color);
 		else
 			glColor3d (1, 1, 1);
 		if (bmBot) {
 			for (i = 0; i < j; i++) {
-				glTexCoord2fv (reinterpret_cast<GLfloat*> (item->texCoord + i));
-				glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + i));
+				glTexCoord2fv ((GLfloat *) (item->texCoord + i));
+				glVertex3fv ((GLfloat *) (item->vertices + i));
 				}
 			}
 		else {
 			for (i = 0; i < j; i++) {
-				glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + i));
+				glVertex3fv ((GLfloat *) (item->vertices + i));
 				}
 			}
 		}
@@ -1111,14 +1130,14 @@ void TIRenderSprite (tTranspSprite *item)
 if (LoadTranspItemImage (item->bmP, item->bColor, item->nFrame, GL_CLAMP, 0, 1,
 								 bSoftBlend, 0, 0, 0)) {
 	float		h, w, u, v;
-	CFloatVector	fPos = item->position;
+	fVector	fPos = item->position;
 
 	w = (float) X2F (item->nWidth);
 	h = (float) X2F (item->nHeight);
-	u = item->bmP->Texture ()->U ();
-	v = item->bmP->Texture ()->V ();
+	u = item->bmP->glTexture->u;
+	v = item->bmP->glTexture->v;
 	if (item->bColor)
-		glColor4fv (reinterpret_cast<GLfloat*> (&item->color));
+		glColor4fv ((GLfloat *) &item->color);
 	else
 		glColor3f (1, 1, 1);
 	if (item->bAdditive == 2)
@@ -1135,16 +1154,16 @@ if (LoadTranspItemImage (item->bmP, item->bColor, item->nFrame, GL_CLAMP, 0, 1,
 	glTexCoord2f (0, 0);
 	fPos [X] -= w;
 	fPos [Y] += h;
-	glVertex3fv (reinterpret_cast<GLfloat*> (&fPos));
+	glVertex3fv ((GLfloat *) &fPos);
 	glTexCoord2f (u, 0);
 	fPos [X] += 2 * w;
-	glVertex3fv (reinterpret_cast<GLfloat*> (&fPos));
+	glVertex3fv ((GLfloat *) &fPos);
 	glTexCoord2f (u, v);
 	fPos [Y] -= 2 * h;
-	glVertex3fv (reinterpret_cast<GLfloat*> (&fPos));
+	glVertex3fv ((GLfloat *) &fPos);
 	glTexCoord2f (0, v);
 	fPos [X] -= 2 * w;
-	glVertex3fv (reinterpret_cast<GLfloat*> (&fPos));
+	glVertex3fv ((GLfloat *) &fPos);
 	glEnd ();
 	if (item->bAdditive)
 		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1175,17 +1194,23 @@ void TIFlushSparkBuffer (void)
 {
 	int bSoftSparks = (gameOpts->render.effects.bSoftParticles & 2) != 0;
 
-if (sparkBuffer.nSparks && LoadTranspItemImage (bmpSparks, 0, 0, GL_CLAMP, 1, 1, bSoftSparks, 0, 0, 0)) {
-	G3EnableClientStates (1, 0, 0, GL_TEXTURE0);
-	glEnable (GL_TEXTURE_2D);
-	bmpSparks->Texture ()->Bind ();
-	if (bSoftSparks)
+if (sparkBuffer.nSparks &&
+	 LoadTranspItemImage (bmpSparks, 0, 0, GL_CLAMP, 1, 1, bSoftSparks, 0, 0, 0)) {
+	if (bSoftSparks) {
 		LoadGlareShader (3);
+		}
 	else {
 		TIResetShader ();
 		if (transpItems.bDepthMask)
 			glDepthMask (transpItems.bDepthMask = 0);
+		//G3DisableClientStates (1, 1, 1, GL_TEXTURE1);
+		//OGL_BINDTEX (0);
+		//glDisable (GL_TEXTURE_2D);
 		}
+	G3EnableClientStates (1, 0, 0, GL_TEXTURE0);
+	glEnable (GL_TEXTURE_2D);
+	OGL_BINDTEX (bmpSparks->glTexture->handle);
+	//glEnable (GL_BLEND);
 	glBlendFunc (GL_ONE, GL_ONE);
 	glColor3f (1, 1, 1);
 	glTexCoordPointer (2, GL_FLOAT, sizeof (tSparkVertex), &sparkBuffer.info [0].texCoord);
@@ -1194,8 +1219,8 @@ if (sparkBuffer.nSparks && LoadTranspItemImage (bmpSparks, 0, 0, GL_CLAMP, 1, 1,
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	if (bSoftSparks)
 		glEnable (GL_DEPTH_TEST);
-	transpItems.bClientColor = 0;
 	sparkBuffer.nSparks = 0;
+	transpItems.bClientColor = 0;
 	}
 }
 
@@ -1206,8 +1231,8 @@ void TIRenderSpark (tTranspSpark *item)
 if (sparkBuffer.nSparks >= SPARK_BUF_SIZE)
 	TIFlushSparkBuffer ();
 
-	tSparkVertex	*infoP = sparkBuffer.info + 4 * sparkBuffer.nSparks;
-	CFloatVector			vPos = item->position;
+	tSparkVertex	*infoP = sparkBuffer.info + 4 * sparkBuffer.nSparks++;
+	fVector			vPos = item->position;
 	float				nSize = X2F (item->nSize);
 	float				nCol = (float) (item->nFrame / 8);
 	float				nRow = (float) (item->nFrame % 8);
@@ -1237,7 +1262,6 @@ infoP->vPos [Y] = vPos [Y] - nSize;
 infoP->vPos [Z] = vPos [Z];
 infoP->texCoord.v.u = nCol / 8.0f;
 infoP->texCoord.v.v = nRow / 8.0f;
-sparkBuffer.nSparks++;
 }
 
 //------------------------------------------------------------------------------
@@ -1266,15 +1290,15 @@ gameOpts->render.bDepthSort = bDepthSort;
 
 //------------------------------------------------------------------------------
 
-void TIRenderBullet (CParticle *pParticle)
+void TIRenderBullet (tParticle *pParticle)
 {
-	CObject	o;
+	tObject	o;
 
 memset (&o, 0, sizeof (o));
 o.info.nType = OBJ_POWERUP;
-o.info.position.vPos = pParticle->m_vPos;
-o.info.position.mOrient = pParticle->m_mOrient;
-if (0 <= (o.info.nSegment = FindSegByPos (o.info.position.vPos, pParticle->m_nSegment, 0, 0))) {
+o.info.position.vPos = pParticle->pos;
+o.info.position.mOrient = pParticle->orient;
+if (0 <= (o.info.nSegment = FindSegByPos (o.info.position.vPos, pParticle->nSegment, 0, 0))) {
 	gameData.render.lights.dynamic.shader.index [0][0].nActive = 0;
 	o.info.renderType = RT_POLYOBJ;
 	o.rType.polyObjInfo.nModel = BULLET_MODEL;
@@ -1291,7 +1315,7 @@ if (0 <= (o.info.nSegment = FindSegByPos (o.info.position.vPos, pParticle->m_nSe
 
 void TIRenderParticle (tTranspParticle *item)
 {
-if (item->particle->m_nType == 2)
+if (item->particle->nType == 2)
 	TIRenderBullet (item->particle);
 else {
 	int bSoftSmoke = (gameOpts->render.effects.bSoftParticles & 4) != 0;
@@ -1302,11 +1326,11 @@ else {
 	if (transpItems.nPrevType != tiParticle) {
 		glEnable (GL_TEXTURE_2D);
 		glTexEnvf (GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		particleManager.SetLastType (-1);
+		gameData.smoke.nLastType = -1;
 		transpItems.bTextured = 1;
 		//InitParticleBuffer (transpItems.bLightmaps);
 		}
-	item->particle->Render (item->fBrightness);
+	RenderParticle (item->particle, item->fBrightness);
 	TIResetBitmaps ();
 	transpItems.bDepthMask = 1;
 	}
@@ -1316,17 +1340,29 @@ else {
 
 void TIRenderLightning (tTranspLightning *item)
 {
-if (transpItems.nPrevType != transpItems.nCurType) {
-	if (transpItems.bDepthMask)
-		glDepthMask (transpItems.bDepthMask = 0);
-	TIDisableClientState (GL_TEXTURE2, 1, 0);
-	TISetClientState (1, 0, 0, 0, 0);
-	TIResetShader ();
-	}
-item->lightning->Render (item->nDepth, 0, 0);
+if (transpItems.bDepthMask)
+	glDepthMask (transpItems.bDepthMask = 0);
 TISetClientState (0, 0, 0, 0, 0);
+TIResetShader ();
+RenderLightning (item->lightning, item->nLightnings, item->nDepth, 0);
 TIResetBitmaps ();
 transpItems.bDepthMask = 1;
+}
+
+//------------------------------------------------------------------------------
+
+void TIRenderLightningSegment (tTranspLightningSegment *item)
+{
+if (transpItems.bDepthMask)
+	glDepthMask (transpItems.bDepthMask = 0);
+TISetClientState (0, 0, 0, 0, 0);
+TIResetShader ();
+RenderLightningSegment (item->vLine, item->vPlasma, &item->color, item->bPlasma, item->bStart, item->bEnd, item->nDepth);
+if (item->bPlasma) {
+	TIResetBitmaps ();
+	}
+else
+	transpItems.bTextured = 0;
 }
 
 //------------------------------------------------------------------------------
@@ -1338,10 +1374,10 @@ if (!transpItems.bDepthMask)
 glEnable (GL_BLEND);
 glBlendFunc (GL_ONE, GL_ONE);
 glDisable (GL_CULL_FACE);
-glColor4fv (reinterpret_cast<GLfloat*> (&item->color));
+glColor4fv ((GLfloat *) &(item->color));
 #if 1
 if (LoadTranspItemImage (item->bmP, 1, 0, GL_CLAMP, 1, 1, 0, 0, 0, 0)) {
-	glVertexPointer (3, GL_FLOAT, sizeof (CFloatVector), item->vertices);
+	glVertexPointer (3, GL_FLOAT, sizeof (fVector), item->vertices);
 	glTexCoordPointer (2, GL_FLOAT, 0, item->texCoord);
 	if (item->bTrail)
 		glDrawArrays (GL_TRIANGLES, 4, 3);
@@ -1354,15 +1390,15 @@ if (LoadTranspItemImage (item->bmP, 0, 0, GL_CLAMP, 0, 1, 0, 0, 0, 0)) {
 	if (item->bTrail) {
 		glBegin (GL_TRIANGLES);
 		for (i = 0; i < 3; i++) {
-			glTexCoord2fv (reinterpret_cast<GLfloat*> (item->texCoord + 4 + i));
-			glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + 4 + i));
+			glTexCoord2fv ((GLfloat *) (item->texCoord + 4 + i));
+			glVertex3fv ((GLfloat *) (item->vertices + 4 + i));
 			}
 		glEnd ();
 		}
 	glBegin (GL_QUADS);
 	for (i = 0; i < 4; i++) {
-		glTexCoord2fv (reinterpret_cast<GLfloat*> (item->texCoord + i));
-		glVertex3fv (reinterpret_cast<GLfloat*> (item->vertices + i));
+		glTexCoord2fv ((GLfloat *) (item->texCoord + i));
+		glVertex3fv ((GLfloat *) (item->vertices + i));
 		}
 	glEnd ();
 	}
@@ -1374,14 +1410,14 @@ glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 void TIFlushParticleBuffer (int nType)
 {
-if ((nType < 0) || ((nType != tiParticle) && (particleManager.LastType () >= 0))) {
-	particleManager.FlushBuffer (-1.0f);
+if ((nType < 0) || ((nType != tiParticle) && (gameData.smoke.nLastType >= 0))) {
+	FlushParticleBuffer (-1.0f);
 	if (nType < 0)
-		particleManager.CloseBuffer ();
+		CloseParticleBuffer ();
 #if 1
 	TIResetBitmaps ();
 #endif
-	particleManager.SetLastType (-1);
+	gameData.smoke.nLastType = -1;
 	transpItems.bClientColor = 1;
 	transpItems.bUseLightmaps = 0;
 	}
@@ -1445,6 +1481,9 @@ if (!pl->bRendered) {
 	else if (transpItems.nCurType == tiLightning) {
 		TIRenderLightning (&pl->item.lightning);
 		}
+	else if (transpItems.nCurType == tiLightningSegment) {
+		TIRenderLightningSegment (&pl->item.lightningSegment);
+		}
 	else if (transpItems.nCurType == tiThruster) {
 		TIRenderLightTrail (&pl->item.thruster);
 		}
@@ -1469,7 +1508,6 @@ if (!(gameOpts->render.bDepthSort && transpItems.depthBufP && (transpItems.nFree
 	}
 PROF_START
 gameStates.render.nType = 5;
-OglSetLibFlags (1);
 TIResetShader ();
 bStencil = StencilOff ();
 transpItems.bTextured = -1;
@@ -1479,7 +1517,7 @@ transpItems.bClientColor = 0;
 transpItems.bDepthMask = 0;
 transpItems.bUseLightmaps = 0;
 transpItems.bDecal = 0;
-transpItems.bLightmaps = lightmapManager.HaveLightmaps ();
+transpItems.bLightmaps = HaveLightmaps ();
 transpItems.bSplitPolys = (gameStates.render.bPerPixelLighting != 2) && (gameStates.render.bSplitPolys > 0);
 transpItems.nWrap = 0;
 transpItems.nFrame = -1;
@@ -1492,13 +1530,13 @@ G3DisableClientStates (1, 1, 0, GL_TEXTURE1 + transpItems.bLightmaps);
 G3DisableClientStates (1, 1, 0, GL_TEXTURE0 + transpItems.bLightmaps);
 G3DisableClientStates (1, 1, 0, GL_TEXTURE0);
 pl = transpItems.itemListP + ITEM_BUFFER_SIZE - 1;
-transpItems.bHaveParticles = particleImageManager.LoadAll ();
+transpItems.bHaveParticles = LoadParticleImages ();
 glEnable (GL_BLEND);
 glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 glDepthFunc (GL_LEQUAL);
 glDepthMask (0);
 glEnable (GL_CULL_FACE);
-particleManager.BeginRender (-1, 1);
+BeginRenderSmoke (-1, 1);
 transpItems.nCurType = -1;
 for (pd = transpItems.depthBufP + transpItems.nMaxOffs /*ITEM_DEPTHBUFFER_SIZE - 1*/, nItems = transpItems.nItems;
 	  (pd >= transpItems.depthBufP) && nItems;
@@ -1521,7 +1559,7 @@ for (pd = transpItems.depthBufP + transpItems.nMaxOffs /*ITEM_DEPTHBUFFER_SIZE -
 		}
 	}
 TIFlushBuffers (-1);
-particleManager.EndRender ();
+EndRenderSmoke (NULL);
 TIResetShader ();
 G3DisableClientStates (1, 1, 1, GL_TEXTURE0);
 OGL_BINDTEX (0);

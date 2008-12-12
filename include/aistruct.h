@@ -23,21 +23,21 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define MAX_SEGMENTS_PER_PATH       20
 
 #define PA_NEARBY_ROBOT_FIRED       1   // Level of robot awareness after nearby robot fires a weapon
-#define PA_WEAPON_WALL_COLLISION    2   // Level of robot awareness after CPlayerData weapon hits nearby tWall
-//#define PA_PLAYER_VISIBLE         2   // Level of robot awareness if robot is looking towards CPlayerData, and CPlayerData not hidden
-#define PA_PLAYER_COLLISION         3   // Level of robot awareness after CPlayerData bumps into robot
+#define PA_WEAPON_WALL_COLLISION    2   // Level of robot awareness after tPlayer weapon hits nearby tWall
+//#define PA_PLAYER_VISIBLE         2   // Level of robot awareness if robot is looking towards tPlayer, and tPlayer not hidden
+#define PA_PLAYER_COLLISION         3   // Level of robot awareness after tPlayer bumps into robot
 #define PA_RETURN_FIRE					4	 // Level of robot awareness while firing back after having been hit by player
-#define PA_WEAPON_ROBOT_COLLISION   5   // Level of robot awareness after CPlayerData weapon hits nearby robot
+#define PA_WEAPON_ROBOT_COLLISION   5   // Level of robot awareness after tPlayer weapon hits nearby robot
 
 #define WEAPON_WALL_COLLISION 	(USE_D1_AI ? D1_PA_WEAPON_WALL_COLLISION : PA_WEAPON_WALL_COLLISION)
 #define WEAPON_ROBOT_COLLISION 	(USE_D1_AI ? D1_PA_WEAPON_ROBOT_COLLISION : PA_WEAPON_ROBOT_COLLISION)
 
-//#define PAE_WEAPON_HIT_WALL         1   // weapon hit tWall, create CPlayerData awareness
-//#define PAE_WEAPON_HIT_ROBOT        2   // weapon hit tWall, create CPlayerData awareness
+//#define PAE_WEAPON_HIT_WALL         1   // weapon hit tWall, create tPlayer awareness
+//#define PAE_WEAPON_HIT_ROBOT        2   // weapon hit tWall, create tPlayer awareness
 
 // Constants indicating currently moving forward or backward through
 // path.  Note that you can add aip->direction to aip_path_index to
-// get next CSegment on path.
+// get next tSegment on path.
 #define AI_DIR_FORWARD  1
 #define AI_DIR_BACKWARD (-AI_DIR_FORWARD)
 
@@ -109,29 +109,29 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 //	short   mode;               //
 //	short   counter;            // kind of a hack, frame countdown until switch modes
 //	opath   paths[2];
-//	CFixVector movement_vector; // movement vector for one second
+//	vmsVector movement_vector; // movement vector for one second
 //} oaiState;
 
 #define SUB_FLAGS_GUNSEG        0x01
 #define SUB_FLAGS_SPROX         0x02    // If set, then this bot drops a super prox, not a prox, when it's time to drop something
-#define SUB_FLAGS_CAMERA_AWAKE  0x04    // If set, a camera (on a missile) woke this robot up, so don't fire at CPlayerData.  Can look real stupid!
+#define SUB_FLAGS_CAMERA_AWAKE  0x04    // If set, a camera (on a missile) woke this robot up, so don't fire at tPlayer.  Can look real stupid!
 
 //  Constants defining meaning of flags in aiState
 #define MAX_AI_FLAGS    11          // This MUST cause word (4 bytes) alignment in tAIStaticInfo, allowing for one byte mode
 
-#define CURRENT_GUN     flags[0]    // This is the last gun the CObject fired from
+#define CURRENT_GUN     flags[0]    // This is the last gun the tObject fired from
 #define CURRENT_STATE   flags[1]    // current behavioral state
 #define GOAL_STATE      flags[2]    // goal state
 #define PATH_DIR        flags[3]    // direction traveling path, 1 = forward, -1 = backward, other = error!
-#define SUB_FLAGS       flags[4]    // bit 0: Set -> Robot's current gun in different CSegment than robot's center.
+#define SUB_FLAGS       flags[4]    // bit 0: Set -> Robot's current gun in different tSegment than robot's center.
 #define GOALSIDE        flags[5]    // for guys who open doors, this is the tSide they are going after.
 #define CLOAKED         flags[6]    // Cloaked now.
 #define SKIP_AI_COUNT   flags[7]    // Skip AI this frame, but decrement in DoAIFrame.
-#define  REMOTE_OWNER   flags[8]    // Who is controlling this remote AI CObject (multiplayer use only)
+#define  REMOTE_OWNER   flags[8]    // Who is controlling this remote AI tObject (multiplayer use only)
 #define  REMOTE_SLOT_NUM flags[9]   // What slot # is this robot in for remote control purposes (multiplayer use only)
 #define  MULTI_ANGER    flags[10]   // How angry is a robot in multiplayer mode
 
-// This is the stuff that is permanent for an AI CObject and is
+// This is the stuff that is permanent for an AI tObject and is
 // therefore saved to disk.
 typedef struct tAIStaticInfo {
 	ubyte   behavior;               //
@@ -150,7 +150,6 @@ class CAIStaticInfo {
 	private:
 		tAIStaticInfo m_info;
 	public:
-		inline tAIStaticInfo* GetInfo (void) { return &m_info; }
 		inline ubyte& Behavior() { return m_info.behavior; }
 		inline sbyte& Flags(int i) { return m_info.flags [i]; }
 		inline short& HideSegment() { return m_info.nHideSegment; }
@@ -168,33 +167,33 @@ typedef struct tAILocalInfo {
 // These used to be bytes, changed to ints so I could set watchpoints on them.
 // playerAwarenessType..nRapidFireCount used to be bytes
 // nGoalSegment used to be short.
-	int     playerAwarenessType;	// nType of awareness of CPlayerData
-	int     nRetryCount;          // number of retries in physics last time this CObject got moved.
+	int     playerAwarenessType;	// nType of awareness of tPlayer
+	int     nRetryCount;          // number of retries in physics last time this tObject got moved.
 	int     nConsecutiveRetries;  // number of retries in consecutive frames (ie, without a nRetryCount of 0)
 	int     mode;                 // current mode within behavior
-	int     nPrevVisibility;		// Visibility of CPlayerData last time we checked.
+	int     nPrevVisibility;		// Visibility of tPlayer last time we checked.
 	int     nRapidFireCount;      // number of shots fired rapidly
-	int     nGoalSegment;         // goal CSegment for current path
+	int     nGoalSegment;         // goal tSegment for current path
 
-	// -- MK, 10/21/95, unused -- fix     last_seeTime, last_attackTime; // For sound effects, time at which CPlayerData last seen, attacked
+	// -- MK, 10/21/95, unused -- fix     last_seeTime, last_attackTime; // For sound effects, time at which tPlayer last seen, attacked
 
 	fix     nextActionTime;						// time in seconds until something happens, mode dependent
 	fix     nextPrimaryFire;               // time in seconds until can fire again
 	fix     nextSecondaryFire;             // time in seconds until can fire again from second weapon
-	fix     playerAwarenessTime;				// time in seconds robot will be aware of CPlayerData, 0 means not aware of CPlayerData
-	fix     timePlayerSeen;						// absolute time in seconds at which CPlayerData was last seen, might cause to go into follow_path mode
-	fix     timePlayerSoundAttacked;			// absolute time in seconds at which CPlayerData was last seen with visibility of 2.
+	fix     playerAwarenessTime;				// time in seconds robot will be aware of tPlayer, 0 means not aware of tPlayer
+	fix     timePlayerSeen;						// absolute time in seconds at which tPlayer was last seen, might cause to go into follow_path mode
+	fix     timePlayerSoundAttacked;			// absolute time in seconds at which tPlayer was last seen with visibility of 2.
 	fix     nextMiscSoundTime;					// absolute time in seconds at which this robot last made an angry or lurking sound.
 	fix     timeSinceProcessed;				// time since this robot last processed in DoAIFrame
 	vmsAngVec goalAngles [MAX_SUBMODELS];  // angles for each subobject
 	vmsAngVec deltaAngles [MAX_SUBMODELS]; // angles for each subobject
-	sbyte   goalState [MAX_SUBMODELS];     // Goal state for this sub-CObject
+	sbyte   goalState [MAX_SUBMODELS];     // Goal state for this sub-tObject
 	sbyte   achievedState [MAX_SUBMODELS]; // Last achieved state
 } tAILocalInfo;
 
 typedef struct {
 	int         nSegment;
-	CFixVector	point;
+	vmsVector	point;
 	ubyte			nConnSide;
 } tPointSeg;
 
@@ -207,11 +206,11 @@ typedef struct {
 #define MAX_POINT_SEGS  	(MAX_SEGMENTS_D2X * 4)
 
 // These are the information for a robot describing the location of
-// the CPlayerData last time he wasn't cloaked, and the time at which he
+// the tPlayer last time he wasn't cloaked, and the time at which he
 // was uncloaked.  We should store this for each robot, but that's
 // memory expensive.
 //extern fix        Last_uncloakedTime;
-//extern CFixVector Last_uncloaked_position;
+//extern vmsVector Last_uncloaked_position;
 
 extern void AIDoCloakStuff(void);
 

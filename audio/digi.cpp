@@ -43,7 +43,7 @@
  * the value to avoid overflow.  (used with permission from ARDI)
  * DPH: Taken from SDL/src/SDL_mixer.c.
  */
-static const ubyte mix8[] =
+static const Uint8 mix8[] =
 {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -102,9 +102,9 @@ typedef struct tSoundSlot {
 	int				nSound;
 	fix				xPan;				// 0 = far left, 1 = far right
 	fix				xVolume;			// 0 = nothing, 1 = fully on
-	CByteArray		sample;
-	uint				nLength;			// Length of the sample
-	uint				nPosition;		// Position we are at at the moment.
+	ubyte				*sampleP;
+	unsigned int	nLength;			// Length of the sample
+	unsigned int	nPosition;		// Position we are at at the moment.
 	int				nSoundObj;		// Which soundobject is on this nChannel
 	int				nSoundClass;
 	ubyte				bPlaying;		// Is there a sample playing on this nChannel?
@@ -135,11 +135,11 @@ soundSlots [nChannel].bPlaying = 0;
 
 #if 0//def _WIN32
 
-static void MixSoundSlot (tSoundSlot *sl, ubyte *sldata, ubyte *stream, int len)
+static void MixSoundSlot (tSoundSlot *sl, Uint8 *sldata, Uint8 *stream, int len)
 {
-	ubyte *streamend = stream + len;
-	ubyte *slend = sldata - sl->nPosition + sl->nLength;
-	ubyte *sp = stream, s;
+	Uint8 *streamend = stream + len;
+	Uint8 *slend = sldata - sl->nPosition + sl->nLength;
+	Uint8 *sp = stream, s;
 	signed char v;
 	fix vl, vr;
 	int x;
@@ -160,7 +160,7 @@ while (sp < streamend) {
 			sl->bPlaying = 0;
 			break;
 			}
-		sldata = sl->sample.Buffer ();
+		sldata = sl->sampleP;
 		}
 	v = * (sldata++) - 0x80;
 	s = *sp;
@@ -168,7 +168,7 @@ while (sp < streamend) {
 	s = *sp;
 	* (sp++) = mix8 [s + FixMul (v, vr) + 0x80];
 	}
-sl->nPosition = (int) (sldata - sl->sample);
+sl->nPosition = (int) (sldata - sl->sampleP);
 }
 
 #endif
@@ -176,22 +176,21 @@ sl->nPosition = (int) (sldata - sl->sample);
 //------------------------------------------------------------------------------
 /* Audio mixing callback */
 //changed on 980905 by adb to cleanup, add xPan support and optimize mixer
-static void _CDECL_ AudioMixCallback (void *userdata, ubyte *stream, int len)
+static void _CDECL_ AudioMixCallback (void *userdata, Uint8 *stream, int len)
 {
-	ubyte *streamend = stream + len;
+	Uint8 *streamend = stream + len;
 	tSoundSlot *sl;
 
 if (!gameStates.sound.digi.bAvailable)
 	return;
 memset (stream, 0x80, len); // fix "static" sound bug on Mac OS X
 for (sl = soundSlots; sl < soundSlots + MAX_SOUND_SLOTS; sl++) {
-	if (sl->bPlaying && sl->sample.Buffer () && sl->nLength) {
+	if (sl->bPlaying && sl->sampleP && sl->nLength) {
 #if 0
-		MixSoundSlot (sl, sl->sample + sl->nPosition, stream, len);
+		MixSoundSlot (sl, sl->sampleP + sl->nPosition, stream, len);
 #else
-		ubyte *sldata = reinterpret_cast<ubyte*> (sl->sample + sl->nPosition), 
-				*slend = reinterpret_cast<ubyte*> (sl->sample + sl->nLength);
-		ubyte *sp = stream, s;
+		Uint8 *sldata = (Uint8 *) sl->sampleP + sl->nPosition, *slend = (Uint8 *) sl->sampleP + sl->nLength;
+		Uint8 *sp = stream, s;
 		signed char v;
 		fix vl, vr;
 		int x;
@@ -212,7 +211,7 @@ for (sl = soundSlots; sl < soundSlots + MAX_SOUND_SLOTS; sl++) {
 					sl->bPlaying = 0;
 					break;
 					}
-				sldata = sl->sample.Buffer ();
+				sldata = (Uint8 *) sl->sampleP;
 				}
 			v = *(sldata++) - 0x80;
 			s = *sp;
@@ -220,7 +219,7 @@ for (sl = soundSlots; sl < soundSlots + MAX_SOUND_SLOTS; sl++) {
 			s = *sp;
 			*(sp++) = mix8 [s + FixMul (v, vr) + 0x80];
 			}
-		sl->nPosition = (int) (sldata - sl->sample);
+		sl->nPosition = (int) (sldata - (Uint8 *) sl->sampleP);
 #endif
 		}
 	}
@@ -389,11 +388,11 @@ gameData.weapons.firing [0].bSound = 0;
 //------------------------------------------------------------------------------
 // resample to 16 bit stereo
 
-int DigiResampleSound (CDigiSound *dsP, tSoundSlot *ssP, int bD1Sound, int bMP3)
+int DigiResampleSound (tDigiSound *dsP, tSoundSlot *ssP, int bD1Sound, int bMP3)
 {
 	int		h = 0, i, k, l;
 	ushort	*ps, *ph;
-	ubyte		*dataP = dsP->data [dsP->bDTX].Buffer ();
+	ubyte		*dataP = dsP->data [dsP->bDTX];
 
 i = dsP->nLength [dsP->bDTX];
 #if SDL_MIXER_CHANNELS == 2
@@ -413,8 +412,7 @@ if (bMP3)
 else if (bD1Sound)
 	l = 2 * i;
 else {
-	ssP->sample.Destroy ();
-	ssP->sample.SetBuffer (dataP);
+	ssP->sampleP = dataP;
 	return i;
 	}
 #endif
@@ -422,11 +420,11 @@ else {
 else
 	l *= 2;
 #endif
-if (!ssP->sample.Create (l))
+if (!(ssP->sampleP = (ubyte *) D2_ALLOC (l)))
 	return -1;
 ssP->bResampled = 1;
-ph = reinterpret_cast<ushort*> (ssP->sample.Buffer ());
-ps = reinterpret_cast<ushort*> (ssP->sample.Buffer () + l);
+ph = (ushort *) ssP->sampleP;
+ps = (ushort *) (ssP->sampleP + l);
 k = 0;
 for (;;) {
 	if (i) 
@@ -495,35 +493,36 @@ return ssP->nLength = l;
 
 int DigiReadWAV (tSoundSlot *ssP)
 {
-	CFile	cf;
+	CFILE	cf;
 	int	l;
 
-if (!cf.Open ("d2x-temp.wav", gameFolders.szDataDir, "rb", 0))
+if (!CFOpen (&cf, "d2x-temp.wav", gameFolders.szDataDir, "rb", 0))
 	return 0;
-if (0 >= (l = cf.Length ()))
+if (0 >= (l = CFLength (&cf, 0)))
 	l = -1;
-else if (!ssP->sample.Create (l))
+else if (!(ssP->sampleP = (ubyte *) D2_ALLOC (l)))
 	l = -1;
-else if (cf.Read (ssP->sample.Buffer (), 1, l) != (size_t) l)
+else if (CFRead (ssP->sampleP, 1, l, &cf) != (size_t) l)
 	l = -1;
-cf.Close ();
-if ((l < 0) && ssP->sample.Buffer ()) {
-	ssP->sample.Destroy ();
+CFClose (&cf);
+if ((l < 0) && ssP->sampleP) {
+	D2_FREE (ssP->sampleP);
+	ssP->sampleP = NULL;
 	}
 return l > 0;
 }
 
 //------------------------------------------------------------------------------
 
-int DigiSpeedupSound (CDigiSound *dsP, tSoundSlot *ssP, int speed)
+int DigiSpeedupSound (tDigiSound *dsP, tSoundSlot *ssP, int speed)
 {
 	int	h, i, j, l;
 	ubyte	*pDest, *pSrc;
 
 l = FixMulDiv (ssP->bResampled ? ssP->nLength : dsP->nLength [dsP->bDTX], speed, F1_0);
-if (!(pDest = new ubyte [l]))
+if (!(pDest = (ubyte *) D2_ALLOC (l)))
 	return -1;
-pSrc = ssP->bResampled ? ssP->sample.Buffer () : dsP->data [dsP->bDTX].Buffer ();
+pSrc = ssP->bResampled ? ssP->sampleP : dsP->data [dsP->bDTX];
 for (h = i = j = 0; i < l; i++) {
 	pDest [j] = pSrc [i];
 	h += speed;
@@ -533,10 +532,10 @@ for (h = i = j = 0; i < l; i++) {
 		}
 	}
 if (ssP->bResampled)
-	ssP->sample.Destroy ();
+	{D2_FREE (ssP->sampleP);}
 else
 	ssP->bResampled = 1;
-ssP->sample.SetBuffer (pDest, false, j);
+ssP->sampleP = pDest;
 return ssP->nLength = j;
 }
 
@@ -618,10 +617,10 @@ return ssMinVolP [0] ? ssMinVolP [0] : ssMinVolP [1];
 // Volume 0-F1_0
 int DigiStartSound (short nSound, fix xVolume, int xPan, int bLooping, 
 						  int nLoopStart, int nLoopEnd, int nSoundObj, int nSpeed, 
-						  const char *pszWAV, CFixVector *vPos, int nSoundClass)
+						  const char *pszWAV, vmsVector *vPos, int nSoundClass)
 {
 	tSoundSlot	*ssP;
-	CDigiSound	*dsP = NULL;
+	tDigiSound	*dsP = NULL;
 	int			i, bPersistent = (nSoundObj > -1) || bLooping || (xVolume > F1_0);
 
 if (!gameStates.app.bUseSound)
@@ -634,6 +633,7 @@ if (!(pszWAV && *pszWAV && gameOpts->sound.bUseSDLMixer)) {
 	dsP = gameData.pig.sound.sounds [gameStates.sound.bD1Sound] + nSound % gameData.pig.sound.nSoundFiles [gameStates.sound.bD1Sound];
 	if (!(dsP->data && dsP->nLength))
 		return -1;
+	Assert (dsP->data != (void *) -1);
 	}
 if (bPersistent && !nSoundClass)
 	nSoundClass = -1;
@@ -648,7 +648,7 @@ if (ssP->bPlaying) {
 	}
 #if USE_OPENAL
 if (ssP->source == 0xFFFFFFFF) {
-	CFloatVector	fPos;
+	fVector	fPos;
 
 	DigiALError ();
 	alGenSources (1, &ssP->source);
@@ -659,7 +659,7 @@ if (ssP->source == 0xFFFFFFFF) {
 		return -1;
 	alSourcef (ssP->source, AL_GAIN, ((xVolume < F1_0) ? X2F (xVolume) : 1) * 2 * X2F (gameStates.sound.digi.nVolume));
 	alSourcei (ssP->source, AL_LOOPING, (ALuint) ((nSoundObj > -1) || bLooping || (xVolume > F1_0)));
-	alSourcefv (ssP->source, AL_POSITION, reinterpret_cast<ALfloat*> (VmVecFixToFloat (&fPos, vPos ? vPos : &OBJECTS [LOCALPLAYER.nObject].nPosition.vPos)));
+	alSourcefv (ssP->source, AL_POSITION, (ALfloat*) VmVecFixToFloat (&fPos, vPos ? vPos : &OBJECTS [LOCALPLAYER.nObject].nPosition.vPos));
 	alSource3f (ssP->source, AL_VELOCITY, 0, 0, 0);
 	alSource3f (ssP->source, AL_DIRECTION, 0, 0, 0);
 	if (DigiALError ())
@@ -683,7 +683,7 @@ if (ssP->mixChunkP) {
 VerifySoundChannelFree (gameStates.sound.digi.nFreeChannel);
 #endif
 if (ssP->bResampled) {
-	ssP->sample.Destroy ();
+	D2_FREE (ssP->sampleP);
 	ssP->bResampled = 0;
 	}
 #if USE_SDL_MIXER
@@ -698,7 +698,7 @@ if (gameOpts->sound.bUseSDLMixer) {
 		int l;
 		if (dsP->bHires) {
 			l = dsP->nLength [0];
-			ssP->sample.SetBuffer (dsP->data [0].Buffer (), true, l);
+			ssP->sampleP = dsP->data [0];
 			}
 		else {
 			if (gameOpts->sound.bHires)
@@ -709,7 +709,7 @@ if (gameOpts->sound.bUseSDLMixer) {
 			if (nSpeed < F1_0)
 				l = DigiSpeedupSound (dsP, ssP, nSpeed);
 			}
-		ssP->mixChunkP = Mix_QuickLoad_RAW (ssP->sample.Buffer (), l);
+		ssP->mixChunkP = Mix_QuickLoad_RAW ((Uint8 *) ssP->sampleP, l);
 		}
 	Mix_VolPan (gameStates.sound.digi.nFreeChannel, xVolume, xPan);
 	Mix_PlayChannel (gameStates.sound.digi.nFreeChannel, ssP->mixChunkP, bLooping ? -1 : nLoopEnd - nLoopStart);
@@ -727,7 +727,8 @@ if (pszWAV && *pszWAV)
 		ssP->nLength = l;
 		}
 	else {
-		ssP->sample.SetBuffer (dsP->data [dsP->bDTX].Buffer (), true, ssP->nLength = dsP->nLength [dsP->bDTX]);
+		ssP->sampleP = dsP->data [dsP->bDTX];
+		ssP->nLength = dsP->nLength [dsP->bDTX];
 		}
 	if (nSpeed < F1_0)
 		DigiSpeedupSound (dsP, ssP, nSpeed);
@@ -913,7 +914,8 @@ if (gameStates.sound.digi.bAvailable && gameOpts->sound.bUseSDLMixer) {
 	}
 #endif
 if (ssP->bResampled) {
-	ssP->sample.Destroy ();
+	D2_FREE (ssP->sampleP);
+	ssP->sampleP = NULL;
 	ssP->bResampled = 0;
 	}
 }
@@ -966,7 +968,7 @@ void DigiFreeSoundBufs (void)
 
 for (ssP = soundSlots, i = sizeofa (soundSlots); i; i--, ssP++)
 	if (ssP->bResampled) {
-		ssP->sample.Destroy ();
+		D2_FREE (ssP->sampleP);
 		ssP->bResampled = 0;
 		}
 }

@@ -37,7 +37,7 @@ typedef struct tMenuItem {
 	int			text_len;       // The maximum length of characters that can be entered by this inputboxes
 	char			*text;          // The text associated with this item.
 	char			*textSave;
-	uint color;
+	unsigned int color;
 	short			key;
 	// The rest of these are used internally by by the menu system, so don't set 'em!!
 	short			x, y, xSave, ySave;
@@ -48,17 +48,17 @@ typedef struct tMenuItem {
 	ubyte			noscroll;
 	ubyte			unavailable;
 	ubyte			centered;
-	char			saved_text [NM_MAX_TEXT_LEN+1];
-	CBitmap		*text_bm [2];
+	char			saved_text[NM_MAX_TEXT_LEN+1];
+	grsBitmap	*text_bm [2];
 	char			*szHelp;
 } tMenuItem;
 
 typedef struct bkg {
 	short			x, y, w, h;			// The location of the menu.
-	CCanvas*		menu_canvas;
-	CBitmap*		saved;			// The background under the menu.
-	CBitmap*		background;
-	CBitmap*		bmP;
+	gsrCanvas	*menu_canvas;
+	grsBitmap	*saved;			// The background under the menu.
+	grsBitmap	*background;
+	grsBitmap	*bmp;
 	char			bIgnoreBg;
 	char			bIgnoreCanv;
 	char			*pszPrevBg;
@@ -149,7 +149,7 @@ void NMRemapBackground (void);
 void NMLoadAltBg (void);
 int NMFreeAltBg (int bForce);
 
-void NMRestoreScreen (char *filename, bkg *bgP, CCanvas *saveCanvasP, CFont *saveFontP, int bDontRestore);
+void NMRestoreScreen (char *filename, bkg *bgP, gsrCanvas *saveCanvasP, grsFont *saveFontP, int bDontRestore);
 void NMBlueBox (int x1, int y1, int x2, int y2, int nLineWidth, float fAlpha, int bForce);
 
 extern double altBgAlpha;
@@ -159,7 +159,7 @@ extern char altBgName [FILENAME_LEN];
 extern char bAlreadyShowingInfo;
 
 #define STARS_BACKGROUND \
-			((gameStates.menus.bHires && CFile::Exist ("starsb.pcx", gameFolders.szDataDir, 0)) ? "starsb.pcx":\
-			CFile::Exist ("stars.pcx", gameFolders.szDataDir, 0) ? "stars.pcx" : "starsb.pcx")
+			((gameStates.menus.bHires && CFExist ("starsb.pcx", gameFolders.szDataDir, 0)) ? "starsb.pcx":\
+			CFExist ("stars.pcx", gameFolders.szDataDir, 0) ? "stars.pcx" : "starsb.pcx")
 
 #endif /* _NEWMENU_H */

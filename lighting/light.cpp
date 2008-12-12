@@ -29,7 +29,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "dynlight.h"
 #include "headlight.h"
 #include "light.h"
-#include "lightning.h"
 #include "network.h"
 
 #define CACHE_LIGHTS 0
@@ -107,7 +106,7 @@ static void ResetClusterLights (void)
 if (!gameStates.render.bClusterLights)
 	return;
 
-	CObject	*objP;
+	tObject	*objP;
 	int		i;
 
 FORALL_LIGHT_OBJS (objP, i)
@@ -124,7 +123,7 @@ static void SetClusterLights (void)
 if (!gameStates.render.bClusterLights)
 	return;
 
-	CObject	*objP;
+	tObject	*objP;
 	int		h, i;
 
 FORALL_LIGHT_OBJS (objP, i) {
@@ -151,7 +150,7 @@ FORALL_LIGHT_OBJS (objP, i) {
 				objP->cType.lightInfo.nSegment = (nSegment < 0) ? abs (objP->cType.lightInfo.nSegment) : nSegment;
 				}
 			if (objP->info.nSegment != objP->cType.lightInfo.nSegment)
-				OBJECTS [i].RelinkToSeg (objP->cType.lightInfo.nSegment);
+				RelinkObjToSeg (i, objP->cType.lightInfo.nSegment);
 			AddDynLight (NULL, &objP->cType.lightInfo.color, objP->cType.lightInfo.intensity, -1, -1, i, -1, NULL);
 			}
 		}
@@ -173,12 +172,12 @@ if (0 > nLightObj)
 if (nDbgObj == nLightObj)
 	nDbgObj = nDbgObj;
 #endif
-CObject *lightObjP = OBJECTS + nLightObj;
+tObject *lightObjP = OBJECTS + nLightObj;
 if (lightObjP->info.nSignature != gameData.objs.lightObjs [nObject].nSignature) {
 	gameData.objs.lightObjs [nObject].nObject = -1;
 	return 0;
 	}
-CObject *objP = OBJECTS + nObject;
+tObject *objP = OBJECTS + nObject;
 if (lightObjP->info.xLifeLeft < objP->info.xLifeLeft)
 	lightObjP->info.xLifeLeft = objP->info.xLifeLeft;
 if (!lightObjP->cType.lightInfo.nObjects++) {
@@ -218,10 +217,10 @@ return gameStates.render.bAmbientColor;
 }
 
 // ----------------------------------------------------------------------------------------------
-//	Return true if we think vertex nVertex is visible from CSegment nSegment.
+//	Return true if we think vertex nVertex is visible from tSegment nSegment.
 //	If some amount of time has gone by, then recompute, else use cached value.
 
-int LightingCacheVisible (int nVertex, int nSegment, int nObject, CFixVector *vObjPos, int nObjSeg, CFixVector *vVertPos)
+int LightingCacheVisible (int nVertex, int nSegment, int nObject, vmsVector *vObjPos, int nObjSeg, vmsVector *vVertPos)
 {
 	int	cache_val = lightingCache [((nSegment << LIGHTING_CACHE_SHIFT) ^ nVertex) & (LIGHTING_CACHE_SIZE-1)];
 	int	cache_frame = cache_val >> 1;
@@ -238,7 +237,7 @@ if ((cache_frame == 0) || (cache_frame + nLightingFrameDelta <= gameData.app.nFr
 	nSegment = FindSegByPos (*vObjPos, nObjSeg, 1, 0);
 	if (nSegment == -1) {
 		Int3 ();		//	Obj_pos is not in nObjSeg!
-		return 0;		//	Done processing this CObject.
+		return 0;		//	Done processing this tObject.
 	}
 	#endif
 	fq.p0					= vObjPos;
@@ -257,7 +256,7 @@ if ((cache_frame == 0) || (cache_frame + nLightingFrameDelta <= gameData.app.nFr
 	if (hitType == HIT_NONE)
 		bApplyLight = 1;
 	else if (hitType == HIT_WALL) {
-		fix distDist = CFixVector::Dist(hit_data.hit.vPoint, *vObjPos);
+		fix distDist = vmsVector::Dist(hit_data.hit.vPoint, *vObjPos);
 		if (distDist < F1_0/4) {
 			bApplyLight = 1;
 			// -- Int3 ();	//	Curious, did fvi detect intersection with tWall containing vertex?
@@ -276,7 +275,7 @@ void InitDynColoring (void)
 {
 if (!gameOpts->render.nLightingMethod && gameData.render.lights.bInitDynColoring) {
 	gameData.render.lights.bInitDynColoring = 0;
-	gameData.render.lights.bGotDynColor.Clear ();
+	memset (gameData.render.lights.bGotDynColor, 0, sizeof (*gameData.render.lights.bGotDynColor) * MAX_VERTICES);
 	}
 gameData.render.lights.bGotGlobalDynColor = 0;
 gameData.render.lights.bStartDynColoring = 0;
@@ -284,7 +283,7 @@ gameData.render.lights.bStartDynColoring = 0;
 
 // ----------------------------------------------------------------------------------------------
 
-void SetDynColor (tRgbaColorf *color, tRgbColorf *dynColorP, int nVertex, ubyte *bGotDynColorP, int bForce)
+void SetDynColor (tRgbaColorf *color, tRgbColorf *pDynColor, int nVertex, char *pbGotDynColor, int bForce)
 {
 if (!color)
 	return;
@@ -295,25 +294,25 @@ if (!bForce && (color->red == 1.0) && (color->green == 1.0) && (color->blue == 1
 if (gameData.render.lights.bStartDynColoring) {
 	InitDynColoring ();
 	}
-if (!dynColorP) {
+if (!pDynColor) {
 	SetDynColor (color, &gameData.render.lights.globalDynColor, 0, &gameData.render.lights.bGotGlobalDynColor, bForce);
-	dynColorP = gameData.render.lights.dynamicColor + nVertex;
-	bGotDynColorP = gameData.render.lights.bGotDynColor + nVertex;
+	pDynColor = gameData.render.lights.dynamicColor + nVertex;
+	pbGotDynColor = gameData.render.lights.bGotDynColor + nVertex;
 	}
-if (*bGotDynColorP) {
-	dynColorP->red = (dynColorP->red + color->red) / 2;
-	dynColorP->green = (dynColorP->green + color->green) / 2;
-	dynColorP->blue = (dynColorP->blue + color->blue) / 2;
+if (*pbGotDynColor) {
+	pDynColor->red = (pDynColor->red + color->red) / 2;
+	pDynColor->green = (pDynColor->green + color->green) / 2;
+	pDynColor->blue = (pDynColor->blue + color->blue) / 2;
 	}
 else {
-	memcpy (dynColorP, color, sizeof (tRgbColorf));
-	*bGotDynColorP = 1;
+	memcpy (pDynColor, color, sizeof (tRgbColorf));
+	*pbGotDynColor = 1;
 	}
 }
 
 // ----------------------------------------------------------------------------------------------
 
-bool SkipPowerup (CObject *objP)
+bool SkipPowerup (tObject *objP)
 {
 if (objP->info.nType != OBJ_POWERUP)
 	return false;
@@ -331,18 +330,24 @@ return false;
 
 // ----------------------------------------------------------------------------------------------
 
-void ApplyLight (fix xObjIntensity, int nObjSeg, CFixVector *vObjPos, int nRenderVertices,
-					  CArray<short>& renderVertices,	int nObject, tRgbaColorf *color)
+void ApplyLight (
+	fix			xObjIntensity,
+	int			nObjSeg,
+	vmsVector	*vObjPos,
+	int			nRenderVertices,
+	short			*renderVertexP,
+	int			nObject,
+	tRgbaColorf	*color)
 {
 	int			iVertex, bUseColor, bForceColor;
 	int			nVertex;
 	int			bApplyLight;
 	short			nLightObj;
 	ubyte			nObjType;
-	CFixVector	*vVertPos;
+	vmsVector	*vVertPos;
 	fix			dist, xOrigIntensity = xObjIntensity;
-	CObject		*lightObjP, *objP = (nObject < 0) ? NULL : OBJECTS + nObject;
-	CPlayerData		*playerP = objP ? gameData.multiplayer.players + objP->info.nId : NULL;
+	tObject		*lightObjP, *objP = (nObject < 0) ? NULL : OBJECTS + nObject;
+	tPlayer		*playerP = objP ? gameData.multiplayer.players + objP->info.nId : NULL;
 
 nObjType = objP ? objP->info.nType : OBJ_NONE;
 if (objP && SHOW_DYN_LIGHT) {
@@ -395,8 +400,8 @@ if (xObjIntensity) {
 		return;
 	bUseColor = (color != NULL); //&& (color->red < 1.0 || color->green < 1.0 || color->blue < 1.0);
 	bForceColor = objP && ((nObjType == OBJ_WEAPON) || (nObjType == OBJ_FIREBALL) || (nObjType == OBJ_EXPLOSION));
-	// for pretty dim sources, only process vertices in CObject's own CSegment.
-	//	12/04/95, MK, markers only cast light in own CSegment.
+	// for pretty dim sources, only process vertices in tObject's own tSegment.
+	//	12/04/95, MK, markers only cast light in own tSegment.
 	if (objP && ((abs (obji_64) <= F1_0 * 8) || (nObjType == OBJ_MARKER))) {
 		short *vp = gameData.segs.segments [nObjSeg].verts;
 		for (iVertex = 0; iVertex < MAX_VERTICES_PER_SEGMENT; iVertex++) {
@@ -406,7 +411,7 @@ if (xObjIntensity) {
 #endif
 			{
 				vVertPos = gameData.segs.vertices + nVertex;
-				dist = CFixVector::Dist (*vObjPos, *vVertPos) / 4;
+				dist = vmsVector::Dist(*vObjPos, *vVertPos) / 4;
 				dist = FixMul (dist, dist);
 				if (dist < abs (obji_64)) {
 					if (dist < MIN_LIGHT_DIST)
@@ -429,7 +434,7 @@ if (xObjIntensity) {
 					color->red = color->green = color->blue = 1.0;
 					}
 				if (objP->info.nId != gameData.multiplayer.nLocalPlayer) {
-					CFixVector	tvec;
+					vmsVector	tvec;
 					tFVIQuery	fq;
 					tFVIData		hit_data;
 					int			fate;
@@ -451,7 +456,7 @@ if (xObjIntensity) {
 			}
 		// -- for (iVertex=gameData.app.nFrameCount&1; iVertex<nRenderVertices; iVertex+=2) {
 		for (iVertex = 0; iVertex < nRenderVertices; iVertex++) {
-			nVertex = renderVertices [iVertex];
+			nVertex = renderVertexP [iVertex];
 #if DBG
 			if (nVertex == nDbgVertex)
 				nVertex = nVertex;
@@ -461,7 +466,7 @@ if (xObjIntensity) {
 #endif
 			{
 				vVertPos = gameData.segs.vertices + nVertex;
-				dist = CFixVector::Dist (*vObjPos, *vVertPos);
+				dist = vmsVector::Dist (*vObjPos, *vVertPos);
 				bApplyLight = 0;
 				if ((dist >> headlightShift) < abs (obji_64)) {
 					if (dist < MIN_LIGHT_DIST)
@@ -478,10 +483,10 @@ if (xObjIntensity) {
 						else {
 							fix			dot, maxDot;
 							int			spotSize = gameData.render.vertColor.bDarkness ? 2 << (3 - extraGameInfo [1].nSpotSize) : 1;
-							CFixVector	vecToPoint;
+							vmsVector	vecToPoint;
 							vecToPoint = *vVertPos - *vObjPos;
-							CFixVector::Normalize(vecToPoint);		//	MK, Optimization note: You compute distance about 15 lines up, this is partially redundant
-							dot = CFixVector::Dot(vecToPoint, objP->info.position.mOrient[FVEC]);
+							vmsVector::Normalize(vecToPoint);		//	MK, Optimization note: You compute distance about 15 lines up, this is partially redundant
+							dot = vmsVector::Dot(vecToPoint, objP->info.position.mOrient[FVEC]);
 							if (gameData.render.vertColor.bDarkness)
 								maxDot = F1_0 / spotSize;
 							else
@@ -504,7 +509,7 @@ if (xObjIntensity) {
 #define	FLASH_LEN_FIXED_SECONDS	 (F1_0/3)
 #define	FLASH_SCALE					 (3*F1_0/FLASH_LEN_FIXED_SECONDS)
 
-void CastMuzzleFlashLight (int nRenderVertices, CArray<short>& renderVertices)
+void CastMuzzleFlashLight (int nRenderVertices, short *renderVertexP)
 {
 	int	i;
 	short	time_since_flash;
@@ -516,7 +521,7 @@ for (i = 0; i < MUZZLE_QUEUE_MAX; i++) {
 		if (time_since_flash < FLASH_LEN_FIXED_SECONDS)
 			ApplyLight ((FLASH_LEN_FIXED_SECONDS - time_since_flash) * FLASH_SCALE,
 							gameData.muzzle.info [i].nSegment, &gameData.muzzle.info [i].pos,
-							nRenderVertices, renderVertices, -1, NULL);
+							nRenderVertices, renderVertexP, -1, NULL);
 		else
 			gameData.muzzle.info [i].createTime = 0;		// turn off this muzzle flash
 		}
@@ -533,7 +538,7 @@ fix	objLightXlat [16] =
 
 fix ComputeLightIntensity (int nObject, tRgbaColorf *colorP, char *pbGotColor)
 {
-	CObject		*objP = OBJECTS + nObject;
+	tObject		*objP = OBJECTS + nObject;
 	int			nObjType = objP->info.nType;
    fix			hoardlight, s;
 	static tRgbaColorf powerupColors [9] = {
@@ -555,7 +560,7 @@ switch (nObjType) {
 			}
 		 else if ((gameData.app.nGameMode & (GM_HOARD | GM_ENTROPY)) && gameData.multiplayer.players [objP->info.nId].secondaryAmmo [PROXMINE_INDEX]) {
 
-		// If hoard game and CPlayerData, add extra light based on how many orbs you have
+		// If hoard game and tPlayer, add extra light based on how many orbs you have
 		// Pulse as well.
 		  	hoardlight = I2X (gameData.multiplayer.players [objP->info.nId].secondaryAmmo [PROXMINE_INDEX])/2; //I2X (12);
 			hoardlight++;
@@ -581,11 +586,13 @@ switch (nObjType) {
 			return 0;
 		else {
 			tVideoClip *vcP = gameData.eff.vClips [0] + objP->info.nId;
-			fix		xLight = vcP->lightValue;
-			int		i, j;
-			CBitmap	*bmP = gameData.pig.tex.bitmapP [vcP->frames [0].index].Override ();
-			if (bmP) {
-				bmP->GetAvgColor (colorP);
+			fix xLight = vcP->lightValue;
+			int i, j;
+			grsBitmap *bmP;
+			if ((bmP = BM_OVERRIDE (gameData.pig.tex.pBitmaps + vcP->frames [0].index))) {
+				colorP->red = (float) bmP->bmAvgRGB.red;
+				colorP->green = (float) bmP->bmAvgRGB.green;
+				colorP->blue = (float) bmP->bmAvgRGB.blue;
 				*pbGotColor = 1;
 				}
 			else {
@@ -594,16 +601,12 @@ switch (nObjType) {
 				colorP->blue = 0.0f;
 				for (i = j = 0; i < vcP->nFrameCount; i++) {
 					bmP = gameData.pig.tex.bitmaps [0] + vcP->frames [i].index;
-					tRgbaColorf avgRGB;
-					bmP->GetAvgColor (&avgRGB);
-					if (avgRGB.red + avgRGB.green + avgRGB.blue == 0) {
-						if (0 > bmP->AvgColor ())
+					if (bmP->bmAvgRGB.red + bmP->bmAvgRGB.green + bmP->bmAvgRGB.blue == 0)
+						if (!BitmapColor (bmP, bmP->bmTexBuf))
 							continue;
-						bmP->GetAvgColor (&avgRGB);
-						}
-					colorP->red += (float) avgRGB.red / 255.0f;
-					colorP->green += (float) avgRGB.green / 255.0f;
-					colorP->blue += (float) avgRGB.blue / 255.0f;
+					colorP->red += (float) bmP->bmAvgRGB.red / 255.0f;
+					colorP->green += (float) bmP->bmAvgRGB.green / 255.0f;
+					colorP->blue += (float) bmP->bmAvgRGB.blue / 255.0f;
 					j++;
 					}
 				if (j) {
@@ -667,7 +670,7 @@ switch (nObjType) {
 		lightval &= 0xffff;
 		lightval = 8 * abs (F1_0/2 - lightval);
 		if (objP->info.xLifeLeft < F1_0*1000)
-			objP->info.xLifeLeft += F1_0;	//	Make sure this CObject doesn't go out.
+			objP->info.xLifeLeft += F1_0;	//	Make sure this tObject doesn't go out.
 		colorP->red = 0.1f;
 		colorP->green = 1.0f;
 		colorP->blue = 0.1f;
@@ -705,15 +708,15 @@ void SetDynamicLight (void)
 	int			nRenderVertices;
 	int			iRenderSeg, v;
 	char			bGotColor, bKeepDynColoring = 0;
-	CObject		*objP;
-	CFixVector	*objPos;
+	tObject		*objP;
+	vmsVector	*objPos;
 	fix			xObjIntensity;
 	tRgbaColorf	color;
 	
 nHeadlights = 0;
 if (!gameOpts->render.debug.bDynamicLight)
 	return;
-gameData.render.lights.vertexFlags.Clear ();
+memset (gameData.render.lights.vertexFlags, 0, gameData.segs.nLastVertex + 1);
 gameData.render.vertColor.bDarkness = IsMultiGame && gameStates.app.bHaveExtraGameInfo [1] && extraGameInfo [IsMultiGame].bDarkness;
 gameData.render.lights.bStartDynColoring = 1;
 if (gameData.render.lights.bInitDynColoring) {
@@ -750,17 +753,17 @@ if (!gameOpts->render.nLightingMethod) {
 			{
 			gameData.render.lights.dynamicLight [nVertex] = 0;
 			gameData.render.lights.bGotDynColor [nVertex] = 0;
-			memset (gameData.render.lights.dynamicColor + nVertex, 0, sizeof (gameData.render.lights.dynamicColor [0]));
+			memset (gameData.render.lights.dynamicColor + nVertex, 0, sizeof (*gameData.render.lights.dynamicColor));
 			}
 		}
 	}
 CastMuzzleFlashLight (nRenderVertices, gameData.render.lights.vertices);
-gameData.render.lights.newObjects.Clear ();
+memset (gameData.render.lights.newObjects, 0, sizeof (gameData.render.lights.newObjects));
 if (EGI_FLAG (bUseLightnings, 0, 0, 1) && !gameOpts->render.nLightingMethod) {
 	tLightningLight	*pll;
 	for (iRenderSeg = 0; iRenderSeg < gameData.render.mine.nRenderSegs; iRenderSeg++) {
 		nSegment = gameData.render.mine.nSegRenderList [iRenderSeg];
-		pll = lightningManager.GetLight (nSegment);
+		pll = gameData.lightnings.lights + nSegment;
 		if (pll->nFrame == gameData.app.nFrameCount)
 			ApplyLight (pll->nBrightness, nSegment, &pll->vPos, nRenderVertices, gameData.render.lights.vertices, -1, &pll->color);
 		}
@@ -787,7 +790,7 @@ FORALL_OBJS (objP, nObject) {
 //	Now, process all lights from last frame which haven't been processed this frame.
 FORALL_OBJS (objP, nObject) {
 	nObject = OBJ_IDX (objP);
-	//	In multiplayer games, process even unprocessed OBJECTS every 4th frame, else don't know about CPlayerData sneaking up.
+	//	In multiplayer games, process even unprocessed OBJECTS every 4th frame, else don't know about tPlayer sneaking up.
 	if ((gameData.render.lights.objects [nObject]) ||
 		 (IsMultiGame && (((nObject ^ gameData.app.nFrameCount) & 3) == 0))) {
 		if (gameData.render.lights.newObjects [nObject])
@@ -816,7 +819,7 @@ if (!bKeepDynColoring)
 }
 
 // ----------------------------------------------------------------------------------------------
-//compute the average dynamic light in a CSegment.  Takes the CSegment number
+//compute the average dynamic light in a tSegment.  Takes the tSegment number
 
 fix ComputeSegDynamicLight (int nSegment)
 {
@@ -833,22 +836,22 @@ return sum >> 3;
 }
 // ----------------------------------------------------------------------------------------------
 
-CObject *oldViewer;
+tObject *oldViewer;
 int bResetLightingHack;
 
 #define LIGHT_RATE I2X (4)		//how fast the light ramps up
 
-void StartLightingFrame (CObject *viewer)
+void StartLightingFrame (tObject *viewer)
 {
 bResetLightingHack = (viewer != oldViewer);
 oldViewer = viewer;
 }
 
 // ----------------------------------------------------------------------------------------------
-//compute the lighting for an CObject.  Takes a pointer to the CObject,
+//compute the lighting for an tObject.  Takes a pointer to the tObject,
 //and possibly a rotated 3d point.  If the point isn't specified, the
 //object's center point is rotated.
-fix ComputeObjectLight (CObject *objP, CFixVector *vRotated)
+fix ComputeObjectLight (tObject *objP, vmsVector *vRotated)
 {
 #if DBG
    if (!objP)
@@ -860,7 +863,7 @@ fix ComputeObjectLight (CObject *objP, CFixVector *vRotated)
 		return F1_0;
 	if (nObject >= gameData.objs.nLastObject [0])
 		return 0;
-	//First, get static light for this CSegment
+	//First, get static light for this tSegment
 if (gameOpts->render.nLightingMethod && !((RENDERPATH && gameOpts->ogl.bObjLighting) || gameOpts->ogl.bLightObjects)) {
 	gameData.objs.color = *AvgSgmColor (objP->info.nSegment, &objP->info.position.vPos);
 	light = F1_0;
@@ -881,21 +884,21 @@ if (!bResetLightingHack && (gameData.objs.nLightSig [nObject] == objP->info.nSig
 		else
 			light = gameData.objs.xLight [nObject] += xFrameDelta;
 	}
-else {		//new CObject, initialize
+else {		//new tObject, initialize
 	gameData.objs.nLightSig [nObject] = objP->info.nSignature;
 	gameData.objs.xLight [nObject] = light;
 	}
-//Next, add in headlight on this CObject
+//Next, add in headlight on this tObject
 // -- Matt code: light += ComputeHeadlight (vRotated,f1_0);
 light += ComputeHeadlightLightOnObject (objP);
-//Finally, add in dynamic light for this CSegment
+//Finally, add in dynamic light for this tSegment
 light += ComputeSegDynamicLight (objP->info.nSegment);
 return light;
 }
 
 // ----------------------------------------------------------------------------------------------
 
-void ComputeEngineGlow (CObject *objP, fix *xEngineGlowValue)
+void ComputeEngineGlow (tObject *objP, fix *xEngineGlowValue)
 {
 xEngineGlowValue [0] = f1_0/5;
 if (objP->info.movementType == MT_PHYSICS) {
@@ -908,7 +911,7 @@ if (objP->info.movementType == MT_PHYSICS) {
 		xEngineGlowValue [0] += (FixDiv (speed, MAX_VELOCITY) * 3) / 5;
 		}
 	}
-//set value for CPlayerData headlight
+//set value for tPlayer headlight
 if (objP->info.nType == OBJ_PLAYER) {
 	if (PlayerHasHeadlight (objP->info.nId) &&  !gameStates.app.bEndLevelSequence)
 		xEngineGlowValue [1] = HeadlightIsOn (objP->info.nId) ? -2 : -1;
@@ -982,7 +985,7 @@ if (flP)
 
 #ifdef EDITOR
 //returns 1 if ok, 0 if error
-int AddVariableLight (int nSegment, int nSide, fix delay, uint mask)
+int AddVariableLight (int nSegment, int nSide, fix delay, unsigned int mask)
 {
 	int l;
 	tVariableLight *flP;
@@ -1027,7 +1030,7 @@ return gameData.pig.tex.brightness [tMapNum];
 }
 
 //	------------------------------------------------------------------------------------------
-//cast static light from a CSegment to nearby segments
+//cast static light from a tSegment to nearby segments
 //these constants should match the ones in seguvs
 #define	LIGHT_DISTANCE_THRESHOLD	 (F1_0*80)
 #define	MAGIC_LIGHT_CONSTANT			 (F1_0*16)
@@ -1036,9 +1039,9 @@ return gameData.pig.tex.brightness [tMapNum];
 short changedSegs [MAX_CHANGED_SEGS];
 int nChangedSegs;
 
-void ApplyLightToSegment (CSegment *segP, CFixVector *vSegCenter, fix xBrightness, int nCallDepth)
+void ApplyLightToSegment (tSegment *segP, vmsVector *vSegCenter, fix xBrightness, int nCallDepth)
 {
-	CFixVector	rSegmentCenter;
+	vmsVector	rSegmentCenter;
 	fix			xDistToRSeg;
 	int 			i;
 	short			nSide,
@@ -1049,7 +1052,7 @@ for (i = 0; i <nChangedSegs; i++)
 		break;
 if (i == nChangedSegs) {
 	COMPUTE_SEGMENT_CENTER (&rSegmentCenter, segP);
-	xDistToRSeg = CFixVector::Dist(rSegmentCenter, *vSegCenter);
+	xDistToRSeg = vmsVector::Dist(rSegmentCenter, *vSegCenter);
 
 	if (xDistToRSeg <= LIGHT_DISTANCE_THRESHOLD) {
 		fix	xLightAtPoint = (xDistToRSeg > F1_0) ?
@@ -1078,29 +1081,29 @@ if (nCallDepth < 2)
 		}
 }
 
-extern CObject *oldViewer;
+extern tObject *oldViewer;
 
 //	------------------------------------------------------------------------------------------
-//update the xAvgSegLight field in a CSegment, which is used for CObject lighting
+//update the xAvgSegLight field in a tSegment, which is used for tObject lighting
 //this code is copied from the editor routine calim_process_all_lights ()
 void ChangeSegmentLight (short nSegment, short nSide, int dir)
 {
-	CSegment *segP = gameData.segs.segments+nSegment;
+	tSegment *segP = gameData.segs.segments+nSegment;
 
 if (WALL_IS_DOORWAY (segP, nSide, NULL) & WID_RENDER_FLAG) {
 	tSide	*sideP = segP->sides+nSide;
 	fix	xBrightness;
-	xBrightness = gameData.pig.tex.tMapInfoP [sideP->nBaseTex].lighting + gameData.pig.tex.tMapInfoP [sideP->nOvlTex].lighting;
+	xBrightness = gameData.pig.tex.pTMapInfo [sideP->nBaseTex].lighting + gameData.pig.tex.pTMapInfo [sideP->nOvlTex].lighting;
 	xBrightness *= dir;
 	nChangedSegs = 0;
 	if (xBrightness) {
-		CFixVector	vSegCenter;
+		vmsVector	vSegCenter;
 		COMPUTE_SEGMENT_CENTER (&vSegCenter, segP);
 		ApplyLightToSegment (segP, &vSegCenter, xBrightness, 0);
 		}
 	}
 //this is a horrible hack to get around the horrible hack used to
-//smooth lighting values when an CObject moves between segments
+//smooth lighting values when an tObject moves between segments
 oldViewer = NULL;
 }
 
@@ -1213,7 +1216,7 @@ for (dliP = gameData.render.lights.deltaIndices + i; i < gameData.render.lights.
 			}
 		}
 	}
-//recompute static light for CSegment
+//recompute static light for tSegment
 ChangeSegmentLight (nSegment, nSide, dir);
 }
 
@@ -1265,33 +1268,8 @@ for (i=0; i <= gameData.segs.nLastSegment; i++) {
 //	to change the status of static light in the mine.
 void ClearLightSubtracted (void)
 {
-gameData.render.lights.subtracted.Clear ();
-}
-
-//------------------------------------------------------------------------------
-//	When loading a saved game, segp->xAvgSegLight is bogus.
-//	This is because ApplyAllChangedLight, which is supposed to properly update this value,
-//	cannot do so because it needs the original light cast from a light which is no longer there.
-//	That is, a light has been blown out, so the texture remaining casts 0 light, but the static light
-//	which is present in the xAvgSegLight field contains the light cast from that light.
-void ComputeAllStaticLight (void)
-{
-	int		h, i, j, k;
-	CSegment	*segP;
-	tSide		*sideP;
-	fix		xTotal;
-
-for (i = 0, segP = gameData.segs.segments.Buffer (); i <= gameData.segs.nLastSegment; i++, segP++) {
-	xTotal = 0;
-	for (h = j = 0, sideP = segP->sides; j < MAX_SIDES_PER_SEGMENT; j++, sideP++) {
-		if ((segP->children [j] < 0) || IS_WALL (sideP->nWall)) {
-			h++;
-			for (k = 0; k < 4; k++)
-				xTotal += sideP->uvls [k].l;
-			}
-		}
-	gameData.segs.segment2s [i].xAvgSegLight = h ? xTotal / (h * 4) : 0;
-	}
+memset (gameData.render.lights.subtracted, 0,
+		  gameData.segs.nLastSegment * sizeof (gameData.render.lights.subtracted [0]));
 }
 
 // ----------------------------------------------------------------------------------------------
