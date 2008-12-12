@@ -52,7 +52,7 @@ extern "C" {
 /*************************************************************/
 
 /* Header file version number, required by OpenGL ABI for Linux */
-/* glext[HA] last updated 2005/06/20 */
+/* glext.h last updated 2005/06/20 */
 /* Current version at http://oss.sgi.com/projects/ogl-sample/registry/ */
 #define GL_GLEXT_VERSION 29
 
@@ -1729,7 +1729,7 @@ extern "C" {
 #define GL_SEPARATE_SPECULAR_COLOR_EXT    0x81FA
 #endif
 
-#ifndef GL_EXTSecondary_color
+#ifndef GL_EXT_secondary_color
 #define GL_COLOR_SUM_EXT                  0x8458
 #define GL_CURRENT_SECONDARY_COLOR_EXT    0x8459
 #define GL_SECONDARY_COLOR_ARRAY_SIZE_EXT 0x845A
@@ -2897,7 +2897,7 @@ extern "C" {
 #define GL_READ_PIXEL_DATA_RANGE_POINTER_NV 0x887D
 #endif
 
-#ifndef GL_NVPrimitive_restart
+#ifndef GL_NV_primitive_restart
 #define GL_PRIMITIVE_RESTART_NV           0x8558
 #define GL_PRIMITIVE_RESTART_INDEX_NV     0x8559
 #endif
@@ -2992,7 +2992,7 @@ extern "C" {
 #define GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_3D_ZOFFSET_EXT 0x8CD4
 #define GL_FRAMEBUFFER_COMPLETE_EXT       0x8CD5
 #define GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT 0x8CD6
-#define GL_FRAMEBUFFER_INCOMPLETEMSLING_ATTACHMENT_EXT 0x8CD7
+#define GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT 0x8CD7
 #define GL_FRAMEBUFFER_INCOMPLETE_DUPLICATE_ATTACHMENT_EXT 0x8CD8
 #define GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT 0x8CD9
 #define GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT 0x8CDA
@@ -3060,9 +3060,9 @@ typedef ptrdiff_t GLsizeiptrARB;
 #endif
 
 #ifndef GL_ARB_shaderObjects
-/* GL types for handling shader CObject handles and program/shader text */
+/* GL types for handling shader tObject handles and program/shader text */
 typedef char GLcharARB;		/* native character */
-typedef unsigned int GLhandleARB;	/* shader CObject handle */
+typedef unsigned int GLhandleARB;	/* shader tObject handle */
 #endif
 
 /* GL types for "half" precision (s10e5) float data in host memory */
@@ -4925,8 +4925,8 @@ typedef void (APIENTRYP PFNGLPIXELTRANSFORMPARAMETERFVEXTPROC) (GLenum target, G
 #define GL_EXT_separate_specular_color 1
 #endif
 
-#ifndef GL_EXTSecondary_color
-#define GL_EXTSecondary_color 1
+#ifndef GL_EXT_secondary_color
+#define GL_EXT_secondary_color 1
 #ifdef GL_GLEXT_PROTOTYPES
 GLAPI void APIENTRY glSecondaryColor3bEXT (GLbyte, GLbyte, GLbyte);
 GLAPI void APIENTRY glSecondaryColor3bvEXT (const GLbyte *);
@@ -6145,8 +6145,8 @@ typedef void (APIENTRYP PFNGLSETFENCEAPPLEPROC) (GLuint fence);
 typedef GLboolean (APIENTRYP PFNGLISFENCEAPPLEPROC) (GLuint fence);
 typedef GLboolean (APIENTRYP PFNGLTESTFENCEAPPLEPROC) (GLuint fence);
 typedef void (APIENTRYP PFNGLFINISHFENCEAPPLEPROC) (GLuint fence);
-typedef GLboolean (APIENTRYP PFNGLTESTOBJECTAPPLEPROC) (GLenum CObject, GLuint name);
-typedef void (APIENTRYP PFNGLFINISHOBJECTAPPLEPROC) (GLenum CObject, GLint name);
+typedef GLboolean (APIENTRYP PFNGLTESTOBJECTAPPLEPROC) (GLenum tObject, GLuint name);
+typedef void (APIENTRYP PFNGLFINISHOBJECTAPPLEPROC) (GLenum tObject, GLint name);
 #endif
 
 #ifndef GL_APPLE_vertex_arrayObject
@@ -6337,8 +6337,8 @@ typedef void (APIENTRYP PFNGLPIXELDATARANGENVPROC) (GLenum target, GLsizei lengt
 typedef void (APIENTRYP PFNGLFLUSHPIXELDATARANGENVPROC) (GLenum target);
 #endif
 
-#ifndef GL_NVPrimitive_restart
-#define GL_NVPrimitive_restart 1
+#ifndef GL_NV_primitive_restart
+#define GL_NV_primitive_restart 1
 #ifdef GL_GLEXT_PROTOTYPES
 GLAPI void APIENTRY glPrimitiveRestartNV (void);
 GLAPI void APIENTRY glPrimitiveRestartIndexNV (GLuint);

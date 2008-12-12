@@ -21,7 +21,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  *
  * $Log: editor.h,v $
  * Revision 1.2  2001/10/25 02:19:32  bradleyb
- * conditionalize including multi[HA] and network.h, fix backslashes, fix compiler errors with EDITOR
+ * conditionalize including multi.h and network.h, fix backslashes, fix compiler errors with EDITOR
  *
  *
  */
@@ -89,12 +89,12 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define FVIEW_H	SMALLVIEW_H
 
 #define RVIEW_X	(TVIEW_X+SMALLVIEW_W+2)	//right view
-#define RVIEW_Y	FVIEW_Y
+#define RVIEW_Y	FVIEW_Y	
 #define RVIEW_W	SMALLVIEW_W
 #define RVIEW_H	SMALLVIEW_H
 
 #define GVIEW_X	RVIEW_X						//group view
-#define GVIEW_Y	TVIEW_Y
+#define GVIEW_Y	TVIEW_Y	
 #define GVIEW_W	SMALLVIEW_W
 #define GVIEW_H	SMALLVIEW_H
 
@@ -102,7 +102,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define	SEGMOVE_PAD_ID		0
 #define	SEGSIZE_PAD_ID		1
-#define	CURVE_PAD_ID		2
+#define	CURVE_PAD_ID		2	
 #define	TEXTURE_PAD_ID		3
 #define	OBJECT_PAD_ID		4
 #define	OBJMOV_PAD_ID		5
@@ -147,31 +147,31 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define SEGSIZEMODE_MAX			SEGSIZEMODE_VERTEX
 
 //defines a view for an editor window
-typedef struct editorView {
+typedef struct editor_view {
 	short ev_num;				//each view has it's own number
 	short ev_changed;			//set to true if view changed
-	CCanvas *ev_canv;		//points to this window's canvas
+	grs_canvas *ev_canv;		//points to this window's canvas
 	fix evDist;				//the distance from the view point
 	vmsMatrix ev_matrix;	//the view matrix
 	fix ev_zoom;				//zoom for this window
-} editorView;
+} editor_view;
 
 /*
  * Global variables
  * 
  */
 
-extern editorView *Views[];
-extern int NViews;
-extern CCanvas *canv_offscreen;		//for off-screen rendering
-extern int LargeView_index;
+extern editor_view *Views[];
+extern int N_views;
+extern grs_canvas *canv_offscreen;		//for off-screen rendering
+extern int Large_view_index;
 extern UI_GADGET_USERBOX * LargeViewBox;
 extern int Found_seg_index;				// Index in Found_segs corresponding to Cursegp
 extern int gamestate_not_restored;
 
 
 extern	tSegment  *Cursegp;				// Pointer to current tSegment in the mine, the one to which things happen.
-extern	vmsVector EdView_target;		// what editor is looking at
+extern	vmsVector Ed_view_target;		// what editor is looking at
 
 // -- extern	tSegment  New_segment;			// The tSegment which can be added to the mine.
 #define	New_segment	(Segments[MAX_SEGMENTS-1])
@@ -185,7 +185,7 @@ extern	tSegment	*Markedsegp;			// Marked tSegment, used in conjunction with *Cur
 extern	int		Markedside;				// Marked tSide on Markedsegp.
 extern	byte		Vertex_active[MAX_VERTICES];	// !0 means vertex is in use, 0 means not in use.
 
-extern	CCanvas *Pad_text_canvas;		// Keypad text
+extern	grs_canvas *Pad_text_canvas;		// Keypad text
 
 // The extra group in the following arrays is used for group rotation.
 extern 	group		GroupList[MAX_GROUPS+1];
@@ -206,7 +206,7 @@ extern	short		Warning_segs[];		// List of warning-worthy segments
 
 extern	int		Show_axesFlag;		// 0 = don't show, !0 = do show coordinate axes in *Cursegp orientation
 
-extern   int		AutosaveCount;		// Current counter for which autosave mine we are "on"
+extern   int		Autosave_count;		// Current counter for which autosave mine we are "on"
 extern	int		AutosaveFlag;			// Whether or not Autosave is on.
 extern	struct tm EditorTime_of_day;
 
@@ -443,7 +443,7 @@ extern	int med_scale_and_rotate_segment(tSegment *seg, vmsAngVec *rot);
 
 //	Set Vertex_active to number of occurrences of each vertex.
 //	Set Num_vertices.
-extern	void set_vertexCounts(void);
+extern	void set_vertex_counts(void);
 
 //	Modify seg2 to share side2 with seg1:side1.  This forms a connection between
 //	two segments without creating a new tSegment.  It modifies seg2 by sharing
@@ -548,15 +548,15 @@ extern vmsAngVec  Seg_orientation;
 extern vmsVector  Seg_scale;
 extern int         mine_changed;
 extern int         ModeFlag;
-extern editorView *currentView;
+extern editor_view *current_view;
 
 //the view for the different windows
-extern editorView LargeView;
-extern editorView TopView;
-extern editorView FrontView;
-extern editorView RightView;
+extern editor_view LargeView;
+extern editor_view TopView;
+extern editor_view FrontView;
+extern editor_view RightView;
 
-extern void setView_target_from_segment(tSegment *sp);
+extern void set_view_target_from_segment(tSegment *sp);
 extern int SafetyCheck();
 
 extern void editor_status( const char *format, ...);
@@ -566,25 +566,25 @@ extern int MacroStatus;
 
 //extern	int	Highest_vertex_index;			// Highest index in Vertices and Vertex_active, an efficiency hack
 //extern	int	Highest_segment_index;			// Highest index in Segments, an efficiency hack
-extern	int	LockView_to_cursegp;			// !0 means whenever cursegp changes, view it
+extern	int	Lock_view_to_cursegp;			// !0 means whenever cursegp changes, view it
 
 //	eglobal.c
-extern	int	Num_tilings;						// number of tilings/tWall
+extern	int	Num_tilings;						// number of tilings/wall
 extern	int	Degenerate_segment_found;
 
 extern	byte	Been_visited[];					//	List of segments visited in a recursive search, if element n set, tSegment n done been visited
 
 // Initializes autosave system.
-// Sets global AutosaveCount to 0.
+// Sets global Autosave_count to 0.
 extern void init_autosave(void);
 
 // Closes autosave system.
 // Deletes all autosaved files.
 extern void close_autosave(void);
 
-// Saves current mine to name.miX where name = suffix of mine name and X = AutosaveCount.
-// For example, if name = "cookie.min", and AutosaveCount = 3, then writes "cookie.mi3".
-// Increments AutosaveCount, wrapping from 9 to 0.
+// Saves current mine to name.miX where name = suffix of mine name and X = Autosave_count.
+// For example, if name = "cookie.min", and Autosave_count = 3, then writes "cookie.mi3".
+// Increments Autosave_count, wrapping from 9 to 0.
 // (If there is no current mine name, assume "temp.min")
 // Call med_save_mine to save the mine.
 extern void autosave_mine(char *name);
@@ -618,29 +618,29 @@ extern int render_3d_in_big_window;
 extern void moveObject_to_mouse_click(void);
 
 //these are instances of canvases, pointed to by variables below
-extern CCanvas _canv_editor_game;		//the game on the editor screen
+extern grs_canvas _canv_editor_game;		//the game on the editor screen
 
 //these are pointers to our canvases
-extern CCanvas *Canv_editor;			//the editor screen
-extern CCanvas *Canv_editor_game; //the game on the editor screen
+extern grs_canvas *Canv_editor;			//the editor screen
+extern grs_canvas *Canv_editor_game; //the game on the editor screen
 
-extern CCanvas *canv_offscreen;		//for off-screen rendering
-extern CCanvas *Pad_text_canvas;		// Keypad text
+extern grs_canvas *canv_offscreen;		//for off-screen rendering
+extern grs_canvas *Pad_text_canvas;		// Keypad text
 
 //where the editor is looking
-extern vmsVector EdView_target;
+extern vmsVector Ed_view_target;
 
 extern int gamestate_not_restored;
 
 extern UI_WINDOW * EditorWindow;
 
-extern int     LargeView_index;
+extern int     Large_view_index;
 
 extern UI_GADGET_USERBOX * GameViewBox;
 extern UI_GADGET_USERBOX * LargeViewBox;
 extern UI_GADGET_USERBOX * GroupViewBox;
 
-extern void med_point_2_vec(CCanvas *canv,vmsVector *v,short sx,short sy);
+extern void med_point_2_vec(grs_canvas *canv,vmsVector *v,short sx,short sy);
 
 //shutdown ui on the editor screen
 void close_editor_screen(void);

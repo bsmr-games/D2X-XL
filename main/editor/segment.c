@@ -73,7 +73,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Correctly set currentLevel_num when loading/creating mine in editor
  * 
  * Revision 1.178  1994/09/25  14:17:51  mike
- * Initialize (to 0) gameData.matCens.nBotCenters and gameData.walls.nOpenDoors at mine creation.
+ * Initialize (to 0) gameData.matCens.nRobotCenters and gameData.walls.nOpenDoors at mine creation.
  * 
  * Revision 1.177  1994/09/20  14:36:06  mike
  * Write function to find overlapping segments.
@@ -118,7 +118,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * *** empty log message ***
  * 
  * Revision 1.164  1994/06/15  15:42:40  mike
- * Initialize xAvgSegLight field in new segments.
+ * Initialize static_light field in new segments.
  * 
  * Revision 1.163  1994/06/13  17:49:19  mike
  * Fix bug in med_validate_side which was toasting lighting for removable walls.
@@ -129,7 +129,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * causing physics bugs.
  * 
  * Revision 1.161  1994/06/08  18:14:16  mike
- * Fix triangulation of sides in hallways (ie, where there is no tWall),
+ * Fix triangulation of sides in hallways (ie, where there is no wall),
  * so they get triangulated the same way, so find_new_seg doesn't get
  * stuck in an infinite recursion.
  * 
@@ -166,7 +166,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include "inferno.h"
 #include "segment.h"
-// #include "tSegment2.h"
+// #include "segment2.h"
 #include "editor.h"
 #include "error.h"
 #include "object.h"
@@ -180,7 +180,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "fuelcen.h"
 #include "cntrlcen.h"
 #include "seguvs.h"
-#include "loadgame.h"
+#include "gameseq.h"
 
 #include "medwall.h"
 #include "hostage.h"
@@ -387,7 +387,7 @@ int ToggleBottom(void)
 	UpdateFlags = UF_WORLD_CHANGED;
 	return 0;
 }
-	
+		
 // ---------------------------------------------------------------------------------------------
 //           ---------- Segment interrogation functions ----------
 // ----------------------------------------------------------------------------
@@ -404,7 +404,7 @@ void med_get_vertex_list(tSegment *s,int *nv,short **vp)
 //	This function can be used to determine whether a vertex is used exactly once in
 //	all segments, in which case it can be freely moved because it is not connected
 //	to any other tSegment.
-int med_vertexCount(int vi)
+int med_vertex_count(int vi)
 {
 	int		s,v;
 	tSegment	*sp;
@@ -426,14 +426,14 @@ int med_vertexCount(int vi)
 // -------------------------------------------------------------------------------
 int is_free_vertex(int vi)
 {
-	return med_vertexCount(vi) == 1;
+	return med_vertex_count(vi) == 1;
 }
 
 
 // -------------------------------------------------------------------------------
-// Move a D2_FREE vertex in the tSegment by adding the vector *vofs to its coordinates.
+// Move a d_free vertex in the tSegment by adding the vector *vofs to its coordinates.
 //	Error handling:
-// 	If the point is not D2_FREE then:
+// 	If the point is not d_free then:
 //		If the point is not valid (probably valid = in 0..7) then:
 //		If adding *vofs will cause a degenerate tSegment then:
 //	Note, pi is the point index relative to the tSegment, not an absolute point index.
@@ -446,8 +446,8 @@ void med_move_vertex(tSegment *sp, int pi, vmsVector *vofs)
 
 	abspi = sp->verts[pi];
 
-	// Make sure vertex abspi is D2_FREE.  If it is D2_FREE, it appears exactly once in gameData.segs.vertices
-	Assert(med_vertexCount(abspi) == 1);
+	// Make sure vertex abspi is d_free.  If it is d_free, it appears exactly once in gameData.segs.vertices
+	Assert(med_vertex_count(abspi) == 1);
 
 	Assert(abspi <= MAX_SEGMENT_VERTICES);			// Make sure vertex id is not bogus.
 
@@ -462,7 +462,7 @@ void med_move_vertex(tSegment *sp, int pi, vmsVector *vofs)
 }
 
 // -------------------------------------------------------------------------------
-//	Move a D2_FREE tWall in the tSegment by adding the vector *vofs to its coordinates.
+//	Move a d_free wall in the tSegment by adding the vector *vofs to its coordinates.
 //	Wall indices: 0/1/2/3/4/5 = left/top/right/bottom/back/front
 void med_move_wall(tSegment *sp,int wi, vmsVector *vofs)
 {
@@ -502,7 +502,7 @@ int med_add_vertex(vmsVector *vp)
 	int	v,free_index;
 	int	count;					// number of used vertices found, for loops exits when count == gameData.segs.nVertices
 
-//	set_vertexCounts();
+//	set_vertex_counts();
 
 	Assert(gameData.segs.nVertices < MAX_SEGMENT_VERTICES);
 
@@ -515,7 +515,7 @@ int med_add_vertex(vmsVector *vp)
 				return v;
 			}
 		} else if (free_index == -1)
-			free_index = v;					// we want free_index to be the first D2_FREE slot to add a vertex
+			free_index = v;					// we want free_index to be the first d_free slot to add a vertex
 
 	if (free_index == -1)
 		free_index = gameData.segs.nVertices;
@@ -537,7 +537,7 @@ int med_add_vertex(vmsVector *vp)
 }
 
 // ------------------------------------------------------------------------------------------
-//	Returns the index of a D2_FREE tSegment.
+//	Returns the index of a d_free tSegment.
 //	Scans the gameData.segs.segments array.
 int get_free_segment_number(void)
 {
@@ -564,7 +564,7 @@ int med_create_duplicate_segment(tSegment *sp)
 
 	nSegment = get_free_segment_number();
 
-	gameData.segs.segments[nSegment] = *sp;
+	gameData.segs.segments[nSegment] = *sp;	
 
 	return nSegment;
 }
@@ -613,7 +613,7 @@ int med_set_vertex(int vnum,vmsVector *vp)
 		gameData.segs.nVertices++;
 		if ((vnum > gameData.segs.nLastVertex) && (vnum < NEW_SEGMENT_VERTICES)) {
 #if TRACE
-			con_printf (CONDBG,"Warning -- setting a previously unset vertex, index = %i.\n",vnum);
+			con_printf (CON_DEBUG,"Warning -- setting a previously unset vertex, index = %i.\n",vnum);
 #endif
 			gameData.segs.nLastVertex = vnum;
 		}
@@ -640,25 +640,25 @@ int check_for_degenerate_side(tSegment *sp, int nSide)
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[1]]], &gameData.segs.vertices[sp->verts[vp[0]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[1]]], &gameData.segs.vertices[sp->verts[(int) vp[0]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
 		degeneracyFlag |= 1;
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[3]]], &gameData.segs.vertices[sp->verts[vp[2]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[3]]], &gameData.segs.vertices[sp->verts[(int) vp[2]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
 		degeneracyFlag |= 1;
 
@@ -690,18 +690,18 @@ int check_for_degenerate_segment(tSegment *sp)
 	extract_right_vector_from_segment(sp, &rVec);
 	extract_up_vector_from_segment(sp, &uVec);
 
-	vmsVector::normalize(&fVec);
-	vmsVector::normalize(&rVec);
-	vmsVector::normalize(&uVec);
+	VmVecNormalize(&fVec);
+	VmVecNormalize(&rVec);
+	VmVecNormalize(&uVec);
 
 	VmVecCross(&cross, &fVec, &rVec);
-	dot = vmsVector::dot(cross, uVec);
+	dot = VmVecDot(&cross, &uVec);
 
 	if (dot > 0)
 		degeneracyFlag = 0;
 	else {
 #if TRACE
-		con_printf (CONDBG, "tSegment #%i is degenerate due to cross product check.\n", SEG_IDX (sp));
+		con_printf (CON_DEBUG, "tSegment #%i is degenerate due to cross product check.\n", SEG_IDX (sp));
 #endif
 		degeneracyFlag = 1;
 	}
@@ -738,9 +738,9 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	tmat = *smat;
 
 	// Normalize the three rows of the matrix tmat.
-	vmsVector::normalize(&tmat.xrow);
-	vmsVector::normalize(&tmat.yrow);
-	vmsVector::normalize(&tmat.zrow);
+	VmVecNormalize(&tmat.xrow);
+	VmVecNormalize(&tmat.yrow);
+	VmVecNormalize(&tmat.zrow);
 
 	//	Now, compute the first vector.
 	// This is very easy -- just copy the (normalized) source vector.
@@ -754,7 +754,7 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				b' = the second row of rmat
 
 	// Compute: transpose(q1) * b
-	dot = fVector::dotProd(&rmat->zrow,&tmat.yrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.yrow);
 
 	// Compute: b - dot * q1
 	rmat->yrow.x = tmat.yrow.x - FixMul(dot,rmat->zrow.x);
@@ -770,14 +770,14 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				c' = the third row of rmat
 
 	// Compute: q1*c
-	dot = fVector::dotProd(&rmat->zrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.xrow);
 
 	tvec1.x = FixMul(dot,rmat->zrow.x);
 	tvec1.y = FixMul(dot,rmat->zrow.y);
 	tvec1.z = FixMul(dot,rmat->zrow.z);
 
 	// Compute: q2*c
-	dot = fVector::dotProd(&rmat->yrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->yrow,&tmat.xrow);
 
 	tvec2.x = FixMul(dot,rmat->yrow.x);
 	tvec2.y = FixMul(dot,rmat->yrow.y);
@@ -802,7 +802,7 @@ void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
 
 	if (((forwardvec.x == 0) && (forwardvec.y == 0) && (forwardvec.z == 0)) || ((upvec.x == 0) && (upvec.y == 0) && (upvec.z == 0))) {
 #if TRACE
-		con_printf (CONDBG, "Trapped null vector in med_extract_matrix_from_segment, returning identity matrix.\n");
+		con_printf (CON_DEBUG, "Trapped null vector in med_extract_matrix_from_segment, returning identity matrix.\n");
 #endif
 		*rotmat = vmdIdentityMatrix;
 		return;
@@ -818,15 +818,15 @@ void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
 	extract_right_vector_from_segment(sp,&rm.xrow);
 	extract_up_vector_from_segment(sp,&rm.yrow);
 
-	vmsVector::normalize(&rm.xrow);
-	vmsVector::normalize(&rm.yrow);
-	vmsVector::normalize(&rm.zrow);
+	VmVecNormalize(&rm.xrow);
+	VmVecNormalize(&rm.yrow);
+	VmVecNormalize(&rm.zrow);
 
 	make_orthogonal(rotmat,&rm);
 
-	vmsVector::normalize(&rotmat->xrow);
-	vmsVector::normalize(&rotmat->yrow);
-	vmsVector::normalize(&rotmat->zrow);
+	VmVecNormalize(&rotmat->xrow);
+	VmVecNormalize(&rotmat->yrow);
+	VmVecNormalize(&rotmat->zrow);
 
 // *rotmat = rm; // include this line (and remove the call to make_orthogonal) if you don't want the matrix orthogonalized
 #endif
@@ -923,7 +923,7 @@ void compress_vertices(void)
 				// Ok, hole is the index of a hole, vert is the index of a vertex which follows it.
 				// Copy vert into hole, update pointers to it.
 				gameData.segs.vertices[hole] = gameData.segs.vertices[vert];
-			
+				
 				change_vertex_occurrences(hole, vert);
 
 				vert--;
@@ -981,9 +981,9 @@ void compress_segments(void)
 					if (gameData.matCens.fuelCenters[f].nSegment == seg)
 						gameData.matCens.fuelCenters[f].nSegment = hole;
 
-				for (f=0;f<gameData.matCens.nBotCenters;f++)
-					if (gameData.matCens.botGens[f].nSegment == seg)
-						gameData.matCens.botGens[f].nSegment = hole;
+				for (f=0;f<gameData.matCens.nRobotCenters;f++)
+					if (gameData.matCens.robotCenters[f].nSegment == seg)
+						gameData.matCens.robotCenters[f].nSegment = hole;
 
 				for (t=0;t<gameData.trigs.nTriggers;t++)
 					for (l=0;l<gameData.trigs.triggers[t].nLinks;l++)
@@ -1057,7 +1057,7 @@ void med_compress_mine(void)
 
 	compress_segments();
 	compress_vertices();
-	set_vertexCounts();
+	set_vertex_counts();
 
 	//--repair-- create_local_segment_data();
 
@@ -1091,7 +1091,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 {
 	char			*dvp;
 	tSegment		*nsp;
-	tSegment2	*nsp2;
+	segment2	*nsp2;
 	int			tSide,v;
 	vmsMatrix	rotmat,rotmat1,rotmat2,rotmat3,rotmat4;
 	vmsVector	vr,vc,tvs[4],xlate_vec;
@@ -1128,7 +1128,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	// clear all connections
 	for (tSide=0; tSide<MAX_SIDES_PER_SEGMENT; tSide++) {
 		nsp->children[tSide] = -1;
-		nsp->sides[tSide].nWall = NO_WALL;
+		nsp->sides[tSide].nWall = NO_WALL;	
 	}
 
 	// Form the connection
@@ -1163,7 +1163,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	COMPUTE_SIDE_CENTER(&vc,newseg,newside);
 	VmVecRotate(&vr,&vc,&rotmat2);
 
-	// Now rotate the D2_FREE vertices in the tSegment
+	// Now rotate the d_free vertices in the tSegment
 	for (v=0; v<4; v++)
 		VmVecRotate(&tvs[v],&gameData.segs.vertices[newseg->verts[v+4]],&rotmat2);
 
@@ -1177,7 +1177,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 		nsp->verts[v+4] = med_add_vertex(&tvs[v]);
 	}
 
-	set_vertexCounts();
+	set_vertex_counts();
 
 	// Now all the vertices are in place.  Create the faces.
 	ValidateSegment(nsp);
@@ -1250,7 +1250,7 @@ int med_attach_segment(tSegment *destseg, tSegment *newseg, int destside, int ne
 
 // -------------------------------------------------------------------------------
 //	Delete a vertex, sort of.
-//	Decrement the vertex count.  If the count goes to 0, then the vertex is D2_FREE (has been deleted).
+//	Decrement the vertex count.  If the count goes to 0, then the vertex is d_free (has been deleted).
 void delete_vertex(short v)
 {
 	Assert(v < MAX_VERTICES);			// abort if vertex is not in array gameData.segs.vertices
@@ -1277,7 +1277,7 @@ void update_num_vertices(void)
 // -------------------------------------------------------------------------------
 //	Set Vertex_active to number of occurrences of each vertex.
 //	Set gameData.segs.nVertices.
-void set_vertexCounts(void)
+void set_vertex_counts(void)
 {
 	int	s,v;
 
@@ -1306,7 +1306,7 @@ void delete_vertices_in_segment(tSegment *sp)
 
 //	init_vertices();
 
-	set_vertexCounts();
+	set_vertex_counts();
 
 	// Subtract one count for each appearance of vertex in deleted tSegment
 	for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
@@ -1336,7 +1336,7 @@ int med_delete_segment(tSegment *sp)
 	// Don't try to delete if tSegment doesn't exist.
 	if (sp->nSegment == -1) {
 #if TRACE
-		con_printf (CONDBG,"Tried to delete a non-existent tSegment (nSegment == -1)\n");
+		con_printf (CON_DEBUG,"Tried to delete a non-existent tSegment (nSegment == -1)\n");
 #endif
 		return 1;
 	}
@@ -1348,7 +1348,7 @@ int med_delete_segment(tSegment *sp)
 
 	gameData.segs.nSegments--;
 
-	// If deleted tSegment has walls on any tSide, wipe out the tWall.
+	// If deleted tSegment has walls on any tSide, wipe out the wall.
 	for (tSide=0; tSide < MAX_SIDES_PER_SEGMENT; tSide++)
 		if (IS_WALL (WallNumP (sp, tSide))) 
 			wall_remove_side(sp, tSide);
@@ -1376,7 +1376,7 @@ int med_delete_segment(tSegment *sp)
 	// If deleted tSegment = marked tSegment, then say there is no marked tSegment
 	if (sp == Markedsegp)
 		Markedsegp = 0;
-
+	
 	//	If deleted tSegment = a Group tSegment ptr, then wipe it out.
 	for (s=0;s<num_groups;s++) 
 		if (sp == Groupsegp[s]) 
@@ -1384,7 +1384,7 @@ int med_delete_segment(tSegment *sp)
 
 	// If deleted tSegment = group tSegment, wipe it off the group list.
 	if (sp->group > -1) 
-			DeleteSegmentFromGroup(SEG_IDX (sp), sp->group);
+			delete_segment_from_group(SEG_IDX (sp), sp->group);
 
 	// If we deleted something which was not connected to anything, must now select a new current tSegment.
 	if (Cursegp == sp)
@@ -1403,10 +1403,10 @@ int med_delete_segment(tSegment *sp)
 		for (nObject=sp->objects;nObject!=-1;nObject=gameData.objs.objects[nObject].next) 	{
 
 			//if an tObject is in the seg, delete it
-			//if the tObject is the tPlayer, move to new curseg
+			//if the tObject is the player, move to new curseg
 
 			if (nObject == (OBJ_IDX (gameData.objs.console)))	{
-				COMPUTE_SEGMENT_CENTER(&gameData.objs.console->position.vPos,Cursegp);
+				COMPUTE_SEGMENT_CENTER(&gameData.objs.console->pos,Cursegp);
 				RelinkObject(nObject,CurSEG_IDX (segp));
 			} else
 				ReleaseObject(nObject);
@@ -1439,7 +1439,7 @@ void copy_tmaps_to_segment(tSegment *dseg, tSegment *sseg)
 
 // ------------------------------------------------------------------------------------------
 // Rotate the tSegment *seg by the pitch, bank, heading defined by *rot, destructively
-// modifying its four D2_FREE vertices in the global array gameData.segs.vertices.
+// modifying its four d_free vertices in the global array gameData.segs.vertices.
 // It is illegal to rotate a tSegment which has connectivity != 1.
 // Pitch, bank, heading are about the point which is the average of the four points
 // forming the tSide of connection.
@@ -1472,13 +1472,13 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 	destside = 0;
 	while ((destseg->children[destside] != SEG_IDX (seg)) && (destside < MAX_SIDES_PER_SEGMENT))
 		destside++;
-	
+		
 	// Before deleting the tSegment, copy its texture maps to New_segment
 	copy_tmaps_to_segment(&New_segment,seg);
 
 	if (med_delete_segment(seg)) {
 #if TRACE
-		con_printf (CONDBG,"Error in rotation: Unable to delete tSegment %i\n",SEG_IDX (seg));
+		con_printf (CON_DEBUG,"Error in rotation: Unable to delete tSegment %i\n",SEG_IDX (seg));
 #endif
 		}
 	if (Curside == WFRONT)
@@ -1611,7 +1611,7 @@ void assign_default_uvs_to_curseg(void)
 //	deleted.
 //	Return code:
 //		0			joint formed
-//		1			-- no, this is legal! -- unable to form joint because one or more vertices of side2 is not D2_FREE
+//		1			-- no, this is legal! -- unable to form joint because one or more vertices of side2 is not d_free
 //		2			unable to form joint because side1 is already used
 int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 {
@@ -1624,7 +1624,7 @@ int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 	if (IS_CHILD(seg1->children[side1]) || IS_CHILD(seg2->children[side2]))
 		return 2;
 
-	// Make sure there is no tWall there 
+	// Make sure there is no wall there 
 	if (IS_WALL (WallNumP (seg1, side1)) || IS_WALL (WallNumP (seg2, side2)))
 		return 2;
 
@@ -1677,7 +1677,7 @@ int med_form_joint(tSegment *seg1, int side1, tSegment *seg2, int side2)
 		warn_if_concave_segment(&gameData.segs.segments[validation_list[s]]);
 	}
 
-	set_vertexCounts();
+	set_vertex_counts();
 
 	//	Make sure connection is open, ie renderable.
 //	seg1->sides[side1].renderFlag = 0;
@@ -1761,7 +1761,7 @@ int med_form_bridge_segment(tSegment *seg1, int side1, tSegment *seg2, int side2
                 bs->children[(int) sideOpposite[AttachSide]] = -1;
 		if (med_delete_segment(bs)) {
 #if TRACE
-			con_printf (CONDBG, "Oops, tried to delete bridge tSegment (because it's degenerate), but couldn't.\n");
+			con_printf (CON_DEBUG, "Oops, tried to delete bridge tSegment (because it's degenerate), but couldn't.\n");
 #endif
 			Int3();
 		}
@@ -1786,7 +1786,7 @@ void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix wid
 {
 	int			i,f;
 	vmsVector	v0,v1,cv;
-	tSegment2 *sp2;
+	segment2 *sp2;
 
 	gameData.segs.nSegments++;
 
@@ -1834,7 +1834,7 @@ void med_create_segment(tSegment *sp,fix cx, fix cy, fix cz, fix length, fix wid
 	// Assume nothing special about this tSegment
 	sp2->special = 0;
 	sp2->value = 0;
-	sp2->xAvgSegLight = 0;
+	sp2->static_light = 0;
 	sp2->nMatCen = -1;
 
 	copy_tmaps_to_segment(sp, &New_segment);
@@ -1849,7 +1849,7 @@ void med_create_new_segment(vmsVector *scale)
 	int			s,t;
 	vmsVector	v0;
 	tSegment		*sp = &New_segment;
-	tSegment2 *sp2;
+	segment2 *sp2;
 
 	fix			length,width,height;
 
@@ -1893,7 +1893,7 @@ void med_create_new_segment(vmsVector *scale)
 	// Assume nothing special about this tSegment
 	sp2->special = 0;
 	sp2->value = 0;
-	sp2->xAvgSegLight = 0;
+	sp2->static_light = 0;
 	sp2->nMatCen = -1;
 }
 
@@ -1951,7 +1951,7 @@ int create_new_mine(void)
 	gameData.missions.szCurrentLevel[0] = 0;
 
 	CurObject_index = -1;
-	ResetObjects(1);		//just one tObject, the tPlayer
+	ResetObjects(1);		//just one tObject, the player
 
 	num_groups = 0;
 	current_group = -1;
@@ -1963,16 +1963,16 @@ int create_new_mine(void)
 	Markedsegp = 0;		// Say there is no marked tSegment.
 	Markedside = WBACK;	//	Shouldn't matter since Markedsegp == 0, but just in case...
 	for (s=0;s<MAX_GROUPS+1;s++) {
-		GroupList[s].num_segments = 0;	
-		GroupList[s].num_vertices = 0;	
+		GroupList[s].num_segments = 0;		
+		GroupList[s].num_vertices = 0;		
 		Groupsegp[s] = NULL;
 		Groupside[s] = 0;
 	}
 
-	gameData.matCens.nBotCenters = 0;
+	gameData.matCens.nRobotCenters = 0;
 	gameData.walls.nOpenDoors = 0;
 	WallInit();
-	TriggerInit();
+	trigger_init();
 
 	// Create New_segment, which is the tSegment we will be adding at each instance.
 	med_create_new_segment(VmVecMake(&sizevec,DEFAULT_X_SIZE,DEFAULT_Y_SIZE,DEFAULT_Z_SIZE);		// New_segment = gameData.segs.segments[0];
@@ -2054,9 +2054,9 @@ int check_seg_concavity(tSegment *s)
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+1)%4]]],
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+2)%4]]]);
 
-			//vmsVector::normalize(&n1);
+			//VmVecNormalize(&n1);
 
-			if (vn>0) if (fVector::dotProd(&n0,&n1) < f0_5) return 1;
+			if (vn>0) if (VmVecDotProd(&n0,&n1) < f0_5) return 1;
 
 			n0 = n1;
 		}
@@ -2076,7 +2076,7 @@ void find_concave_segs()
 
 	for (s=gameData.segs.segments,i=gameData.segs.nLastSegment;i>=0;s++,i--)
 		if (s->nSegment != -1)
-			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_IDX(s);
+			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_PTR_2_NUM(s);
 
 
 }
@@ -2202,7 +2202,7 @@ int med_find_closest_threshold_segment_side(tSegment *sp, int tSide, tSegment **
 						closest_segDist = currentDist;
 					}
 				}
-			}
+			}	
 
 	if (closest_segDist < threshold)
 		return 1;
@@ -2225,7 +2225,7 @@ void med_check_all_vertices()
 		if (sp->nSegment != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 				Assert(sp->verts[v] <= gameData.segs.nLastVertex);
-				
+					
 	}
 
 }
@@ -2234,19 +2234,17 @@ void med_check_all_vertices()
 void check_for_overlapping_segment(int nSegment)
 {
 	int	i, v;
-	tSegMasks	masks;
+	segmasks	masks;
 	vmsVector	segcenter;
 
 	COMPUTE_SEGMENT_CENTER(&segcenter, &gameData.segs.segments[nSegment]);
 
 	for (i=0;i<=gameData.segs.nLastSegment; i++) {
 		if (i != nSegment) {
-			do {
-				masks = GetSegMasks(&segcenter, i, 0);
-				} while (!masks.valid);
+			masks = GetSegMasks(&segcenter, i, 0);
 			if (masks.centerMask == 0) {
 #if TRACE
-				con_printf (CONDBG, "Segment %i center is contained in tSegment %i\n", nSegment, i);
+				con_printf (CON_DEBUG, "Segment %i center is contained in tSegment %i\n", nSegment, i);
 #endif
 				continue;
 			}
@@ -2256,12 +2254,10 @@ void check_for_overlapping_segment(int nSegment)
 
 				VmVecSub(&pdel, &gameData.segs.vertices[gameData.segs.segments[nSegment].verts[v]], &segcenter);
 				VmVecScaleAdd(&presult, &segcenter, &pdel, (F1_0*15)/16);
-				do {
-					masks = GetSegMasks(&presult, i, 0);
-					} while (!masks.valid);
+				masks = GetSegMasks(&presult, i, 0);
 				if (masks.centerMask == 0) {
 #if TRACE
-					con_printf (CONDBG, "Segment %i near vertex %i is contained in tSegment %i\n", nSegment, v, i);
+					con_printf (CON_DEBUG, "Segment %i near vertex %i is contained in tSegment %i\n", nSegment, v, i);
 #endif
 					break;
 				}
@@ -2281,11 +2277,11 @@ void check_for_overlapping_segments(void)
 
 	for (i=0; i<=gameData.segs.nLastSegment; i++) {
 #if TRACE
-		con_printf (CONDBG, "+");
+		con_printf (CON_DEBUG, "+");
 #endif
 		check_for_overlapping_segment(i);
 	}
 
-	con_printf (CONDBG, "\nDone!\n");
+	con_printf (CON_DEBUG, "\nDone!\n");
 }
 

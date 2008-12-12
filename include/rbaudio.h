@@ -18,14 +18,18 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define RBA_MEDIA_CHANGED	-1
 
-typedef struct RBACHANNELCTL {
-	uint out0in, out0vol;
-	uint out1in, out1vol;
-	uint out2in, out2vol;
-	uint out3in, out3vol;
+typedef struct _RBACHANNELCTL {
+	unsigned int out0in, out0vol;
+	unsigned int out1in, out1vol;
+	unsigned int out2in, out2vol;
+	unsigned int out3in, out3vol;
 } RBACHANNELCTL;
 
-void RBAInit(void);	//drive a == 0, drive b == 1
+#ifndef __MSDOS__ //defined(__NT__) 
+	void RBAInit(void);	//drive a == 0, drive b == 1
+#else
+   void RBAInit(ubyte cd_drive_num);	//drive a == 0, drive b == 1
+#endif
 void RBARegisterCD(void);
 long RBAGetDeviceStatus(void);
 int RBAPlayTrack(int track);
@@ -51,6 +55,6 @@ int	RBAResume();
 int RBAGetTrackNum();
 
 // get the cddb discid for the current cd.
-uint RBAGetDiscID();
+unsigned long RBAGetDiscID();
 
 #endif

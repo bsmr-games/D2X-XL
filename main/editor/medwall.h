@@ -49,7 +49,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  * Fixed delete tSegment and walls bug.
  * 
  * Revision 1.3  1994/03/17  18:08:41  yuan
- * New tWall stuff... Cut out switches....
+ * New wall stuff... Cut out switches....
  * 
  * Revision 1.2  1994/03/15  16:34:10  yuan
  * Fixed bm loader (might have some changes in walls and switches)
@@ -73,26 +73,26 @@ extern int wall_add_removable();
 // Restores all the walls to original status
 extern int wall_restore_all();
 
-// Reset a tWall.
+// Reset a wall.
 extern void WallReset(tSegment *seg, short tSide);
 
-// Adds a removable tWall (medwall.c)
+// Adds a removable wall (medwall.c)
 extern int wall_add_removable();
 
 // Adds a door (medwall.c)
 extern int wall_add_door();
 
-// Adds an illusory tWall (medwall.c)
+// Adds an illusory wall (medwall.c)
 extern int wall_add_illusion();
 
-// Removes a removable tWall (medwall.c) 
+// Removes a removable wall (medwall.c) 
 extern int wall_remove_blastable(); 
 
-// Adds a tWall. (visually)
+// Adds a wall. (visually)
 extern int wall_add_to_curside();
 extern int wall_add_to_markedside(byte nType);
  
-// Removes a tWall. (visually)
+// Removes a wall. (visually)
 extern int wall_remove();
 
 // Removes a specific tSide.

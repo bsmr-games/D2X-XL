@@ -50,10 +50,10 @@
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
 
-/* Define to 1 if the system has the type `struct timespec'. */
+/* Define to 1 if the system has the nType `struct timespec'. */
 #define HAVE_STRUCT_TIMESPEC 1
 
-/* Define to 1 if the system has the type `struct timeval'. */
+/* Define to 1 if the system has the nType `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL 1
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
@@ -119,14 +119,11 @@
 /* Define if you want an SVGALib build */
 /* #undef SVGA */
 
-/* define to not use the 
-Joystick routines. */
+/* define to not use the SDL_Joystick routines. */
 /* #undef USE_LINUX_JOY */
 
-/* Define if you have the 
-mixer library */
-#define USE_
-MIXER 1
+/* Define if you have the SDL_mixer library */
+#define USE_SDL_MIXER 1
 
 /* Version number of package */
 #define VERSION "1.5.178"
@@ -164,28 +161,22 @@ MIXER 1
 #   define SVGALIB_INPUT 1
 #   define SVGALIB_VIDEO 1
 #  else
-#   define 
-INPUT 1
+#   define SDL_INPUT 1
 #   ifdef OGL
-#    define 
-GL_VIDEO 1
+#    define SDL_GL_VIDEO 1
 #   else
-#    define 
-VIDEO 1
+#    define SDL_VIDEO 1
 #   endif
 #  endif
 # endif
 #endif
 
 #ifdef _WIN32
-# define 
-INPUT 1
+# define SDL_INPUT 1
 # ifdef OGL
-#  define 
-GL_VIDEO 1
+#  define SDL_GL_VIDEO 1
 # else
-#  define 
-VIDEO 1
+#  define SDL_VIDEO 1
 # endif
 #endif
 

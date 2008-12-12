@@ -69,7 +69,7 @@ int UndoCommand();
 
 // In kview.c
 int ZoomOut();
-int Zoomin();
+int ZoomIn();
 int MoveAway();
 int MoveCloser();
 int ToggleChaseMode();
@@ -197,7 +197,7 @@ int	TexStretchUp();
 int	TexChangeAll();
 int	TexChangeAll2();
 
-//	CObject.c
+//	tObject.c
 int	ObjectPlaceObject();
 int	ObjectMakeCoop();
 int	ObjectPlaceObjectTmap();
@@ -264,7 +264,7 @@ int SelectNextFoundSeg();
 int SelectPreviousFoundSeg(void);
 int do_reset_orient();
 int GameZoomOut();
-int GameZoomin();
+int GameZoomIn();
 
 // John's temp page stuff
 int medtmp_set_page();
@@ -277,7 +277,7 @@ extern int SortSelectedList(void);
 extern int SelectNextFoundSeg(void);
 extern int SelectPreviousFoundSeg(void);
 
-// In tWall.c
+// In wall.c
 extern int wall_add_blastable(void);
 extern int wall_add_door(void);
 extern int wall_add_closed_wall(void);
@@ -313,7 +313,7 @@ extern int do_centers_dialog(void);
 //extern int trigger_add_repair(void);
 //extern int trigger_control(void);
 //extern int trigger_remove(void);
-//extern int trigger_add_if_control_centerDead(void);
+//extern int trigger_add_if_control_center_dead(void);
 extern int bind_wall_to_control_trigger(void);
 
 // In med.c

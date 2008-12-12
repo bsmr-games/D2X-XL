@@ -1201,11 +1201,11 @@ extern char *OglLibPath;
 #ifndef DECLARE_VARS
 // pass true to load the library
 // pass false to unload it
-int OpenGL_LoadLibrary(int load);//load=true removed because not c++
+bool OpenGL_LoadLibrary(bool load);//load=true removed because not c++
 #else
 void *OpenGLModuleHandle=NULL;
 //char *OglLibPath="opengl32.dll";
-int OpenGL_LoadLibrary(int load)
+bool OpenGL_LoadLibrary(bool load)
 {
 	if(load && OpenGLModuleHandle)
 		return true;
@@ -1562,7 +1562,7 @@ int OpenGL_LoadLibrary(int load)
 		dglVertex4sv = (glVertex4sv_fp)dll_GetSymbol(OpenGLModuleHandle,"glVertex4sv");
 		dglVertexPointer = (glVertexPointer_fp)dll_GetSymbol(OpenGLModuleHandle,"glVertexPointer");
 		dglViewport = (glViewport_fp)dll_GetSymbol(OpenGLModuleHandle,"glViewport");
-
+	
 #ifdef _WIN32
 		dwglCopyContext = (wglCopyContext_fp)dll_GetSymbol(OpenGLModuleHandle,"wglCopyContext");
 		dwglCreateContext = (wglCreateContext_fp)dll_GetSymbol(OpenGLModuleHandle,"wglCreateContext");

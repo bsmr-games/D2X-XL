@@ -1,3 +1,4 @@
+/* $Id: u_mem.h,v 1.7 2003/11/27 00:21:04 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -16,55 +17,43 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 extern int bShowMemInfo;
 
-#if DBG
+#ifdef _DEBUG
 #	define DBG_MALLOC	1
 #else
 #	define DBG_MALLOC 0
 #endif
 
-#if DBG_MALLOC
+#ifdef DBG_MALLOC	
 
-void _CDECL_ MemDisplayBlocks (void);
-void * MemAlloc (uint size, const char * var, const char * file, int line, int fill_zero);
-void * MemRealloc (void * buffer, uint size, const char * var, const char * file, int line);
-void MemFree (void * buffer);
-char * MemStrDup (const char * str, const char * var, const char * file, int line);
-void MemInit ();
+#define D2X_MEM_HANDLER
+
+void _CDECL_ mem_display_blocks(void);
+void * mem_malloc( unsigned int size, char * var, char * file, int line, int fill_zero );
+void * mem_realloc( void * buffer, unsigned int size, char * var, char * file, int line );
+void mem_free( void * buffer );
+char * mem_strdup(char * str, char * var, char * file, int line );
+void mem_init();
 
 /* DPH: Changed malloc, etc. to d_malloc. Overloading system calls is very evil and error prone */
-#define D2_ALLOC(size)			MemAlloc ((size), "Unknown", __FILE__, __LINE__, 0)
-#define D2_CALLOC(n,size)		MemAlloc ((n*size), "Unknown", __FILE__, __LINE__, 1)
-#define D2_REALLOC(ptr,size)	MemRealloc ((ptr), (size), "Unknown", __FILE__, __LINE__)
-#define D2_FREE(ptr)				{MemFree (reinterpret_cast<void *> (ptr)); ptr = NULL;} 
+#define d_malloc(size)      mem_malloc((size),"Unknown", __FILE__,__LINE__, 0 )
+#define d_calloc(n,size)    mem_malloc((n*size),"Unknown", __FILE__,__LINE__, 1 )
+#define d_realloc(ptr,size) mem_realloc((ptr),(size),"Unknown", __FILE__,__LINE__ )
+#define d_free(ptr)         { mem_free(ptr); ptr=NULL; } 
+#define d_strdup(str)       mem_strdup((str),"Unknown",__FILE__,__LINE__)
 
-#define MALLOC(_var, _type, _count)   ((_var) = reinterpret_cast<_type *> (MemAlloc ((_count) * sizeof (_type), #_var, __FILE__, __LINE__, 0)))
+#define MALLOC( var, nType, count )   (var=(nType *)mem_malloc((count)*sizeof(nType),#var, __FILE__,__LINE__,0 ))
 
 // Checks to see if any blocks are overwritten
-void MemValidateHeap ();
+void mem_validate_heap();
 
 #else
 
-void *MemAlloc (uint size);
-void *MemRealloc (void * buffer, uint size);
-void MemFree (void * buffer);
-char *MemStrDup (const char * str);
+#define d_malloc(size)      malloc(size)
+#define d_calloc(n, size)   calloc(n, size)
+#define d_realloc(ptr,size) realloc(ptr,size)
+#define d_free(ptr)         { free(ptr); ptr=NULL; }
+#define d_strdup(str)       strdup(str)
 
-#define D2_ALLOC(_size)			MemAlloc (_size)
-#define D2_CALLOC(n, _size)	MemAlloc (n * _size)
-#define D2_REALLOC(_p,_size)	MemRealloc (_p,_size)
-#define D2_FREE(_p)				{MemFree ((void *) (_p)); (_p) = NULL;}
-#define StrDup(_s)			MemStrDup (_s)
-
-#define MALLOC(_v,_t,_c)		(_v) = new _t [_c]
-#define FREE(_v)					delete[] (_v)
+#define MALLOC( var, nType, count )   (var=(nType *)malloc((count)*sizeof(nType)))
 
 #endif
-
-extern uint nCurAllocd, nMaxAllocd;
-
-#define CREATE(_p,_s,_f)	if ((_p).Create (_s)) (_p).Clear (_f)
-#define DESTROY(_p)			(_p).Destroy ()
-
-void *GetMem (size_t size, char filler);
-
-//eof
