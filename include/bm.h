@@ -61,7 +61,7 @@ extern int TmapList[MAX_TEXTURES];
 extern int Dying_modelnums[];
 extern int Dead_modelnums[];
 
-//the model number of the marker CObject
+//the model number of the marker tObject
 extern int Marker_model_num;
 
 // Initializes the palette, bitmap system...
@@ -76,7 +76,7 @@ void InitTextures();
 #define OL_POWERUP          3
 #define OL_CONTROL_CENTER   4
 #define OL_PLAYER           5
-#define OL_CLUTTER          6   //some sort of misc CObject
+#define OL_CLUTTER          6   //some sort of misc tObject
 #define OL_EXIT             7   //the exit model for external scenes
 #define OL_WEAPON           8   //a weapon that can be placed
 
@@ -92,7 +92,7 @@ void BMReadAll (CFile&  cf);
 void BMReadWeaponInfoD1 (CFile&  cf);
 void BMReadGameDataD1 (CFile&  cf);
 void RestoreDefaultRobots (void);
-int ComputeAvgPixel (CBitmap *newBm);
+int ComputeAvgPixel (grsBitmap *newBm);
 
 void LoadTextureBrightness (const char *pszLevel, int *brightnessP);
 int LoadExitModels ();

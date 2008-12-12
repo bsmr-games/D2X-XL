@@ -74,7 +74,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 //version 28->29  ??
 //version 29->30  changed tTrigger structure
 //version 30->31  changed tTrigger structure some more
-//version 31->32  change CSegment structure, make it 512 bytes w/o editor, add gameData.segs.segment2s array.
+//version 31->32  change tSegment structure, make it 512 bytes w/o editor, add gameData.segs.segment2s array.
 
 #define MENU_CURSOR_X_MIN       MENU_X
 #define MENU_CURSOR_X_MAX       MENU_X+6
@@ -83,9 +83,9 @@ tGameFileInfo	gameFileInfo;
 game_top_fileinfo	gameTopFileInfo;
 
 //  LINT: adding function prototypes
-void ReadObject(CObject *objP, CFile *f, int version);
+void ReadObject(tObject *objP, CFile *f, int version);
 #ifdef EDITOR
-void writeObject(CObject *objP, FILE *f);
+void writeObject(tObject *objP, FILE *f);
 void DoLoadSaveLevels(int save);
 #endif
 #if DBG
@@ -104,7 +104,7 @@ int nGameSaveOrgRobots = 0;
 int nSavePOFNames = 0;
 char szSavePOFNames [MAX_POLYGON_MODELS][SHORT_FILENAME_LEN];
 
-//--unused-- CBitmap * Gamesave_saved_bitmap = NULL;
+//--unused-- grsBitmap * Gamesave_saved_bitmap = NULL;
 
 //------------------------------------------------------------------------------
 #ifdef EDITOR
@@ -122,9 +122,9 @@ return !strnicmp(&filename [len-11], "level", 5);
 
 //------------------------------------------------------------------------------
 
-void VerifyObject (CObject * objP)
+void VerifyObject (tObject * objP)
 {
-objP->info.xLifeLeft = IMMORTAL_TIME;		//all loaded CObject are immortal, for now
+objP->info.xLifeLeft = IMMORTAL_TIME;		//all loaded tObject are immortal, for now
 if (objP->info.nType == OBJ_ROBOT) {
 	nGameSaveOrgRobots++;
 	// Make sure valid id...
@@ -239,7 +239,7 @@ else if (objP->info.nType == OBJ_HOSTAGE) {
 	objP->info.renderType = RT_HOSTAGE;
 	objP->info.controlType = CT_POWERUP;
 	}
-objP->Link ();
+LinkObject (objP);
 }
 
 //------------------------------------------------------------------------------
@@ -285,7 +285,7 @@ static void gs_write_byte(byte b,FILE *file)
 
 }
 
-static void gr_write_vector(CFixVector *v,FILE *file)
+static void gr_write_vector(vmsVector *v,FILE *file)
 {
 	gs_write_fix(v->x,file);
 	gs_write_fix(v->y,file);
@@ -311,8 +311,8 @@ static void gs_write_angvec(vmsAngVec *v,FILE *file)
 //------------------------------------------------------------------------------
 
 int MultiPowerupIs4Pack(int);
-//reads one CObject of the given version from the given file
-void ReadObject (CObject *objP, CFile& cf, int version)
+//reads one tObject of the given version from the given file
+void ReadObject (tObject *objP, CFile& cf, int version)
 {
 	int	i;
 
@@ -406,7 +406,7 @@ switch (objP->info.controlType) {
 	case CT_DEBRIS:
 		break;
 
-	case CT_SLEW:		//the CPlayerData is generally saved as slew
+	case CT_SLEW:		//the tPlayer is generally saved as slew
 		break;
 
 	case CT_CNTRLCEN:
@@ -440,7 +440,7 @@ switch (objP->info.renderType) {
 			int xlated_tmo = tmap_xlate_table [tmo];
 			if (xlated_tmo < 0)	{
 #if TRACE
-				con_printf (CONDBG, "Couldn't find texture for demo CObject, nModel = %d\n", objP->rType.polyObjInfo.nModel);
+				con_printf (CONDBG, "Couldn't find texture for demo tObject, nModel = %d\n", objP->rType.polyObjInfo.nModel);
 #endif
 				Int3();
 				xlated_tmo = 0;
@@ -517,8 +517,8 @@ switch (objP->info.renderType) {
 //------------------------------------------------------------------------------
 #ifdef EDITOR
 
-//writes one CObject to the given file
-void writeObject(CObject *objP,FILE *f)
+//writes one tObject to the given file
+void writeObject(tObject *objP,FILE *f)
 {
 	gs_write_byte(objP->info.nType,f);
 	gs_write_byte(objP->info.nId,f);
@@ -627,11 +627,11 @@ void writeObject(CObject *objP,FILE *f)
 		case CT_DEBRIS:
 			break;
 
-		case CT_SLEW:		//the CPlayerData is generally saved as slew
+		case CT_SLEW:		//the tPlayer is generally saved as slew
 			break;
 
 		case CT_CNTRLCEN:
-			break;			//control center CObject.
+			break;			//control center tObject.
 
 		case CT_MORPH:
 		case CT_REPAIRCEN:
@@ -781,10 +781,10 @@ static void InitGameFileInfo (void)
 {
 gameFileInfo.level				=	-1;
 gameFileInfo.player.offset		=	-1;
-gameFileInfo.player.size		=	sizeof(CPlayerData);
+gameFileInfo.player.size		=	sizeof(tPlayer);
 gameFileInfo.objects.offset	=	-1;
 gameFileInfo.objects.count		=	0;
-gameFileInfo.objects.size		=	sizeof(CObject);  
+gameFileInfo.objects.size		=	sizeof(tObject);  
 gameFileInfo.walls.offset		=	-1;
 gameFileInfo.walls.count		=	0;
 gameFileInfo.walls.size			=	sizeof(tWall);  
@@ -911,12 +911,12 @@ static int ReadObjectInfo (CFile& cf)
 	int	i;
 
 if (gameFileInfo.objects.offset > -1) {
-	CObject	*objP = OBJECTS.Buffer ();
+	tObject	*objP = OBJECTS;
 	if (cf.Seek (gameFileInfo.objects.offset, SEEK_SET)) {
 		Error ("Error seeking to object data\n(file damaged or invalid)");
 		return -1;
 		}
-	OBJECTS.Clear (0, gameFileInfo.objects.count);
+	memset (OBJECTS, 0, gameFileInfo.objects.count * sizeof (tObject));
 	for (i = 0; i < gameFileInfo.objects.count; i++, objP++) {
 		ReadObject (objP, cf, gameTopFileInfo.fileinfoVersion);
 		objP->info.nSignature = gameData.objs.nNextSignature++;
@@ -1031,7 +1031,7 @@ if (gameFileInfo.triggers.offset > -1) {
 		Error ("Error seeking to trigger data\n(file damaged or invalid)");
 		return -1;
 		}
-	for (i = 0, trigP = gameData.trigs.triggers.Buffer (); i < gameFileInfo.triggers.count; i++, trigP++) {
+	for (i = 0, trigP = gameData.trigs.triggers; i < gameFileInfo.triggers.count; i++, trigP++) {
 		if (gameTopFileInfo.fileinfoVersion >= 31) 
 			TriggerRead (trigP, cf, 0);
 		else {
@@ -1124,7 +1124,7 @@ if (gameFileInfo.triggers.offset > -1) {
 				gameData.trigs.firstObjTrigger [i] = cf.ReadShort ();
 			}
 		else {
-			gameData.trigs.firstObjTrigger.Clear (0xff);
+			memset (gameData.trigs.firstObjTrigger, 0xff, sizeof (gameData.trigs.firstObjTrigger));
 			for (i = cf.ReadShort (); i; i--) {
 				j = cf.ReadShort ();
 				gameData.trigs.firstObjTrigger [j] = cf.ReadShort ();
@@ -1133,9 +1133,9 @@ if (gameFileInfo.triggers.offset > -1) {
 		}
 	else {
 		gameData.trigs.nObjTriggers = 0;
-		gameData.trigs.objTriggers.Clear ();
-		gameData.trigs.objTriggerRefs.Clear (0xff);
-		gameData.trigs.firstObjTrigger.Clear (0xff);
+		memset (gameData.trigs.objTriggers, 0, sizeof (tTrigger) * MAX_OBJ_TRIGGERS);
+		memset (gameData.trigs.objTriggerRefs, 0xff, sizeof (tObjTriggerRef) * MAX_OBJ_TRIGGERS);
+		memset (gameData.trigs.firstObjTrigger, 0xff, sizeof (gameData.trigs.firstObjTrigger));
 		}
 	}
 return 0;
@@ -1153,7 +1153,7 @@ if (gameFileInfo.control.offset > -1) {
 		Error ("Error seeking to reactor data\n(file damaged or invalid)");
 		return -1;
 		}
-	ReadReactorTriggers (&gameData.reactor.triggers, gameFileInfo.control.count, cf);
+	ControlCenterTriggersReadN (&gameData.reactor.triggers, gameFileInfo.control.count, cf);
 	}
 return 0;
 }
@@ -1282,7 +1282,7 @@ return 0;
 static void CheckAndLinkObjects (void)
 {
 	int		i, nObjSeg;
-	CObject	*objP = OBJECTS.Buffer ();
+	tObject	*objP = OBJECTS;
 
 for (i = 0; i < gameFileInfo.objects.count; i++, objP++) {
 	objP->info.nNextInSeg = OBJECTS [i].info.nPrevInSeg = -1;
@@ -1292,7 +1292,7 @@ for (i = 0; i < gameFileInfo.objects.count; i++, objP++) {
 			objP->info.nType = OBJ_NONE;
 		else {
 			objP->info.nSegment = -1;	
-			OBJECTS [i].LinkToSeg (nObjSeg);
+			LinkObjToSeg (i, nObjSeg);
 			}
 		}
 	}
@@ -1315,8 +1315,8 @@ for (i = 0; i < gameData.segs.nSegments; i++) {
 		w = gameData.walls.walls + nWall;
 		if (w->nClip == -1)
 			continue;
-		if (gameData.walls.animP [w->nClip].flags & WCF_TMAP1) {
-			sideP->nBaseTex = gameData.walls.animP [w->nClip].frames [0];
+		if (gameData.walls.pAnims [w->nClip].flags & WCF_TMAP1) {
+			sideP->nBaseTex = gameData.walls.pAnims [w->nClip].frames [0];
 			sideP->nOvlTex = 0;
 			}
 		}
@@ -1640,8 +1640,8 @@ if (!gameStates.app.bNostalgia) {
 		AddDynGeometryLights ();
 		ComputeNearestLights (nLevel);
 		if (gameStates.render.bPerPixelLighting) {
-			lightmapManager.Build (nLevel);
-			if (lightmapManager.HaveLightmaps ())
+			CreateLightmaps (nLevel);
+			if (HaveLightmaps ())
 				meshBuilder.RebuildLightmapTexCoord ();	//rebuild to create proper lightmap texture coordinates
 			else
 				gameOpts->render.bUseLightmaps = 0;
@@ -1658,7 +1658,7 @@ if (Errors_in_mine) {
 
 		sprintf(ErrorMessage, TXT_MINE_ERRORS, Errors_in_mine, Level_being_loaded);
 		StopTime();
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		ExecMessageBox(NULL, 1, TXT_CONTINUE, ErrorMessage);
 		StartTime();
 	} else {
@@ -1681,7 +1681,7 @@ if (!no_oldLevel_file_error && (gameStates.app.nFunctionMode == FMODE_EDITOR) &&
 				"it as a current version level?");
 
 	StopTime();
-	paletteManager.LoadEffect  ();
+	GrPaletteStepLoad (NULL);
 	if (ExecMessageBox(NULL, 2, "Don't Save", "Save", ErrorMessage)==1)
 		SaveLevel(filename);
 	StartTime();
@@ -1718,7 +1718,7 @@ void GetLevelName()
 //NO_UI!!!	ui_wprintf_at(NameWindow, 10, 12,"Please enter a name for this mine:");
 //NO_UI!!!	NameText = ui_add_gadget_inputbox(NameWindow, 10, 30, LEVEL_NAME_LEN, LEVEL_NAME_LEN, gameData.missions.szCurrentLevel);
 //NO_UI!!!
-//NO_UI!!!	NameWindow->keyboard_focus_gadget = reinterpret_cast<UI_GADGET*> (NameText);
+//NO_UI!!!	NameWindow->keyboard_focus_gadget = (UI_GADGET *)NameText;
 //NO_UI!!!	QuitButton->hotkey = KEY_ENTER;
 //NO_UI!!!
 //NO_UI!!!	ui_gadget_calc_keys(NameWindow);
@@ -1774,7 +1774,7 @@ int CountDeltaLightRecords(void)
 // Save game
 int SaveGameData(FILE * SaveFile)
 {
-	int  player.offset, CObject.offset, walls.offset, doors.offset, triggers.offset, control.offset, botGen.offset; //, links.offset;
+	int  player.offset, tObject.offset, walls.offset, doors.offset, triggers.offset, control.offset, botGen.offset; //, links.offset;
 	int	gameData.render.lights.deltaIndices.offset, deltaLight.offset;
 	int start_offset,end_offset;
 
@@ -1787,10 +1787,10 @@ int SaveGameData(FILE * SaveFile)
 	gameFileInfo.level					=  gameData.missions.nCurrentLevel;
 	gameFileInfo.fileinfo_sizeof		=	sizeof(gameFileInfo);
 	gameFileInfo.player.offset		=	-1;
-	gameFileInfo.player.size		=	sizeof(CPlayerData);
+	gameFileInfo.player.size		=	sizeof(tPlayer);
 	gameFileInfo.objects.offset		=	-1;
 	gameFileInfo.objects.count		=	gameData.objs.nLastObject [0]+1;
-	gameFileInfo.objects.size		=	sizeof(CObject);
+	gameFileInfo.objects.size		=	sizeof(tObject);
 	gameFileInfo.walls.offset			=	-1;
 	gameFileInfo.walls.count		=	gameData.walls.nWalls;
 	gameFileInfo.walls.size			=	sizeof(tWall);
@@ -1827,12 +1827,12 @@ int SaveGameData(FILE * SaveFile)
 	//==================== SAVE PLAYER INFO ===========================
 
 	player.offset = ftell(SaveFile);
-	fwrite(&LOCALPLAYER, sizeof(CPlayerData), 1, SaveFile);
+	fwrite(&LOCALPLAYER, sizeof(tPlayer), 1, SaveFile);
 
 	//==================== SAVE OBJECT INFO ===========================
 
-	CObject.offset = ftell(SaveFile);
-	//fwrite(&OBJECTS, sizeof(CObject), gameFileInfo.objects.count, SaveFile);
+	tObject.offset = ftell(SaveFile);
+	//fwrite(&OBJECTS, sizeof(tObject), gameFileInfo.objects.count, SaveFile);
 	{
 		int i;
 		for (i=0;i<gameFileInfo.objects.count;i++)
@@ -1876,7 +1876,7 @@ int SaveGameData(FILE * SaveFile)
 
 	// Update the offset fields
 	gameFileInfo.player.offset		=	player.offset;
-	gameFileInfo.objects.offset		=	CObject.offset;
+	gameFileInfo.objects.offset		=	tObject.offset;
 	gameFileInfo.walls.offset			=	walls.offset;
 	gameFileInfo.doors.offset			=	doors.offset;
 	gameFileInfo.triggers.offset		=	triggers.offset;
@@ -1918,7 +1918,7 @@ int saveLevel_sub(char * filename, int compiledVersion)
 
 				sprintf(ErrorMessage, TXT_MINE_ERRORS2, Errors_in_mine);
 				StopTime();
-				paletteManager.LoadEffect  ();
+				GrPaletteStepLoad (NULL);
 	 
 				if (ExecMessageBox(NULL, 2, TXT_CANCEL_SAVE, TXT_DO_SAVE, ErrorMessage)!=1)	{
 					StartTime();
@@ -1946,7 +1946,7 @@ int saveLevel_sub(char * filename, int compiledVersion)
 			"ERROR: Cannot write to '%s'.\nYou probably need to check out a locked\nversion of the file. You should save\nthis under a different filename, and then\ncheck out a locked copy by typing\n\'co -l %s.lvl'\nat the DOS prompt.\n" 
 			, temp_filename, fname);
 		StopTime();
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		ExecMessageBox(NULL, 1, "Ok", ErrorMessage);
 		StartTime();
 		return 1;
@@ -1959,7 +1959,7 @@ int saveLevel_sub(char * filename, int compiledVersion)
 
 	compressObjects();		//after this, gameData.objs.nLastObject [0] == num OBJECTS
 
-	//make sure CPlayerData is in a CSegment
+	//make sure tPlayer is in a tSegment
 	if (!UpdateObjectSeg(OBJECTS + gameData.multiplayer.players [0].nObject)) {
 		if (gameData.objs.consoleP->info.nSegment > gameData.segs.nLastSegment)
 			gameData.objs.consoleP->info.nSegment = 0;
@@ -2124,14 +2124,14 @@ void DoLoadSaveLevels(int save)
 
 	for (level_num=1;level_num<=gameData.missions.nLastLevel;level_num++) {
 		LoadLevelSub(gameData.missions.szLevelNames [level_num-1]);
-		paletteManager.Load(szCurrentLevelPalette,1,1,0);		//don't change screen
+		LoadPalette(szCurrentLevelPalette,1,1,0);		//don't change screen
 		if (save)
 			saveLevel_sub(gameData.missions.szLevelNames [level_num-1],1);
 	}
 
 	for (level_num = -1; level_num >= gameData.missions.nLastSecretLevel; level_num--) {
 		LoadLevelSub(gameData.missions.szSecretLevelNames [-level_num-1]);
-		paletteManager.Load(szCurrentLevelPalette,1,1,0);		//don't change screen
+		LoadPalette(szCurrentLevelPalette,1,1,0);		//don't change screen
 		if (save)
 			saveLevel_sub (gameData.missions.szSecretLevelNames [-level_num-1],1);
 	}

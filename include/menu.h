@@ -14,7 +14,6 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #ifndef _MENU_H
 #define _MENU_H
 
-#include "pstypes.h"
 // returns number of item chosen
 int MainMenu ();
 void ConfigMenu ();
@@ -89,7 +88,7 @@ extern int Cockpit_rearView;
 			(_j) = (_max); \
 		}
 
-int stoip (char *szServerIpAddr, ubyte *pIpAddr);
+int stoip (char *szServerIpAddr, unsigned char *pIpAddr);
 int stoport (char *szPort, int *pPort, int *pSign);
 int SetCustomDisplayMode (int x, int y);
 

@@ -97,11 +97,11 @@ typedef struct tFaceColord {
 	char			index;
 } tFaceColord;
 
-extern CTexture ogl_texture_list[OGL_TEXTURE_LIST_SIZE];
+extern tOglTexture ogl_texture_list[OGL_TEXTURE_LIST_SIZE];
 
 extern int nOglMemTarget;
-CTexture* OglGetFreeTexture(void);
-void OglInitTexture(CTexture* t, int bMask);
+tOglTexture* OglGetFreeTexture(void);
+void OglInitTexture(tOglTexture* t, int bMask);
 void OglInitTextureListInternal(void);
 void OglSmashTextureListInternal(void);
 void OglVivifyTextureListInternal(void);
@@ -112,7 +112,7 @@ void OglDoFullScreenInternal(int);
 int OglSetBrightnessInternal (void);
 void InitGammaRamp (void);
 
-int OglBindBmTex (CBitmap *bmP, int bMipMaps, int nTransp);
+int OglBindBmTex (grsBitmap *bmP, int bMipMaps, int nTransp);
 
 extern int ogl_brightness_ok;
 extern int ogl_brightness_r, ogl_brightness_g, ogl_brightness_b;
@@ -285,7 +285,7 @@ extern PFNGLUNIFORM1FVARBPROC					glUniform1fv;
 #define	OGL_VIEWPORT(_x,_y,_w,_h) \
 			{if (((int) (_x) != gameStates.ogl.nLastX) || ((int) (_y) != gameStates.ogl.nLastY) || \
 				  ((int) (_w) != gameStates.ogl.nLastW) || ((int) (_h) != gameStates.ogl.nLastH)) \
-				{glViewport ((GLint) (_x), (GLint) (grdCurScreen->scCanvas.cvBitmap.props.h - (_y) - (_h)), (GLsizei) (_w), (GLsizei) (_h));\
+				{glViewport ((GLint) (_x), (GLint) (grdCurScreen->scCanvas.cvBitmap.bmProps.h - (_y) - (_h)), (GLsizei) (_w), (GLsizei) (_h));\
 				gameStates.ogl.nLastX = (_x); \
 				gameStates.ogl.nLastY = (_y); \
 				gameStates.ogl.nLastW = (_w); \
@@ -306,21 +306,21 @@ void OglClose (void);//one time shutdown
 //generic funcs
 //#define OGLTEXBUFSIZE (1024*1024*4)
 
-//void ogl_filltexbuf(ubyte *data,GLubyte *texp,int width,int height,int twidth,int theight);
-void ogl_filltexbuf(ubyte *data,GLubyte *texp,int truewidth,int width,int height,int dxo,int dyo,int twidth,int theight,int nType,int nTransp,int bSuperTransp);
+//void ogl_filltexbuf(unsigned char *data,GLubyte *texp,int width,int height,int twidth,int theight);
+void ogl_filltexbuf(unsigned char *data,GLubyte *texp,int truewidth,int width,int height,int dxo,int dyo,int twidth,int theight,int nType,int nTransp,int bSuperTransp);
 #if RENDER2TEXTURE == 1
-int OglLoadBmTextureM (CBitmap *bm, int bMipMap, int nTransp, int bMask, tPixelBuffer *pb);
+int OglLoadBmTextureM (grsBitmap *bm, int bMipMap, int nTransp, int bMask, tPixelBuffer *pb);
 #elif RENDER2TEXTURE == 2
-int OglLoadBmTextureM (CBitmap *bm, int bMipMap, int nTransp, int bMask, tFrameBuffer *pb);
+int OglLoadBmTextureM (grsBitmap *bm, int bMipMap, int nTransp, int bMask, tFrameBuffer *pb);
 #else
-int OglLoadBmTextureM (CBitmap *bm, int bMipMap, int nTransp, int bMask, void *pb);
+int OglLoadBmTextureM (grsBitmap *bm, int bMipMap, int nTransp, int bMask, void *pb);
 #endif
-int OglLoadBmTexture (CBitmap *bm, int bMipMap, int nTransp, int bLoad);
-//void ogl_loadtexture(ubyte * data, int width, int height,int dxo,int dyo, int *texid,double *u,double *v,char bMipMap,double prio);
-int OglLoadTexture (CBitmap *bmP, int dxo,int dyo, CTexture *tex, int nTransp, int bSuperTransp);
-void OglFreeTexture (CTexture *glTexture);
-void OglFreeBmTexture (CBitmap *bm);
-int OglSetupBmFrames (CBitmap *bmP, int bDoMipMap, int nTransp, int bLoad);
+int OglLoadBmTexture (grsBitmap *bm, int bMipMap, int nTransp, int bLoad);
+//void ogl_loadtexture(unsigned char * data, int width, int height,int dxo,int dyo, int *texid,double *u,double *v,char bMipMap,double prio);
+int OglLoadTexture (grsBitmap *bmP, int dxo,int dyo, tOglTexture *tex, int nTransp, int bSuperTransp);
+void OglFreeTexture (tOglTexture *glTexture);
+void OglFreeBmTexture (grsBitmap *bm);
+int OglSetupBmFrames (grsBitmap *bmP, int bDoMipMap, int nTransp, int bLoad);
 void OglDoPalFx (void);
 void OglStartFrame (int bFlat, int bResetColorBuf);
 void OglEndFrame (void);
@@ -329,18 +329,22 @@ void OglSetScreenMode (void);
 int OglCacheLevelTextures (void);
 
 void OglURect(int left,int top,int right,int bot);
-int OglUBitMapMC (int x, int y, int dw, int dh, CBitmap *bm, tCanvasColor *c, int scale, int orient);
-int OglUBitBltI (int dw,int dh,int dx,int dy, int sw, int sh, int sx, int sy, CBitmap * src, CBitmap * dest, int bMipMaps, int bTransp);
-int OglUBitBltToLinear (int w,int h,int dx,int dy, int sx, int sy, CBitmap * src, CBitmap * dest);
-int OglUBitBltCopy (int w,int h,int dx,int dy, int sx, int sy, CBitmap * src, CBitmap * dest);
-void OglUPixelC (int x, int y, tCanvasColor *c);
-void OglULineC (int left,int top,int right,int bot, tCanvasColor *c);
-void OglUPolyC (int left, int top, int right, int bot, tCanvasColor *c);
-void OglTexWrap (CTexture *tex, int state);
+int OglUBitMapMC (int x, int y, int dw, int dh, grsBitmap *bm, grsColor *c, int scale, int orient);
+int OglUBitBltI (int dw,int dh,int dx,int dy, int sw, int sh, int sx, int sy, grsBitmap * src, grsBitmap * dest, int bMipMaps, int bTransp);
+int OglUBitBltToLinear (int w,int h,int dx,int dy, int sx, int sy, grsBitmap * src, grsBitmap * dest);
+int OglUBitBltCopy (int w,int h,int dx,int dy, int sx, int sy, grsBitmap * src, grsBitmap * dest);
+void OglUPixelC (int x, int y, grsColor *c);
+void OglULineC (int left,int top,int right,int bot, grsColor *c);
+void OglUPolyC (int left, int top, int right, int bot, grsColor *c);
+void OglTexWrap (tOglTexture *tex, int state);
 void RebuildRenderContext (int bGame);
 
-tRgbColorf *BitmapColor (CBitmap *bmP, ubyte *bufP);
+tRgbColorf *BitmapColor (grsBitmap *bmP, ubyte *bufP);
 
+extern ubyte *defaultPalette;
+extern ubyte *fadePalette;
+extern ubyte *gamePalette;
+extern ubyte *starsPalette;
 extern GLenum curDrawBuffer;
 
 #include "3d.h"
@@ -348,7 +352,7 @@ extern GLenum curDrawBuffer;
 
 int G3DrawWhitePoly (int nv, g3sPoint **pointList);
 int G3DrawPolyAlpha (int nv, g3sPoint **pointlist, tRgbaColorf *color, char bDepthMask);
-int G3DrawFace (tFace *faceP, CBitmap *bmBot, CBitmap *bmTop, int bBlend, int bDrawArrays, int bTextured, int bDepthOnly);
+int G3DrawFace (grsFace *faceP, grsBitmap *bmBot, grsBitmap *bmTop, int bBlend, int bDrawArrays, int bTextured, int bDepthOnly);
 void G3FlushFaceBuffer (int bForce);
 
 int G3DrawTexPolyMulti (
@@ -356,10 +360,10 @@ int G3DrawTexPolyMulti (
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	tBitmap	*bmBot, 
-	tBitmap	*bmTop, 
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
 	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	vmsVector	*pvNormal,
 	int			orient, 
 	int			bBlend);
 
@@ -368,10 +372,10 @@ int G3DrawTexPolyLightmap (
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	tBitmap	*bmBot, 
-	tBitmap	*bmTop, 
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
 	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	vmsVector	*pvNormal,
 	int			orient, 
 	int			bBlend);
 
@@ -380,10 +384,10 @@ int G3DrawTexPolyFlat (
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
 	tUVL			*uvlLMap, 
-	tBitmap	*bmBot, 
-	tBitmap	*bmTop, 
+	grsBitmap	*bmBot, 
+	grsBitmap	*bmTop, 
 	tLightmap	*lightmap, 
-	CFixVector	*pvNormal,
+	vmsVector	*pvNormal,
 	int			orient, 
 	int			bBlend);
 
@@ -419,16 +423,16 @@ int LinkShaderProg (GLhandleARB *progP);
 void DeleteShaderProg (GLhandleARB *progP);
 void InitShaders ();
 void SetRenderQuality ();
-void DrawTexPolyFlat (CBitmap *bm,int nv,g3sPoint **vertlist);
+void DrawTexPolyFlat (grsBitmap *bm,int nv,g3sPoint **vertlist);
 void OglSetupTransform (int bForce);
 void OglResetTransform (int bForce);
 void OglPalColor (ubyte *palette, int c);
-void OglCanvasColor (tCanvasColor *pc);
+void OglGrsColor (grsColor *pc);
 void OglBlendFunc (GLenum nSrcBlend, GLenum nDestBlend);
 int G3EnableClientState (GLuint nState, int nTMU);
 int G3EnableClientStates (int bTexCoord, int bColor, int bNormals, int nTMU);
 void G3DisableClientStates (int bTexCoord, int bColor, int bNormals, int nTMU);
-int OglRenderArrays (CBitmap *bmP, int nFrame, CFloatVector *vertexP, int nVertices, tTexCoord3f *texCoordP, 
+int OglRenderArrays (grsBitmap *bmP, int nFrame, fVector *vertexP, int nVertices, tTexCoord3f *texCoordP, 
 							tRgbaColorf *colorP, int nColors, int nPrimitive, int nWrap);
 
 //------------------------------------------------------------------------------
@@ -447,12 +451,12 @@ extern PFNGLCLIENTACTIVETEXTUREARBPROC	glClientActiveTexture;
 
 //------------------------------------------------------------------------------
 
-static inline int OglUBitBlt (int w,int h,int dx,int dy, int sx, int sy, CBitmap *src, CBitmap *dest, int bTransp)
+static inline int OglUBitBlt (int w,int h,int dx,int dy, int sx, int sy, grsBitmap *src, grsBitmap *dest, int bTransp)
 {
 return OglUBitBltI (w, h, dx, dy, w, h, sx, sy, src, dest, 0, bTransp);
 }
 
-static inline int OglUBitMapM (int x, int y,CBitmap *bm)
+static inline int OglUBitMapM (int x, int y,grsBitmap *bm)
 {
 return OglUBitMapMC (x, y, 0, 0, bm, NULL, F1_0, 0);
 }
@@ -463,7 +467,7 @@ typedef struct tSinCosf {
 
 void OglComputeSinCos (int nSides, tSinCosf *sinCosP);
 void OglColor4sf (float r, float g, float b, float s);
-void G3VertexColor (CFloatVector *pvVertNorm, CFloatVector *pVertPos, int nVertex, tFaceColor *pVertColor, 
+void G3VertexColor (fVector *pvVertNorm, fVector *pVertPos, int nVertex, tFaceColor *pVertColor, 
 						  tFaceColor *pBaseColor, float fScale, int bSetColor, int nThread);
 void OglDrawEllipse (int nSides, int nType, double xsc, double xo, double ysc, double yo, tSinCosf *sinCosP);
 void OglDrawCircle (int nSides, int nType);
@@ -507,21 +511,21 @@ else if (!handle || (boundHandles [nTMU] != handle)) {
 
 extern GLhandleARB	genShaderProg;
 
-typedef	int tTexPolyMultiDrawer (int, g3sPoint **, tUVL *, tUVL *, CBitmap *, CBitmap *, CTexture *, CFixVector *, int, int);
+typedef	int tTexPolyMultiDrawer (int, g3sPoint **, tUVL *, tUVL *, grsBitmap *, grsBitmap *, tOglTexture *, vmsVector *, int, int);
 extern tTexPolyMultiDrawer	*fpDrawTexPolyMulti;
 
 int G3DrawTexPolySimple (
 	int			nVerts, 
 	g3sPoint		**pointList, 
 	tUVL			*uvlList, 
-	tBitmap	*bmBot, 
-	CFixVector	*pvNormal,
+	grsBitmap	*bmBot, 
+	vmsVector	*pvNormal,
 	int			bBlend);
 
 //------------------------------------------------------------------------------
 
 static inline int G3DrawTexPoly (int nVerts, g3sPoint **pointList, tUVL *uvlList,
-											CBitmap *bmP, CFixVector *pvNormal, int bBlend)
+											grsBitmap *bmP, vmsVector *pvNormal, int bBlend)
 {
 return fpDrawTexPolyMulti (nVerts, pointList, uvlList, NULL, bmP, NULL, NULL, pvNormal, 0, bBlend);
 }

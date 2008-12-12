@@ -32,7 +32,7 @@ extern fix compute_lightingValue(g3sPoint *vertptr);
 //	tmap_num references a texture map defined in Texmap_ptrs.
 //	nverts = number of vertices
 //	vertbuf is a pointer to an array of vertex pointers
-extern void draw_tmap(CBitmap *bp, int nverts, g3sPoint **vertbuf);
+extern void draw_tmap(grsBitmap *bp, int nverts, g3sPoint **vertbuf);
 
 // -------------------------------------------------------------------------------------------------------
 // Texture map vertex.
@@ -64,23 +64,23 @@ extern	int	Interpolation_method;
 // Set Lighting_on to 0/1/2 for no lighting/intensity lighting/rgb lighting
 extern	int	Lighting_on;
 
-// HACK INTERFACE: how far away the current CSegment (& thus texture) is
+// HACK INTERFACE: how far away the current tSegment (& thus texture) is
 extern	int	nCurrentSegDepth;	
-extern	int	Max_perspective_depth;		//	Deepest CSegment at which perspective interpolation will be used.
-extern	int	Max_linear_depth;				//	Deepest CSegment at which linear interpolation will be used.
-extern	int	Max_flat_depth;				//	Deepest CSegment at which flat shading will be used. (If not flat shading, then what?)
+extern	int	Max_perspective_depth;		//	Deepest tSegment at which perspective interpolation will be used.
+extern	int	Max_linear_depth;				//	Deepest tSegment at which linear interpolation will be used.
+extern	int	Max_flat_depth;				//	Deepest tSegment at which flat shading will be used. (If not flat shading, then what?)
 
 //	These are pointers to texture maps.  If you want to render texture map #7, then you will render
 //	the texture map defined by Texmap_ptrs[7].
-extern	CBitmap Texmap_ptrs[];
-extern	CBitmap Texmap4_ptrs[];
+extern	grsBitmap Texmap_ptrs[];
+extern	grsBitmap Texmap4_ptrs[];
 
 // Interface for sky renderer
-void texture_map_lin_lin_sky(CBitmap *srcb, g3ds_tmap *t);
-void texture_map_lin_lin_sky_v(CBitmap *srcb, g3ds_tmap *t);
-void texture_map_hyp_lin_v(CBitmap *srcb, g3ds_tmap *t);
+void texture_map_lin_lin_sky(grsBitmap *srcb, g3ds_tmap *t);
+void texture_map_lin_lin_sky_v(grsBitmap *srcb, g3ds_tmap *t);
+void texture_map_hyp_lin_v(grsBitmap *srcb, g3ds_tmap *t);
 
-void ntexture_map_lighted_linear(CBitmap *srcb, g3ds_tmap *t);
+void ntexture_map_lighted_linear(grsBitmap *srcb, g3ds_tmap *t);
 
 //	This is the gr_upoly-like interface to the texture mapper which uses texture-mapper compatible
 //	(ie, avoids cracking) edge/delta computation.

@@ -251,7 +251,7 @@ void OglViewport (int x, int y, int w, int h);
 
 //------------------------------------------------------------------------------
 
-extern const char *pszOglExtensions;
+extern char *pszOglExtensions;
 
 //------------------------------------------------------------------------------
 

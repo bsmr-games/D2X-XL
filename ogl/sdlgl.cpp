@@ -41,18 +41,19 @@
 
 //------------------------------------------------------------------------------
 
+void GrRemapMonoFonts (void);
 void FreeInventoryIcons (void);
 
 //------------------------------------------------------------------------------
 
-static ushort gammaRamp [512];
+static Uint16 gammaRamp [512];
 
 //------------------------------------------------------------------------------
 
 void InitGammaRamp (void)
 {
 	int i, j;
-	ushort *pg = gammaRamp;
+	Uint16 *pg = gammaRamp;
 
 for (i = 256, j = 0; i; i--, j += 256, pg++)
 	*pg = j;
@@ -63,9 +64,9 @@ memset (pg, 0xff, 256 * sizeof (*pg));
 
 int OglSetBrightnessInternal (void)
 {
-return SDL_SetGammaRamp (gammaRamp + paletteManager.RedEffect () * 4,
-	                      gammaRamp + paletteManager.GreenEffect () * 4,
-	                      gammaRamp + paletteManager.BlueEffect () * 4);
+return SDL_SetGammaRamp (gammaRamp + gameStates.ogl.bright.red * 4,
+	                      gammaRamp + gameStates.ogl.bright.green * 4,
+	                      gammaRamp + gameStates.ogl.bright.blue * 4);
 }
 
 //------------------------------------------------------------------------------
@@ -166,7 +167,7 @@ if (gameStates.ogl.bInitialized) {
 		return -1;
 	if ((w != gameStates.ogl.nCurWidth) || (h != gameStates.ogl.nCurHeight) || 
 		 (gameStates.ogl.bCurFullScreen != gameStates.ogl.bFullScreen)) {
-		textureManager.Destroy ();//if we are or were fullscreen, changing vid mode will invalidate current textures
+		OglSmashTextureListInternal ();//if we are or were fullscreen, changing vid mode will invalidate current textures
 		bRebuild = 1;
 		}
 	}
@@ -181,7 +182,7 @@ OglInitAttributes ();
 if (!IrrInit (w, h, (bool) gameStates.ogl.bFullScreen))
 	return 0;
 #else
-SDL_putenv (reinterpret_cast<char*> ("SDL_VIDEO_CENTERED=1"));
+SDL_putenv ((char *) "SDL_VIDEO_CENTERED=1");
 /***/PrintLog ("setting SDL video mode (%dx%dx%d, %s)\n",
 				 w, h, gameStates.ogl.nColorBits, gameStates.ogl.bFullScreen ? "fullscreen" : "windowed");
 if (!OglVideoModeOK (w, h) ||
@@ -209,11 +210,11 @@ gameStates.ogl.bCurFullScreen = gameStates.ogl.bFullScreen;
 if (gameStates.ogl.bInitialized && bRebuild) {
 	OglViewport (0, 0, w, h);
 	if (gameStates.app.bGameRunning) {
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		RebuildRenderContext (1);
 		}
 	else
-		fontManager.RemapMono ();
+		GrRemapMonoFonts ();
 	}
 D2SetCaption ();
 OglCreateDrawBuffer ();

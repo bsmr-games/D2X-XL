@@ -125,7 +125,7 @@ typedef struct tPIGBitmapHeader {
 	ubyte height;           // low 8 bits here, 4 more bits in wh_extra
 	ubyte wh_extra;         // bits 0-3 width, bits 4-7 height
 	ubyte flags;
-	ubyte avgColor;
+	ubyte bmAvgColor;
 	int offset;
 } __pack__ tPIGBitmapHeader;
 
@@ -135,7 +135,7 @@ typedef struct tPIGBitmapHeaderD1 {
 	ubyte width;            // low 8 bits here, 4 more bits in wh_extra
 	ubyte height;           // low 8 bits here, 4 more bits in wh_extra
 	ubyte flags;
-	ubyte avgColor;
+	ubyte bmAvgColor;
 	int offset;
 } __pack__ tPIGBitmapHeaderD1;
 
@@ -168,8 +168,8 @@ int PiggyInitMemory (void);
 void PiggyInitPigFile (char *filename);
 void _CDECL_ PiggyClose(void);
 void PiggyDumpAll (void);
-tBitmapIndex PiggyRegisterBitmap( CBitmap * bmp, const char * name, int in_file );
-int PiggyRegisterSound( CDigiSound * snd, char * name, int in_file );
+tBitmapIndex PiggyRegisterBitmap( grsBitmap * bmp, const char * name, int in_file );
+int PiggyRegisterSound( tDigiSound * snd, char * name, int in_file );
 tBitmapIndex PiggyFindBitmap (const char * name, int bD1Data );
 int PiggyFindSound (const char * name);
 int LoadSoundReplacements (const char *pszFileName);
@@ -178,14 +178,14 @@ void LoadTextureColors (const char *pszLevelName, tFaceColor *colorP);
 int LoadModelData (void);
 int SaveModelData (void);
 
-void piggy_read_bitmap_data (CBitmap * bmp);
-void piggy_readSound_data (CDigiSound *snd);
+void piggy_read_bitmap_data (grsBitmap * bmp);
+void piggy_readSound_data (tDigiSound *snd);
 
 void PiggyLoadLevelData ();
 
 #ifdef PIGGY_USE_PAGING
 int PiggyBitmapPageIn (int bmi, int bD1);
-int PageInBitmap (CBitmap *bmP, const char *bmName, int nIndex, int bD1);
+int PageInBitmap (grsBitmap *bmP, const char *bmName, int nIndex, int bD1);
 void PiggyBitmapPageOutAll(int bAll);
 #endif
 
@@ -200,15 +200,20 @@ void LoadBitmapReplacements (const char *level_name);
 //if descent.pig exists, loads descent 1 texture bitmaps
 void LoadD1BitmapReplacements();
 
+#if 0
+#define BitmapIndexRead(bi, fp) CFRead(bi, sizeof(tBitmapIndex), 1, fp)
+#define BitmapIndexReadN(bi, n, fp) CFRead(bi, sizeof(tBitmapIndex), n, fp)
+#else
 /*
  * reads a tBitmapIndex structure from a CFILE
  */
-void ReadBitmapIndex (tBitmapIndex *bi, CFile& cf);
+void BitmapIndexRead (tBitmapIndex *bi, CFile& cf);
 
 /*
  * reads n tBitmapIndex structs from a CFILE
  */
-int ReadBitmapIndices (CArray<tBitmapIndex>& bi, int n, CFile& cf, int o = 0);
+int BitmapIndexReadN (tBitmapIndex *bi, int n, CFile& cf);
+#endif // FAST_FILE_IO
 
 /*
  * Find and load the named bitmap from descent.pig
@@ -218,15 +223,15 @@ tBitmapIndex ReadExtraBitmapD1Pig (const char *name);
 void PIGBitmapHeaderRead (tPIGBitmapHeader *dbh, CFile& cf);
 void PIGBitmapHeaderD1Read (tPIGBitmapHeader *dbh, CFile& cf);
 
-CBitmap *PiggyLoadBitmap (const char *pszFile);
-void PiggyFreeBitmap (CBitmap *bmP, int i, int bD1);
-int CreateSuperTranspMasks (CBitmap *bmP);
+grsBitmap *PiggyLoadBitmap (const char *pszFile);
+void PiggyFreeBitmap (grsBitmap *bmP, int i, int bD1);
+int CreateSuperTranspMasks (grsBitmap *bmP);
 
-int PiggyFreeHiresAnimation (CBitmap *bmP, int bD1);
+int PiggyFreeHiresAnimation (grsBitmap *bmP, int bD1);
 void PiggyFreeHiresAnimations (void);
 
-CPalette* LoadD1Palette (void);
-void UseBitmapCache (CBitmap *bmP, int nSize);
+ubyte *LoadD1Palette (void);
+void UseBitmapCache (grsBitmap *bmP, int nSize);
 int IsAnimatedTexture (short nTexture);
 
 int LoadSounds (CFile& fpSound, int nSoundNum, int nSoundStart);
@@ -235,7 +240,7 @@ int IsMacDataFile (CFile* cfP, int bD1);
 
 void PiggyCriticalError (void);
 
-void swap_0_255 (CBitmap *bmP);
+void swap_0_255 (grsBitmap *bmP);
 
 //------------------------------------------------------------------------------
 
@@ -258,7 +263,7 @@ extern size_t bitmapCacheUsed;
 extern size_t bitmapCacheSize;
 extern const char *szAddonTextures [MAX_ADDON_BITMAP_FILES];
 
-extern CHashTable soundNames [2];
+extern tHashTable soundNames [2];
 extern int soundOffset [2][MAX_SOUND_FILES];
 
 #if USE_SDL_MIXER

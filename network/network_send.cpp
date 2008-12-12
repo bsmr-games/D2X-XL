@@ -37,13 +37,13 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 void NetworkSendDoorUpdates (int nPlayer)
 {
-	// Send door status when new CPlayerData joins
+	// Send door status when new tPlayer joins
 
 	int i;
 	tWall *wallP;
    
 //   Assert (nPlayer>-1 && nPlayer<gameData.multiplayer.nPlayers);
-for (i = 0, wallP = gameData.walls.walls.Buffer (); i < gameData.walls.nWalls; i++, wallP++) {
+for (i = 0, wallP = gameData.walls.walls; i < gameData.walls.nWalls; i++, wallP++) {
    if ((wallP->nType == WALL_DOOR) && 
 		 ((wallP->state == WALL_DOOR_OPENING) || 
 		  (wallP->state == WALL_DOOR_WAITING) || 
@@ -62,7 +62,7 @@ for (i = 0, wallP = gameData.walls.walls.Buffer (); i < gameData.walls.nWalls; i
 
 void NetworkSendMarkers (void)
  {
-  // send marker positions/text to new CPlayerData
+  // send marker positions/text to new tPlayer
   int i, j;
 
 for (i = j = 0; i < gameData.multiplayer.nPlayers; i++, j++) {
@@ -232,7 +232,7 @@ void NetworkSendEndLevelSub (int nPlayer)
 	tEndLevelInfo end;
 	int i, j = 0;
 
-	// Send an endlevel packet for a CPlayerData
+	// Send an endlevel packet for a tPlayer
 end.nType       = PID_ENDLEVEL;
 end.nPlayer = nPlayer;
 end.connected  = gameData.multiplayer.players [nPlayer].connected;
@@ -258,7 +258,7 @@ for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
 			NetworkSendEndLevelShortSub (nPlayer, i);
 		else if (gameStates.multi.nGameType >= IPX_GAME)
 			IPXSendPacketData (
-				reinterpret_cast<ubyte*> (&end), sizeof (tEndLevelInfo), 
+				(ubyte *)&end, sizeof (tEndLevelInfo), 
 			netPlayers.players [i].network.ipx.server, 
 			netPlayers.players [i].network.ipx.node, gameData.multiplayer.players [i].netAddress);
 		}
@@ -275,7 +275,7 @@ NetworkSendEndLevelSub (gameData.multiplayer.nLocalPlayer);
 
 //------------------------------------------------------------------------------
 
-/* Send an endlevel packet for a CPlayerData */
+/* Send an endlevel packet for a tPlayer */
 void NetworkSendEndLevelShortSub (int from_player_num, int to_player)
 {
 	tEndLevelInfoShort end;
@@ -293,7 +293,7 @@ if ((to_player != gameData.multiplayer.nLocalPlayer) &&
 	 (gameData.multiplayer.players [to_player].connected)) {
 	if (gameStates.multi.nGameType >= IPX_GAME)
 		IPXSendPacketData (
-		 reinterpret_cast<ubyte*> (&end), sizeof (tEndLevelInfoShort), 
+		 (ubyte *)&end, sizeof (tEndLevelInfoShort), 
 		netPlayers.players [to_player].network.ipx.server, 
 		netPlayers.players [to_player].network.ipx.node, gameData.multiplayer.players [to_player].netAddress);
 	}
@@ -472,7 +472,7 @@ for (i = 0; i < gameData.multiplayer.nPlayers; i++) {
 	if ((gameData.multiplayer.players [i].connected) && (i != gameData.multiplayer.nLocalPlayer)) {
 		if (gameStates.multi.nGameType >= IPX_GAME) {
 			PrintLog ("   %s (%s)\n", netPlayers.players [i].callsign, 
-				iptos (szIP, reinterpret_cast<char*> (netPlayers.players [i].network.ipx.node)));
+				iptos (szIP, (char *) netPlayers.players [i].network.ipx.node));
 			SendLiteNetGamePacket (
 				netPlayers.players [i].network.ipx.server, 
 				netPlayers.players [i].network.ipx.node, 
@@ -663,7 +663,7 @@ if (nakedData.nLength == 0) {
 if (len + nakedData.nLength>networkData.nMaxXDataSize) {
 	if (gameStates.multi.nGameType >= IPX_GAME)
 		IPXSendPacketData (
-			reinterpret_cast<ubyte*> (nakedData.buf), 
+			(ubyte *) nakedData.buf, 
 			nakedData.nLength, 
 			netPlayers.players [who].network.ipx.server, 
 			netPlayers.players [who].network.ipx.node, gameData.multiplayer.players [who].netAddress);
@@ -690,13 +690,13 @@ void NetworkSendPlayerNames (tSequencePacket *their)
 
 if (!their) {
 #if 1			
-	con_printf (CONDBG, "Got a CPlayerData name without a return address! Get Jason\n");
+	con_printf (CONDBG, "Got a tPlayer name without a return address! Get Jason\n");
 #endif
 	return;
 	}
 buf [0] = PID_NAMES_RETURN; 
 count++;
-*reinterpret_cast<int*> (buf + 1) = netGame.nSecurity; 
+(*(int *) (buf+1)) = netGame.nSecurity; 
 count+=4;
 if (!bNameReturning) {
 	buf [count++] = (char) 255; 
@@ -718,7 +718,7 @@ buf [count++] = (char) PacketsPerSec ();
  
 sendit:	   
 
-IPXSendInternetPacketData (reinterpret_cast<ubyte*> (buf), count, 
+IPXSendInternetPacketData ((ubyte *)buf, count, 
 									their->player.network.ipx.server, 
 									their->player.network.ipx.node);
 }

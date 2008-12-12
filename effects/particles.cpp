@@ -78,9 +78,9 @@
 
 static int bHavePartImg [2][PARTICLE_TYPES] = {{0,0,0,0},{0,0,0,0}};
 
-static CBitmap *bmpParticle [2][PARTICLE_TYPES] = {{NULL, NULL, NULL, NULL},{NULL, NULL, NULL, NULL}};
+static grsBitmap *bmpParticle [2][PARTICLE_TYPES] = {{NULL, NULL, NULL, NULL},{NULL, NULL, NULL, NULL}};
 #if 0
-static CBitmap *bmpBumpMaps [2] = {NULL, NULL};
+static grsBitmap *bmpBumpMaps [2] = {NULL, NULL};
 #endif
 
 static const char *szParticleImg [2][PARTICLE_TYPES] = {
@@ -163,9 +163,9 @@ return colorP ? (colorP->red * 3 + colorP->green * 5 + colorP->blue * 2) / 10.0f
 
 //------------------------------------------------------------------------------
 
-CFixVector *RandomPointOnQuad (CFixVector *quad, CFixVector *vPos)
+vmsVector *RandomPointOnQuad (vmsVector *quad, vmsVector *vPos)
 {
-	CFixVector	vOffs;
+	vmsVector	vOffs;
 	int			i;
 
 i = rand () % 2;
@@ -186,16 +186,16 @@ return vPos;
 
 #define RANDOM_FADE	(0.95f + (float) rand () / (float) RAND_MAX / 20.0f)
 
-int CParticle::Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+int CParticle::Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 							  short nSegment, int nLife, int nSpeed, char nParticleSystemType, char nClass,
 						     float nScale, tRgbaColorf *colorP, int nCurTime, int bBlowUp,
-							  float fBrightness, CFixVector *vEmittingFace)
+							  float fBrightness, vmsVector *vEmittingFace)
 {
 
 	static tRgbaColorf	defaultColor = {1,1,1,1};
 
 	tRgbaColorf	color;
-	CFixVector	vDrift;
+	vmsVector	vDrift;
 	int			nRad, nFrames, nType = particleImageManager.GetType (nParticleSystemType);
 
 if (nScale < 0)
@@ -270,8 +270,8 @@ if (vDir) {
 	a [HA] = randN (F1_0 / 4) - F1_0 / 8;
 	m = vmsMatrix::Create (a);
 	vDrift = m * (*vDir);
-	CFixVector::Normalize (vDrift);
-	d = (float) CFixVector::DeltaAngle (vDrift, *vDir, NULL);
+	vmsVector::Normalize (vDrift);
+	d = (float) vmsVector::DeltaAngle (vDrift, *vDir, NULL);
 	if (d) {
 		d = (float) exp ((F1_0 / 8) / d);
 		nSpeed = (fix) ((float) nSpeed / d);
@@ -289,7 +289,7 @@ if (vDir) {
 	m_bHaveDir = 1;
 	}
 else {
-	CFixVector	vOffs;
+	vmsVector	vOffs;
 	vDrift [X] = nSpeed - randN (2 * nSpeed);
 	vDrift [Y] = nSpeed - randN (2 * nSpeed);
 	vDrift [Z] = nSpeed - randN (2 * nSpeed);
@@ -305,12 +305,12 @@ else if (nType != BUBBLE_PARTICLES)
 else {
 	//m_vPos = *vPos + vDrift * (F1_0 / 32);
 	nSpeed = vDrift.Mag () / 16;
-	vDrift = CFixVector::Avg ((*mOrient) [RVEC] * (nSpeed - randN (2 * nSpeed)), (*mOrient) [UVEC] * (nSpeed - randN (2 * nSpeed)));
+	vDrift = vmsVector::Avg ((*mOrient) [RVEC] * (nSpeed - randN (2 * nSpeed)), (*mOrient) [UVEC] * (nSpeed - randN (2 * nSpeed)));
 	m_vPos = *vPos + vDrift + (*mOrient) [FVEC] * (F1_0 / 2 - randN (F1_0));
 #if 1
 	m_vDrift.SetZero ();
 #else
-	CFixVector::Normalize (m_vDrift);
+	vmsVector::Normalize (m_vDrift);
 	m_vDrift *= F1_0 * 32;
 #endif
 	}
@@ -414,11 +414,11 @@ static int nFaces [6];
 static int vertexList [6][6];
 static int bSidePokesOut [6];
 //static int nVert [6];
-static CFixVector	*wallNorm;
+static vmsVector	*wallNorm;
 
 int CParticle::CollideWithWall (void)
 {
-	CSegment		*segP;
+	tSegment		*segP;
 	tSide			*sideP;
 	int			bInit, nSide, nVert, nChild, nFace, nInFront;
 	fix			nDist;
@@ -478,7 +478,7 @@ int CParticle::Update (int nCurTime)
 	int			j, nRad;
 	short			nSegment;
 	fix			t, dot;
-	CFixVector	vPos, drift;
+	vmsVector	vPos, drift;
 	fix			drag = (m_nType == BUBBLE_PARTICLES) ? F1_0 : F2X ((float) m_nLife / (float) m_nTTL);
 
 if ((m_nLife <= 0) /*|| (m_color [0].alpha < 0.01f)*/)
@@ -499,11 +499,11 @@ else {
 			t = -t;
 		m_vPos = vPos + drift * t; //(t * F1_0 / 1000);
 		if (m_bHaveDir) {
-			CFixVector vi = drift, vj = m_vDir;
-			CFixVector::Normalize (vi);
-			CFixVector::Normalize (vj);
-//				if (CFixVector::Dot(drift, m_vDir) < 0)
-			if (CFixVector::Dot (vi, vj) < 0)
+			vmsVector vi = drift, vj = m_vDir;
+			vmsVector::Normalize (vi);
+			vmsVector::Normalize (vj);
+//				if (vmsVector::Dot(drift, m_vDir) < 0)
+			if (vmsVector::Dot (vi, vj) < 0)
 				drag = -drag;
 //				VmVecScaleInc (&drift, &m_vDir, drag);
 			m_vPos += m_vDir * drag;
@@ -528,7 +528,7 @@ else {
 				return 0;
 			if (j)
 				return 0;
-			else if (!(dot = CFixVector::Dot (drift, *wallNorm)))
+			else if (!(dot = vmsVector::Dot (drift, *wallNorm)))
 				return 0;
 			else {
 				drift = m_vDrift + *wallNorm * (-2 * dot);
@@ -589,13 +589,13 @@ return 1;
 
 int CParticle::Render (float brightness)
 {
-	CFixVector			hp;
+	vmsVector			hp;
 	GLfloat				d, u, v;
-	CBitmap			*bmP;
+	grsBitmap			*bmP;
 	tRgbaColorf			pc;
 	tTexCoord2f			texCoord [4];
 	tParticleVertex	*pb;
-	CFloatVector				vOffset, vCenter;
+	fVector				vOffset, vCenter;
 	int					i, nFrame, nType = m_nType, bEmissive = m_bEmissive,
 							bPointSprites = gameStates.render.bPointSprites && !gameOpts->render.particles.bSort && (gameOpts->render.bDepthSort <= 0);
 	float					decay = (nType == BUBBLE_PARTICLES) ? 1.0f : (float) m_nLife / (float) m_nTTL;
@@ -610,18 +610,18 @@ if (m_nDelay > 0)
 	return 0;
 if (!(bmP = bmpParticle [0][nType]))
 	return 0;
-if (bmP->CurFrame ())
-	bmP = bmP->CurFrame ();
+if (BM_CURFRAME (bmP))
+	bmP = BM_CURFRAME (bmP);
 if (gameOpts->render.bDepthSort > 0) {
 	hp = m_vTransPos;
-	if ((particleManager.LastType () != nType) || (brightness != bufferBrightness) || (bBufferEmissive != bEmissive)) {
+	if ((gameData.particles.nLastType != nType) || (brightness != bufferBrightness) || (bBufferEmissive != bEmissive)) {
 		if (gameStates.render.bVertexArrays)
 			particleManager.FlushBuffer (brightness);
-		particleManager.SetLastType (nType);
+		gameData.particles.nLastType = nType;
 		bBufferEmissive = bEmissive;
 		glActiveTexture (GL_TEXTURE0);
 		glClientActiveTexture (GL_TEXTURE0);
-		if (bmP->Bind (0, 1))
+		if (OglBindBmTex (bmP, 0, 1))
 			return 0;
 		nFrames = nParticleFrames [0][nType];
 		deltaUV = 1.0f / (float) nFrames;
@@ -635,13 +635,13 @@ if (gameOpts->render.bDepthSort > 0) {
 	}
 else if (gameOpts->render.particles.bSort) {
 	hp = m_vTransPos;
-	if ((particleManager.LastType () != nType) || (brightness != bufferBrightness)) {
+	if ((gameData.particles.nLastType != nType) || (brightness != bufferBrightness)) {
 		if (gameStates.render.bVertexArrays)
 			particleManager.FlushBuffer (brightness);
 		else
 			glEnd ();
-		particleManager.SetLastType (nType);
-		if (bmP->Bind (0, 1))
+		gameData.particles.nLastType = nType;
+		if (OglBindBmTex (bmP, 0, 1))
 			return 0;
 		nFrames = nParticleFrames [bPointSprites][nType];
 		deltaUV = 1.0f / (float) nFrames;
@@ -830,17 +830,17 @@ else {
 	texCoord [2].v.u = u + d;
 	texCoord [2].v.v =
 	texCoord [3].v.v = v + d;
-	glColor4fv (reinterpret_cast<GLfloat*> (&pc));
-	glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoord + i));
+	glColor4fv ((GLfloat *) &pc);
+	glTexCoord2fv ((GLfloat *) (texCoord + i));
 	glVertex3f (vCenter[X] - vOffset[X], vCenter[Y] + vOffset[Y], vCenter[Z]);
-	glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoord + (i + 1) % 4));
+	glTexCoord2fv ((GLfloat *) (texCoord + (i + 1) % 4));
 	glVertex3f (vCenter[X] + vOffset[X], vCenter[Y] + vOffset[Y], vCenter[Z]);
-	glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoord + (i + 2) % 4));
+	glTexCoord2fv ((GLfloat *) (texCoord + (i + 2) % 4));
 	glVertex3f (vCenter[X] + vOffset[X], vCenter[Y] - vOffset[Y], vCenter[Z]);
-	glTexCoord2fv (reinterpret_cast<GLfloat*> (texCoord + (i + 3) % 4));
+	glTexCoord2fv ((GLfloat *) (texCoord + (i + 3) % 4));
 	glVertex3f (vCenter[X] - vOffset[X], vCenter[Y] - vOffset[Y], vCenter[Z]);
 	}
-if (particleManager.Animate ()) {
+if (gameData.particles.bAnimate) {
 	m_nFrame = (m_nFrame + 1) % (nFrames * nFrames);
 	if (!(nType || (m_nFrame & 1)))
 		m_nRotFrame = (m_nRotFrame + 1) % 64;
@@ -880,7 +880,7 @@ if (bufferBrightness < 0)
 	bufferBrightness = brightness;
 if (iBuffer) {
 	tRgbaColorf	color = {bufferBrightness, bufferBrightness, bufferBrightness, 1};
-	int bLightmaps = lightmapManager.HaveLightmaps ();
+	int bLightmaps = HaveLightmaps ();
 	bufferBrightness = brightness;
 	glEnable (GL_BLEND);
 	//glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -889,20 +889,20 @@ if (iBuffer) {
 	if (gameStates.ogl.bShadersOk) {
 		if (InitBuffer (bLightmaps)) { //gameStates.render.bVertexArrays) {
 #if 1
-			CBitmap *bmP = bmpParticle [0][particleManager.LastType ()];
+			grsBitmap *bmP = bmpParticle [0][gameData.particles.nLastType];
 			if (!bmP)
 				return;
 			glActiveTexture (GL_TEXTURE0);
 			glClientActiveTexture (GL_TEXTURE0);
 			glEnable (GL_TEXTURE_2D);
-			if (bmP->CurFrame ())
-				bmP = bmP->CurFrame ();
-			if (bmP->Bind (0, 1))
+			if (BM_CURFRAME (bmP))
+				bmP = BM_CURFRAME (bmP);
+			if (OglBindBmTex (bmP, 0, 1))
 				return;
 #endif
-			if (gameData.render.lights.dynamic.headlights.nLights && !(gameStates.render.automap.bDisplay || particleManager.LastType ()))
+			if (gameData.render.lights.dynamic.headlights.nLights && !(gameStates.render.automap.bDisplay || gameData.particles.nLastType))
 				G3SetupHeadlightShader (1, 0, &color);
-			else if ((gameOpts->render.effects.bSoftParticles & 4) && (particleManager.LastType () <= BUBBLE_PARTICLES))
+			else if ((gameOpts->render.effects.bSoftParticles & 4) && (gameData.particles.nLastType <= BUBBLE_PARTICLES))
 				LoadGlareShader (10);
 			else if (gameStates.render.history.nShader >= 0) {
 				glUseProgramObject (0);
@@ -922,15 +922,15 @@ if (iBuffer) {
 		glNormal3f (0, 0, 0);
 		glBegin (GL_QUADS);
 		for (pb = particleBuffer; iBuffer; iBuffer--, pb++) {
-			glTexCoord2fv (reinterpret_cast<GLfloat*> (&pb->texCoord));
-			glColor4fv (reinterpret_cast<GLfloat*> (&pb->color));
-			glVertex3fv (reinterpret_cast<GLfloat*> (&pb->vertex));
+			glTexCoord2fv ((GLfloat *) &pb->texCoord);
+			glColor4fv ((GLfloat *) &pb->color);
+			glVertex3fv ((GLfloat *) &pb->vertex);
 			}
 		glEnd ();
 		}
 	iBuffer = 0;
 	glEnable (GL_DEPTH_TEST);
-	if ((gameStates.ogl.bShadersOk && !particleManager.LastType ()) && (gameStates.render.history.nShader != 999)) {
+	if ((gameStates.ogl.bShadersOk && !gameData.particles.nLastType) && (gameStates.render.history.nShader != 999)) {
 		glUseProgramObject (0);
 		gameStates.render.history.nShader = -1;
 		}
@@ -944,7 +944,7 @@ int CParticleManager::CloseBuffer (void)
 if (!gameStates.render.bVertexArrays)
 	return 0;
 FlushBuffer (-1);
-G3DisableClientStates (1, 1, 0, GL_TEXTURE0 + lightmapManager.HaveLightmaps ());
+G3DisableClientStates (1, 1, 0, GL_TEXTURE0 + HaveLightmaps ());
 return 1;
 }
 
@@ -952,8 +952,8 @@ return 1;
 
 int CParticleManager::BeginRender (int nType, float nScale)
 {
-	CBitmap	*bmP;
-	int			bLightmaps = lightmapManager.HaveLightmaps ();
+	grsBitmap	*bmP;
+	int			bLightmaps = HaveLightmaps ();
 	static time_t	t0 = 0;
 
 if (gameOpts->render.bDepthSort <= 0) {
@@ -961,7 +961,7 @@ if (gameOpts->render.bDepthSort <= 0) {
 	if ((nType >= 0) && !gameOpts->render.particles.bSort)
 		particleImageManager.Animate (nType);
 	bmP = bmpParticle [0][nType];
-	particleManager.SetStencil (StencilOff ());
+	gameData.particles.bStencil = StencilOff ();
 	InitBuffer (bLightmaps);
 	glActiveTexture (GL_TEXTURE0);
 	glClientActiveTexture (GL_TEXTURE0);
@@ -969,7 +969,7 @@ if (gameOpts->render.bDepthSort <= 0) {
 	glEnable (GL_BLEND);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable (GL_TEXTURE_2D);
-	if ((nType >= 0) && bmP->Bind (0, 1))
+	if ((nType >= 0) && OglBindBmTex (bmP, 0, 1))
 		return 0;
 	glDepthFunc (GL_LESS);
 	glDepthMask (0);
@@ -977,12 +977,12 @@ if (gameOpts->render.bDepthSort <= 0) {
 	if (!gameStates.render.bVertexArrays)
 		glBegin (GL_QUADS);
 	}
-particleManager.SetLastType (-1);
+gameData.particles.nLastType = -1;
 if (gameStates.app.nSDLTicks - t0 < 33)
-	particleManager.m_bAnimate = 0;
+	gameData.particles.bAnimate = 0;
 else {
 	t0 = gameStates.app.nSDLTicks;
-	particleManager.m_bAnimate = 1;
+	gameData.particles.bAnimate = 1;
 	}
 return 1;
 }
@@ -997,7 +997,7 @@ if (gameOpts->render.bDepthSort <= 0) {
 	OGL_BINDTEX (0);
 	glDisable (GL_TEXTURE_2D);
 	glDepthMask (1);
-	StencilOn (particleManager.Stencil ());
+	StencilOn (gameData.particles.bStencil);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 return 1;
@@ -1008,7 +1008,7 @@ return 1;
 char CParticleEmitter::ObjectClass (int nObject)
 {
 if ((nObject >= 0) && (nObject < 0x70000000)) {
-	CObject	*objP = OBJECTS + nObject;
+	tObject	*objP = OBJECTS + nObject;
 	if (objP->info.nType == OBJ_PLAYER)
 		return 1;
 	if (objP->info.nType == OBJ_ROBOT)
@@ -1032,7 +1032,7 @@ return (m_nSegment < 0) || SegmentMayBeVisible (m_nSegment, 5, -1);
 
 float  CParticleEmitter::Brightness (void)
 {
-	CObject	*objP;
+	tObject	*objP;
 
 if (m_nObject >= 0x70000000)
 	return 0.5f;
@@ -1076,12 +1076,12 @@ return 1;
 
 //------------------------------------------------------------------------------
 
-int CParticleEmitter::Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+int CParticleEmitter::Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 										short nSegment, int nObject, int nMaxParts, float fScale,
 										int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
-										tRgbaColorf *colorP, int nCurTime, int bBlowUpParts, CFixVector *vEmittingFace)
+										tRgbaColorf *colorP, int nCurTime, int bBlowUpParts, vmsVector *vEmittingFace)
 {
-if (!(m_particles = new CParticle [nMaxParts]))
+if (!(m_particles = (CParticle *) D2_ALLOC (sizeof (CParticle) * nMaxParts)))
 	return 0;
 m_nLife = nLife;
 m_nBirth = nCurTime;
@@ -1128,8 +1128,7 @@ return 1;
 int CParticleEmitter::Destroy (void)
 {
 if (m_particles) {
-	delete[] m_particles;
-	m_particles = NULL;
+	D2_FREE (m_particles);
 	}
 m_nParts =
 m_nMaxParts = 0;
@@ -1168,9 +1167,9 @@ else
 		float			fDist;
 		float			fBrightness = Brightness ();
 		vmsMatrix	mOrient = m_mOrient;
-		CFixVector	vDelta, vPos, *vDir = (m_bHaveDir ? &m_vDir : NULL),
+		vmsVector	vDelta, vPos, *vDir = (m_bHaveDir ? &m_vDir : NULL),
 						*vEmittingFace = m_bEmittingFace ? m_vEmittingFace : NULL;
-		CFloatVector		vDeltaf, vPosf;
+		fVector		vDeltaf, vPosf;
 
 #if SMOKE_SLOWMO
 	t = (int) ((nCurTime - m_nMoved) / gameStates.gameplay.slowmo [0].fSpeed);
@@ -1278,7 +1277,7 @@ return 0;
 
 //------------------------------------------------------------------------------
 
-void CParticleEmitter::SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment)
+void CParticleEmitter::SetPos (vmsVector *vPos, vmsMatrix *mOrient, short nSegment)
 {
 if ((nSegment < 0) && gameOpts->render.particles.bCollisions)
 	nSegment = FindSegByPos (*vPos, m_nSegment, 1, 0, 1);
@@ -1291,7 +1290,7 @@ if (nSegment >= 0)
 
 //------------------------------------------------------------------------------
 
-inline void CParticleEmitter::SetDir (CFixVector *vDir)
+inline void CParticleEmitter::SetDir (vmsVector *vDir)
 {
 if ((m_bHaveDir = (vDir != NULL)))
 	m_vDir = *vDir;
@@ -1337,7 +1336,7 @@ int CParticleEmitter::SetDensity (int nMaxParts, int nDensity)
 if (m_nMaxParts == nMaxParts)
 	return 1;
 if (nMaxParts > m_nPartLimit) {
-	if (!(pp = new CParticle [nMaxParts]))
+	if (!(pp = (CParticle *) D2_ALLOC (sizeof (CParticle) * nMaxParts)))
 		return 0;
 	if (m_particles) {
 		if (m_nParts > nMaxParts)
@@ -1350,7 +1349,7 @@ if (nMaxParts > m_nPartLimit) {
 			memcpy (pp + h, m_particles, (m_nParts - h) * sizeof (CParticle));
 		m_nFirstPart = 0;
 		m_nPartLimit = nMaxParts;
-		delete[] m_particles;
+		D2_FREE (m_particles);
 		}
 	m_particles = pp;
 	}
@@ -1373,13 +1372,13 @@ m_fScale = fScale;
 
 //------------------------------------------------------------------------------
 
-int CParticleSystem::Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+int CParticleSystem::Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 									  short nSegment, int nMaxEmitters, int nMaxParts,
 									  float fScale, int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
 									  int nObject, tRgbaColorf *colorP, int bBlowUpParts, char nSide)
 {
 	int					i;
-	CFixVector			vEmittingFace [4];
+	vmsVector			vEmittingFace [4];
 
 if (nSide >= 0)
 	GetSideVerts (vEmittingFace, nSegment, nSide);
@@ -1387,7 +1386,7 @@ nMaxParts = MAX_PARTICLES (nMaxParts, gameOpts->render.particles.nDens [0]);
 if (gameStates.render.bPointSprites)
 	nMaxParts *= 2;
 srand (SDL_GetTicks ());
-if (!(m_emitters = new CParticleEmitter [nMaxEmitters])) {
+if (!(m_emitters = (CParticleEmitter *) D2_ALLOC (sizeof (CParticleEmitter) * nMaxEmitters))) {
 	//PrintLog ("cannot create m_systems\n");
 	return 0;
 	}
@@ -1433,8 +1432,7 @@ void CParticleSystem::Destroy (void)
 if (m_emitters) {
 	for (int i = m_nEmitters; i; )
 		m_emitters [--i].Destroy ();
-	delete[] m_emitters;
-	m_emitters = NULL;
+	D2_FREE (m_emitters);
 	if ((m_nObject >= 0) && (m_nObject < 0x70000000))
 		particleManager.SetObjectSystem (m_nObject, -1);
 	m_nObject = -1;
@@ -1471,7 +1469,7 @@ return h;
 
 //------------------------------------------------------------------------------
 
-void CParticleSystem::SetPos (CFixVector *vPos, vmsMatrix *mOrient, short nSegment)
+void CParticleSystem::SetPos (vmsVector *vPos, vmsMatrix *mOrient, short nSegment)
 {
 if (m_emitters)
 	for (int i = 0; i < m_nEmitters; i++)
@@ -1542,7 +1540,7 @@ if (m_emitters && (m_nSpeed != nSpeed)) {
 
 //------------------------------------------------------------------------------
 
-void CParticleSystem::SetDir (CFixVector *vDir)
+void CParticleSystem::SetDir (vmsVector *vDir)
 {
 if (m_emitters)
 	for (int i = 0; i < m_nEmitters; i++)
@@ -1612,10 +1610,8 @@ for (i = 0; i < VERT_BUFFER_SIZE; i++, pf++) {
 	*pf++ = 1.0f;
 	}
 #endif
-if (!m_objectSystems.Buffer ())
-	CREATE (m_objectSystems, MAX_OBJECTS, (char) 0xff);
-if (!m_objExplTime.Buffer ())
-	CREATE (m_objExplTime, MAX_OBJECTS, 0);
+if (!m_objectSystems)
+	GETMEM (short, m_objectSystems, MAX_OBJECTS, (char) 0xff);
 for (i = 0, j = 1; j < MAX_PARTICLE_SYSTEMS; i++, j++)
 	m_systems [i].Init (i, j);
 m_systems [i].SetNext (-1);
@@ -1692,7 +1688,7 @@ return 1;
 
 //	-----------------------------------------------------------------------------
 
-int CParticleManager::Create (CFixVector *vPos, CFixVector *vDir, vmsMatrix *mOrient,
+int CParticleManager::Create (vmsVector *vPos, vmsVector *vDir, vmsMatrix *mOrient,
 										short nSegment, int nMaxEmitters, int nMaxParts,
 										float fScale, int nDensity, int nPartsPerPos, int nLife, int nSpeed, char nType,
 										int nObject, tRgbaColorf *colorP, int bBlowUpParts, char nSide)
@@ -1763,8 +1759,7 @@ CParticleManager::~CParticleManager ()
 {
 Shutdown ();
 particleImageManager.FreeAll ();
-m_objectSystems.Destroy ();
-m_objExplTime.Destroy ();
+FREEMEM (short, m_objectSystems, MAX_OBJECTS);
 }
 
 //	-----------------------------------------------------------------------------
@@ -1803,11 +1798,11 @@ if (nFrames > 1) {
 	int			iFrameIncr = iPartFrameIncr [bPointSprites][nType];
 #endif
 	int			bPointSprites = gameStates.render.bPointSprites && !gameOpts->render.particles.bSort;
-	CBitmap	*bmP = bmpParticle [bPointSprites][GetType (nType)];
+	grsBitmap	*bmP = bmpParticle [bPointSprites][GetType (nType)];
 
-	if (!bmP->Frames ())
+	if (!BM_FRAMES (bmP))
 		return;
-	bmP->SetCurFrame (iFrame);
+	BM_CURFRAME (bmP) = BM_FRAMES (bmP) + iFrame;
 #if 1
 	if (t - t0 [nType] > 150)
 #endif
@@ -1829,36 +1824,36 @@ if (nFrames > 1) {
 
 //	-----------------------------------------------------------------------------
 
-void CParticleImageManager::AdjustBrightness (CBitmap *bmP)
+void CParticleImageManager::AdjustBrightness (grsBitmap *bmP)
 {
-	CBitmap	*bmfP;
-	int			i, j = bmP->FrameCount ();
+	grsBitmap	*bmfP;
+	int			i, j = bmP->bmData.alt.bmFrameCount;
 	float			*fFrameBright, fAvgBright = 0, fMaxBright = 0;
 
 if (j < 2)
 	return;
-if (!(fFrameBright = new float [j]))
+if (!(fFrameBright = (float *) D2_ALLOC (j * sizeof (float))))
 	return;
-for (i = 0, bmfP = bmP->Frames (); i < j; i++, bmfP++) {
+for (i = 0, bmfP = BM_FRAMES (bmP); i < j; i++, bmfP++) {
 	fAvgBright += (fFrameBright [i] = (float) TGABrightness (bmfP));
 	if (fMaxBright < fFrameBright [i])
 		fMaxBright = fFrameBright [i];
 	}
 fAvgBright /= j;
-for (i = 0, bmfP = bmP->Frames (); i < j; i++, bmfP++) {
+for (i = 0, bmfP = BM_FRAMES (bmP); i < j; i++, bmfP++) {
 	TGAChangeBrightness (bmfP, 0, 1, 2 * (int) (255 * fFrameBright [i] * (fAvgBright - fFrameBright [i])), 0);
 	}
-delete[] fFrameBright;
+D2_FREE (fFrameBright);
 }
 
 //	-----------------------------------------------------------------------------
 
 int CParticleImageManager::Load (int nType)
 {
-	int		h,
-				bPointSprites = gameStates.render.bPointSprites && !gameOpts->render.particles.bSort,
-				*flagP;
-	CBitmap	*bmP = NULL;
+	int			h,
+					bPointSprites = gameStates.render.bPointSprites && !gameOpts->render.particles.bSort,
+					*flagP;
+	grsBitmap	*bmP = NULL;
 
 nType = particleImageManager.GetType (nType);
 flagP = bHavePartImg [bPointSprites] + nType;
@@ -1882,14 +1877,21 @@ if (TGAMakeSquare (bmP)) {
 	}
 }
 #endif
-bmP->SetFrameCount ();
-bmP->SetupTexture (0, 3, 1);
+BM_FRAMECOUNT (bmP) = bmP->bmProps.h / bmP->bmProps.w;
+#if 0
+if (OglSetupBmFrames (BmOverride (bmP), 0, 0, 0)) {
+	AdjustParticleBrightness (bmP);
+	D2_FREE (BM_FRAMES (bmP));	// make sure frames get loaded to OpenGL in OglLoadBmTexture ()
+	BM_CURFRAME (bmP) = NULL;
+	}
+#endif
+OglLoadBmTexture (bmP, 0, 3, 1);
 if (nType == SMOKE_PARTICLES)
 	h = 8;
 else if (nType == BUBBLE_PARTICLES)
 	h = 4;
 else
-	h = bmP->FrameCount ();
+	h = BM_FRAMECOUNT (bmP);
 nParticleFrames [bPointSprites][nType] = h;
 return *flagP > 0;
 }
@@ -1917,7 +1919,8 @@ void CParticleImageManager::FreeAll (void)
 for (i = 0; i < 2; i++)
 	for (j = 0; j < PARTICLE_TYPES; j++)
 		if (bmpParticle [i][j]) {
-			delete bmpParticle [i][j];
+			GrFreeBitmap (bmpParticle [i][j]);
+			bmpParticle [i][j] = NULL;
 			bHavePartImg [i][j] = 0;
 			}
 }

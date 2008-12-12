@@ -2,11 +2,6 @@
 #define __lightmap_h
 
 #include "ogl_defs.h"
-#include "carray.h"
-#include "color.h"
-#include "math.h"
-#include "gr.h"
-#include "newmenu.h"
 #include "ogl_texture.h"
 
 //------------------------------------------------------------------------------
@@ -20,8 +15,8 @@
 //------------------------------------------------------------------------------
 
 typedef struct tLightmapInfo {
-	CFixVector	vPos;
-	CFixVector	vDir;  //currently based on face normals
+	vmsVector	vPos;
+	vmsVector	vDir;  //currently based on face normals
 	GLfloat		color [3];
 	//float		bright;
 	double		range;
@@ -37,65 +32,23 @@ typedef struct tLightmapBuffer {
 	tRgbColorb	bmP [LIGHTMAP_BUFWIDTH][LIGHTMAP_BUFWIDTH];
 } tLightmapBuffer;
 
-typedef struct tLightmapList {
-	CArray<tLightmapInfo>	info;
-	CArray<tLightmapBuffer>	buffers;
-	int							nBuffers;
-	int							nLights; 
-	ushort						nLightmaps;
-} tLightmapList;
-
 typedef struct tLightmapData {
-	int					nType;
-	int					nColor;
-	CFixVector			vNormal;
-	ushort				sideVerts [4]; 
-	CVertColorData		vcd;
-	tRgbColorb			texColor [MAX_LIGHTMAP_WIDTH * MAX_LIGHTMAP_WIDTH];
-	CFixVector			pixelPos [MAX_LIGHTMAP_WIDTH * MAX_LIGHTMAP_WIDTH]; 
-	double				fOffset [MAX_LIGHTMAP_WIDTH];
-	tFace				*faceP;
-	} tLightmapData;
-
-class CLightmapManager {
-	private:
-		tLightmapData	m_data;
-		tLightmapList	m_list;
-
-	public:
-		CLightmapManager () { Init (); } 
-		~CLightmapManager () { Destroy (); }
-		void Init (void);
-		void Destroy (void);
-		void RestoreLights (int bVariable);
-		int Bind (int nLightmap);
-		int BindAll (void);
-		void Release (void);
-		int Create (int nLevel);
-		void Build (int nThread);
-		void BuildAll (int nFace, int nThread);
-		int _CDECL_ Thread (void *pThreadId);
-		inline tLightmapBuffer* Buffer (uint i = 0) { return &m_list.buffers [i]; }
-		inline int HaveLightmaps (void) { return !gameStates.app.bNostalgia && (m_list.buffers.Buffer () != NULL); }
-
-	private:
-		int Init (int bVariable);
-		inline void ComputePixelPos (CFixVector *vPos, CFixVector v1, CFixVector v2, double fOffset);
-		double SideRad (int nSegment, int nSide);
-		int CountLights (int bVariable);
-		void Copy (tRgbColorb *texColorP, ushort nLightmap);
-		void CreateSpecial (tRgbColorb *texColorP, ushort nLightmap, ubyte nColor);
-		void Realloc (int nBuffers);
-		int Save (int nLevel);
-		int Load (int nLevel);
-		char* Filename (char *pszFilename, int nLevel);
-
-	};
-
-extern CLightmapManager lightmapManager;
+	tLightmapInfo		*info;
+	tLightmapBuffer	*buffers;
+	int					nBuffers;
+	int					nLights; 
+	ushort				nLightmaps;
+} tLightmapData;
 
 //------------------------------------------------------------------------------
 
+void RestoreLights (int bVariable);
+void ComputeOneLightmap (int nThread);
+int CreateLightmaps (int nLevel);
+void DestroyLightmaps (void);
+int OglCreateLightmap (int nLightmap);
+int OglCreateLightmaps (void);
+void OglDestroyLightmaps (void);
 
 #define	USE_LIGHTMAPS \
 			(gameStates.render.color.bLightmapsOk && \
@@ -105,10 +58,17 @@ extern CLightmapManager lightmapManager;
 
 //------------------------------------------------------------------------------
 
-//extern CTexture	*lightmaps;
+//extern tOglTexture	*lightmaps;
 extern tLightmapData		lightmapData;
 extern int					lightmapWidth [5];
 extern GLhandleARB		lmShaderProgs [3];
+
+//------------------------------------------------------------------------------
+
+static inline int HaveLightmaps (void)
+{
+return !gameStates.app.bNostalgia && (lightmapData.info != NULL);
+}
 
 //------------------------------------------------------------------------------
 

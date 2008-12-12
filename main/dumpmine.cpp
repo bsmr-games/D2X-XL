@@ -54,7 +54,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #ifdef EDITOR
 
 extern ubyte bogus_data[1024*1024];
-extern CBitmap bogus_bitmap;
+extern grsBitmap bogus_bitmap;
 
 // ----------------------------------------------------------------------------
 char	*objectTypes(int nObject)
@@ -247,17 +247,17 @@ void write_key_text(FILE *my_file)
 	for (i=0; i<=gameData.objs.nLastObject [0]; i++) {
 		if (OBJECTS[i].nType == OBJ_POWERUP)
 			if (OBJECTS[i].id == POW_KEY_BLUE) {
-				fprintf(my_file, "The BLUE key is CObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
+				fprintf(my_file, "The BLUE key is tObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
 				blueCount2++;
 			}
 		if (OBJECTS[i].nType == OBJ_POWERUP)
 			if (OBJECTS[i].id == POW_KEY_RED) {
-				fprintf(my_file, "The RED key is CObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
+				fprintf(my_file, "The RED key is tObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
 				redCount2++;
 			}
 		if (OBJECTS[i].nType == OBJ_POWERUP)
 			if (OBJECTS[i].id == POW_KEY_GOLD) {
-				fprintf(my_file, "The GOLD key is CObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
+				fprintf(my_file, "The GOLD key is tObject %i in tSegment %i\n", i, OBJECTS[i].nSegment);
 				goldCount2++;
 			}
 
@@ -265,15 +265,15 @@ void write_key_text(FILE *my_file)
 			if (OBJECTS[i].containsType == OBJ_POWERUP) {
 				switch (OBJECTS[i].containsId) {
 					case POW_KEY_BLUE:
-						fprintf(my_file, "The BLUE key is contained in CObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
+						fprintf(my_file, "The BLUE key is contained in tObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
 						blueCount2 += OBJECTS[i].containsCount;
 						break;
 					case POW_KEY_GOLD:
-						fprintf(my_file, "The GOLD key is contained in CObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
+						fprintf(my_file, "The GOLD key is contained in tObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
 						goldCount2 += OBJECTS[i].containsCount;
 						break;
 					case POW_KEY_RED:
-						fprintf(my_file, "The RED key is contained in CObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
+						fprintf(my_file, "The RED key is contained in tObject %i (a %s %s) in tSegment %i\n", i, szObjectTypeNames[OBJECTS[i].nType], gameData.bots.names[OBJECTS[i].id], OBJECTS[i].nSegment);
 						redCount2 += OBJECTS[i].containsCount;
 						break;
 					default:
@@ -326,7 +326,7 @@ void write_control_center_text(FILE *my_file)
 				nObject = OBJECTS[nObject].next;
 			}
 			if (count2 == 0)
-				fprintf(my_file, "No control center CObject in control center tSegment.\n");
+				fprintf(my_file, "No control center tObject in control center tSegment.\n");
 			else if (count2 != 1)
 				fprintf(my_file, "%i control center OBJECTS in control center tSegment.\n", count2);
 		}
@@ -506,7 +506,7 @@ void write_player_text(FILE *my_file)
 	for (i=0; i<=gameData.objs.nLastObject [0]; i++) {
 		if (OBJECTS[i].nType == OBJ_PLAYER) {
 			num_players++;
-			fprintf(my_file, "Player %2i is CObject #%3i in tSegment #%3i.\n", OBJECTS[i].id, i, OBJECTS[i].nSegment);
+			fprintf(my_file, "Player %2i is tObject #%3i in tSegment #%3i.\n", OBJECTS[i].id, i, OBJECTS[i].nSegment);
 		}
 	}
 
@@ -570,7 +570,7 @@ void write_game_text_file(char *filename)
 
 		sprintf( ErrorMessage, "ERROR: Unable to open %s\nErrno = %i", my_file, errno );
 		StopTime();
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		ExecMessageBox( NULL, 1, "Ok", ErrorMessage );
 		StartTime();
 
@@ -686,14 +686,14 @@ void determine_used_texturesLevel(int loadLevelFlag, int sharewareFlag, int leve
 
 	//	Process robots.
 	for (nObject=0; nObject<=gameData.objs.nLastObject [0]; nObject++) {
-		CObject *objP = &OBJECTS[nObject];
+		tObject *objP = &OBJECTS[nObject];
 
 		if (objP->info.renderType == RT_POLYOBJ) {
 			tPolyModel *po = &gameData.models.polyModels[objP->rType.polyObjInfo.nModel];
 
 			for (i=0; i<po->nTextures; i++) {
 
-				int	tli = gameData.pig.tex.objBmIndex[gameData.pig.tex.objBmIndexP[po->nFirstTexture+i]].index;
+				int	tli = gameData.pig.tex.objBmIndex[gameData.pig.tex.pObjBmIndex[po->nFirstTexture+i]].index;
 				if ((tli < MAX_BITMAP_FILES) && (tli >= 0)) {
 					tmap_buf[tli]++;
 					if (level_tmap_buf[tli] == -1)
@@ -726,7 +726,7 @@ void determine_used_texturesLevel(int loadLevelFlag, int sharewareFlag, int leve
 					for (j=0; j<1; j++) {	//	Used to do through nFrameCount, but don't really want all the door01#3 stuff.
 						int	nBaseTex;
 
-						nBaseTex = gameData.pig.tex.bmIndexP[gameData.walls.anims[nClip].frames[j]].index;
+						nBaseTex = gameData.pig.tex.pBmIndex[gameData.walls.anims[nClip].frames[j]].index;
 						Assert((nBaseTex >= 0) && (nBaseTex < MAX_BITMAP_FILES);
 						tmap_buf[nBaseTex]++;
 						if (level_tmap_buf[nBaseTex] == -1)
@@ -737,19 +737,19 @@ void determine_used_texturesLevel(int loadLevelFlag, int sharewareFlag, int leve
 
 				if (sideP->nBaseTex >= 0)
 					if (sideP->nBaseTex < MAX_BITMAP_FILES) {
-						Assert(gameData.pig.tex.bmIndexP[sideP->nBaseTex].index < MAX_BITMAP_FILES);
-						tmap_buf[gameData.pig.tex.bmIndexP[sideP->nBaseTex].index]++;
-						if (level_tmap_buf[gameData.pig.tex.bmIndexP[sideP->nBaseTex].index] == -1)
-							level_tmap_buf[gameData.pig.tex.bmIndexP[sideP->nBaseTex].index] = level_num;
+						Assert(gameData.pig.tex.pBmIndex[sideP->nBaseTex].index < MAX_BITMAP_FILES);
+						tmap_buf[gameData.pig.tex.pBmIndex[sideP->nBaseTex].index]++;
+						if (level_tmap_buf[gameData.pig.tex.pBmIndex[sideP->nBaseTex].index] == -1)
+							level_tmap_buf[gameData.pig.tex.pBmIndex[sideP->nBaseTex].index] = level_num;
 					} else
 						Int3();	//	Error, bogus texture map.  Should not be greater than max_tmap.
 
 				if ((sideP->nOvlTex) != 0)
 					if ((sideP->nOvlTex) < MAX_BITMAP_FILES) {
-						Assert(gameData.pig.tex.bmIndexP[sideP->nOvlTex].index < MAX_BITMAP_FILES);
-						tmap_buf[gameData.pig.tex.bmIndexP[sideP->nOvlTex].index]++;
-						if (level_tmap_buf[gameData.pig.tex.bmIndexP[sideP->nOvlTex].index] == -1)
-							level_tmap_buf[gameData.pig.tex.bmIndexP[sideP->nOvlTex].index] = level_num;
+						Assert(gameData.pig.tex.pBmIndex[sideP->nOvlTex].index < MAX_BITMAP_FILES);
+						tmap_buf[gameData.pig.tex.pBmIndex[sideP->nOvlTex].index]++;
+						if (level_tmap_buf[gameData.pig.tex.pBmIndex[sideP->nOvlTex].index] == -1)
+							level_tmap_buf[gameData.pig.tex.pBmIndex[sideP->nOvlTex].index] = level_num;
 					} else {
 						if (!Ignore_tmap_num2_error)
 							Int3();	//	Error, bogus texture map.  Should not be greater than max_tmap.
@@ -805,7 +805,7 @@ void say_used_tmaps(FILE *my_file, int *tb)
 // --05/17/95--				level_name = SharewareLevel_names[level_num];
 // --05/17/95--			}
 // --05/17/95--
-// --05/17/95--			fprintf(my_file, "Texture %3i %8s used only once on level %s\n", i, gameData.pig.tex.tMapInfoP[i].filename, level_name);
+// --05/17/95--			fprintf(my_file, "Texture %3i %8s used only once on level %s\n", i, gameData.pig.tex.pTMapInfo[i].filename, level_name);
 // --05/17/95--		}
 // --05/17/95--}
 
@@ -832,7 +832,7 @@ void say_unused_tmaps(FILE *my_file, int *tb)
 
 	for (i=0; i<MAX_BITMAP_FILES; i++)
 		if (!tb[i]) {
-			if (gameData.pig.tex.bitmaps[gameData.pig.tex.bmIndexP[i].index].texBuf == &bogus_data)
+			if (gameData.pig.tex.bitmaps[gameData.pig.tex.pBmIndex[i].index].bmTexBuf == &bogus_data)
 				fprintf(my_file, "U");
 			else
 				fprintf(my_file, " ");
@@ -933,7 +933,7 @@ void sayTotals_all(void)
 
 		sprintf( ErrorMessage, "ERROR: Unable to open levels.all\nErrno=%i", errno );
 		StopTime();
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		ExecMessageBox( NULL, 1, "Ok", ErrorMessage );
 		StartTime();
 
@@ -1006,7 +1006,7 @@ sayTotals_all();
 
 		sprintf( ErrorMessage, "ERROR: Can't open textures.dmp\nErrno=%i", errno);
 		StopTime();
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		ExecMessageBox( NULL, 1, "Ok", ErrorMessage );
 		StartTime();
 

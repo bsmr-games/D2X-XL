@@ -35,7 +35,7 @@ int nHostageVClips [MAX_HOSTAGE_TYPES] = {33};	// tVideoClip num for each tpye o
 
 //-------------- Renders a hostage --------------------------------------------
 
-void DrawHostage (CObject *objP)
+void DrawHostage (tObject *objP)
 {
 DrawObjectRodTexPoly (objP, gameData.eff.vClips [0][objP->rType.vClipInfo.nClipIndex].frames [objP->rType.vClipInfo.nCurFrame], 
 							 1, objP->rType.vClipInfo.nCurFrame);
@@ -47,7 +47,7 @@ gameData.render.nTotalSprites++;
 
 void RescueHostage (int nHostage)
 {
-paletteManager.BumpEffect(0, 0, 25);		//small blue flash
+PALETTE_FLASH_ADD(0, 0, 25);		//small blue flash
 LOCALPLAYER.hostages.nOnBoard++;
 // Do an audio effect
 if (gameData.demo.nState != ND_STATE_PLAYBACK)

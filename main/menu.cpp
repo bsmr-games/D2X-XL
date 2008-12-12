@@ -402,7 +402,7 @@ int MainMenu (void)
 
 IpxClose ();
 memset (m, 0, sizeof (m));
-//paletteManager.Load (MENU_PALETTE, NULL, 0, 1, 0);		//get correct palette
+//LoadPalette (MENU_PALETTE, NULL, 0, 1, 0);		//get correct palette
 
 if (!LOCALPLAYER.callsign [0]) {
 	SelectPlayer ();
@@ -432,7 +432,7 @@ do {
 		ExecMainMenuOption (nChoice);
 } while (gameStates.app.nFunctionMode == FMODE_MENU);
 if (gameStates.app.nFunctionMode == FMODE_GAME)
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 FlushInput ();
 StopPlayerMovement ();
 return mainOpts.nChoice;
@@ -451,7 +451,7 @@ for (h = j = 0; j < i; j++)
 		h += GetNumMovies (j);
 if (!h)
 	return;
-if (!(m = new char * [h]))
+if (!(m = (char **) D2_ALLOC (h * sizeof (char **))))
 	return;
 for (i = j = 0; i < h; i++)
 	if ((ps = CycleThroughMovies (i == 0, 0))) {
@@ -469,7 +469,7 @@ if (i > -1) {
 	PlayMovie (m [i], 1, 1, gameOpts->movies.bResize);
 	SDL_ShowCursor (1);
 	}
-delete[] m;
+D2_FREE (m);
 SongsPlayCurrentSong (1);
 }
 
@@ -484,7 +484,7 @@ static void PlayMenuSong (void)
 
 m [j++] = szSongTitles [0];
 for (i = 0; i < gameData.songs.nTotalSongs; i++) {
-	if (cf.Open (reinterpret_cast<char*> (gameData.songs.info [i].filename), gameFolders.szDataDir, "rb", i >= gameData.songs.nSongs [0])) {
+	if (cf.Open ((char *) gameData.songs.info [i].filename, gameFolders.szDataDir, "rb", i >= gameData.songs.nSongs [0])) {
 		cf.Close ();
 		if (i == gameData.songs.nSongs [0])
 			m [j++] = szSongTitles [1];
@@ -595,7 +595,7 @@ else if (nChoice == mainOpts.nLoadDirect) {
 	ExecMenu (NULL, "Enter level to load", 1, m, NULL, NULL);
 	nLevel = atoi (m->text);
 	if (nLevel && (nLevel >= gameData.missions.nLastSecretLevel) && (nLevel <= gameData.missions.nLastLevel)) {
-		paletteManager.FadeOut ();
+		GrPaletteFadeOut (NULL, 32, 0);
 		StartNewGame (nLevel);
 		}
 	}
@@ -618,7 +618,7 @@ else if (nChoice == mainOpts.nDemo) {
 		NDStartPlayback (demoFile);
 	}
 else if (nChoice == mainOpts.nScores) {
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	ScoresView (-1);
 	}
 else if (nChoice == mainOpts.nMovies) {
@@ -628,7 +628,7 @@ else if (nChoice == mainOpts.nSongs) {
 	PlayMenuSong ();
 	}
 else if (nChoice == mainOpts.nCredits) {
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	SongsStopAll ();
 	ShowCredits (NULL); 
 	}
@@ -645,7 +645,7 @@ else if (nChoice == mainOpts.nQuit) {
 #ifdef EDITOR
 	if (SafetyCheck ()) {
 #endif
-	paletteManager.FadeOut ();
+	GrPaletteFadeOut (NULL, 32, 0);
 	SetFunctionMode (FMODE_EXIT);
 #ifdef EDITOR
 	}
@@ -1526,7 +1526,7 @@ try_again:
 		return;
 	nNewLevel = atoi (m [1].text);
 	if ((nNewLevel <= 0) || (nNewLevel > nHighestPlayerLevel)) {
-		m [0].text = const_cast<char*> (TXT_ENTER_TO_CONT);
+		m [0].text = (char *) TXT_ENTER_TO_CONT;
 		ExecMessageBox (NULL, NULL, 1, TXT_OK, TXT_INVALID_LEVEL); 
 		goto try_again;
 	}
@@ -1535,7 +1535,7 @@ try_again:
 WritePlayerFile ();
 if (!DifficultyMenu ())
 	return;
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 if (!StartNewGame (nNewLevel))
 	SetFunctionMode (FMODE_MENU);
 }
@@ -1679,7 +1679,7 @@ if (gameStates.app.nDifficultyLevel != i) {
 WritePlayerFile ();
 if (optLevel > 0)
 	nLevel = atoi (m [optLevel].text);
-paletteManager.FadeOut ();
+GrPaletteFadeOut (NULL, 32, 0);
 if (!bMsnLoaded)
 	LoadMission (nMission);
 if (!StartNewGame (nLevel))
@@ -1697,7 +1697,7 @@ int ConfigMenuCallback (int nitems, tMenuItem * items, int *nLastKey, int nCurIt
 {
 if (gameStates.app.bNostalgia) {
 	if (nCurItem == optBrightness)
-		paletteManager.SetGamma (items [optBrightness].value);
+		GrSetPaletteGamma (items [optBrightness].value);
 	}
 return nCurItem;
 }
@@ -1981,7 +1981,7 @@ if (gameOpts->app.bExpertMode) {
 	v = m->value;
 	if (gameOpts->render.cockpit.nWindowSize != v) {
 		gameOpts->render.cockpit.nWindowSize = v;
-		m->text = const_cast<char*> (szCWS [v]);
+		m->text = (char *) szCWS [v];
 		m->rebuild = 1;
 		}
 
@@ -3354,7 +3354,7 @@ if (gameOpts->app.bExpertMode) {
 			}
 		}
 	m = menus + renderOpts.nWallTransp;
-	v = (FADE_LEVELS * m->value + 5) / 10;
+	v = (GR_ACTUAL_FADE_LEVELS * m->value + 5) / 10;
 	if (extraGameInfo [0].grWallTransparency != v) {
 		extraGameInfo [0].grWallTransparency = v;
 		sprintf (m->text, TXT_WALL_TRANSP, m->value * 10, '%');
@@ -3944,8 +3944,8 @@ int RenderOptionsCallback (int nitems, tMenuItem * menus, int * key, int nCurIte
 if (!gameStates.app.bNostalgia) {
 	m = menus + optBrightness;
 	v = m->value;
-	if (v != paletteManager.GetGamma ())
-		paletteManager.SetGamma (v);
+	if (v != GrGetPaletteGamma ())
+		GrSetPaletteGamma (v);
 	}
 m = menus + renderOpts.nMaxFPS;
 v = fpsTable [m->value];
@@ -3993,7 +3993,7 @@ if (gameOpts->app.bExpertMode) {
 			}
 		}
 	m = menus + renderOpts.nWallTransp;
-	v = (FADE_LEVELS * m->value + 5) / 10;
+	v = (GR_ACTUAL_FADE_LEVELS * m->value + 5) / 10;
 	if (extraGameInfo [0].grWallTransparency != v) {
 		extraGameInfo [0].grWallTransparency = v;
 		sprintf (m->text, TXT_WALL_TRANSP, m->value * 10, '%');
@@ -4048,7 +4048,7 @@ do {
 	nOptions = 0;
 	optPowerupOpts = optAutomapOpts = -1;
 	if (!gameStates.app.bNostalgia) {
-		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, paletteManager.GetGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
+		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, GrGetPaletteGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
 		optBrightness = nOptions++;
 		}
 	if (gameOpts->render.nMaxFPS > 1)
@@ -4089,7 +4089,7 @@ do {
 			}
 		ADD_TEXT (nOptions, "", 0);
 		nOptions++;
-		h = extraGameInfo [0].grWallTransparency * 10 / FADE_LEVELS;
+		h = extraGameInfo [0].grWallTransparency * 10 / GR_ACTUAL_FADE_LEVELS;
 		sprintf (szWallTransp + 1, TXT_WALL_TRANSP, h * 10, '%');
 		*szWallTransp = *(TXT_WALL_TRANSP - 1);
 		ADD_SLIDER (nOptions, szWallTransp + 1, h, 0, 10, KEY_T, HTX_ADVRND_WALLTRANSP);
@@ -4203,7 +4203,7 @@ do {
 			}
 		} while (i >= 0);
 	if (!gameStates.app.bNostalgia)
-		paletteManager.SetGamma (m [optBrightness].value);
+		GrSetPaletteGamma (m [optBrightness].value);
 	if (gameOpts->app.bExpertMode) {
 		gameOpts->render.color.bWalls = m [optColoredWalls].value;
 		GET_VAL (gameOpts->render.bDepthSort, optDepthSort);
@@ -4919,7 +4919,7 @@ do {
 	ADD_TEXT (nOptions, "", 0);
 	nOptions++;
 	if (gameStates.app.bNostalgia) {
-		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, paletteManager.GetGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
+		ADD_SLIDER (nOptions, TXT_BRIGHTNESS, GrGetPaletteGamma (), 0, 16, KEY_B, HTX_RENDER_BRIGHTNESS);
 		optBrightness = nOptions++;
 		}
 	
@@ -5068,7 +5068,7 @@ if (m [soundOpts.nRedbook].value != gameStates.sound.bRedbookEnabled) {
 			m [soundOpts.nRedbook].rebuild = 1;
 			}
 		}
-	m [soundOpts.nMusicVol].text = gameStates.sound.bRedbookEnabled ? const_cast<char*> (TXT_CD_VOLUME) : const_cast<char*> (TXT_MIDI_VOLUME);
+	m [soundOpts.nMusicVol].text = (char *) (gameStates.sound.bRedbookEnabled ? TXT_CD_VOLUME : TXT_MIDI_VOLUME);
 	m [soundOpts.nMusicVol].rebuild = 1;
 	}
 
@@ -5418,7 +5418,7 @@ return 1;
 
 static inline int MultiChoice (int nType, int bJoin)
 {
-return *(reinterpret_cast<int*> (&multiOpts) + 2 * nType + bJoin);
+return *(((int *) &multiOpts) + 2 * nType + bJoin);
 }
 
 void MultiplayerMenu ()
@@ -5573,12 +5573,12 @@ ExecMessageBox (TXT_SORRY, NULL, 1, TXT_OK, TXT_INV_ADDRESS);
  char *MENU_PCX_NAME (void)
 {
 if (CFile::Exist (MENU_PCX_FULL, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_FULL);
+	return (char *) MENU_PCX_FULL;
 if (CFile::Exist (MENU_PCX_OEM, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_OEM);
+	return (char *) MENU_PCX_OEM;
 if (CFile::Exist (MENU_PCX_SHAREWARE, gameFolders.szDataDir, 0))
-	return const_cast<char*> (MENU_PCX_SHAREWARE);
-return const_cast<char*> (MENU_PCX_MAC_SHARE);
+	return (char *) MENU_PCX_SHAREWARE;
+return (char *) MENU_PCX_MAC_SHARE;
 }
 //------------------------------------------------------------------------------
 //eof

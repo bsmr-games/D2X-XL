@@ -32,11 +32,11 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define GRID_SIZE				(gameData.render.terrain.nGridW * gameData.render.terrain.nGridH)
 #define GRID_OFFS(_i,_j)	((_i) * gameData.render.terrain.nGridW + (_j))
-#define HEIGHT(_i,_j)		(gameData.render.terrain.heightmap [GRID_OFFS (_i,_j)])
-#define LIGHT(_i,_j)			(gameData.render.terrain.lightmap [GRID_OFFS (_i,_j)])
+#define HEIGHT(_i,_j)		(gameData.render.terrain.pHeightmap [GRID_OFFS (_i,_j)])
+#define LIGHT(_i,_j)			(gameData.render.terrain.pLightmap [GRID_OFFS (_i,_j)])
 
-//!!#define HEIGHT (_i, _j)   gameData.render.terrain.heightmap [(gameData.render.terrain.nGridH - 1-j)*gameData.render.terrain.nGridW+ (_i)]
-//!!#define LIGHT (_i, _j)    gameData.render.terrain.lightmap [(gameData.render.terrain.nGridH - 1-j)*gameData.render.terrain.nGridW+ (_i)]
+//!!#define HEIGHT (_i, _j)   gameData.render.terrain.pHeightmap [(gameData.render.terrain.nGridH - 1-j)*gameData.render.terrain.nGridW+ (_i)]
+//!!#define LIGHT (_i, _j)    gameData.render.terrain.pLightmap [(gameData.render.terrain.nGridH - 1-j)*gameData.render.terrain.nGridW+ (_i)]
 
 #define LIGHTVAL(_i,_j) (((fix) LIGHT (_i,_j))) // << 8)
 
@@ -76,7 +76,7 @@ G3CheckAndDrawTMap (3, pointList, gameData.render.terrain.uvlList [0], gameData.
 if (gameData.render.terrain.bOutline) {
 	int lSave = gameStates.render.nLighting;
 	gameStates.render.nLighting = 0;
-	CCanvas::Current ()->SetColorRGB (255, 0, 0, 255);
+	GrSetColorRGB (255, 0, 0, 255);
 	G3DrawLine (pointList [0], pointList [1]);
 	G3DrawLine (pointList [2], pointList [0]);
 	gameStates.render.nLighting = lSave;
@@ -103,7 +103,7 @@ G3CheckAndDrawTMap (3, pointList, gameData.render.terrain.uvlList [1], gameData.
 if (gameData.render.terrain.bOutline) {
 	int lSave = gameStates.render.nLighting;
 	gameStates.render.nLighting=0;
-	CCanvas::Current ()->SetColorRGB (255, 128, 0, 255);
+	GrSetColorRGB (255, 128, 0, 255);
 	G3DrawLine (pointList [0], pointList [1]);
 	G3DrawLine (pointList [1], pointList [2]);
 	G3DrawLine (pointList [2], pointList [0]);
@@ -127,18 +127,18 @@ if (gameData.render.terrain.nMineTilesDrawn == 0xf) {
 
 //-----------------------------------------------------------------------------
 
-CFixVector yCache [256];
+vmsVector yCache [256];
 ubyte ycFlags [256];
 
 extern vmsMatrix mSurfaceOrient;
 
-CFixVector *get_dy_vec (int h)
+vmsVector *get_dy_vec (int h)
 {
-	CFixVector *dyp;
+	vmsVector *dyp;
 
 dyp = yCache + h;
 if (!ycFlags [h]) {
-	CFixVector tv = mSurfaceOrient[UVEC] * (h * TERRAIN_HEIGHT_SCALE);
+	vmsVector tv = mSurfaceOrient[UVEC] * (h * TERRAIN_HEIGHT_SCALE);
 	G3RotateDeltaVec (*dyp, tv);
 	ycFlags [h] = 1;
 	}
@@ -149,9 +149,9 @@ return dyp;
 
 int im=1;
 
-void RenderTerrain (CFixVector *vOrgPoint, int org_2dx, int org_2dy)
+void RenderTerrain (vmsVector *vOrgPoint, int org_2dx, int org_2dy)
 {
-	CFixVector	tv, delta_i, delta_j;		//delta_y;
+	vmsVector	tv, delta_i, delta_j;		//delta_y;
 	g3sPoint		p, p2, pLast, p2Last, pLowSave, pHighSave;
 	int			i, j, iLow, iHigh, jLow, jHigh, iViewer, jViewer;
 
@@ -179,10 +179,10 @@ gameData.render.terrain.vStartPoint = *vOrgPoint + mSurfaceOrient[RVEC] *
 gameData.render.terrain.vStartPoint += mSurfaceOrient[FVEC] *
 					(-(gameData.render.terrain.orgJ - jLow) * TERRAIN_GRID_SCALE);
 tv = gameData.objs.viewerP->info.position.vPos - gameData.render.terrain.vStartPoint;
-iViewer = CFixVector::Dot (tv, mSurfaceOrient[RVEC]) / TERRAIN_GRID_SCALE;
+iViewer = vmsVector::Dot (tv, mSurfaceOrient[RVEC]) / TERRAIN_GRID_SCALE;
 if (iViewer > iHigh)
 	iViewer = iHigh;
-jViewer = CFixVector::Dot (tv, mSurfaceOrient[FVEC]) / TERRAIN_GRID_SCALE;
+jViewer = vmsVector::Dot (tv, mSurfaceOrient[FVEC]) / TERRAIN_GRID_SCALE;
 if (jViewer > jHigh)
 	jViewer = jHigh;
 G3TransformAndEncodePoint (&pLast, gameData.render.terrain.vStartPoint);
@@ -273,9 +273,9 @@ for (i = iHigh - 1; i >= iViewer; i--) {
 
 void _CDECL_ FreeTerrainHeightmap (void)
 {
-if (gameData.render.terrain.heightmap.Buffer ()) {
+if (gameData.render.terrain.pHeightmap) {
 	PrintLog ("unloading terrain height map\n");
-	gameData.render.terrain.heightmap.Destroy ();
+	D2_FREE (gameData.render.terrain.pHeightmap);
 	}
 }
 
@@ -283,7 +283,7 @@ if (gameData.render.terrain.heightmap.Buffer ()) {
 
 void LoadTerrain (char *filename)
 {
-	CBitmap	bmHeight;
+	grsBitmap	bmHeight;
 	int			iff_error;
 	int			i, j;
 	ubyte			h, hMin, hMax;
@@ -298,16 +298,16 @@ if (iff_error != IFF_NO_ERROR) {
 #endif
 	Error ("File %s - IFF error: %s", filename, iff.ErrorMsg (iff_error));
 }
-if (gameData.render.terrain.heightmap.Buffer ())
-	gameData.render.terrain.heightmap.Destroy ();
+if (gameData.render.terrain.pHeightmap)
+	D2_FREE (gameData.render.terrain.pHeightmap)
 else
 	atexit (FreeTerrainHeightmap);		//first time
-gameData.render.terrain.nGridW = bmHeight.Width ();
-gameData.render.terrain.nGridH = bmHeight.Height ();
+gameData.render.terrain.nGridW = bmHeight.bmProps.w;
+gameData.render.terrain.nGridH = bmHeight.bmProps.h;
 Assert (gameData.render.terrain.nGridW <= TERRAIN_GRID_MAX_SIZE);
 Assert (gameData.render.terrain.nGridH <= TERRAIN_GRID_MAX_SIZE);
 PrintLog ("heightmap loaded, size=%dx%d\n", gameData.render.terrain.nGridW, gameData.render.terrain.nGridH);
-gameData.render.terrain.heightmap = bmHeight.Buffer ();
+gameData.render.terrain.pHeightmap = bmHeight.bmTexBuf;
 hMax = 0;
 hMin = 255;
 for (i = 0; i < gameData.render.terrain.nGridW; i++)
@@ -323,13 +323,14 @@ for (i = 0; i < gameData.render.terrain.nGridW; i++) {
 		HEIGHT (i, j) -= hMin;
 		}
 	}
+//	D2_FREE (bmHeight.bmTexBuf);
 gameData.render.terrain.bmP = gameData.endLevel.terrain.bmP;
 #if 0 //the following code turns the (palettized) terrain texture into a white TGA texture for testing
-gameData.render.terrain.bmP->props.rowSize *= 4;
-gameData.render.terrain.bmP->props.flags |= BM_FLAG_TGA;
-gameData.render.terrain.bmP->DestroyBuffer ();
-gameData.render.terrain.bmP->CreateBuffer (gameData.render.terrain.bmP->Height () * gameData.render.terrain.bmP->props.rowSize);
-gameData.render.terrain.bmP->Clear (0xFF);
+gameData.render.terrain.bmP->bmProps.rowSize *= 4;
+gameData.render.terrain.bmP->bmProps.flags |= BM_FLAG_TGA;
+D2_FREE (gameData.render.terrain.bmP->bmTexBuf);
+gameData.render.terrain.bmP->bmTexBuf = D2_ALLOC (gameData.render.terrain.bmP->bmProps.h * gameData.render.terrain.bmP->bmProps.rowSize);
+memset (gameData.render.terrain.bmP->bmTexBuf, 0xFF, gameData.render.terrain.bmP->bmProps.h * gameData.render.terrain.bmP->bmProps.rowSize);
 #endif
 PrintLog ("            building terrain light map\n");
 BuildTerrainLightmap ();
@@ -338,9 +339,9 @@ BuildTerrainLightmap ();
 
 //-----------------------------------------------------------------------------
 
-static void GetTerrainPoint (CFixVector *p, int i, int j)
+static void GetTerrainPoint (vmsVector *p, int i, int j)
 {
-if (!gameData.render.terrain.heightmap) {
+if (!gameData.render.terrain.pHeightmap) {
 	PrintLog ("no heightmap available\n");
 	return;
 	}
@@ -350,24 +351,24 @@ else if (i >= gameData.render.terrain.nGridW)
 	i = gameData.render.terrain.nGridW;
 if (j < 0)
 	j = 0;
-*p = gameData.render.terrain.points [GRID_OFFS (i, j)];
+*p = gameData.render.terrain.pPoints [GRID_OFFS (i, j)];
 }
 
 //-----------------------------------------------------------------------------
 
-static fix GetTerrainFaceLight (CFixVector *p0, CFixVector *p1, CFixVector *p2)
+static fix GetTerrainFaceLight (vmsVector *p0, vmsVector *p1, vmsVector *p2)
 {
-	static CFixVector vLightDir = CFixVector::Create(0x2e14, 0xe8f5, 0x5eb8);
-	CFixVector vNormal = CFixVector::Normal (*p0, *p1, *p2);
+	static vmsVector vLightDir = vmsVector::Create(0x2e14, 0xe8f5, 0x5eb8);
+	vmsVector vNormal = vmsVector::Normal (*p0, *p1, *p2);
 
-return -CFixVector::Dot (vNormal, vLightDir);
+return -vmsVector::Dot (vNormal, vLightDir);
 }
 
 //-----------------------------------------------------------------------------
 
 fix GetAvgTerrainLight (int i, int j)
 {
-	CFixVector	pp, p [6];
+	vmsVector	pp, p [6];
 	fix			light, totalLight;
 	int			n;
 
@@ -390,9 +391,9 @@ return totalLight / 6;
 
 void _CDECL_ FreeTerrainLightmap ()
 {
-if (gameData.render.terrain.lightmap.Buffer ()) {
+if (gameData.render.terrain.pLightmap) {
 	PrintLog ("unloading terrain light map\n");
-	gameData.render.terrain.lightmap.Destroy ();
+	D2_FREE (gameData.render.terrain.pLightmap);
 	}
 }
 
@@ -401,11 +402,11 @@ if (gameData.render.terrain.lightmap.Buffer ()) {
 void ComputeTerrainPoints (void)
 {
 	int			i, j;
-	CFixVector	*p = gameData.render.terrain.points.Buffer ();
+	vmsVector	*p = gameData.render.terrain.pPoints;
 
 for (i = 0; i < gameData.render.terrain.nGridW; i++) {
 	for (j = 0; j < gameData.render.terrain.nGridH; j++) {
-		p = gameData.render.terrain.points + GRID_OFFS (i, j);
+		p = gameData.render.terrain.pPoints + GRID_OFFS (i, j);
 		(*p)[X] = TERRAIN_GRID_SCALE * i;
 		(*p)[Z] = TERRAIN_GRID_SCALE * j;
 		(*p)[Y] = (fix) HEIGHT (i, j) * TERRAIN_HEIGHT_SCALE;
@@ -421,13 +422,13 @@ void BuildTerrainLightmap ()
 	fix l, l2, lMin = 0x7fffffff, lMax = 0;
 
 
-if (gameData.render.terrain.lightmap.Buffer ())
-	gameData.render.terrain.lightmap.Destroy ();
+if (gameData.render.terrain.pLightmap)
+	D2_FREE (gameData.render.terrain.pLightmap)
 else
 	atexit (FreeTerrainLightmap);		//first time
 
-gameData.render.terrain.points.Create (GRID_SIZE);
-gameData.render.terrain.lightmap.Create (GRID_SIZE);
+gameData.render.terrain.pPoints = (vmsVector *) D2_ALLOC (GRID_SIZE * sizeof (vmsVector));
+gameData.render.terrain.pLightmap = (fix *) D2_ALLOC (GRID_SIZE * sizeof (fix));
 ComputeTerrainPoints ();
 for (i = 0; i < gameData.render.terrain.nGridW; i++) {
 	for (j = 0; j < gameData.render.terrain.nGridH; j++) {
@@ -453,7 +454,7 @@ for (i = 0; i < gameData.render.terrain.nGridW; i++) {
 			}
 		}
 	}
-gameData.render.terrain.points.Destroy ();
+D2_FREE (gameData.render.terrain.pPoints);
 }
 
 //-----------------------------------------------------------------------------

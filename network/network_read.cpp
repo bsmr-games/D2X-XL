@@ -41,7 +41,7 @@ void NetworkReadEndLevelPacket (ubyte *dataP)
 {
 	// Special packet for end of level syncing
 	int nPlayer;
-	tEndLevelInfo *end = reinterpret_cast<tEndLevelInfo*> (dataP);
+	tEndLevelInfo *end = (tEndLevelInfo *)dataP;
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
 	int i, j;
 
@@ -77,7 +77,7 @@ void NetworkReadEndLevelShortPacket (ubyte *dataP)
 	int nPlayer;
 	tEndLevelInfoShort *end;
 
-end = reinterpret_cast<tEndLevelInfoShort*> (dataP);
+end = (tEndLevelInfoShort *)dataP;
 nPlayer = end->nPlayer;
 Assert (nPlayer != gameData.multiplayer.nLocalPlayer);
 if (nPlayer >= gameData.multiplayer.nPlayers) {
@@ -104,7 +104,7 @@ void NetworkReadSyncPacket (tNetgameInfo * sp, int rsinit)
 	tNetgameInfo	tmp_info;
 
 if ((gameStates.multi.nGameType >= IPX_GAME) && (sp != &netGame)) { // for macintosh -- get the values unpacked to our structure format
-	ReceiveFullNetGamePacket (reinterpret_cast<ubyte*> (sp), &tmp_info);
+	ReceiveFullNetGamePacket ((ubyte *)sp, &tmp_info);
 	sp = &tmp_info;
 	}
 #endif
@@ -113,11 +113,11 @@ if (rsinit)
 	tmpPlayersInfo = &netPlayers;
 	// This function is now called by all people entering the netgame.
 if (sp != &netGame) {
-	char *p = reinterpret_cast<char*> (sp);
+	char *p = (char *) sp;
 	ushort h;
 	int i, s;
 	for (i = 0, h = -1; i < (int) sizeof (tNetgameInfo) - 1; i++, p++) {
-		s = *reinterpret_cast<ushort*> (p);
+		s = *((ushort *) p);
 		if (s == networkData.nSegmentCheckSum) {
 			h = i;
 			break;
@@ -153,7 +153,7 @@ if (netGame.nSegmentCheckSum != networkData.nSegmentCheckSum) {
 		return;
 #endif
 	}
-// Discover my CPlayerData number
+// Discover my tPlayer number
 memcpy (szLocalCallSign, LOCALPLAYER.callsign, CALLSIGN_LEN+1);
 gameData.multiplayer.nLocalPlayer = -1;
 for (i = 0; i < MAX_NUM_NET_PLAYERS; i++)
@@ -177,11 +177,11 @@ for (i = 0, playerP = tmpPlayersInfo->players; i < gameData.multiplayer.nPlayers
 		memcpy (&server, playerP->network.ipx.server, 4);
 		if (server != 0)
 			IpxGetLocalTarget (
-				reinterpret_cast<ubyte*> (&server),
+				(ubyte *)&server,
 				tmpPlayersInfo->players [i].network.ipx.node,
 				gameData.multiplayer.players [i].netAddress);
 #else // WORDS_NEED_ALIGNMENT
-		if (*reinterpret_cast<uint*> (tmpPlayersInfo->players [i].network.ipx.server) != 0)
+		if ((* (uint *)tmpPlayersInfo->players [i].network.ipx.server) != 0)
 			IpxGetLocalTarget (
 				tmpPlayersInfo->players [i].network.ipx.server,
 				tmpPlayersInfo->players [i].network.ipx.node,
@@ -230,7 +230,7 @@ if (!networkData.nJoinState) {
 		GetPlayerSpawn (j, OBJECTS + gameData.multiplayer.players [i].nObject);
 		}
 	}
-OBJECTS [LOCALPLAYER.nObject].SetType (OBJ_PLAYER);
+SetObjectType (OBJECTS + LOCALPLAYER.nObject, OBJ_PLAYER);
 networkData.nStatus = (NetworkIAmMaster () || (networkData.nJoinState >= 4)) ? NETSTAT_PLAYING : NETSTAT_WAITING;
 SetFunctionMode (FMODE_GAME);
 networkData.bHaveSync = 1;
@@ -243,7 +243,7 @@ void NetworkReadPDataPacket (tFrameInfo *pd)
 {
 	int nTheirPlayer;
 	int theirObjNum;
-	CObject * theirObjP = NULL;
+	tObject * theirObjP = NULL;
 
 // tFrameInfo should be aligned...for mac, make the necessary adjustments
 #if defined (WORDS_BIGENDIAN) || defined (__BIG_ENDIAN__)
@@ -291,13 +291,13 @@ if (gameStates.app.bEndLevelSequence || (networkData.nStatus == NETSTAT_ENDLEVEL
 	gameStates.app.bEndLevelSequence = 1;
 	if (pd->dataSize > 0)
 		// pass pd->data to some parser function....
-		MultiProcessBigData (reinterpret_cast<char*> (pd->data), pd->dataSize);
+		MultiProcessBigData ((char *) pd->data, pd->dataSize);
 	gameStates.app.bEndLevelSequence = old_Endlevel_sequence;
 	return;
 	}
 if ((sbyte)pd->nLevel != gameData.missions.nCurrentLevel) {
 #if 1
-	con_printf (CONDBG, "Got frame packet from CPlayerData %d wrong level %d!\n", pd->nPlayer, pd->nLevel);
+	con_printf (CONDBG, "Got frame packet from tPlayer %d wrong level %d!\n", pd->nPlayer, pd->nLevel);
 #endif
 	return;
 	}
@@ -314,27 +314,27 @@ if  (pd->nPackets != gameData.multiplayer.players [nTheirPlayer].nPacketsGot) {
 #if 1
 	if (networkData.nMissedPackets > 0)
 		con_printf (0,
-			"Missed %d packets from CPlayerData #%d (%d total)\n",
+			"Missed %d packets from tPlayer #%d (%d total)\n",
 			pd->nPackets-gameData.multiplayer.players [nTheirPlayer].nPacketsGot,
 			nTheirPlayer,
 			networkData.nMissedPackets);
 	else
 		con_printf (CONDBG,
-			"Got %d late packets from CPlayerData #%d (%d total)\n",
+			"Got %d late packets from tPlayer #%d (%d total)\n",
 			gameData.multiplayer.players [nTheirPlayer].nPacketsGot-pd->nPackets,
 			nTheirPlayer,
 			networkData.nMissedPackets);
 #endif
 	gameData.multiplayer.players [nTheirPlayer].nPacketsGot = pd->nPackets;
 	}
-//------------ Read the CPlayerData's ship's CObject info ----------------------
+//------------ Read the tPlayer's ship's tObject info ----------------------
 theirObjP->info.position.vPos = pd->objPos;
 theirObjP->info.position.mOrient = pd->objOrient;
 theirObjP->mType.physInfo.velocity = pd->physVelocity;
 theirObjP->mType.physInfo.rotVel = pd->physRotVel;
 if ((theirObjP->info.renderType != pd->objRenderType) && (pd->objRenderType == RT_POLYOBJ))
 	MultiMakeGhostPlayer (nTheirPlayer);
-OBJECTS [theirObjNum].RelinkToSeg (pd->nObjSeg);
+RelinkObjToSeg (theirObjNum, pd->nObjSeg);
 if (theirObjP->info.movementType == MT_PHYSICS)
 	SetThrustFromVelocity (theirObjP);
 //------------ Welcome them back if reconnecting --------------
@@ -345,7 +345,7 @@ if (!gameData.multiplayer.players [nTheirPlayer].connected) {
 	MultiMakeGhostPlayer (nTheirPlayer);
 	CreatePlayerAppearanceEffect (OBJECTS + theirObjNum);
 	DigiPlaySample (SOUND_HUD_MESSAGE, F1_0);
-	ClipRank (reinterpret_cast<char*> (&netPlayers.players [nTheirPlayer].rank));
+	ClipRank ((char *) &netPlayers.players [nTheirPlayer].rank);
 	if (gameOpts->multi.bNoRankings)
 		HUDInitMessage ("'%s' %s", gameData.multiplayer.players [nTheirPlayer].callsign, TXT_REJOIN);
 	else
@@ -357,7 +357,7 @@ if (!gameData.multiplayer.players [nTheirPlayer].connected) {
 //------------ Parse the extra dataP at the end ---------------
 if (pd->dataSize > 0)
 	// pass pd->data to some parser function....
-	MultiProcessBigData (reinterpret_cast<char*> (pd->data), pd->dataSize);
+	MultiProcessBigData ((char *) pd->data, pd->dataSize);
 }
 
 //------------------------------------------------------------------------------
@@ -399,16 +399,16 @@ void NetworkReadPDataShortPacket (tFrameInfoShort *pd)
 {
 	int nTheirPlayer;
 	int theirObjNum;
-	CObject * theirObjP = NULL;
+	tObject * theirObjP = NULL;
 	tFrameInfoShort new_pd;
 
 // short frame info is not aligned because of tShortPos.  The mac
 // will call totally hacked and gross function to fix this up.
 
 if (gameStates.multi.nGameType >= IPX_GAME)
-	GetShortFrameInfo (reinterpret_cast<ubyte*> (pd), &new_pd);
+	GetShortFrameInfo ((ubyte *)pd, &new_pd);
 else
-	memcpy (&new_pd, reinterpret_cast<ubyte*> (pd), sizeof (tFrameInfoShort));
+	memcpy (&new_pd, (ubyte *)pd, sizeof (tFrameInfoShort));
 nTheirPlayer = new_pd.nPlayer;
 theirObjNum = gameData.multiplayer.players [new_pd.nPlayer].nObject;
 if (nTheirPlayer < 0) {
@@ -432,14 +432,14 @@ if (gameStates.app.bEndLevelSequence || (networkData.nStatus == NETSTAT_ENDLEVEL
 	gameStates.app.bEndLevelSequence = 1;
 	if (new_pd.dataSize > 0) {
 		// pass pd->data to some parser function....
-		MultiProcessBigData (reinterpret_cast<char*> (new_pd.data), new_pd.dataSize);
+		MultiProcessBigData ((char *) new_pd.data, new_pd.dataSize);
 		}
 	gameStates.app.bEndLevelSequence = old_Endlevel_sequence;
 	return;
 	}
 if ((sbyte)new_pd.nLevel != gameData.missions.nCurrentLevel) {
 #if 1
-	con_printf (CONDBG, "Got frame packet from CPlayerData %d wrong level %d!\n", new_pd.nPlayer, new_pd.nLevel);
+	con_printf (CONDBG, "Got frame packet from tPlayer %d wrong level %d!\n", new_pd.nPlayer, new_pd.nLevel);
 #endif
 	return;
 	}
@@ -455,20 +455,20 @@ if  (new_pd.nPackets != gameData.multiplayer.players [nTheirPlayer].nPacketsGot)
 #if 1
 	if (networkData.nMissedPackets > 0)
 		con_printf (CONDBG,
-			"Missed %d packets from CPlayerData #%d (%d total)\n",
+			"Missed %d packets from tPlayer #%d (%d total)\n",
 			new_pd.nPackets-gameData.multiplayer.players [nTheirPlayer].nPacketsGot,
 			nTheirPlayer,
 			networkData.nMissedPackets);
 	else
 		con_printf (CONDBG,
-			"Got %d late packets from CPlayerData #%d (%d total)\n",
+			"Got %d late packets from tPlayer #%d (%d total)\n",
 			gameData.multiplayer.players [nTheirPlayer].nPacketsGot-new_pd.nPackets,
 			nTheirPlayer,
 			networkData.nMissedPackets);
 #endif
 		gameData.multiplayer.players [nTheirPlayer].nPacketsGot = new_pd.nPackets;
 	}
-//------------ Read the CPlayerData's ship's CObject info ----------------------
+//------------ Read the tPlayer's ship's tObject info ----------------------
 ExtractShortPos (theirObjP, &new_pd.objPos, 0);
 if ((theirObjP->info.renderType != new_pd.objRenderType) && (new_pd.objRenderType == RT_POLYOBJ))
 	MultiMakeGhostPlayer (nTheirPlayer);
@@ -482,7 +482,7 @@ if (!gameData.multiplayer.players [nTheirPlayer].connected) {
 	MultiMakeGhostPlayer (nTheirPlayer);
 	CreatePlayerAppearanceEffect (OBJECTS + theirObjNum);
 	DigiPlaySample (SOUND_HUD_MESSAGE, F1_0);
-	ClipRank (reinterpret_cast<char*> (&netPlayers.players [nTheirPlayer].rank));
+	ClipRank ((char *) &netPlayers.players [nTheirPlayer].rank);
 	if (gameOpts->multi.bNoRankings)
 		HUDInitMessage ("'%s' %s", gameData.multiplayer.players [nTheirPlayer].callsign, TXT_REJOIN);
 	else
@@ -494,7 +494,7 @@ if (!gameData.multiplayer.players [nTheirPlayer].connected) {
 //------------ Parse the extra dataP at the end ---------------
 if (new_pd.dataSize>0) {
 	// pass pd->data to some parser function....
-	MultiProcessBigData (reinterpret_cast<char*> (new_pd.data), new_pd.dataSize);
+	MultiProcessBigData ((char *) new_pd.data, new_pd.dataSize);
 	}
 }
 
@@ -511,8 +511,8 @@ int NetworkVerifyPlayers (void)
 {
 	int		i, j, t, bCoop = IsCoopGame;
 	int		nPlayers, nPlayerObjs [MAX_PLAYERS], bHaveReactor = !bCoop;
-	CObject	*objP;
-	CPlayerData	*playerP;
+	tObject	*objP;
+	tPlayer	*playerP;
 
 for (j = 0, playerP = gameData.multiplayer.players; j < MAX_PLAYERS; j++, playerP++)
 	nPlayerObjs [j] = playerP->connected ? playerP->nObject : -1;
@@ -574,7 +574,7 @@ return -1;
 
 //------------------------------------------------------------------------------
 
-inline bool ObjectIsLinked (CObject *objP, short nSegment)
+inline bool ObjectIsLinked (tObject *objP, short nSegment)
 {
 if (nSegment != -1) {
 	short nObject = OBJ_IDX (objP);
@@ -596,8 +596,8 @@ void NetworkReadObjectPacket (ubyte *dataP)
 	static int		nMode = 0;
 	static short	objectCount = 0;
 
-	// Object from another net CPlayerData we need to sync with
-	CObject	*objP;
+	// Object from another net tPlayer we need to sync with
+	tObject	*objP;
 	short		nObject, nRemoteObj;
 	sbyte		nObjOwner;
 	short		nSegment, i;
@@ -629,7 +629,7 @@ else if (i < 0)
 	NW_GET_BYTE (dataP, bufI, nObjOwner);
 	NW_GET_SHORT (dataP, bufI, nRemoteObj);
 	if ((nObject == -1) || (nObject == -3)) {
-		// Clear CObject array
+		// Clear tObject array
 		nPlayer = nObjOwner;
 		ChangePlayerNumTo (nPlayer);
 		nMode = 1;
@@ -690,10 +690,10 @@ else if (i < 0)
 			if (objP->info.nSegment >= 0)
 				nDbgObj = OBJ_IDX (objP);
 #endif
-			objP->Unlink ();
+			UnlinkObject (objP);
 			while (ObjectIsLinked (objP, objP->info.nSegment))
-				objP->UnlinkFromSeg ();
-			NW_GET_BYTES (dataP, bufI, objP, sizeof (CObject));
+				UnlinkObjFromSeg (objP);
+			NW_GET_BYTES (dataP, bufI, objP, sizeof (tObject));
 			if (objP->info.nType != OBJ_NONE) {
 				if (gameStates.multi.nGameType >= IPX_GAME)
 					SwapObject (objP);
@@ -701,11 +701,11 @@ else if (i < 0)
 				PrintLog ("receiving object %d (type: %d, segment: %d)\n", nObject, objP->info.nType, nSegment);
 				objP->info.nNextInSeg = objP->info.nPrevInSeg = objP->info.nSegment = -1;
 				objP->info.nAttachedObj = -1;
-				objP->Link ();
+				LinkObject (objP);
 				if (nSegment < 0)
 					nSegment = FindSegByPos (objP->info.position.vPos, -1, 1, 0);
 				if (!ObjectIsLinked (objP, nSegment))
-					objP->LinkToSeg (nSegment);
+					LinkObjToSeg (OBJ_IDX (objP), nSegment);
 				if ((objP->info.nType == OBJ_PLAYER) || (objP->info.nType == OBJ_GHOST))
 					RemapLocalPlayerObject (nObject, nRemoteObj);
 				if (nObjOwner == nPlayer)
@@ -717,7 +717,7 @@ else if (i < 0)
 				}
 			}
 		} // For a standard onbject
-	} // For each CObject in packet
+	} // For each tObject in packet
 gameData.objs.nObjects = objectCount;
 //gameData.objs.nLastObject [0] = gameData.objs.nObjects - 1;
 }

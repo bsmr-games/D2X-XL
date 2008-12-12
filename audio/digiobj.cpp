@@ -35,8 +35,8 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define SOF_USED				1 		// Set if this sample is used
 #define SOF_PLAYING			2		// Set if this sample is playing on a channel
-#define SOF_LINK_TO_OBJ		4		// Sound is linked to a moving CObject. If CObject dies, then finishes play and quits.
-#define SOF_LINK_TO_POS		8		// Sound is linked to CSegment, pos
+#define SOF_LINK_TO_OBJ		4		// Sound is linked to a moving tObject. If tObject dies, then finishes play and quits.
+#define SOF_LINK_TO_POS		8		// Sound is linked to tSegment, pos
 #define SOF_PLAY_FOREVER	16		// Play bForever (or until level is stopped), otherwise plays once
 #define SOF_PERMANENT		32		// Part of the level, like a waterfall or fan
 
@@ -58,7 +58,7 @@ typedef struct tSoundObject {
 		struct {
 			short			nSegment;				// Used if SOF_LINK_TO_POS field is used
 			short			nSide;
-			CFixVector	position;
+			vmsVector	position;
 		} pos;
 		struct {
 			short			nObject;				// Used if SOF_LINK_TO_OBJ field is used
@@ -106,10 +106,10 @@ return 0;
 //------------------------------------------------------------------------------
 
 void DigiGetSoundLoc (
-	vmsMatrix *mListener, CFixVector *vListenerPos, short nListenerSeg, CFixVector *vSoundPos,
+	vmsMatrix *mListener, vmsVector *vListenerPos, short nListenerSeg, vmsVector *vSoundPos,
 	short nSoundSeg, fix maxVolume, int *volume, int *pan, fix maxDistance, int nDecay)
 {
-	CFixVector	vecToSound;
+	vmsVector	vecToSound;
 	fix 			angleFromEar, cosang, sinang;
 	fix			distance, pathDistance;
 	float			fDecay;
@@ -120,7 +120,7 @@ if (nDecay)
 	maxDistance *= 2;
 else
 	maxDistance = (5 * maxDistance) / 4;	// Make all sounds travel 1.25 times as far.
-distance = CFixVector::NormalizedDir (vecToSound, *vSoundPos, *vListenerPos);
+distance = vmsVector::NormalizedDir (vecToSound, *vSoundPos, *vListenerPos);
 if (distance < maxDistance) {
 	int nSearchSegs = X2I (maxDistance / 10);
 	if (nSearchSegs < 1)
@@ -141,7 +141,7 @@ if (distance < maxDistance) {
 		if (*volume <= 0)
 			*volume = 0;
 		else {
-			angleFromEar = CFixVector::DeltaAngleNorm((*mListener)[RVEC], vecToSound, &(*mListener)[UVEC]);
+			angleFromEar = vmsVector::DeltaAngleNorm((*mListener)[RVEC], vecToSound, &(*mListener)[UVEC]);
 			FixSinCos (angleFromEar, &sinang, &cosang);
 			if (gameConfig.bReverseChannels || gameOpts->sound.bHires)
 				cosang = -cosang;
@@ -193,7 +193,7 @@ else
 
 //------------------------------------------------------------------------------
 
-void DigiPlaySample3D (short nSound, int angle, int volume, int no_dups, CFixVector *vPos, const char *pszSound)
+void DigiPlaySample3D (short nSound, int angle, int volume, int no_dups, vmsVector *vPos, const char *pszSound)
 {
 
 	no_dups = 1;
@@ -312,7 +312,7 @@ DigiPlaySampleLoopingSub ();
 }
 
 //------------------------------------------------------------------------------
-//hack to not start CObject when loading level
+//hack to not start tObject when loading level
 
 void DigiStartSoundObject (int i)
 {
@@ -353,7 +353,7 @@ int DigiLinkSoundToObject3 (
 	short nOrgSound, short nObject, int bForever, fix maxVolume, fix maxDistance,
 	int nLoopStart, int nLoopEnd, const char *pszSound, int nDecay, int nSoundClass)
 {
-	CObject			*objP;
+	tObject			*objP;
 	tSoundObject 	*soP;
 	int				i, volume, pan;
 	short				nSound = 0;
@@ -445,7 +445,7 @@ return DigiLinkSoundToObject2 (nSound, nObject, bForever, maxVolume, 256 * F1_0,
 //------------------------------------------------------------------------------
 
 int DigiLinkSoundToPos2 (
-	short nOrgSound, short nSegment, short nSide, CFixVector * pos, int bForever,
+	short nOrgSound, short nSegment, short nSide, vmsVector * pos, int bForever,
 	fix maxVolume, fix maxDistance, const char *pszSound)
 {
 
@@ -519,7 +519,7 @@ return soP->nSignature;
 //------------------------------------------------------------------------------
 
 int DigiLinkSoundToPos (
-	short nSound, short nSegment, short nSide, CFixVector * pos, int bForever, fix maxVolume)
+	short nSound, short nSegment, short nSide, vmsVector * pos, int bForever, fix maxVolume)
 {
 return DigiLinkSoundToPos2 (nSound, nSegment, nSide, pos, bForever, maxVolume, F1_0 * 256, NULL);
 }
@@ -637,7 +637,7 @@ void DigiSyncSounds ()
 {
 	int				i, oldvolume, oldpan;
 	tSoundObject	*soP;
-	CObject			*objP;
+	tObject			*objP;
 
 if (gameData.demo.nState == ND_STATE_RECORDING)	{
 	if (!gameStates.sound.bWasRecording)
@@ -676,7 +676,7 @@ for (i = 0, soP = soundObjects; i < MAX_SOUND_OBJECTS; i++, soP++) {
 			else
 				objP = OBJECTS + soP->linkType.obj.nObject;
 			if ((objP->info.nType == OBJ_NONE) || (objP->info.nSignature != soP->linkType.obj.nObjSig)) {
-			// The CObject that this is linked to is dead, so just end this sound if it is looping.
+			// The tObject that this is linked to is dead, so just end this sound if it is looping.
 				if (soP->channel > -1)	{
 					if (soP->flags & SOF_PLAY_FOREVER)
 						DigiStopSound (soP->channel);
@@ -778,7 +778,7 @@ DigiResumeLoopingSound ();
 }
 
 //------------------------------------------------------------------------------
-// Called by the code in digi.c when another sound takes this sound CObject's
+// Called by the code in digi.c when another sound takes this sound tObject's
 // slot because the sound was done playing.
 void DigiEndSoundObj (int i)
 {

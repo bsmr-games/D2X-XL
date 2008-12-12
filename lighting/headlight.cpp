@@ -54,11 +54,11 @@ if (PlayerHasHeadlight (-1)) {
 #define	HEADLIGHT_SCALE			(F1_0*10)
 
 //	Flag array of OBJECTS lit last frame.  Guaranteed to process this frame if lit last frame.
-CObject	*Headlights [MAX_HEADLIGHTS];
+tObject	*Headlights [MAX_HEADLIGHTS];
 int		nHeadlights;
 fix		xBeamBrightness = (F1_0/2);	//global saying how bright the light beam is
 
-fix ComputeHeadlightLightOnObject (CObject *objP)
+fix ComputeHeadlightLightOnObject (tObject *objP)
 {
 	int	i;
 	fix	light;
@@ -68,13 +68,13 @@ if ((objP->info.nType != OBJ_ROBOT) && (objP->info.nType	!= OBJ_PLAYER))
 light = 0;
 for (i = 0; i < nHeadlights; i++) {
 	fix			dot, dist;
-	CFixVector	vecToObj;
-	CObject		*lightObjP;
+	vmsVector	vecToObj;
+	tObject		*lightObjP;
 	lightObjP = Headlights [i];
 	vecToObj = objP->info.position.vPos - lightObjP->info.position.vPos;
-	dist = CFixVector::Normalize(vecToObj);
+	dist = vmsVector::Normalize(vecToObj);
 	if (dist > 0) {
-		dot = CFixVector::Dot(lightObjP->info.position.mOrient[FVEC], vecToObj);
+		dot = vmsVector::Dot(lightObjP->info.position.mOrient[FVEC], vecToObj);
 		if (dot < F1_0/2)
 			light += FixDiv (HEADLIGHT_SCALE, FixMul (HEADLIGHT_SCALE, dist));	//	Do the Normal thing, but darken around headlight.
 		else
@@ -94,8 +94,8 @@ void TransformHeadlights (void)
 if (!gameData.render.lights.dynamic.headlights.nLights || gameStates.render.automap.bDisplay)
 	return;
 
-	CDynLight		*pl;
-	CShaderLight	*psl;
+	tDynLight		*pl;
+	tShaderLight	*psl;
 	int				i;
 	bool				bHWHeadlight = (gameStates.render.bPerPixelLighting == 2) || (gameStates.ogl.bHeadlight && gameOpts->ogl.bHeadlight);
 
@@ -122,7 +122,7 @@ for (i = 0; i < gameData.render.lights.dynamic.headlights.nLights; i++) {
 // To achive that, the direction is added to the original position and transformed,
 // and the transformed headlight position is subtracted from that.
 
-void SetupHeadlight (CDynLight *pl, CShaderLight *psl)
+void SetupHeadlight (tDynLight *pl, tShaderLight *psl)
 {
 gameData.render.lights.dynamic.headlights.pl [gameData.render.lights.dynamic.headlights.nLights] = pl;
 gameData.render.lights.dynamic.headlights.psl [gameData.render.lights.dynamic.headlights.nLights] = psl;
@@ -131,7 +131,7 @@ gameData.render.lights.dynamic.headlights.nLights++;
 
 //------------------------------------------------------------------------------
 
-int AddOglHeadlight (CObject *objP)
+int AddOglHeadlight (tObject *objP)
 {
 #if 0
 	static float spotExps [] = {12.0f, 5.0f, 0.0f};
@@ -140,7 +140,7 @@ int AddOglHeadlight (CObject *objP)
 
 if (gameOpts->render.nLightingMethod && (gameData.render.lights.dynamic.nHeadlights [objP->info.nId] < 0)) {
 		tRgbaColorf	c = {1.0f, 1.0f, 1.0f, 1.0f};
-		CDynLight	*pl;
+		tDynLight	*pl;
 		int			nLight;
 
 	nLight = AddDynLight (NULL, &c, F1_0 * 200, -1, -1, -1, -1, NULL);
@@ -161,7 +161,7 @@ return -1;
 
 //------------------------------------------------------------------------------
 
-void RemoveOglHeadlight (CObject *objP)
+void RemoveOglHeadlight (tObject *objP)
 {
 if (gameOpts->render.nLightingMethod && (gameData.render.lights.dynamic.nHeadlights [objP->info.nId] >= 0)) {
 	DeleteDynLight (gameData.render.lights.dynamic.nHeadlights [objP->info.nId]);
@@ -174,8 +174,8 @@ if (gameOpts->render.nLightingMethod && (gameData.render.lights.dynamic.nHeadlig
 
 void UpdateOglHeadlight (void)
 {
-	CDynLight	*pl;
-	CObject		*objP;
+	tDynLight	*pl;
+	tObject		*objP;
 	short			nPlayer;
 
 for (nPlayer = 0; nPlayer < MAX_PLAYERS; nPlayer++) {
@@ -799,7 +799,7 @@ if ((gameStates.ogl.bHeadlight = (gameStates.ogl.bShadersOk && RENDERPATH))) {
 				DeleteShaderProg (&headlightShaderProgs [i][j]);
 #if 1//ndef _DEBUG
 			if (nLights == 1)
-				pszFS = const_cast<char*> (headlightFS [i][h = j]);
+				pszFS = (char *) headlightFS [i][h = j];
 			else
 #endif
 				pszFS = BuildLightingShader (headlightFS [i][h = j + 4], nLights);
@@ -808,7 +808,7 @@ if ((gameStates.ogl.bHeadlight = (gameStates.ogl.bShadersOk && RENDERPATH))) {
 					CreateShaderFunc (&headlightShaderProgs [i][j], &lfs [i][j], &lvs [i][j], pszFS, headlightVS [i][h], 1) &&
 					LinkShaderProg (&headlightShaderProgs [i][j]);
 			if (pszFS && (nLights > 1))
-				delete[] pszFS;
+				D2_FREE (pszFS);
 			if (!bOk) {
 				DeleteHeadlightShader ();
 				nLights = 0;
@@ -852,25 +852,25 @@ if (nShader != gameStates.render.history.nShader) {
 	glUniform1f (glGetUniformLocation (activeShaderProg, "spotExp"), 8.0f);
 	glUniform1f (glGetUniformLocation (activeShaderProg, "grAlpha"), 1.0f);
 	glUniform1fv (glGetUniformLocation (activeShaderProg, "brightness"), nLights,
-					  reinterpret_cast<GLfloat*> (gameData.render.lights.dynamic.headlights.brightness));
+					  (GLfloat *) gameData.render.lights.dynamic.headlights.brightness);
 #	endif
-	//glUniform1f (glGetUniformLocation (activeShaderProg, "aspect"), (float) screen.Width () / (float) screen.Height ());
+	//glUniform1f (glGetUniformLocation (activeShaderProg, "aspect"), (float) grdCurScreen->scWidth / (float) grdCurScreen->scHeight);
 	//glUniform1f (glGetUniformLocation (activeShaderProg, "zoom"), 65536.0f / (float) gameStates.render.xZoom);
 #if 1
 	if ((bTransform = !nOglTransformCalls))
 		OglSetupTransform (1);
 	for (int i = 0; i < nLights; i++) {
 		glEnable (GL_LIGHT0 + i);
-		glLightfv (GL_LIGHT0 + i, GL_POSITION, reinterpret_cast<GLfloat*> (gameData.render.lights.dynamic.headlights.pos + i));
-		glLightfv (GL_LIGHT0 + i, GL_SPOT_DIRECTION, reinterpret_cast<GLfloat*> (gameData.render.lights.dynamic.headlights.dir + i));
+		glLightfv (GL_LIGHT0 + i, GL_POSITION, (GLfloat *) (gameData.render.lights.dynamic.headlights.pos + i));
+		glLightfv (GL_LIGHT0 + i, GL_SPOT_DIRECTION, (GLfloat *) (gameData.render.lights.dynamic.headlights.dir + i));
 		}
 	if (bTransform)
 		OglResetTransform (1);
 #else
 	glUniform3fv (glGetUniformLocation (activeShaderProg, "lightPosWorld"), nLights,
-					  reinterpret_cast<GLfloat*> (gameData.render.lights.dynamic.headlights.pos));
+					  (GLfloat *) gameData.render.lights.dynamic.headlights.pos);
 	glUniform3fv (glGetUniformLocation (activeShaderProg, "lightDirWorld"), nLights,
-					  reinterpret_cast<GLfloat*> (gameData.render.lights.dynamic.headlights.dir));
+					  (GLfloat *) gameData.render.lights.dynamic.headlights.dir);
 #endif
 #endif
 	if (colorP) {
@@ -883,7 +883,7 @@ if (nShader != gameStates.render.history.nShader) {
 		color.red = color.green = color.blue = 2.0f;
 		color.alpha = 1;
 		}
-	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, reinterpret_cast<GLfloat*> (&color));
+	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, (GLfloat *) &color);
 	OglClearError (0);
 	}
 return gameStates.render.history.nShader = nShader;

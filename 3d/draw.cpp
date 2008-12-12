@@ -35,7 +35,7 @@ tmap_drawer_fp tmap_drawer_ptr = draw_tmap;
 flat_drawer_fp flat_drawer_ptr = gr_upoly_tmap;
 line_drawer_fp line_drawer_ptr = GrLine;
 #else
-void (*tmap_drawer_ptr) (CBitmap *bm, int nv, g3sPoint **vertlist) = draw_tmap;
+void (*tmap_drawer_ptr) (grsBitmap *bm, int nv, g3sPoint **vertlist) = draw_tmap;
 void (*flat_drawer_ptr) (int nv, int *vertlist) = gr_upoly_tmap;
 int (*line_drawer_ptr) (fix x0, fix y0, fix x1, fix y1) = GrLine;
 #endif
@@ -57,24 +57,24 @@ else
 //------------------------------------------------------------------------------
 //returns true if a plane is facing the viewer. takes the unrotated surface
 //Normal of the plane, and a point on it.  The Normal need not be normalized
-int G3CheckNormalFacing(const CFixVector& pv, const CFixVector& pnorm)
+int G3CheckNormalFacing(const vmsVector& pv, const vmsVector& pnorm)
 {
-CFixVector v = viewInfo.pos - pv;
-return (CFixVector::Dot(v, pnorm) > 0);
+vmsVector v = viewInfo.pos - pv;
+return (vmsVector::Dot(v, pnorm) > 0);
 }
 
 //------------------------------------------------------------------------------
 
-int DoFacingCheck (CFixVector *norm, g3sPoint **vertlist, CFixVector *p)
+int DoFacingCheck (vmsVector *norm, g3sPoint **vertlist, vmsVector *p)
 {
 if (norm) {		//have Normal
 	return G3CheckNormalFacing (*p, *norm);
 	}
 else {	//Normal not specified, so must compute
-	CFixVector vTemp;
+	vmsVector vTemp;
 	//get three points (rotated) and compute Normal
-	vTemp = CFixVector::Perp(vertlist [0]->p3_vec, vertlist [1]->p3_vec, vertlist [2]->p3_vec);
-	return (CFixVector::Dot(vTemp, vertlist [1]->p3_vec) < 0);
+	vTemp = vmsVector::Perp(vertlist [0]->p3_vec, vertlist [1]->p3_vec, vertlist [2]->p3_vec);
+	return (vmsVector::Dot(vTemp, vertlist [1]->p3_vec) < 0);
 	}
 }
 
@@ -85,7 +85,7 @@ else {	//Normal not specified, so must compute
 //is passed, this function works like G3CheckNormalFacing () plus
 //G3DrawPoly ().
 //returns -1 if not facing, 1 if off screen, 0 if drew
-int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, CFixVector *norm, CFixVector *pnt)
+int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, vmsVector *norm, vmsVector *pnt)
 {
 	if (DoFacingCheck (norm, pointlist, pnt))
 		return G3DrawPoly (nv, pointlist);
@@ -96,7 +96,7 @@ int G3CheckAndDrawPoly (int nv, g3sPoint **pointlist, CFixVector *norm, CFixVect
 //------------------------------------------------------------------------------
 
 int G3CheckAndDrawTMap (
-	int nv, g3sPoint **pointlist, tUVL *uvl_list, CBitmap *bm, CFixVector *norm, CFixVector *pnt)
+	int nv, g3sPoint **pointlist, tUVL *uvl_list, grsBitmap *bm, vmsVector *norm, vmsVector *pnt)
 {
 if (DoFacingCheck (norm, pointlist, pnt))
 	return !G3DrawTexPoly (nv, pointlist, uvl_list, bm, norm, 1, -1);
@@ -131,7 +131,7 @@ int MustClipFlatFace (int nv, g3sCodes cc)
 			polyVertList[i*2+1] = I2X (p->p3_screen.y);
 		}
 
-		 (*flat_drawer_ptr) (nv, reinterpret_cast<int*> (polyVertList));
+		 (*flat_drawer_ptr) (nv, (int *)polyVertList);
 	}
 	else
 		ret=1;

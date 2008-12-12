@@ -59,48 +59,43 @@ else {
 
 //------------------------------------------------------------------------------
 
-int CSkyBox::CountSegments (void)
+int CountSkyBoxSegments (void)
 {
 	tSegment2	*seg2P;
 	int			i, nSegments;
 
-for (i = gameData.segs.nSegments, nSegments = 0, seg2P = SEGMENT2S.Buffer (); i; i--, seg2P++)
+for (i = gameData.segs.nSegments, nSegments = 0, seg2P = SEGMENT2S; i; i--, seg2P++)
 	if (seg2P->special == SEGMENT_IS_SKYBOX)
 		nSegments++;
 return nSegments;
 }
 
-
 //------------------------------------------------------------------------------
 
-void CSkyBox::Destroy (void)
+void FreeSkyBoxSegList (void)
 {
-CStack::Destroy ();
-gameStates.render.bHaveSkyBox = 0;
+D2_FREE (gameData.segs.skybox.segments);
 }
 
 //------------------------------------------------------------------------------
 
 int BuildSkyBoxSegList (void)
 {
-gameData.segs.skybox.Destroy ();
-
-short nSegments = gameData.segs.skybox.CountSegments ();
-
-if (!nSegments) {
-	return 0;
-
+FreeSkyBoxSegList ();
+if ((gameData.segs.skybox.nSegments = CountSkyBoxSegments ())) {
 	tSegment2	*seg2P;
+	short			*segP;
 	int			h, i;
 
-if (!(gameData.segs.skybox.Create (nSegments)))
+if (!(gameData.segs.skybox.segments = (short *) D2_ALLOC (gameData.segs.nSegments * sizeof (short))))
 	return 0;
-for (h = gameData.segs.nSegments, i = 0, seg2P = SEGMENT2S.Buffer (); i < h; i++, seg2P++)
+segP = gameData.segs.skybox.segments;
+for (h = gameData.segs.nSegments, i = 0, seg2P = SEGMENT2S; i < h; i++, seg2P++)
 	if (seg2P->special == SEGMENT_IS_SKYBOX)
-		gameData.segs.skybox.Push (i);
+		*segP++ = i;
 	}
-gameStates.render.bHaveSkyBox = (gameData.segs.skybox.ToS () > 0);
-return gameData.segs.skybox.ToS ();
+gameStates.render.bHaveSkyBox = (gameData.segs.skybox.nSegments > 0);
+return gameData.segs.skybox.nSegments;
 }
 
 //------------------------------------------------------------------------------

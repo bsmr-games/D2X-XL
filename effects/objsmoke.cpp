@@ -18,7 +18,6 @@
 #include "objeffects.h"
 #include "objrender.h"
 #include "objsmoke.h"
-#include "shrapnel.h"
 #include "automap.h"
 
 static tRgbaColorf smokeColors [3] = {
@@ -37,7 +36,7 @@ if ((nObject >= 0) && (particleManager.GetObjectSystem (nObject) >= 0)) {
 	DigiKillSoundLinkedToObject (nObject);
 	particleManager.SetLife (particleManager.GetObjectSystem (nObject), 0);
 	particleManager.SetObjectSystem (nObject, -1);
-	shrapnelManager.Destroy (OBJECTS + nObject);
+	DestroyShrapnels (OBJECTS + nObject);
 	}
 }
 
@@ -65,6 +64,7 @@ for (i = 0; i < MAX_PLAYERS; i++)
 void InitObjectSmoke (void)
 {
 particleManager.InitObjects ();
+memset (gameData.particles.objExplTime, 0xff, sizeof (*gameData.particles.objExplTime) * MAX_OBJECTS);
 }
 
 //------------------------------------------------------------------------------
@@ -92,8 +92,8 @@ return (int) ((double) rand () * (double) n / (double) RAND_MAX);
 void CreateDamageExplosion (int h, int i)
 {
 if (EGI_FLAG (bDamageExplosions, 1, 0, 0) &&
-	 (gameStates.app.nSDLTicks - *particleManager.ObjExplTime (i) > 100)) {
-	*particleManager.ObjExplTime (i) = gameStates.app.nSDLTicks;
+	 (gameStates.app.nSDLTicks - gameData.particles.objExplTime [i] > 100)) {
+	gameData.particles.objExplTime [i] = gameStates.app.nSDLTicks;
 	if (!RandN (11 - h))
 		CreateSmallFireballOnObject (OBJECTS + i, F1_0, 1);
 	}
@@ -101,11 +101,11 @@ if (EGI_FLAG (bDamageExplosions, 1, 0, 0) &&
 
 //------------------------------------------------------------------------------
 #if 0
-void CreateThrusterFlames (CObject *objP)
+void CreateThrusterFlames (tObject *objP)
 {
 	static int nThrusters = -1;
 
-	CFixVector	pos, dir = objP->info.position.mOrient[FVEC];
+	vmsVector	pos, dir = objP->info.position.mOrient[FVEC];
 	int			d, j;
 	tParticleEmitter		*emitterP;
 
@@ -132,7 +132,7 @@ for (j = 0; j < 2; j++)
 
 //------------------------------------------------------------------------------
 
-void KillPlayerBullets (CObject *objP)
+void KillPlayerBullets (tObject *objP)
 {
 	int	i = gameData.multiplayer.bulletEmitters [objP->info.nId];
 
@@ -144,7 +144,7 @@ if (i >= 0) {
 
 //------------------------------------------------------------------------------
 
-void KillGatlingSmoke (CObject *objP)
+void KillGatlingSmoke (tObject *objP)
 {
 	int	i = gameData.multiplayer.gatlingSmoke [objP->info.nId];
 
@@ -160,7 +160,7 @@ if (i >= 0) {
 #define BULLET_PART_LIFE	-2000
 #define BULLET_PART_SPEED	50
 
-void DoPlayerBullets (CObject *objP)
+void DoPlayerBullets (tObject *objP)
 {
 if (RENDERPATH && gameOpts->render.ship.bBullets) {
 		int	nModel = objP->rType.polyObjInfo.nModel;
@@ -179,7 +179,7 @@ if (RENDERPATH && gameOpts->render.ship.bBullets) {
 			if (bDoEffect) {
 					int			bSpectate = SPECTATOR (objP);
 					tTransformation	*posP = bSpectate ? &gameStates.app.playerPos : &objP->info.position;
-					CFixVector	vEmitter, vDir;
+					vmsVector	vEmitter, vDir;
 					vmsMatrix	m, *viewP;
 
 				if (bSpectate) {
@@ -218,7 +218,7 @@ if (RENDERPATH && gameOpts->render.ship.bBullets) {
 #define GATLING_PART_LIFE	-1000
 #define GATLING_PART_SPEED	30
 
-void DoGatlingSmoke (CObject *objP)
+void DoGatlingSmoke (tObject *objP)
 {
 	int	nModel = objP->rType.polyObjInfo.nModel;
 	int	bHires = G3HaveModel (nModel) - 1;
@@ -236,7 +236,7 @@ if (bHires >= 0) {
 		if (bDoEffect) {
 				int			bSpectate = SPECTATOR (objP);
 				tTransformation	*posP = bSpectate ? &gameStates.app.playerPos : &objP->info.position;
-				CFixVector	*vGunPoints, vEmitter, vDir;
+				vmsVector	*vGunPoints, vEmitter, vDir;
 				vmsMatrix	m, *viewP;
 
 			if (!(vGunPoints = GetGunPoints (objP, nGun)))
@@ -273,12 +273,12 @@ if (bHires >= 0) {
 
 //------------------------------------------------------------------------------
 
-void DoPlayerSmoke (CObject *objP, int i)
+void DoPlayerSmoke (tObject *objP, int i)
 {
 	int					h, j, d, nParts, nType;
 	float					nScale;
 	CParticleEmitter	*emitterP;
-	CFixVector			fn, mn, vDir, *vDirP;
+	vmsVector			fn, mn, vDir, *vDirP;
 	tThrusterInfo		ti;
 
 	static int	bForward = 1;
@@ -294,9 +294,9 @@ j = OBJ_IDX (objP);
 if (gameOpts->render.particles.bDecreaseLag && (i == gameData.multiplayer.nLocalPlayer)) {
 	fn = objP->info.position.mOrient [FVEC];
 	mn = objP->info.position.vPos - objP->info.vLastPos;
-	CFixVector::Normalize (fn);
-	CFixVector::Normalize (mn);
-	d = CFixVector::Dot(fn, mn);
+	vmsVector::Normalize (fn);
+	vmsVector::Normalize (mn);
+	d = vmsVector::Dot(fn, mn);
 	if (d >= -F1_0 / 2)
 		bForward = 1;
 	else {
@@ -363,7 +363,7 @@ else {
 			vDirP = &vDir;
 			}
 		if (0 > (h = particleManager.GetObjectSystem (j))) {
-			//PrintLog ("creating CPlayerData smoke\n");
+			//PrintLog ("creating tPlayer smoke\n");
 			h = particleManager.SetObjectSystem (j,
 					particleManager.Create (&objP->info.position.vPos, vDirP, NULL, objP->info.nSegment, 2, nParts, nScale,
 									 gameOpts->render.particles.nSize [1],
@@ -393,11 +393,11 @@ KillGatlingSmoke (objP);
 
 //------------------------------------------------------------------------------
 
-void DoRobotSmoke (CObject *objP)
+void DoRobotSmoke (tObject *objP)
 {
 	int			h = -1, i, nShields = 0, nParts;
 	float			nScale;
-	CFixVector	pos;
+	vmsVector	pos;
 
 i = OBJ_IDX (objP);
 if (!(SHOW_SMOKE && gameOpts->render.particles.bRobots)) {
@@ -449,10 +449,10 @@ else
 
 //------------------------------------------------------------------------------
 
-void DoReactorSmoke (CObject *objP)
+void DoReactorSmoke (tObject *objP)
 {
 	int			h = -1, i, nShields = 0, nParts;
-	CFixVector	vDir, vPos;
+	vmsVector	vDir, vPos;
 
 i = OBJ_IDX (objP);
 if (!(SHOW_SMOKE && gameOpts->render.particles.bRobots)) {
@@ -482,7 +482,7 @@ if (nParts > 0) {
 		vDir[X] = d_rand () - F1_0 / 4;
 		vDir[Y] = d_rand () - F1_0 / 4;
 		vDir[Z] = d_rand () - F1_0 / 4;
-		CFixVector::Normalize(vDir);
+		vmsVector::Normalize(vDir);
 		vPos = objP->info.position.vPos + vDir * (-objP->info.xSize / 2);
 		particleManager.SetPos (particleManager.GetObjectSystem (i), &vPos, NULL, objP->info.nSegment);
 		}
@@ -493,7 +493,7 @@ else
 
 //------------------------------------------------------------------------------
 
-void DoMissileSmoke (CObject *objP)
+void DoMissileSmoke (tObject *objP)
 {
 	int				nParts, nSpeed, nLife, i;
 	float				nScale = 1.5f;
@@ -542,11 +542,11 @@ else
 
 //------------------------------------------------------------------------------
 
-void DoDebrisSmoke (CObject *objP)
+void DoDebrisSmoke (tObject *objP)
 {
 	int			nParts, i;
 	float			nScale = 2;
-	CFixVector	pos;
+	vmsVector	pos;
 
 i = OBJ_IDX (objP);
 if (!(SHOW_SMOKE && gameOpts->render.particles.bDebris)) {
@@ -577,10 +577,10 @@ else
 
 //------------------------------------------------------------------------------
 
-void DoStaticParticles (CObject *objP)
+void DoStaticParticles (tObject *objP)
 {
 	int			i, j, bBubbles = objP->rType.particleInfo.nType == SMOKE_TYPE_BUBBLES;
-	CFixVector	pos, offs, dir;
+	vmsVector	pos, offs, dir;
 
 	static tRgbaColorf defaultColors [2] = {{0.5f, 0.5f, 0.5f, 0.0f}, {0.8f, 0.9f, 1.0f, 1.0f}};
 
@@ -629,10 +629,10 @@ if (objP->rType.particleInfo.nSide <= 0) {	//don't vary emitter position for smo
 
 //------------------------------------------------------------------------------
 
-void DoBombSmoke (CObject *objP)
+void DoBombSmoke (tObject *objP)
 {
 	int			nParts, i;
-	CFixVector	pos, offs;
+	vmsVector	pos, offs;
 
 if (gameStates.app.bNostalgia || !gameStates.app.bHaveExtraGameInfo [IsMultiGame])
 	return;
@@ -658,11 +658,11 @@ else
 
 //------------------------------------------------------------------------------
 
-void DoParticleTrail (CObject *objP)
+void DoParticleTrail (tObject *objP)
 {
 	int			nParts, i, id = objP->info.nId, bGatling = (id == VULCAN_ID) || (id == GAUSS_ID);
 	float			nScale;
-	CFixVector	pos;
+	vmsVector	pos;
 	tRgbaColorf	c;
 
 if (!(SHOW_OBJ_FX && (bGatling ? EGI_FLAG (bGatlingTrails, 1, 1, 0) : EGI_FLAG (bLightTrails, 1, 1, 0))))
@@ -721,9 +721,188 @@ pos = objP->info.position.vPos + objP->info.position.mOrient[FVEC] * (-objP->inf
 particleManager.SetPos (particleManager.GetObjectSystem (i), &pos, NULL, objP->info.nSegment);
 }
 
+// -----------------------------------------------------------------------------
+
+#define SHRAPNEL_MAX_PARTS			500
+#define SHRAPNEL_PART_LIFE			-1750
+#define SHRAPNEL_PART_SPEED		10
+
+static float fShrapnelScale [5] = {0, 5.0f / 3.0f, 2.5f, 10.0f / 3.0f, 5};
+
+int CreateShrapnels (tObject *parentObjP)
+{
+if (!SHOW_SMOKE)
+	return 0;
+if (!gameOpts->render.effects.nShrapnels)
+	return 0;
+if (parentObjP->info.nFlags & OF_ARMAGEDDON)
+	return 0;
+if ((parentObjP->info.nType != OBJ_PLAYER) && (parentObjP->info.nType != OBJ_ROBOT))
+	return 0;
+
+	tShrapnelData	*sdP;
+	tShrapnel		*shrapnelP;
+	vmsVector		vDir;
+	int				i, h = (int) (X2F (parentObjP->info.xSize) * fShrapnelScale [gameOpts->render.effects.nShrapnels] + 0.5);
+	short				nObject;
+	tObject			*objP;
+	tRgbaColorf		color = {1,1,1,0.5};
+
+nObject = CreateFireball (0, parentObjP->info.nSegment, parentObjP->info.position.vPos, 1, RT_SHRAPNELS);
+if (nObject < 0)
+	return 0;
+objP = OBJECTS + nObject;
+objP->info.xLifeLeft = 0;
+objP->cType.explInfo.nSpawnTime = -1;
+objP->cType.explInfo.nDeleteObj = -1;
+objP->cType.explInfo.nDeleteTime = -1;
+sdP = gameData.objs.shrapnels + nObject;
+h += d_rand () % h;
+if (!(sdP->shrapnels = (tShrapnel *) D2_ALLOC (h * sizeof (tShrapnel))))
+	return 0;
+sdP->nShrapnels = h;
+srand (gameStates.app.nSDLTicks);
+for (i = 0, shrapnelP = sdP->shrapnels; i < h; i++, shrapnelP++) {
+	if (i & 1) {
+		vDir [X] = -FixMul (vDir [X], F1_0 / 2 + d_rand ()) | 1;
+		vDir [Y] = -FixMul (vDir [Y], F1_0 / 2 + d_rand ());
+		vDir [Z] = -FixMul (vDir [Z], F1_0 / 2 + d_rand ());
+		vmsVector::Normalize (vDir);
+		}
+	else
+		vDir = vmsVector::Random ();
+	shrapnelP->vDir = vDir;
+	shrapnelP->vPos = parentObjP->info.position.vPos + vDir * (parentObjP->info.xSize / 4 + rand () % (parentObjP->info.xSize / 2));
+	shrapnelP->nTurn = 1;
+	shrapnelP->xSpeed = 3 * (F1_0 / 20 + rand () % (F1_0 / 20)) / 4;
+	shrapnelP->xLife =
+	shrapnelP->xTTL = 3 * F1_0 / 2 + rand ();
+	shrapnelP->tUpdate = gameStates.app.nSDLTicks;
+	if (objP->info.xLifeLeft < shrapnelP->xLife)
+		objP->info.xLifeLeft = shrapnelP->xLife;
+	shrapnelP->nSmoke = 
+		particleManager.Create (&shrapnelP->vPos, NULL, NULL, objP->info.nSegment, 1, -SHRAPNEL_MAX_PARTS,
+									   -PARTICLE_SIZE (1, 4), -1, 1, SHRAPNEL_PART_LIFE, SHRAPNEL_PART_SPEED, SMOKE_PARTICLES, 0x7fffffff, &color, 1, -1);
+	}
+objP->info.xLifeLeft *= 2;
+objP->cType.explInfo.nSpawnTime = -1;
+objP->cType.explInfo.nDeleteObj = -1;
+objP->cType.explInfo.nDeleteTime = -1;
+return 1;
+}
+
+// -----------------------------------------------------------------------------
+
+void DestroyShrapnels (tObject *objP)
+{
+if ((objP->info.nType != OBJ_FIREBALL) || (objP->info.renderType != RT_SHRAPNELS))
+	return;
+
+		tShrapnelData	*sdP = gameData.objs.shrapnels + OBJ_IDX (objP);
+
+if (sdP->shrapnels) {
+	int	i, h = sdP->nShrapnels;
+
+	sdP->nShrapnels = 0;
+	for (i = 0; i < h; i++)
+		if (sdP->shrapnels [i].nSmoke >= 0)
+			particleManager.SetLife (sdP->shrapnels [i].nSmoke, 0);
+	D2_FREE (sdP->shrapnels);
+	sdP->shrapnels = 0;
+	}
+objP->info.xLifeLeft = -1;
+}
+
+// -----------------------------------------------------------------------------
+
+void MoveShrapnel (tShrapnel *shrapnelP)
+{
+	fix			xSpeed = FixDiv (shrapnelP->xSpeed, 25 * F1_0 / 1000);
+	vmsVector	vOffs;
+	time_t		nTicks;
+
+if ((nTicks = gameStates.app.nSDLTicks - shrapnelP->tUpdate) < 25)
+	return;
+xSpeed = (fix) (xSpeed / gameStates.gameplay.slowmo [0].fSpeed);
+for (; nTicks >= 25; nTicks -= 25) {
+	if (--(shrapnelP->nTurn))
+		vOffs = shrapnelP->vOffs;
+	else {
+		shrapnelP->nTurn = ((shrapnelP->xTTL > F1_0 / 2) ? 2 : 4) + d_rand () % 4;
+		vOffs = shrapnelP->vDir;
+		vOffs [X] = FixMul (vOffs [X], 2 * d_rand ());
+		vOffs [Y] = FixMul (vOffs [Y], 2 * d_rand ());
+		vOffs [Z] = FixMul (vOffs [Z], 2 * d_rand ());
+		vmsVector::Normalize (vOffs);
+		shrapnelP->vOffs = vOffs;
+		}
+	vOffs *= xSpeed;
+	shrapnelP->vPos += vOffs;
+	}
+particleManager.SetPos (shrapnelP->nSmoke, &shrapnelP->vPos, NULL, -1);
+shrapnelP->tUpdate = gameStates.app.nSDLTicks - nTicks;
+}
+
+// -----------------------------------------------------------------------------
+
+void DrawShrapnel (tShrapnel *shrapnelP)
+{
+if ((shrapnelP->xTTL > 0) && LoadExplBlast ()) {
+	fix	xSize = F1_0 / 2 + d_rand () % (F1_0 / 4);
+	G3DrawSprite (shrapnelP->vPos, xSize, xSize, bmpExplBlast, NULL, X2F (shrapnelP->xTTL) / X2F (shrapnelP->xLife) / 2, 0, 0);
+	}
+}
+
+// -----------------------------------------------------------------------------
+
+void DrawShrapnels (tObject *objP)
+{
+	tShrapnelData	*sdP = gameData.objs.shrapnels + OBJ_IDX (objP);
+	tShrapnel		*shrapnelP = sdP->shrapnels;
+	int				i;
+
+for (i = sdP->nShrapnels; i; i--, shrapnelP++)
+	DrawShrapnel (shrapnelP);
+}
+
+// -----------------------------------------------------------------------------
+
+int UpdateShrapnels (tObject *objP)
+{
+	tShrapnelData	*sdP = gameData.objs.shrapnels + OBJ_IDX (objP);
+	tShrapnel		*shrapnelP = sdP->shrapnels;
+	int				h, i;
+
+#if 0
+if (!gameStates.app.tick40fps.bTick)
+	return 0;
+#endif
+if (objP->info.xLifeLeft > 0) {
+	for (i = 0, h = sdP->nShrapnels; i < h; ) {
+		if (shrapnelP->xTTL <= 0)
+			continue;
+		MoveShrapnel (shrapnelP);
+		if (0 < (shrapnelP->xTTL -= (fix) (SECS2X (gameStates.app.tick40fps.nTime) / gameStates.gameplay.slowmo [0].fSpeed))) {
+			shrapnelP++;
+			i++;
+			}
+		else {
+			particleManager.SetLife (shrapnelP->nSmoke, 0);
+			shrapnelP->nSmoke = -1;
+			if (i < --h)
+				*shrapnelP = sdP->shrapnels [h];
+			}
+		}
+	if ((sdP->nShrapnels = h))
+		return 1;
+	}
+DestroyShrapnels (objP);
+return 0;
+}
+
 //------------------------------------------------------------------------------
 
-int DoObjectSmoke (CObject *objP)
+int DoObjectSmoke (tObject *objP)
 {
 int t = objP->info.nType;
 #if 0
@@ -789,11 +968,11 @@ for (i = 0; i < gameData.multiplayer.nPlayers; i++)
 void ObjectParticleFrame (void)
 {
 	int		i;
-	CObject	*objP;
+	tObject	*objP;
 
 if (!SHOW_SMOKE)
 	return;
-for (i = 0, objP = OBJECTS.Buffer (); i <= gameData.objs.nLastObject [1]; i++, objP++) {
+for (i = 0, objP = OBJECTS; i <= gameData.objs.nLastObject [1]; i++, objP++) {
 	if (gameData.objs.bWantEffect [i] & DESTROY_SMOKE) {
 		gameData.objs.bWantEffect [i] &= ~DESTROY_SMOKE;
 		KillObjectSmoke (i);
@@ -809,13 +988,34 @@ for (i = 0, objP = OBJECTS.Buffer (); i <= gameData.objs.nLastObject [1]; i++, o
 
 void StaticParticlesFrame (void)
 {
-	CObject	*objP;
+	tObject	*objP;
 
 if (!SHOW_SMOKE)
 	return;
 FORALL_EFFECT_OBJS (objP, i) {
 	if (objP->info.nId == SMOKE_ID)
 		DoStaticParticles (objP);
+	}
+}
+
+//------------------------------------------------------------------------------
+
+void ShrapnelFrame (void)
+{
+	tObject	*objP;
+	int		i;
+
+if (!SHOW_SMOKE)
+	return;
+FORALL_STATIC_OBJS (objP, i)
+	if (objP->info.renderType == RT_SHRAPNELS)
+		UpdateShrapnels (objP);
+FORALL_ACTOR_OBJS (objP, i) {
+	i = OBJ_IDX (objP);
+	if (gameData.objs.bWantEffect [i] & SHRAPNEL_SMOKE) {
+		gameData.objs.bWantEffect [i] &= ~SHRAPNEL_SMOKE;
+		CreateShrapnels (objP);
+		}
 	}
 }
 
@@ -840,7 +1040,7 @@ if (!gameStates.render.bExternalView && (!IsMultiGame || IsCoopGame || EGI_FLAG 
 ObjectParticleFrame ();
 //StaticParticlesFrame ();
 SEM_LEAVE (SEM_SMOKE)
-shrapnelManager.DoFrame ();
+ShrapnelFrame ();
 particleManager.Update ();
 SEM_LEAVE (SEM_SMOKE)
 }

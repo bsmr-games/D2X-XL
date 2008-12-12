@@ -236,13 +236,13 @@ if (!(replacementModels [i].pszLores &&
 	return ++i;
 nModel = replacementModels [i].nModel;
 pm = ((gameStates.app.bFixModels && gameStates.app.bAltModels) ? gameData.models.altPolyModels : gameData.models.polyModels) + nModel;
-if (!ReadPolyModel (pm, 1, cf)) {
+if (!PolyModelRead (pm, 1, cf)) {
 	cf.Close ();
 	return ++i;
 	}
-pm->modelData.SetBuffer (NULL); 
-pm->modelData.SetBuffer (NULL);
-ReadPolyModelData (pm, nModel, gameData.models.defPolyModels + nModel, cf);
+pm->modelData = 
+pm->modelData = NULL;
+PolyModelDataRead (pm, nModel, gameData.models.defPolyModels + nModel, cf);
 cf.Close ();
 pm->rad = G3PolyModelSize (pm, nModel);
 do {
@@ -328,7 +328,7 @@ static int loadOp = 0;
 
 static int LoadModelsPoll (int nItems, tMenuItem *m, int *key, int nCurItem)
 {
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 if (loadOp == 0) {
 	loadIdx = LoadHiresModel (gameData.models.nHiresModels, loadIdx, 0);
 	if (loadIdx >= (int) sizeofa (replacementModels)) {
@@ -340,14 +340,14 @@ else if (loadOp == 1) {
 	loadIdx = LoadLoresModel (loadIdx);
 	if (loadIdx >= (int) sizeofa (replacementModels)) {
 		*key = -2;
-		paletteManager.LoadEffect  ();
+		GrPaletteStepLoad (NULL);
 		return nCurItem;
 		}
 	}
 m [0].value++;
 m [0].rebuild = 1;
 *key = 0;
-paletteManager.LoadEffect  ();
+GrPaletteStepLoad (NULL);
 return nCurItem;
 }
 

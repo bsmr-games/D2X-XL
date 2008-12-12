@@ -1074,7 +1074,7 @@ char *BuildLightingShader (const char *pszTemplate, int nLights)
 	int	l = (int) strlen (pszTemplate) + 1;
 	char	*pszFS, szLights [2];
 
-if (!(pszFS = new char [l]))
+if (!(pszFS = (char *) D2_ALLOC (l)))
 	return NULL;
 if (nLights > MAX_LIGHTS_PER_PIXEL)
 	nLights = MAX_LIGHTS_PER_PIXEL;
@@ -1127,7 +1127,7 @@ for (h = 0; h <= 3; h++) {
 		{
 		if (perPixelLightingShaderProgs [i][h])
 			continue;
-		if (lightmapManager.HaveLightmaps ()) {
+		if (HaveLightmaps ()) {
 			if (i) {
 				fsP = (i == 1) ? pszPP1LMLightingFS : pszPPXLMLightingFS;
 				vsP = pszPPLMLightingVS;
@@ -1157,8 +1157,8 @@ for (h = 0; h <= 3; h++) {
 					CreateShaderProg (perPixelLightingShaderProgs [i] + h) &&
 					CreateShaderFunc (perPixelLightingShaderProgs [i] + h, ppLfs [i] + h, ppLvs [i] + h, pszFS, pszVS, 1) &&
 					LinkShaderProg (perPixelLightingShaderProgs [i] + h);
-			delete[] pszFS;
-			delete[] pszVS;
+			D2_FREE (pszFS);
+			D2_FREE (pszVS);
 			if (!bOk) {
 				gameStates.ogl.bPerPixelLightingOk =
 				gameStates.render.bPerPixelLighting = 0;
@@ -1250,7 +1250,7 @@ memset (lightmapShaderProgs, 0, sizeof (lightmapShaderProgs));
 int CheckUsedLights2 (void);
 #endif
 
-int SetupHardwareLighting (tFace *faceP, int nType)
+int SetupHardwareLighting (grsFace *faceP, int nType)
 {
 PROF_START
 	int						nLightRange, nLights;
@@ -1260,10 +1260,10 @@ PROF_START
 	tRgbaColorf				black = {0,0,0,0};
 #endif
 	tRgbaColorf				specular = {0.5f,0.5f,0.5f,0.5f};
-	//CFloatVector					vPos = CFloatVector::Create(0,0,0,1);
+	//fVector					vPos = fVector::Create(0,0,0,1);
 	GLenum					hLight;
 	tActiveShaderLight	*activeLightsP;
-	CShaderLight			*psl;
+	tShaderLight			*psl;
 	tShaderLightIndex		*sliP = &gameData.render.lights.dynamic.shader.index [0][0];
 
 #if DBG
@@ -1331,7 +1331,7 @@ for (nLights = 0;
 		glLightf (hLight, GL_CONSTANT_ATTENUATION, 1.0f);
 		glLightf (hLight, GL_LINEAR_ATTENUATION, OBJ_LIN_ATT / fBrightness);
 		glLightf (hLight, GL_QUADRATIC_ATTENUATION, OBJ_QUAD_ATT / fBrightness);
-		glLightfv (hLight, GL_SPOT_DIRECTION, (GLfloat*) (&fVector3::ZERO));
+		glLightfv (hLight, GL_SPOT_DIRECTION, (GLfloat *) &fVector3::ZERO);
 		ambient.red = psl->info.color.red * PPL_AMBIENT_LIGHT;
 		ambient.green = psl->info.color.green * PPL_AMBIENT_LIGHT;
 		ambient.blue = psl->info.color.blue * PPL_AMBIENT_LIGHT;
@@ -1345,7 +1345,7 @@ for (nLights = 0;
 		glLightf (hLight, GL_CONSTANT_ATTENUATION, 1.0f);
 		glLightf (hLight, GL_LINEAR_ATTENUATION, GEO_LIN_ATT / fBrightness);
 		glLightf (hLight, GL_QUADRATIC_ATTENUATION, GEO_QUAD_ATT / fBrightness);
-		glLightfv (hLight, GL_SPOT_DIRECTION, reinterpret_cast<GLfloat*> (&psl->info.vDirf));
+		glLightfv (hLight, GL_SPOT_DIRECTION, (GLfloat *) &psl->info.vDirf);
 		ambient.red = psl->info.color.red * PPL_AMBIENT_LIGHT;
 		ambient.green = psl->info.color.green * PPL_AMBIENT_LIGHT;
 		ambient.blue = psl->info.color.blue * PPL_AMBIENT_LIGHT;
@@ -1356,10 +1356,10 @@ for (nLights = 0;
 		diffuse.blue = psl->info.color.blue * fBrightness;
 		diffuse.alpha = 1.0f;
 		}
-	glLightfv (hLight, GL_DIFFUSE, reinterpret_cast<GLfloat*> (&diffuse));
-	glLightfv (hLight, GL_SPECULAR, reinterpret_cast<GLfloat*> (&specular));
-	glLightfv (hLight, GL_AMBIENT, reinterpret_cast<GLfloat*> (&ambient));
-	glLightfv (hLight, GL_POSITION, reinterpret_cast<GLfloat*> (psl->vPosf));
+	glLightfv (hLight, GL_DIFFUSE, (GLfloat *) &diffuse);
+	glLightfv (hLight, GL_SPECULAR, (GLfloat *) &specular);
+	glLightfv (hLight, GL_AMBIENT, (GLfloat *) &ambient);
+	glLightfv (hLight, GL_POSITION, (GLfloat *) (psl->vPosf));
 	gameStates.ogl.iLight++;
 	}
 if (nLightRange <= 0) {
@@ -1385,10 +1385,10 @@ return -1;
 
 //------------------------------------------------------------------------------
 
-int G3SetupPerPixelShader (tFace *faceP, int bDepthOnly, int nType, bool bHeadlight)
+int G3SetupPerPixelShader (grsFace *faceP, int bDepthOnly, int nType, bool bHeadlight)
 {
 PROF_START
-	static CBitmap	*nullBmP = NULL;
+	static grsBitmap	*nullBmP = NULL;
 
 	int	bLightmaps, nLights, nShader;
 
@@ -1408,12 +1408,12 @@ nShader = 20 + 4 * nLights + nType;
 if (faceP && (faceP->nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide == nDbgSide)))
 	nDbgSeg = nDbgSeg;
 #endif
-if ((bLightmaps = lightmapManager.HaveLightmaps ())) {
+if ((bLightmaps = HaveLightmaps ())) {
 	int i = faceP->nLightmap / LIGHTMAP_BUFSIZE;
 #if 1//def _DEBUG
-	if (lightmapManager.Bind (i))
+	if (OglCreateLightmap (i))
 #endif
-		{INIT_TMU (InitTMU0, GL_TEXTURE0, nullBmP, lightmapManager.Buffer (i), 1, 1);}
+		{INIT_TMU (InitTMU0, GL_TEXTURE0, nullBmP, lightmapData.buffers + i, 1, 1);}
 	}
 if (nShader != gameStates.render.history.nShader) {
 	gameData.render.nShaderChanges++;
@@ -1434,7 +1434,7 @@ if (nShader != gameStates.render.history.nShader) {
 		}
 	}
 if (!nType)
-	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, reinterpret_cast<GLfloat*> (&faceP->color));
+	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, (GLfloat *) &faceP->color);
 #if CONST_LIGHT_COUNT
 glUniform1f (glGetUniformLocation (activeShaderProg, "nLights"), (GLfloat) nLights);
 #endif
@@ -1451,10 +1451,10 @@ return gameStates.render.history.nShader = nShader;
 
 //------------------------------------------------------------------------------
 
-int G3SetupLightmapShader (tFace *faceP, int bDepthOnly, int nType, bool bHeadlight)
+int G3SetupLightmapShader (grsFace *faceP, int bDepthOnly, int nType, bool bHeadlight)
 {
 PROF_START
-	static CBitmap	*nullBmP = NULL;
+	static grsBitmap	*nullBmP = NULL;
 
 	int	nShader;
 
@@ -1468,8 +1468,8 @@ if (faceP && (faceP->nSegment == nDbgSeg) && ((nDbgSide < 0) || (faceP->nSide ==
 	nDbgSeg = nDbgSeg;
 #endif
 int i = faceP->nLightmap / LIGHTMAP_BUFSIZE;
-if (lightmapManager.Bind (i))
-	{INIT_TMU (InitTMU0, GL_TEXTURE0, nullBmP, lightmapManager.Buffer (i), 1, 1);}
+if (OglCreateLightmap (i))
+	{INIT_TMU (InitTMU0, GL_TEXTURE0, nullBmP, lightmapData.buffers + i, 1, 1);}
 if (nShader != gameStates.render.history.nShader) {
 	gameData.render.nShaderChanges++;
 #if CONST_LIGHT_COUNT
@@ -1488,7 +1488,7 @@ if (nShader != gameStates.render.history.nShader) {
 		}
 	}
 if (!nType)
-	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, reinterpret_cast<GLfloat*> (&faceP->color));
+	glUniform4fv (glGetUniformLocation (activeShaderProg, "matColor"), 1, (GLfloat *) &faceP->color);
 OglClearError (0);
 PROF_END(ptShaderStates)
 return gameStates.render.history.nShader = nShader;
@@ -1501,13 +1501,13 @@ int G3SetupGrayScaleShader (int nType, tRgbaColorf *colorP)
 if (gameStates.render.textures.bHaveGrayScaleShader) {
 	if (nType > 2)
 		nType = 2;
-	int bLightmaps = lightmapManager.HaveLightmaps ();
+	int bLightmaps = HaveLightmaps ();
 	int nShader = 90 + 3 * bLightmaps + nType;
 	if (gameStates.render.history.nShader != nShader) {
 		gameData.render.nShaderChanges++;
 		glUseProgramObject (activeShaderProg = gsShaderProg [bLightmaps][nType]);
 		if (!nType)
-			glUniform4fv (glGetUniformLocation (activeShaderProg, "faceColor"), 1, reinterpret_cast<GLfloat*> (colorP));
+			glUniform4fv (glGetUniformLocation (activeShaderProg, "faceColor"), 1, (GLfloat *) colorP);
 		else {
 			glUniform1i (glGetUniformLocation (activeShaderProg, "baseTex"), bLightmaps);
 			if (nType > 1)

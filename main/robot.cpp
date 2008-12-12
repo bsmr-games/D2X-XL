@@ -27,14 +27,65 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define deg(a) ((int) (a) * 32768 / 180)
 
+#if 0
+//test data for one robot
+tJointPos test_joints [MAX_ROBOT_JOINTS] = {
+
+//gun 0
+	{2,vmsAngVec::Create(deg(-30),0,0)},         //rest (2 joints)
+	{3,vmsAngVec::Create(deg(-40),0,0)},
+
+	{2,vmsAngVec::Create(deg(0),0,0)},           //alert
+	{3,vmsAngVec::Create(deg(0),0,0)},
+
+	{2,vmsAngVec::Create(deg(0),0,0)},           //fire
+	{3,vmsAngVec::Create(deg(0),0,0)},
+
+	{2,vmsAngVec::Create(deg(50),0,0)},          //recoil
+	{3,vmsAngVec::Create(deg(-50),0,0)},
+
+	{2,vmsAngVec::Create(deg(10),0,deg(70))},    //flinch
+	{3,vmsAngVec::Create(deg(0),deg(20),0)},
+
+//gun 1
+	{4,vmsAngVec::Create(deg(-30),0,0)},         //rest (2 joints)
+	{5,vmsAngVec::Create(deg(-40),0,0)},
+
+	{4,vmsAngVec::Create(deg(0),0,0)},           //alert
+	{5,vmsAngVec::Create(deg(0),0,0)},
+
+	{4,vmsAngVec::Create(deg(0),0,0)},           //fire
+	{5,vmsAngVec::Create(deg(0),0,0)},
+
+	{4,vmsAngVec::Create(deg(50),0,0)},          //recoil
+	{5,vmsAngVec::Create(deg(-50),0,0)},
+
+	{4,vmsAngVec::Create(deg(20),0,deg(-50))},   //flinch
+	{5,vmsAngVec::Create(deg(0),0,deg(20))},
+
+//rest of body (the head)
+
+	{1,vmsAngVec::Create(deg(70),0,0)},          //rest (1 joint, head)
+
+	{1,vmsAngVec::Create(deg(0),0,0)},           //alert
+
+	{1,vmsAngVec::Create(deg(0),0,0)},           //fire
+
+	{1,vmsAngVec::Create(deg(0),0,0)},           //recoil
+
+	{1,vmsAngVec::Create(deg(-20),deg(15),0)},   //flinch
+
+};
+#endif
+
 //	-----------------------------------------------------------------------------------------------------------
-//given an CObject and a gun number, return position in 3-space of gun
+//given an tObject and a gun number, return position in 3-space of gun
 //fills in gun_point
-int CalcGunPoint (CFixVector *vGunPoint, CObject *objP, int nGun)
+int CalcGunPoint (vmsVector *vGunPoint, tObject *objP, int nGun)
 {
 	tPolyModel	*pm = gameData.models.polyModels + objP->rType.polyObjInfo.nModel;
 	tRobotInfo	*botInfoP;
-	CFixVector	*vGunPoints, vGunPos, vRot;
+	vmsVector	*vGunPoints, vGunPos, vRot;
 	vmsMatrix	m;
 	int			nSubModel;				//submodel number
 
@@ -54,7 +105,7 @@ while (nSubModel != 0) {
 	vGunPos = vRot + pm->subModels.offsets[nSubModel];
 	nSubModel = pm->subModels.parents [nSubModel];
 	}
-//now instance for the entire CObject
+//now instance for the entire tObject
 //VmVecInc (&vGunPos, gameData.models.offsets + botInfoP->nModel);
 *vGunPoint = *ObjectView(objP) * vGunPos;
 *vGunPoint += objP->info.position.vPos;
@@ -63,7 +114,7 @@ return 1;
 
 //	-----------------------------------------------------------------------------------------------------------
 //fills in ptr to list of joints, and returns the number of joints in list
-//takes the robot nType (CObject id), gun number, and desired state
+//takes the robot nType (tObject id), gun number, and desired state
 int RobotGetAnimState (tJointPos **jointPosP, int robotType, int nGun, int state)
 {
 Assert(nGun <= ROBOTINFO (robotType).nGuns);
@@ -74,7 +125,7 @@ return ROBOTINFO (robotType).animStates[nGun][state].n_joints;
 
 //	-----------------------------------------------------------------------------------------------------------
 //for test, set a robot to a specific state
-void setRobotState (CObject *objP, int state)
+void setRobotState(tObject *objP,int state)
 {
 	int g,j,jo;
 	tRobotInfo *ri;
@@ -104,7 +155,7 @@ void setRobotState (CObject *objP, int state)
 //	-----------------------------------------------------------------------------------------------------------
 //set the animation angles for this robot.  Gun fields of robot info must
 //be filled in.
-void SetRobotAngles (tRobotInfo *r, tPolyModel *pm, vmsAngVec angs [N_ANIM_STATES][MAX_SUBMODELS])
+void robot_set_angles(tRobotInfo *r,tPolyModel *pm,vmsAngVec angs[N_ANIM_STATES][MAX_SUBMODELS])
 {
 	int m,g,state;
 	int nGunCounts [MAX_SUBMODELS];			//which gun each submodel is part of
@@ -143,7 +194,8 @@ for (g = 0; g < r->nGuns + 1; g++) {
 void InitCamBots (int bReset)
 {
 	tRobotInfo&	camBotInfo = gameData.bots.info [0][gameData.bots.nCamBotId];
-	CObject		*objP;
+	tObject		*objP;
+	int			i;
 
 if ((gameData.bots.nCamBotId < 0) || gameStates.app.bD1Mission)
 	return;
@@ -201,89 +253,103 @@ if (gameData.bots.nCamBotId >= 0) {
 /*
  * reads n jointlist structs from a CFile
  */
-static int ReadJointLists (jointlist *jl, int n, CFile& cf)
+static int JointListReadN(jointlist *jl, int n, CFile& cf)
 {
 	int i;
 
-for (i = 0; i < n; i++) {
-	jl [i].n_joints = cf.ReadShort ();
-	jl [i].offset = cf.ReadShort ();
+	for (i = 0; i < n; i++) {
+		jl[i].n_joints = cf.ReadShort ();
+		jl[i].offset = cf.ReadShort ();
 	}
-return i;
+	return i;
 }
 
 //	-----------------------------------------------------------------------------------------------------------
 /*
  * reads n tRobotInfo structs from a CFile
  */
-int ReadRobotInfos (CArray<tRobotInfo>& pri, int n, CFile& cf, int o)
+int RobotInfoReadN(tRobotInfo *pri, int n, CFile& cf)
 {
-	int h, i, j;
+	int i, j;
 
-for (i = 0; i < n; i++) {
-	h = i + o;
-	pri [h].nModel = cf.ReadInt ();
+for (i = 0; i < n; i++, pri++) {
+	pri->nModel = cf.ReadInt ();
 	for (j = 0; j < MAX_GUNS; j++)
-		cf.ReadVector(pri [h].gunPoints[j]);
-	cf.Read(pri [h].gunSubModels, MAX_GUNS, 1);
+		cf.ReadVector(pri->gunPoints[j]);
+	cf.Read(pri->gunSubModels, MAX_GUNS, 1);
 
-	pri [h].nExp1VClip = cf.ReadShort ();
-	pri [h].nExp1Sound = cf.ReadShort ();
-	pri [h].nExp2VClip = cf.ReadShort ();
-	pri [h].nExp2Sound = cf.ReadShort ();
-	pri [h].nWeaponType = cf.ReadByte ();
-	pri [h].nSecWeaponType = cf.ReadByte ();
-	pri [h].nGuns = cf.ReadByte ();
-	pri [h].containsId = cf.ReadByte ();
-	pri [h].containsCount = cf.ReadByte ();
-	pri [h].containsProb = cf.ReadByte ();
-	pri [h].containsType = cf.ReadByte ();
-	pri [h].kamikaze = cf.ReadByte ();
-	pri [h].scoreValue = cf.ReadShort ();
-	pri [h].badass = cf.ReadByte ();
-	pri [h].energyDrain = cf.ReadByte ();
-	pri [h].lighting = cf.ReadFix ();
-	pri [h].strength = cf.ReadFix ();
-	pri [h].mass = cf.ReadFix ();
-	pri [h].drag = cf.ReadFix ();
+	pri->nExp1VClip = cf.ReadShort ();
+	pri->nExp1Sound = cf.ReadShort ();
+
+	pri->nExp2VClip = cf.ReadShort ();
+	pri->nExp2Sound = cf.ReadShort ();
+
+	pri->nWeaponType = cf.ReadByte ();
+	pri->nSecWeaponType = cf.ReadByte ();
+	pri->nGuns = cf.ReadByte ();
+	pri->containsId = cf.ReadByte ();
+
+	pri->containsCount = cf.ReadByte ();
+	pri->containsProb = cf.ReadByte ();
+	pri->containsType = cf.ReadByte ();
+	pri->kamikaze = cf.ReadByte ();
+
+	pri->scoreValue = cf.ReadShort ();
+	pri->badass = cf.ReadByte ();
+	pri->energyDrain = cf.ReadByte ();
+
+	pri->lighting = cf.ReadFix ();
+	pri->strength = cf.ReadFix ();
+
+	pri->mass = cf.ReadFix ();
+	pri->drag = cf.ReadFix ();
 
 	for (j = 0; j < NDL; j++)
-		pri [h].fieldOfView[j] = cf.ReadFix ();
+		pri->fieldOfView[j] = cf.ReadFix ();
 	for (j = 0; j < NDL; j++)
-		pri [h].primaryFiringWait[j] = cf.ReadFix ();
+		pri->primaryFiringWait[j] = cf.ReadFix ();
 	for (j = 0; j < NDL; j++)
-		pri [h].secondaryFiringWait[j] = cf.ReadFix ();
+		pri->secondaryFiringWait[j] = cf.ReadFix ();
 	for (j = 0; j < NDL; j++)
-		pri [h].turnTime[j] = cf.ReadFix ();
+		pri->turnTime[j] = cf.ReadFix ();
 	for (j = 0; j < NDL; j++)
-		pri [h].xMaxSpeed[j] = cf.ReadFix ();
+		pri->xMaxSpeed[j] = cf.ReadFix ();
 	for (j = 0; j < NDL; j++)
-		pri [h].circleDistance[j] = cf.ReadFix ();
-	cf.Read(pri [h].nRapidFireCount, NDL, 1);
-	cf.Read(pri [h].evadeSpeed, NDL, 1);
-	pri [h].cloakType = cf.ReadByte ();
-	pri [h].attackType = cf.ReadByte ();
-	pri [h].seeSound = cf.ReadByte ();
-	pri [h].attackSound = cf.ReadByte ();
-	pri [h].clawSound = cf.ReadByte ();
-	pri [h].tauntSound = cf.ReadByte ();
-	pri [h].bossFlag = cf.ReadByte ();
-	pri [h].companion = cf.ReadByte ();
-	pri [h].smartBlobs = cf.ReadByte ();
-	pri [h].energyBlobs = cf.ReadByte ();
-	pri [h].thief = cf.ReadByte ();
-	pri [h].pursuit = cf.ReadByte ();
-	pri [h].lightcast = cf.ReadByte ();
-	pri [h].bDeathRoll = cf.ReadByte ();
-	pri [h].flags = cf.ReadByte ();
-	cf.Read(pri [h].pad, 3, 1);
-	pri [h].deathrollSound = cf.ReadByte ();
-	pri [h].glow = cf.ReadByte ();
-	pri [h].behavior = cf.ReadByte ();
-	pri [h].aim = cf.ReadByte ();
+		pri->circleDistance[j] = cf.ReadFix ();
+	cf.Read(pri->nRapidFireCount, NDL, 1);
+
+	cf.Read(pri->evadeSpeed, NDL, 1);
+
+	pri->cloakType = cf.ReadByte ();
+	pri->attackType = cf.ReadByte ();
+
+	pri->seeSound = cf.ReadByte ();
+	pri->attackSound = cf.ReadByte ();
+	pri->clawSound = cf.ReadByte ();
+	pri->tauntSound = cf.ReadByte ();
+
+	pri->bossFlag = cf.ReadByte ();
+	pri->companion = cf.ReadByte ();
+	pri->smartBlobs = cf.ReadByte ();
+	pri->energyBlobs = cf.ReadByte ();
+
+	pri->thief = cf.ReadByte ();
+	pri->pursuit = cf.ReadByte ();
+	pri->lightcast = cf.ReadByte ();
+	pri->bDeathRoll = cf.ReadByte ();
+
+	pri->flags = cf.ReadByte ();
+	cf.Read(pri->pad, 3, 1);
+
+	pri->deathrollSound = cf.ReadByte ();
+	pri->glow = cf.ReadByte ();
+	pri->behavior = cf.ReadByte ();
+	pri->aim = cf.ReadByte ();
+
 	for (j = 0; j < MAX_GUNS + 1; j++)
-		ReadJointLists (pri [h].animStates[j], N_ANIM_STATES, cf);
-	pri [h].always_0xabcd = cf.ReadInt ();
+		JointListReadN (pri->animStates[j], N_ANIM_STATES, cf);
+
+	pri->always_0xabcd = cf.ReadInt ();
 	}
 return i;
 }
@@ -292,13 +358,13 @@ return i;
 /*
  * reads n tJointPos structs from a CFile
  */
-int ReadJointPositions (CArray<tJointPos>& jp, int n, CFile& cf, int o)
+int JointPosReadN(tJointPos *jp, int n, CFile& cf)
 {
 	int i;
 
 	for (i = 0; i < n; i++) {
-		jp [i + o].jointnum = cf.ReadShort ();
-		cf.ReadAngVec (jp [i].angles);
+		jp[i].jointnum = cf.ReadShort ();
+		cf.ReadAngVec(jp[i].angles);
 	}
 	return i;
 }

@@ -222,7 +222,7 @@ static int cddb_sum(int n)
 }
 
 
-uint RBAGetDiscID()
+unsigned int RBAGetDiscID()
 {
 	int i, t = 0, n = 0;
 

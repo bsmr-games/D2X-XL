@@ -53,7 +53,7 @@ int ASE_ReleaseTextures (void)
 PrintLog ("releasing ASE model textures\n");
 for (bCustom = 0; bCustom < 2; bCustom++)
 	for (i = gameData.models.nHiresModels, pm = gameData.models.aseModels [bCustom]; i; i--, pm++)
-		pm->textures.Release ();
+		ReleaseModelTextures (&pm->textures);
 return 0;
 }
 
@@ -67,7 +67,7 @@ int ASE_ReloadTextures (void)
 PrintLog ("reloading ASE model textures\n");
 for (bCustom = 0; bCustom < 2; bCustom++)
 	for (i = gameData.models.nHiresModels, pm = gameData.models.aseModels [bCustom]; i; i--, pm++)
-		if (!pm->textures.Read (pm->nType, bCustom)) {
+		if (!ReadModelTextures (&pm->textures, pm->nType, bCustom)) {
 			ASE_FreeModel (pm);
 			return 0;
 			}
@@ -78,34 +78,32 @@ return 1;
 
 int ASE_FreeTextures (tASEModel *pm)
 {
-pm->textures.Destroy ();
+FreeModelTextures (&pm->textures);
 return 0;
 }
 //------------------------------------------------------------------------------
 
 void ASE_FreeSubModel (tASESubModel *psm)
 {
-psm->faces.Destroy ();
-psm->verts.Destroy ();
-psm->texCoord.Destroy ();
+D2_FREE (psm->pFaces);
+D2_FREE (psm->pVerts);
+D2_FREE (psm->pTexCoord);
 }
 
 //------------------------------------------------------------------------------
 
 void ASE_FreeModel (tASEModel *pm)
 {
-#if 1
 	tASESubModelList	*pml, *h;
 
-for (pml = pm->subModels; pml; ) {
+for (pml = pm->pSubModels; pml; ) {
 	ASE_FreeSubModel (&pml->sm);
 	h = pml;
 	pml = pml->pNextModel;
-	delete h;
+	D2_FREE (h);
 	}
 ASE_FreeTextures (pm);
 memset (pm, 0, sizeof (*pm));
-#endif
 }
 
 //------------------------------------------------------------------------------
@@ -145,7 +143,7 @@ static char *StrTok (const char *delims)
 pszToken = strtok (NULL, delims);
 if (!(pszToken && *pszToken))
 	ASE_Error ("missing data");
-return pszToken ? pszToken : reinterpret_cast<char*> ("");
+return pszToken ? pszToken : (char *) "";
 }
 
 //------------------------------------------------------------------------------
@@ -184,32 +182,32 @@ return NULL;
 
 static int ASE_ReadTexture (CFile& cf, tASEModel *pm, int nBitmap, int nType, int bCustom)
 {
-	CBitmap	*bmP = pm->textures.m_bitmaps + nBitmap;
-	char		fn [FILENAME_LEN], *ps;
-	int		l;
+	grsBitmap	*bmP = pm->textures.pBitmaps + nBitmap;
+	char			fn [FILENAME_LEN], *ps;
+	int			l;
 
 if (CharTok (" \t") != '{')
 	return ASE_Error ("syntax error");
-bmP->SetFlat (0);
+bmP->bmFlat = 0;
 while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*BITMAP")) {
-		if (bmP->Buffer ())	//duplicate
+		if (bmP->bmTexBuf)	//duplicate
 			return ASE_Error ("duplicate item");
 		*fn = '\001';
 		CFile::SplitPath (StrTok ("\""), NULL, fn + 1, NULL);
 		if (!ReadModelTGA (strlwr (fn), bmP, nType, bCustom))
 			return ASE_Error ("texture not found");
 		l = (int) strlen (fn) + 1;
-		if (!pm->textures.m_names [nBitmap].Create (l))
+		if (!(pm->textures.pszNames [nBitmap] = (char *) D2_ALLOC (l)))
 			return ASE_Error ("out of memory");
-		memcpy (pm->textures.m_names [nBitmap].Buffer (), fn, l);
+		memcpy (pm->textures.pszNames [nBitmap], fn, l);
 		if ((ps = strstr (fn, "color")))
-			pm->textures.m_nTeam [nBitmap] = atoi (ps + 5) + 1;
+			pm->textures.nTeam [nBitmap] = atoi (ps + 5) + 1;
 		else
-			pm->textures.m_nTeam [nBitmap] = 0;
-		bmP->SetTeam (pm->textures.m_nTeam [nBitmap]);
+			pm->textures.nTeam [nBitmap] = 0;
+		bmP->bmTeam = pm->textures.nTeam [nBitmap];
 		}
 	}
 return ASE_Error ("unexpected end of file");
@@ -219,25 +217,23 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadMaterial (CFile& cf, tASEModel *pm, int nType, int bCustom)
 {
-	int		i;
-	CBitmap	*bmP;
+	int			i;
+	grsBitmap	*bmP;
 
 i = IntTok (" \t");
-if ((i < 0) || (i >= pm->textures.m_nBitmaps))
+if ((i < 0) || (i >= pm->textures.nBitmaps))
 	return ASE_Error ("invalid bitmap number");
 if (CharTok (" \t") != '{')
 	return ASE_Error ("syntax error");
-bmP = pm->textures.m_bitmaps + i;
-bmP->SetFlat (1);
+bmP = pm->textures.pBitmaps + i;
+bmP->bmFlat = 1;
 while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MATERAL_DIFFUSE")) {
-		tRgbColorb	avgRGB;
-		avgRGB.red = (ubyte) (FloatTok (" \t") * 255 + 0.5);
-		avgRGB.green = (ubyte) (FloatTok (" \t") * 255 + 0.5);
-		avgRGB.blue = (ubyte) (FloatTok (" \t") * 255 + 0.5);
-		bmP->SetAvgColor (avgRGB);
+		bmP->bmAvgRGB.red = (ubyte) (FloatTok (" \t") * 255 + 0.5);
+		bmP->bmAvgRGB.green = (ubyte) (FloatTok (" \t") * 255 + 0.5);
+		bmP->bmAvgRGB.blue = (ubyte) (FloatTok (" \t") * 255 + 0.5);
 		}
 	else if (!strcmp (pszToken, "*MAP_DIFFUSE")) {
 		if (!ASE_ReadTexture (cf, pm, i, nType, bCustom))
@@ -257,11 +253,18 @@ if (!(pszToken = ASE_ReadLine (cf)))
 	return ASE_Error ("unexpected end of file");
 if (strcmp (pszToken, "*MATERIAL_COUNT"))
 	return ASE_Error ("material count missing");
-int nBitmaps = IntTok (" \t");
-if (!nBitmaps)
+pm->textures.nBitmaps = IntTok (" \t");
+if (!pm->textures.nBitmaps)
 	return ASE_Error ("no bitmaps specified");
-if (!(pm->textures.Create (nBitmaps)))
+if (!(pm->textures.pBitmaps = (grsBitmap *) D2_ALLOC (pm->textures.nBitmaps * sizeof (grsBitmap))))
 	return ASE_Error ("out of memory");
+if (!(pm->textures.pszNames = (char **) D2_ALLOC (pm->textures.nBitmaps * sizeof (char *))))
+	return ASE_Error ("out of memory");
+if (!(pm->textures.nTeam = (ubyte *) D2_ALLOC (pm->textures.nBitmaps * sizeof (ubyte))))
+	return ASE_Error ("out of memory");
+memset (pm->textures.pBitmaps, 0, pm->textures.nBitmaps * sizeof (grsBitmap));
+memset (pm->textures.pszNames, 0, pm->textures.nBitmaps * sizeof (char *));
+memset (pm->textures.nTeam, 0, pm->textures.nBitmaps * sizeof (ubyte));
 while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
@@ -277,7 +280,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadNode (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	int				i;
 
 if (CharTok (" \t") != '{')
@@ -297,7 +300,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadMeshVertexList (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	tASEVertex		*pv;
 	int				i;
 
@@ -307,12 +310,12 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_VERTEX")) {
-		if (!psm->verts)
+		if (!psm->pVerts)
 			return ASE_Error ("no vertices found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nVerts))
 			return ASE_Error ("invalid vertex number");
-		pv = psm->verts + i;
+		pv = psm->pVerts + i;
 		ASE_ReadVector (cf, &pv->vertex);
 		}	
 	}
@@ -323,7 +326,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadMeshFaceList (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	tASEFace			*pf;
 	int				i;
 
@@ -333,12 +336,12 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_FACE")) {
-		if (!psm->faces)
+		if (!psm->pFaces)
 			return ASE_Error ("no faces found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nFaces))
 			return ASE_Error ("invalid face number");
-		pf = psm->faces + i;
+		pf = psm->pFaces + i;
 		for (i = 0; i < 3; i++) {
 			strtok (NULL, " :\t");
 			pf->nVerts [i] = IntTok (" :\t");
@@ -358,7 +361,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadVertexTexCoord (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	tTexCoord2f		*pt;
 	int				i;
 
@@ -368,12 +371,12 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_TVERT")) {
-		if (!psm->texCoord)
+		if (!psm->pTexCoord)
 			return ASE_Error ("no texture coordinates found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nTexCoord))
 			return ASE_Error ("invalid texture coordinate number");
-		pt = psm->texCoord + i;
+		pt = psm->pTexCoord + i;
 #if ASE_FLIP_TEXCOORD
 		pt->v.u = FloatTok (" \t");
 		pt->v.v = -FloatTok (" \t");
@@ -390,7 +393,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadFaceTexCoord (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	tASEFace			*pf;
 	int				i;
 
@@ -400,12 +403,12 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_TFACE")) {
-		if (!psm->faces)
+		if (!psm->pFaces)
 			return ASE_Error ("no faces found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nFaces))
 			return ASE_Error ("invalid face number");
-		pf = psm->faces + i;
+		pf = psm->pFaces + i;
 		for (i = 0; i < 3; i++)
 			pf->nTexCoord [i] = IntTok (" \t");
 		}	
@@ -417,7 +420,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadMeshNormals (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 	tASEFace			*pf;
 	tASEVertex		*pv;
 	int				i;
@@ -428,21 +431,21 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_FACENORMAL")) {
-		if (!psm->faces)
+		if (!psm->pFaces)
 			return ASE_Error ("no faces found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nFaces))
 			return ASE_Error ("invalid face number");
-		pf = psm->faces + i;
+		pf = psm->pFaces + i;
 		ASE_ReadVector (cf, &pf->vNormal);
 		}
 	else if (!strcmp (pszToken, "*MESH_VERTEXNORMAL")) {
-		if (!psm->verts)
+		if (!psm->pVerts)
 			return ASE_Error ("no vertices found");
 		i = IntTok (" \t");
 		if ((i < 0) || (i >= psm->nVerts))
 			return ASE_Error ("invalid vertex number");
-		pv = psm->verts + i;
+		pv = psm->pVerts + i;
 		ASE_ReadVector (cf, &pv->normal);
 		}
 	}
@@ -453,7 +456,7 @@ return ASE_Error ("unexpected end of file");
 
 static int ASE_ReadMesh (CFile& cf, tASEModel *pm)
 {
-	tASESubModel	*psm = &pm->subModels->sm;
+	tASESubModel	*psm = &pm->pSubModels->sm;
 
 if (CharTok (" \t") != '{')
 	return ASE_Error ("syntax error");
@@ -461,35 +464,35 @@ while ((pszToken = ASE_ReadLine (cf))) {
 	if (*pszToken == '}')
 		return 1;
 	if (!strcmp (pszToken, "*MESH_NUMVERTEX")) {
-		if (psm->verts.Buffer ())
+		if (psm->pVerts)
 			return ASE_Error ("duplicate vertex list");
 		psm->nVerts = IntTok (" \t");
 		if (!psm->nVerts)
 			return ASE_Error ("no vertices found");
 		pm->nVerts += psm->nVerts;
-		if (!(psm->verts.Create (psm->nVerts)))
+		if (!(psm->pVerts = (tASEVertex *) D2_ALLOC (psm->nVerts * sizeof (tASEVertex))))
 			return ASE_Error ("out of memory");
-		psm->verts.Clear ();
+		memset (psm->pVerts, 0, psm->nVerts * sizeof (tASEVertex));
 		}
 	else if (!strcmp (pszToken, "*MESH_NUMTVERTEX")) {
-		if (psm->texCoord.Buffer ())
+		if (psm->pTexCoord)
 			return ASE_Error ("no texture coordinates found");
 		psm->nTexCoord = IntTok (" \t");
 		if (psm->nTexCoord) {
-			if (!(psm->texCoord.Create (psm->nTexCoord)))
+			if (!(psm->pTexCoord = (tTexCoord2f *) D2_ALLOC (psm->nTexCoord * sizeof (tTexCoord2f))))
 				return ASE_Error ("out of memory");
 			}
 		}
 	else if (!strcmp (pszToken, "*MESH_NUMFACES")) {
-		if (psm->faces.Buffer ())
+		if (psm->pFaces)
 			return ASE_Error ("no faces found");
 		psm->nFaces = IntTok (" \t");
 		if (!psm->nFaces)
 			return ASE_Error ("no faces specified");
 		pm->nFaces += psm->nFaces;
-		if (!(psm->faces.Create (psm->nFaces)))
+		if (!(psm->pFaces = (tASEFace *) D2_ALLOC (psm->nFaces * sizeof (tASEFace))))
 			return ASE_Error ("out of memory");
-		psm->faces.Clear ();
+		memset (psm->pFaces, 0, psm->nFaces * sizeof (tASEFace));
 		}
 	else if (!strcmp (pszToken, "*MESH_VERTEX_LIST")) {
 		if (!ASE_ReadMeshVertexList (cf, pm))
@@ -524,12 +527,12 @@ static int ASE_ReadSubModel (CFile& cf, tASEModel *pm)
 
 if (CharTok (" \t") != '{')
 	return ASE_Error ("syntax error");
-if (!(pml = new tASESubModelList))
+if (!(pml = (tASESubModelList *) D2_ALLOC (sizeof (tASESubModelList))))
 	return ASE_Error ("out of memory");
 memset (pml, 0, sizeof (*pml));
-pml->pNextModel = pm->subModels;
-pm->subModels = pml;
-psm = &pm->subModels->sm;
+pml->pNextModel = pm->pSubModels;
+pm->pSubModels = pml;
+psm = &pm->pSubModels->sm;
 psm->nId = pm->nSubModels++;
 psm->nBomb = -1;
 psm->nMissile = -1;
@@ -614,7 +617,7 @@ int ASE_FindSubModel (tASEModel *pm, char *pszName)
 {
 	tASESubModelList	*pml;
 
-for (pml = pm->subModels; pml; pml = pml->pNextModel)
+for (pml = pm->pSubModels; pml; pml = pml->pNextModel)
 	if (!strcmp (pml->sm.szName, pszName))
 		return pml->sm.nId;
 return -1;
@@ -626,7 +629,7 @@ void ASE_LinkSubModels (tASEModel *pm)
 {
 	tASESubModelList	*pml;
 
-for (pml = pm->subModels; pml; pml = pml->pNextModel)
+for (pml = pm->pSubModels; pml; pml = pml->pNextModel)
 	pml->sm.nParent = ASE_FindSubModel (pm, pml->sm.szParent);
 }
 

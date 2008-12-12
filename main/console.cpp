@@ -42,7 +42,7 @@ cvar_t *cvar_vars = NULL;
 
 /* Console specific cvars */
 /* How discriminating we are about which messages are displayed */
-cvar_t con_threshold = {"con_threshold", reinterpret_cast<char*> ("0"),};
+cvar_t con_threshold = {"con_threshold", (char *) "0",};
 
 /* Private console stuff */
 #define CON_NUM_LINES 400
@@ -98,20 +98,22 @@ int con_init(void)
 
 void con_background (const char *filename)
 {
-	int		pcx_error;
-	CBitmap	bm;
+	int pcx_error;
+	grsBitmap bmp;
 
-pcx_error = PCXReadBitmap (filename, &bm, BM_LINEAR, 0);
-Assert(pcx_error == PCX_ERROR_NONE);
-bm.Remap (NULL, -1, -1);
-CON_Background (Console, &bm);
+	GrInitBitmapData(&bmp);
+	pcx_error = PCXReadBitmap(filename, &bmp, BM_LINEAR, 0);
+	Assert(pcx_error == PCX_ERROR_NONE);
+	GrRemapBitmapGood(&bmp, NULL, -1, -1);
+	CON_Background (Console, &bmp);
+	GrFreeBitmapData (&bmp);
 }
 
 //------------------------------------------------------------------------------
 
 void con_init_real(void)
 {
-	Console = CON_Init(SMALL_FONT, &screen, CON_NUM_LINES, 0, 0, SWIDTH, SHEIGHT / 2);
+	Console = CON_Init(SMALL_FONT, grdCurScreen, CON_NUM_LINES, 0, 0, SWIDTH, SHEIGHT / 2);
 
 	Assert(Console);
 	CON_SetExecuteFunction(Console, con_parse);
@@ -226,7 +228,7 @@ void cvar_registervariable (cvar_t *cvar)
 	Assert(cvar != NULL);
 
 	cvar->next = NULL;
-	cvar->value = cvar->string ? strtod(cvar->string, reinterpret_cast<char **> (NULL)) : 0;
+	cvar->value = cvar->string ? strtod(cvar->string, (char **) NULL) : 0;
 
 	if (cvar_vars == NULL)
 	{
@@ -251,7 +253,7 @@ void cvar_set (const char *cvar_name, char *value)
 
 	if (ptr == NULL) return; // If we didn't find the cvar, give up
 
-	ptr->value = strtod(value, reinterpret_cast<char **> (NULL));
+	ptr->value = strtod(value, (char **) NULL);
 }
 
 /* ======
