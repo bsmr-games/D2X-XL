@@ -1,7 +1,6 @@
-#!/usr/bin/perl
 # Author: Sebastian "VEX-Munk" Starosielec © 2005
 # Contact: sebastian.starosielec@ruhr-uni-bochum.de
-# License: GNU Public License 
+# License: GNU Public License #!/usr/bin/perl
 # Server Program
 use IO::Socket::INET;
 use Data::Dumper;
@@ -14,7 +13,7 @@ $TIMEOUT = 30;
 $LISTENPORT = 9424;
 
 # Create a new socket
-$InSocket = new IO::Socket::INET->new(LocalPort=>$LISTENPORT,Proto=>'udp') or die "Can't bind : $@\n";
+$InSocket = new IO::Socket::INET->new(LocalPort=>$LISTENPORT,Proto=>'udp');
 print ">> Server Program <<\n";
 %Tracker=();
 

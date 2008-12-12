@@ -19,7 +19,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "console.h"
 
 static 
-#ifdef _MSC_VER
+#ifdef _WIN32
 _inline
 #else
 inline
@@ -32,7 +32,7 @@ void _CDECL_ _do_mprintf(int n, char *fmt, ...)
 	va_start (arglist, fmt);
 	vsprintf (buffer, fmt, arglist);
 	va_end (arglist);
-
+	
 	con_printf (CONDBG, buffer);
 }
 

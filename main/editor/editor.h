@@ -21,7 +21,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
  *
  * $Log: editor.h,v $
  * Revision 1.2  2001/10/25 02:19:32  bradleyb
- * conditionalize including multi[HA] and network.h, fix backslashes, fix compiler errors with EDITOR
+ * conditionalize including multi.h and network.h, fix backslashes, fix compiler errors with EDITOR
  *
  *
  */
@@ -89,12 +89,12 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define FVIEW_H	SMALLVIEW_H
 
 #define RVIEW_X	(TVIEW_X+SMALLVIEW_W+2)	//right view
-#define RVIEW_Y	FVIEW_Y
+#define RVIEW_Y	FVIEW_Y	
 #define RVIEW_W	SMALLVIEW_W
 #define RVIEW_H	SMALLVIEW_H
 
 #define GVIEW_X	RVIEW_X						//group view
-#define GVIEW_Y	TVIEW_Y
+#define GVIEW_Y	TVIEW_Y	
 #define GVIEW_W	SMALLVIEW_W
 #define GVIEW_H	SMALLVIEW_H
 
@@ -102,7 +102,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #define	SEGMOVE_PAD_ID		0
 #define	SEGSIZE_PAD_ID		1
-#define	CURVE_PAD_ID		2
+#define	CURVE_PAD_ID		2	
 #define	TEXTURE_PAD_ID		3
 #define	OBJECT_PAD_ID		4
 #define	OBJMOV_PAD_ID		5
@@ -150,7 +150,7 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 typedef struct editorView {
 	short ev_num;				//each view has it's own number
 	short ev_changed;			//set to true if view changed
-	CCanvas *ev_canv;		//points to this window's canvas
+	grs_canvas *ev_canv;		//points to this window's canvas
 	fix evDist;				//the distance from the view point
 	vmsMatrix ev_matrix;	//the view matrix
 	fix ev_zoom;				//zoom for this window
@@ -163,7 +163,7 @@ typedef struct editorView {
 
 extern editorView *Views[];
 extern int NViews;
-extern CCanvas *canv_offscreen;		//for off-screen rendering
+extern grs_canvas *canv_offscreen;		//for off-screen rendering
 extern int LargeView_index;
 extern UI_GADGET_USERBOX * LargeViewBox;
 extern int Found_seg_index;				// Index in Found_segs corresponding to Cursegp
@@ -185,7 +185,7 @@ extern	tSegment	*Markedsegp;			// Marked tSegment, used in conjunction with *Cur
 extern	int		Markedside;				// Marked tSide on Markedsegp.
 extern	byte		Vertex_active[MAX_VERTICES];	// !0 means vertex is in use, 0 means not in use.
 
-extern	CCanvas *Pad_text_canvas;		// Keypad text
+extern	grs_canvas *Pad_text_canvas;		// Keypad text
 
 // The extra group in the following arrays is used for group rotation.
 extern 	group		GroupList[MAX_GROUPS+1];
@@ -618,14 +618,14 @@ extern int render_3d_in_big_window;
 extern void moveObject_to_mouse_click(void);
 
 //these are instances of canvases, pointed to by variables below
-extern CCanvas _canv_editor_game;		//the game on the editor screen
+extern grs_canvas _canv_editor_game;		//the game on the editor screen
 
 //these are pointers to our canvases
-extern CCanvas *Canv_editor;			//the editor screen
-extern CCanvas *Canv_editor_game; //the game on the editor screen
+extern grs_canvas *Canv_editor;			//the editor screen
+extern grs_canvas *Canv_editor_game; //the game on the editor screen
 
-extern CCanvas *canv_offscreen;		//for off-screen rendering
-extern CCanvas *Pad_text_canvas;		// Keypad text
+extern grs_canvas *canv_offscreen;		//for off-screen rendering
+extern grs_canvas *Pad_text_canvas;		// Keypad text
 
 //where the editor is looking
 extern vmsVector EdView_target;
@@ -640,7 +640,7 @@ extern UI_GADGET_USERBOX * GameViewBox;
 extern UI_GADGET_USERBOX * LargeViewBox;
 extern UI_GADGET_USERBOX * GroupViewBox;
 
-extern void med_point_2_vec(CCanvas *canv,vmsVector *v,short sx,short sy);
+extern void med_point_2_vec(grs_canvas *canv,vmsVector *v,short sx,short sy);
 
 //shutdown ui on the editor screen
 void close_editor_screen(void);

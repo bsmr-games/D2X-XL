@@ -180,7 +180,7 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "fuelcen.h"
 #include "cntrlcen.h"
 #include "seguvs.h"
-#include "loadgame.h"
+#include "gameseq.h"
 
 #include "medwall.h"
 #include "hostage.h"
@@ -387,7 +387,7 @@ int ToggleBottom(void)
 	UpdateFlags = UF_WORLD_CHANGED;
 	return 0;
 }
-	
+		
 // ---------------------------------------------------------------------------------------------
 //           ---------- Segment interrogation functions ----------
 // ----------------------------------------------------------------------------
@@ -564,7 +564,7 @@ int med_create_duplicate_segment(tSegment *sp)
 
 	nSegment = get_free_segment_number();
 
-	gameData.segs.segments[nSegment] = *sp;
+	gameData.segs.segments[nSegment] = *sp;	
 
 	return nSegment;
 }
@@ -640,25 +640,25 @@ int check_for_degenerate_side(tSegment *sp, int nSide)
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[1]]], &gameData.segs.vertices[sp->verts[vp[0]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[1]]], &gameData.segs.vertices[sp->verts[(int) vp[0]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
 		degeneracyFlag |= 1;
 
 	//VmVecSub(&vec1, &gameData.segs.vertices[sp->verts[vp[2]]], &gameData.segs.vertices[sp->verts[vp[1]]]);
 	//VmVecSub(&vec2, &gameData.segs.vertices[sp->verts[vp[3]]], &gameData.segs.vertices[sp->verts[vp[2]]]);
-	//vmsVector::normalize(&vec1);
-	//vmsVector::normalize(&vec2);
+	//VmVecNormalize(&vec1);
+	//VmVecNormalize(&vec2);
         VmVecNormalizedDir(&vec1, &gameData.segs.vertices[sp->verts[(int) vp[2]]], &gameData.segs.vertices[sp->verts[(int) vp[1]]]);
         VmVecNormalizedDir(&vec2, &gameData.segs.vertices[sp->verts[(int) vp[3]]], &gameData.segs.vertices[sp->verts[(int) vp[2]]]);
 	VmVecCross(&cross, &vec1, &vec2);
 
-	dot = vmsVector::dot(vec_to_center, cross);
+	dot = VmVecDot(&vec_to_center, &cross);
 	if (dot <= 0)
 		degeneracyFlag |= 1;
 
@@ -690,12 +690,12 @@ int check_for_degenerate_segment(tSegment *sp)
 	extract_right_vector_from_segment(sp, &rVec);
 	extract_up_vector_from_segment(sp, &uVec);
 
-	vmsVector::normalize(&fVec);
-	vmsVector::normalize(&rVec);
-	vmsVector::normalize(&uVec);
+	VmVecNormalize(&fVec);
+	VmVecNormalize(&rVec);
+	VmVecNormalize(&uVec);
 
 	VmVecCross(&cross, &fVec, &rVec);
-	dot = vmsVector::dot(cross, uVec);
+	dot = VmVecDot(&cross, &uVec);
 
 	if (dot > 0)
 		degeneracyFlag = 0;
@@ -738,9 +738,9 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	tmat = *smat;
 
 	// Normalize the three rows of the matrix tmat.
-	vmsVector::normalize(&tmat.xrow);
-	vmsVector::normalize(&tmat.yrow);
-	vmsVector::normalize(&tmat.zrow);
+	VmVecNormalize(&tmat.xrow);
+	VmVecNormalize(&tmat.yrow);
+	VmVecNormalize(&tmat.zrow);
 
 	//	Now, compute the first vector.
 	// This is very easy -- just copy the (normalized) source vector.
@@ -754,7 +754,7 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				b' = the second row of rmat
 
 	// Compute: transpose(q1) * b
-	dot = fVector::dotProd(&rmat->zrow,&tmat.yrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.yrow);
 
 	// Compute: b - dot * q1
 	rmat->yrow.x = tmat.yrow.x - FixMul(dot,rmat->zrow.x);
@@ -770,14 +770,14 @@ void make_orthogonal(vmsMatrix *rmat,vmsMatrix *smat)
 	//				c' = the third row of rmat
 
 	// Compute: q1*c
-	dot = fVector::dotProd(&rmat->zrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->zrow,&tmat.xrow);
 
 	tvec1.x = FixMul(dot,rmat->zrow.x);
 	tvec1.y = FixMul(dot,rmat->zrow.y);
 	tvec1.z = FixMul(dot,rmat->zrow.z);
 
 	// Compute: q2*c
-	dot = fVector::dotProd(&rmat->yrow,&tmat.xrow);
+	dot = VmVecDotProd(&rmat->yrow,&tmat.xrow);
 
 	tvec2.x = FixMul(dot,rmat->yrow.x);
 	tvec2.y = FixMul(dot,rmat->yrow.y);
@@ -818,15 +818,15 @@ void med_extract_matrix_from_segment(tSegment *sp,vmsMatrix *rotmat)
 	extract_right_vector_from_segment(sp,&rm.xrow);
 	extract_up_vector_from_segment(sp,&rm.yrow);
 
-	vmsVector::normalize(&rm.xrow);
-	vmsVector::normalize(&rm.yrow);
-	vmsVector::normalize(&rm.zrow);
+	VmVecNormalize(&rm.xrow);
+	VmVecNormalize(&rm.yrow);
+	VmVecNormalize(&rm.zrow);
 
 	make_orthogonal(rotmat,&rm);
 
-	vmsVector::normalize(&rotmat->xrow);
-	vmsVector::normalize(&rotmat->yrow);
-	vmsVector::normalize(&rotmat->zrow);
+	VmVecNormalize(&rotmat->xrow);
+	VmVecNormalize(&rotmat->yrow);
+	VmVecNormalize(&rotmat->zrow);
 
 // *rotmat = rm; // include this line (and remove the call to make_orthogonal) if you don't want the matrix orthogonalized
 #endif
@@ -923,7 +923,7 @@ void compress_vertices(void)
 				// Ok, hole is the index of a hole, vert is the index of a vertex which follows it.
 				// Copy vert into hole, update pointers to it.
 				gameData.segs.vertices[hole] = gameData.segs.vertices[vert];
-			
+				
 				change_vertex_occurrences(hole, vert);
 
 				vert--;
@@ -1128,7 +1128,7 @@ int med_attach_segment_rotated(tSegment *destseg, tSegment *newseg, int destside
 	// clear all connections
 	for (tSide=0; tSide<MAX_SIDES_PER_SEGMENT; tSide++) {
 		nsp->children[tSide] = -1;
-		nsp->sides[tSide].nWall = NO_WALL;
+		nsp->sides[tSide].nWall = NO_WALL;	
 	}
 
 	// Form the connection
@@ -1376,7 +1376,7 @@ int med_delete_segment(tSegment *sp)
 	// If deleted tSegment = marked tSegment, then say there is no marked tSegment
 	if (sp == Markedsegp)
 		Markedsegp = 0;
-
+	
 	//	If deleted tSegment = a Group tSegment ptr, then wipe it out.
 	for (s=0;s<num_groups;s++) 
 		if (sp == Groupsegp[s]) 
@@ -1472,7 +1472,7 @@ int med_rotate_segment(tSegment *seg, vmsMatrix *rotmat)
 	destside = 0;
 	while ((destseg->children[destside] != SEG_IDX (seg)) && (destside < MAX_SIDES_PER_SEGMENT))
 		destside++;
-	
+		
 	// Before deleting the tSegment, copy its texture maps to New_segment
 	copy_tmaps_to_segment(&New_segment,seg);
 
@@ -1963,8 +1963,8 @@ int create_new_mine(void)
 	Markedsegp = 0;		// Say there is no marked tSegment.
 	Markedside = WBACK;	//	Shouldn't matter since Markedsegp == 0, but just in case...
 	for (s=0;s<MAX_GROUPS+1;s++) {
-		GroupList[s].num_segments = 0;	
-		GroupList[s].num_vertices = 0;	
+		GroupList[s].num_segments = 0;		
+		GroupList[s].num_vertices = 0;		
 		Groupsegp[s] = NULL;
 		Groupside[s] = 0;
 	}
@@ -2054,9 +2054,9 @@ int check_seg_concavity(tSegment *s)
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+1)%4]]],
 				&gameData.segs.vertices[s->verts[sideToVerts[sn][(vn+2)%4]]]);
 
-			//vmsVector::normalize(&n1);
+			//VmVecNormalize(&n1);
 
-			if (vn>0) if (fVector::dotProd(&n0,&n1) < f0_5) return 1;
+			if (vn>0) if (VmVecDotProd(&n0,&n1) < f0_5) return 1;
 
 			n0 = n1;
 		}
@@ -2076,7 +2076,7 @@ void find_concave_segs()
 
 	for (s=gameData.segs.segments,i=gameData.segs.nLastSegment;i>=0;s++,i--)
 		if (s->nSegment != -1)
-			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_IDX(s);
+			if (check_seg_concavity(s)) Warning_segs[N_warning_segs++]=SEG_PTR_2_NUM(s);
 
 
 }
@@ -2202,7 +2202,7 @@ int med_find_closest_threshold_segment_side(tSegment *sp, int tSide, tSegment **
 						closest_segDist = currentDist;
 					}
 				}
-			}
+			}	
 
 	if (closest_segDist < threshold)
 		return 1;
@@ -2225,7 +2225,7 @@ void med_check_all_vertices()
 		if (sp->nSegment != -1)
 			for (v=0; v<MAX_VERTICES_PER_SEGMENT; v++)
 				Assert(sp->verts[v] <= gameData.segs.nLastVertex);
-				
+					
 	}
 
 }
@@ -2234,16 +2234,14 @@ void med_check_all_vertices()
 void check_for_overlapping_segment(int nSegment)
 {
 	int	i, v;
-	tSegMasks	masks;
+	segmasks	masks;
 	vmsVector	segcenter;
 
 	COMPUTE_SEGMENT_CENTER(&segcenter, &gameData.segs.segments[nSegment]);
 
 	for (i=0;i<=gameData.segs.nLastSegment; i++) {
 		if (i != nSegment) {
-			do {
-				masks = GetSegMasks(&segcenter, i, 0);
-				} while (!masks.valid);
+			masks = GetSegMasks(&segcenter, i, 0);
 			if (masks.centerMask == 0) {
 #if TRACE
 				con_printf (CONDBG, "Segment %i center is contained in tSegment %i\n", nSegment, i);
@@ -2256,9 +2254,7 @@ void check_for_overlapping_segment(int nSegment)
 
 				VmVecSub(&pdel, &gameData.segs.vertices[gameData.segs.segments[nSegment].verts[v]], &segcenter);
 				VmVecScaleAdd(&presult, &segcenter, &pdel, (F1_0*15)/16);
-				do {
-					masks = GetSegMasks(&presult, i, 0);
-					} while (!masks.valid);
+				masks = GetSegMasks(&presult, i, 0);
 				if (masks.centerMask == 0) {
 #if TRACE
 					con_printf (CONDBG, "Segment %i near vertex %i is contained in tSegment %i\n", nSegment, v, i);

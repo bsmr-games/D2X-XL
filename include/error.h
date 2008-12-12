@@ -1,3 +1,4 @@
+/* $Id: error.h,v 1.10 2003/11/26 12:26:28 btb Exp $ */
 /*
 THE COMPUTER CODE CONTAINED HEREIN IS THE SOLE PROPERTY OF PARALLAX
 SOFTWARE CORPORATION ("PARALLAX").  PARALLAX, IN DISTRIBUTING THE CODE TO
@@ -16,7 +17,6 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 
 #include <stdio.h>
 #include "pstypes.h"
-#include "gr.h"
 
 #ifdef __GNUC__
 #define __noreturn __attribute__ ((noreturn))
@@ -26,63 +26,103 @@ COPYRIGHT 1993-1998 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #define __format
 #endif
 
-int _CDECL_ error_init(void (*func)(const char *), const char *fmt,...);    //init error system, set default message, returns 0=ok
-void _CDECL_ set_exit_message(const char *fmt,...);	//specify message to print at exit
-void _CDECL_ Warning(const char *fmt,...);				//print out warning message to user
-void SetWarnFunc(void (*f)(const char *s));//specifies the function to call with warning messages
-void ClearWarnFunc(void (*f)(const char *s));//say this function no longer valid
-void _Assert(int expr, const char *expr_text, const char *filename, int linenum);
-#if DBG
-void _CDECL_ Error(const char *fmt,...);				//exit with error code=1, print message
-#else
-void _CDECL_ Error(const char *fmt,...) __noreturn __format;				//exit with error code=1, print message
-#endif
+int _CDECL_ error_init(void (*func)(char *), char *fmt,...);    //init error system, set default message, returns 0=ok
+void _CDECL_ set_exit_message(char *fmt,...);	//specify message to print at exit
+void _CDECL_ Warning(char *fmt,...);				//print out warning message to user
+void SetWarnFunc(void (*f)(char *s));//specifies the function to call with warning messages
+void ClearWarnFunc(void (*f)(char *s));//say this function no longer valid
+void _Assert(int expr,char *expr_text,char *filename,int linenum);	//assert func
+void _CDECL_ Error(char *fmt,...) __noreturn __format;				//exit with error code=1, print message
 void Assert(int expr);
-void _CDECL_ PrintLog (const char *fmt, ...);
+void _CDECL_ LogErr (char *fmt, ...);
 void Int3();
+#ifndef NDEBUG		//macros for debugging
 
-#if 1//def _DEBUG
+#ifdef NO_ASM
+//# define Int3() Error("int 3 %s:%i\n",__FILE__,__LINE__);
+//# define Int3() {volatile int a=0,b=1/a;}
+# define Int3() ((void)0)
 
-extern short nDbgSeg, nDbgSide, nDbgFace, nDbgObj, nDbgObjType, nDbgObjId, nDbgModel;
-extern int nDbgVertex, nDbgBaseTex, nDbgOvlTex;
+#else // NO_ASM
 
+#ifdef __GNUC__
+#ifdef SDL_INPUT
+#ifdef __macosx__
+# include <SDL/SDL.h>
+#else
+# include <SDL.h>
 #endif
+#endif
+#include "args.h"
+static inline void _Int3()
+{
+	if (FindArg("-debug")) {
+#ifdef SDL_INPUT
+		SDL_WM_GrabInput(SDL_GRAB_OFF);
+#endif
+		asm("int $3");
+	}
+}
+#define Int3() _Int3()
 
-#if DBG
+#elif defined __WATCOMC__
+void Int3(void);								      //generate int3
+#pragma aux Int3 = "int 3h";
 
-int TrapSeg (short nSegment);
-int TrapSegSide (short nSegment, short nSide);
-int TrapVert (int nVertex);
-int TrapTex (int nBaseTex, int nOvlTex);
-int TrapBmp (CBitmap *bmP, char *pszName);
+#elif defined _MSC_VER
+static __inline void _Int3()
+{
+	__asm { int 3 }
+}
+#define Int3() _Int3()
 
 #else
-
-#define TrapSeg (short nSegment)
-#define TrapSegSide (short nSegment, short nSide)
-#define TrapVert (int nVertex)
-#define TrapTex (int nBaseTex, int nOvlTex)
-#define TrapBmp (CBitmap *bmP, char *pszName)
-
+#error Unknown Compiler!
 #endif
 
+#endif // NO_ASM
 
-#if DBG		//macros for debugging
+#define Assert(expr) ((expr)?(void)0:(void)_Assert(0,#expr,__FILE__,__LINE__))
 
-#	define Int3() ((void)0)
-#	define Assert(expr) ((expr)?(void)0:(void)_Assert(0,#expr,__FILE__,__LINE__))
+#ifdef __GNUC__
+//#define Error(format, args...) ({ /*Int3();*/ Error(format , ## args); })
+#elif defined __WATCOMC__
+//make error do int3, then call func
+#pragma aux Error aborts = \
+	"int	3"	\
+	"jmp Error";
 
+//#pragma aux Error aborts;
 #else
+// DPH: I'm not going to bother... it's not needed... :-)
+#endif
 
-#	define Int3()
-#	define Assert(expr)
+#ifdef __WATCOMC__
+//make assert do int3 (if expr false), then call func
+#pragma aux _Assert parm [eax] [edx] [ebx] [ecx] = \
+	"test eax,eax"		\
+	"jnz	no_int3"		\
+	"int	3"				\
+	"no_int3:"			\
+	"call _Assert";
+#endif
 
+#else					//macros for real game
+
+#ifdef __WATCOMC__
+#pragma aux Error aborts;
+#endif
+//Changed Assert and Int3 because I couldn't get the macros to compile -KRB
+#define Assert(__ignore) ((void)0)
+//void Assert(int expr);
+#define Int3() ((void)0)
+//void Int3();
 #endif
 
 extern FILE *fErr;
 
 #ifdef _WIN32
-#	if DBG
+#	ifdef _DEBUG
 #		define	CBP(_cond)	if (_cond) _asm int 3;
 #	else
 #		define	CBP(_cond)
